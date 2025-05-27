@@ -29,6 +29,7 @@ use r2r_rcl::*;
 
 use std::{borrow::Cow, ffi::CStr};
 
+use prost_derive::Message;
 use std::slice;
 
 // Copied from bindgen.
@@ -163,7 +164,7 @@ pub fn generate_rust_service(
     );
 
     quote!(
-        #[derive(Clone,Debug,PartialEq,Serialize,Deserialize)]
+        #[derive(Clone,Debug,PartialEq,Serialize,Deserialize,Message)]
         pub struct Service();
         impl WrappedServiceTypeSupport for Service {
             type Request = Request;
@@ -190,7 +191,7 @@ pub fn generate_rust_action(module_: &str, prefix_: &str, name_: &str) -> proc_m
     );
 
     quote! {
-        #[derive(Clone,Debug,PartialEq,Serialize,Deserialize)]
+        #[derive(Clone,Debug,PartialEq,Serialize,Deserialize,Message)]
         pub struct Action();
         impl WrappedActionTypeSupport for Action {
             type Goal = Goal;
@@ -731,7 +732,7 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
     };
 
     quote! {
-        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize,Message)]
         #[serde(default)]
         pub struct #name {
             #fields

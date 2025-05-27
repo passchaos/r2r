@@ -30,6 +30,7 @@ rayon = "1.7.0"
 itertools = "0.10.5"
 force-send-sync = "1.0.0"
 proc-macro2 = "1.0.60"
+prost-derive = "0.13.5"
 
 [features]
 save-bindgen = ["r2r_rcl/save-bindgen"]
