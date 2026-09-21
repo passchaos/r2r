@@ -36,6 +36,7 @@ pub trait ActionServer_ {
     fn cancel_goal(&mut self, uuid: &uuid::Uuid);
     fn is_cancelling(&self, uuid: &uuid::Uuid) -> Result<bool>;
     fn add_goal_handle(&mut self, uuid: uuid::Uuid, goal_handle: *mut rcl_action_goal_handle_t);
+    fn forget_cancel_sender(&mut self, uuid: &uuid::Uuid);
     fn destroy(&mut self, node: &mut rcl_node_t);
 }
 
@@ -102,7 +103,19 @@ where
         let goal_handle: *mut rcl_action_goal_handle_t =
             unsafe { rcl_action_accept_new_goal(server.handle_mut(), &*native_goal_info) };
         if goal_handle.is_null() {
+            server.forget_cancel_sender(&self.uuid);
             return Err(Error::RCL_RET_ACTION_GOAL_HANDLE_INVALID);
+        }
+
+        let ret = unsafe {
+            rcl_action_update_goal_state(goal_handle, rcl_action_goal_event_t::GOAL_EVENT_EXECUTE)
+        };
+        if ret != RCL_RET_OK as i32 {
+            unsafe {
+                rcl_action_goal_handle_fini(goal_handle);
+            }
+            server.forget_cancel_sender(&self.uuid);
+            return Err(Error::from_rcl_error(ret));
         }
 
         // send response
@@ -122,16 +135,7 @@ where
             unsafe {
                 rcl_action_goal_handle_fini(goal_handle);
             }
-            return Err(Error::from_rcl_error(ret));
-        }
-
-        let ret = unsafe {
-            rcl_action_update_goal_state(goal_handle, rcl_action_goal_event_t::GOAL_EVENT_EXECUTE)
-        };
-        if ret != RCL_RET_OK as i32 {
-            unsafe {
-                rcl_action_goal_handle_fini(goal_handle);
-            }
+            server.forget_cancel_sender(&self.uuid);
             return Err(Error::from_rcl_error(ret));
         }
 
@@ -170,6 +174,7 @@ where
                 response_msg.void_ptr_mut(),
             )
         };
+        server.forget_cancel_sender(&self.uuid);
         if ret != RCL_RET_OK as i32 {
             return Err(Error::from_rcl_error(ret));
         }
@@ -546,6 +551,10 @@ where
 
     fn add_goal_handle(&mut self, uuid: uuid::Uuid, goal_handle: *mut rcl_action_goal_handle_t) {
         self.goals.insert(uuid, goal_handle);
+    }
+
+    fn forget_cancel_sender(&mut self, uuid: &uuid::Uuid) {
+        self.cancel_senders.remove(uuid);
     }
 
     // bit of a hack...
