@@ -15,6 +15,9 @@ fn run_bindgen() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let target_file = out_dir.join("rcl_bindings.rs");
     let saved_file = manifest_dir.join("bindings").join("rcl_bindings.rs");
+    if cfg!(feature = "doc-only") {
+        println!("cargo:rerun-if-changed={}", saved_file.display());
+    }
 
     // Use saved bindings file if "docs-only" feature is enabled.
     let src_file = if cfg!(feature = "doc-only") {

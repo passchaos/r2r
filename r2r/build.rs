@@ -59,6 +59,7 @@ fn main() {
 
     #[cfg(feature = "doc-only")]
     {
+        println!("cargo:rerun-if-changed={}", save_dir.display());
         // If "doc-only" feature is present, copy from $crate/bindings/* to OUT_DIR
         copy_files(&save_dir, &out_dir);
     }

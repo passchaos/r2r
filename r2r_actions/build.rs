@@ -21,6 +21,7 @@ fn run_bindgen() {
     let saved_file = save_dir.join(BINDINGS_FILENAME);
 
     if cfg!(feature = "doc-only") {
+        println!("cargo:rerun-if-changed={}", saved_file.display());
         // If "doc-only" feature is present, copy from $crate/bindings/* to OUT_DIR
         eprintln!("Copy from '{}' to '{}'", saved_file.display(), target_file.display());
         fs::copy(&saved_file, &target_file).unwrap();

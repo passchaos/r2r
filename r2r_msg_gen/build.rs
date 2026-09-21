@@ -42,6 +42,7 @@ fn run_bindgen(msg_list: &[RosMsg]) {
     let save_dir = manifest_dir.join("bindings");
 
     if cfg!(feature = "doc-only") {
+        println!("cargo:rerun-if-changed={}", save_dir.display());
         // If "doc-only" feature is present, copy from $crate/bindings/* to OUT_DIR
         eprintln!("Copy files from '{}' to '{}'", save_dir.display(), out_dir.display());
 
