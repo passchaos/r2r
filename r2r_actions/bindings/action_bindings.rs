@@ -103,7 +103,16 @@ extern "C" {
     ) -> rcl_ret_t;
 }
 pub type rcl_action_client_t = u64;
-pub type rcl_action_client_options_t = [u64; 60usize];
+#[repr(C)]
+pub struct rcl_action_client_options_s {
+    pub goal_service_qos: rmw_qos_profile_t,
+    pub result_service_qos: rmw_qos_profile_t,
+    pub cancel_service_qos: rmw_qos_profile_t,
+    pub feedback_topic_qos: rmw_qos_profile_t,
+    pub status_topic_qos: rmw_qos_profile_t,
+    pub allocator: rcl_allocator_t,
+}
+pub type rcl_action_client_options_t = rcl_action_client_options_s;
 extern "C" {
     pub fn rcl_action_get_zero_initialized_client() -> rcl_action_client_t;
 }
@@ -284,7 +293,17 @@ extern "C" {
     pub fn rcl_action_goal_handle_is_valid(goal_handle: *const rcl_action_goal_handle_t) -> bool;
 }
 pub type rcl_action_server_t = u64;
-pub type rcl_action_server_options_t = [u64; 61usize];
+#[repr(C)]
+pub struct rcl_action_server_options_s {
+    pub goal_service_qos: rmw_qos_profile_t,
+    pub cancel_service_qos: rmw_qos_profile_t,
+    pub result_service_qos: rmw_qos_profile_t,
+    pub feedback_topic_qos: rmw_qos_profile_t,
+    pub status_topic_qos: rmw_qos_profile_t,
+    pub allocator: rcl_allocator_t,
+    pub result_timeout: rcl_duration_t,
+}
+pub type rcl_action_server_options_t = rcl_action_server_options_s;
 extern "C" {
     pub fn rcl_action_get_zero_initialized_server() -> rcl_action_server_t;
 }

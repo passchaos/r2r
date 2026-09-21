@@ -626,13 +626,15 @@ where
 
 pub fn create_action_client_helper(
     node: &mut rcl_node_t, action_name: &str, action_ts: *const rosidl_action_type_support_t,
+    overrides: &ActionClientOptions,
 ) -> Result<rcl_action_client_t> {
     let mut client_handle = unsafe { rcl_action_get_zero_initialized_client() };
     let action_name_c_string =
         CString::new(action_name).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
 
     let result = unsafe {
-        let client_options = rcl_action_client_get_default_options();
+        let mut client_options = rcl_action_client_get_default_options();
+        overrides.apply(&mut client_options);
         rcl_action_client_init(
             &mut client_handle,
             node,

@@ -101,7 +101,7 @@ mod clients;
 pub use clients::{Client, ClientUntyped};
 
 mod action_common;
-pub use action_common::GoalStatus;
+pub use action_common::{ActionClientOptions, ActionServerOptions, GoalStatus};
 
 mod action_clients;
 pub use action_clients::{ActionClient, ActionClientGoal};

@@ -23,6 +23,7 @@ use crate::time_source::TimeSource;
 use crate::{
     action_clients::*,
     action_clients_untyped::*,
+    action_common::{ActionClientOptions, ActionServerOptions},
     action_servers::*,
     clients::*,
     clocks::*,
@@ -930,8 +931,22 @@ impl Node {
     where
         T: 'static + WrappedActionTypeSupport,
     {
-        let mut client_handle =
-            create_action_client_helper(self.node_handle.as_mut(), action_name, T::get_ts())?;
+        self.create_action_client_with_options(action_name, ActionClientOptions::default())
+    }
+
+    /// Create a ROS action client with per-channel QoS overrides.
+    pub fn create_action_client_with_options<T>(
+        &mut self, action_name: &str, options: ActionClientOptions,
+    ) -> Result<ActionClient<T>>
+    where
+        T: 'static + WrappedActionTypeSupport,
+    {
+        let mut client_handle = create_action_client_helper(
+            self.node_handle.as_mut(),
+            action_name,
+            T::get_ts(),
+            &options,
+        )?;
         let action_capacities = match action_client_wait_set_capacities(&client_handle) {
             Ok(capacities) => capacities,
             Err(err) => {
@@ -968,11 +983,23 @@ impl Node {
     pub fn create_action_client_untyped(
         &mut self, action_name: &str, action_type: &str,
     ) -> Result<ActionClientUntyped> {
+        self.create_action_client_untyped_with_options(
+            action_name,
+            action_type,
+            ActionClientOptions::default(),
+        )
+    }
+
+    /// Create an untyped ROS action client with per-channel QoS overrides.
+    pub fn create_action_client_untyped_with_options(
+        &mut self, action_name: &str, action_type: &str, options: ActionClientOptions,
+    ) -> Result<ActionClientUntyped> {
         let action_type_support = UntypedActionSupport::new_from(action_type)?;
         let mut client_handle = create_action_client_helper(
             self.node_handle.as_mut(),
             action_name,
             action_type_support.ts,
+            &options,
         )?;
         let action_capacities = match action_client_wait_set_capacities(&client_handle) {
             Ok(capacities) => capacities,
@@ -1012,6 +1039,16 @@ impl Node {
     where
         T: 'static + WrappedActionTypeSupport,
     {
+        self.create_action_server_with_options(action_name, ActionServerOptions::default())
+    }
+
+    /// Create a ROS action server with per-channel QoS and result-retention overrides.
+    pub fn create_action_server_with_options<T>(
+        &mut self, action_name: &str, options: ActionServerOptions,
+    ) -> Result<impl Stream<Item = ActionServerGoalRequest<T>> + Unpin>
+    where
+        T: 'static + WrappedActionTypeSupport,
+    {
         let (goal_request_sender, goal_request_receiver) =
             mpsc::channel::<ActionServerGoalRequest<T>>(10);
 
@@ -1023,6 +1060,7 @@ impl Node {
                 action_name,
                 clock_handle.clock_handle.as_mut(),
                 T::get_ts(),
+                &options,
             )?
         };
         let action_capacities = match action_server_wait_set_capacities(&server_handle) {
@@ -2202,5 +2240,48 @@ mod tests {
         assert!(atomic.result.successful);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.time_source.is_sim_time_enabled());
+    }
+
+    #[test]
+    fn creates_action_endpoints_with_custom_options() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "action_options_test", "").unwrap();
+        let _server = node
+            .create_action_server_with_options::<Fibonacci::Action>(
+                "/configured_action",
+                ActionServerOptions::default()
+                    .feedback_topic_qos(QosProfile::sensor_data())
+                    .result_timeout(Duration::from_millis(250)),
+            )
+            .unwrap();
+        let _client = node
+            .create_action_client_with_options::<Fibonacci::Action>(
+                "/configured_action",
+                ActionClientOptions::default().feedback_topic_qos(QosProfile::sensor_data()),
+            )
+            .unwrap();
+        let _untyped = node
+            .create_action_client_untyped_with_options(
+                "/configured_action",
+                "example_interfaces/action/Fibonacci",
+                ActionClientOptions::default().feedback_topic_qos(QosProfile::sensor_data()),
+            )
+            .unwrap();
+
+        let feedback_topic = "/configured_action/_action/feedback";
+        let publishers = node
+            .get_publishers_info_by_topic(feedback_topic, false)
+            .unwrap();
+        let subscriptions = node
+            .get_subscriptions_info_by_topic(feedback_topic, false)
+            .unwrap();
+        assert!(publishers.iter().any(|endpoint| {
+            endpoint.qos_profile.reliability == QosProfile::sensor_data().reliability
+        }));
+        assert!(subscriptions.iter().all(|endpoint| {
+            endpoint.qos_profile.reliability == QosProfile::sensor_data().reliability
+        }));
     }
 }

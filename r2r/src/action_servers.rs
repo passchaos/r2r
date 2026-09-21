@@ -14,7 +14,7 @@ use std::{
 };
 
 use crate::{
-    action_common::GoalStatus,
+    action_common::{ActionServerOptions, GoalStatus},
     clocks::Clock,
     error::*,
     msg_types::{
@@ -918,14 +918,15 @@ where
 
 pub fn create_action_server_helper(
     node: &mut rcl_node_t, action_name: &str, clock_handle: *mut rcl_clock_t,
-    action_ts: *const rosidl_action_type_support_t,
+    action_ts: *const rosidl_action_type_support_t, overrides: &ActionServerOptions,
 ) -> Result<rcl_action_server_t> {
     let mut server_handle = unsafe { rcl_action_get_zero_initialized_server() };
     let action_name_c_string =
         CString::new(action_name).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
 
     let result = unsafe {
-        let server_options = rcl_action_server_get_default_options();
+        let mut server_options = rcl_action_server_get_default_options();
+        overrides.apply(&mut server_options)?;
 
         rcl_action_server_init(
             &mut server_handle,
