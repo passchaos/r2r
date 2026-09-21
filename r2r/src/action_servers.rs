@@ -476,9 +476,12 @@ where
         }
 
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let mut request_msg = WrappedNativeMsg::<
+        let Ok(mut request_msg) = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Request,
-        >::new();
+        >::try_new() else {
+            log::error!("failed to allocate action goal request buffer");
+            return;
+        };
         let ret = unsafe {
             rcl_action_take_goal_request(
                 &self.rcl_handle,
@@ -688,9 +691,12 @@ where
 
     fn handle_result_request(&mut self) {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let mut request_msg = WrappedNativeMsg::<
+        let Ok(mut request_msg) = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
-        >::new();
+        >::try_new() else {
+            log::error!("failed to allocate action result request buffer");
+            return;
+        };
         let ret = unsafe {
             rcl_action_take_result_request(
                 &self.rcl_handle,
