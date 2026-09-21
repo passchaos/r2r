@@ -122,7 +122,7 @@ pub(crate) trait Subscriber_ {
         false
     }
     /// Returns true if the subscriber stream has been dropped.
-    fn handle_incoming(&mut self) -> bool;
+    fn handle_incoming(&mut self) -> Result<bool>;
     fn destroy(&mut self, node: &mut rcl_node_t);
 }
 
@@ -178,12 +178,9 @@ where
         self.sender.is_closed()
     }
 
-    fn handle_incoming(&mut self) -> bool {
+    fn handle_incoming(&mut self) -> Result<bool> {
         let mut msg_info = rmw_message_info_t::default(); // we dont care for now
-        let Ok(mut msg) = WrappedNativeMsg::<T>::try_new() else {
-            log::error!("failed to allocate subscription message buffer");
-            return false;
-        };
+        let mut msg = WrappedNativeMsg::<T>::try_new()?;
         let ret = unsafe {
             rcl_take(&self.rcl_handle, msg.void_ptr_mut(), &mut msg_info, std::ptr::null_mut())
         };
@@ -192,12 +189,14 @@ where
             if let Err(e) = self.sender.try_send(msg) {
                 if e.is_disconnected() {
                     // user dropped the handle to the stream, signal removal.
-                    return true;
+                    return Ok(true);
                 }
                 log::debug!("error {:?}", e)
             }
+        } else if ret != RCL_RET_SUBSCRIPTION_TAKE_FAILED as i32 {
+            return Err(Error::from_rcl_error(ret));
         }
-        false
+        Ok(false)
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -227,28 +226,28 @@ where
         self.sender.is_closed()
     }
 
-    fn handle_incoming(&mut self) -> bool {
+    fn handle_incoming(&mut self) -> Result<bool> {
         // The returned stream may outlive the Node. Use caller-owned message storage so
         // dropping an item never has to access an already-finalized subscription handle.
         let mut msg_info = rmw_message_info_t::default();
-        let Ok(mut msg) = WrappedNativeMsg::<T>::try_new() else {
-            log::error!("failed to allocate native subscription message buffer");
-            return false;
-        };
+        let mut msg = WrappedNativeMsg::<T>::try_new()?;
         let ret = unsafe {
             rcl_take(&self.rcl_handle, msg.void_ptr_mut(), &mut msg_info, std::ptr::null_mut())
         };
+        if ret == RCL_RET_SUBSCRIPTION_TAKE_FAILED as i32 {
+            return Ok(false);
+        }
         if ret != RCL_RET_OK as i32 {
-            return false;
+            return Err(Error::from_rcl_error(ret));
         }
         if let Err(e) = self.sender.try_send(msg) {
             if e.is_disconnected() {
                 // user dropped the handle to the stream, signal removal.
-                return true;
+                return Ok(true);
             }
             log::error!("error {:?}", e)
         }
-        false
+        Ok(false)
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -275,12 +274,9 @@ impl Subscriber_ for UntypedSubscriber {
         self.sender.is_closed()
     }
 
-    fn handle_incoming(&mut self) -> bool {
+    fn handle_incoming(&mut self) -> Result<bool> {
         let mut msg_info = rmw_message_info_t::default(); // we dont care for now
-        let Ok(mut msg) = WrappedNativeMsgUntyped::new_from(&self.topic_type) else {
-            log::error!("failed to allocate untyped subscription message buffer");
-            return false;
-        };
+        let mut msg = WrappedNativeMsgUntyped::new_from(&self.topic_type)?;
         let ret = unsafe {
             rcl_take(&self.rcl_handle, msg.void_ptr_mut(), &mut msg_info, std::ptr::null_mut())
         };
@@ -289,12 +285,14 @@ impl Subscriber_ for UntypedSubscriber {
             if let Err(e) = self.sender.try_send(json) {
                 if e.is_disconnected() {
                     // user dropped the handle to the stream, signal removal.
-                    return true;
+                    return Ok(true);
                 }
                 log::debug!("error {:?}", e)
             }
+        } else if ret != RCL_RET_SUBSCRIPTION_TAKE_FAILED as i32 {
+            return Err(Error::from_rcl_error(ret));
         }
-        false
+        Ok(false)
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -321,7 +319,7 @@ impl Subscriber_ for RawSubscriber {
         self.sender.is_closed()
     }
 
-    fn handle_incoming(&mut self) -> bool {
+    fn handle_incoming(&mut self) -> Result<bool> {
         let mut msg_info = rmw_message_info_t::default(); // we dont care for now
         let ret = unsafe {
             rcl_take_serialized_message(
@@ -331,9 +329,11 @@ impl Subscriber_ for RawSubscriber {
                 std::ptr::null_mut(),
             )
         };
+        if ret == RCL_RET_SUBSCRIPTION_TAKE_FAILED as i32 {
+            return Ok(false);
+        }
         if ret != RCL_RET_OK as i32 {
-            log::error!("failed to take serialized message");
-            return false;
+            return Err(Error::from_rcl_error(ret));
         }
 
         let data_bytes = if self.msg_buf.buffer.is_null() {
@@ -347,12 +347,12 @@ impl Subscriber_ for RawSubscriber {
         if let Err(e) = self.sender.try_send(data_bytes) {
             if e.is_disconnected() {
                 // user dropped the handle to the stream, signal removal.
-                return true;
+                return Ok(true);
             }
             log::debug!("error {:?}", e)
         }
 
-        false
+        Ok(false)
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {

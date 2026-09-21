@@ -1530,7 +1530,7 @@ impl Node {
                 unsafe { std::slice::from_raw_parts(ws.subscriptions, self.subscribers.len()) };
             for (s, ws_s) in self.subscribers.iter_mut().zip(ws_subs) {
                 if ws_s != &std::ptr::null() {
-                    let dropped = s.handle_incoming();
+                    let dropped = s.handle_incoming()?;
                     if dropped {
                         let handle = s.handle() as *const rcl_subscription_t;
                         s.destroy(&mut self.node_handle);

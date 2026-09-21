@@ -9,7 +9,7 @@ use crate::{
 use parking_lot::Mutex;
 use r2r_rcl::{
     rcl_node_t, rcl_subscription_fini, rcl_subscription_t, rcl_take, rcl_time_point_value_t,
-    rmw_message_info_t, RCL_RET_OK,
+    rmw_message_info_t, RCL_RET_OK, RCL_RET_SUBSCRIPTION_TAKE_FAILED,
 };
 use std::sync::{Arc, Weak};
 
@@ -283,13 +283,10 @@ impl Subscriber_ for TimeSourceSubscriber {
             .take_subscriber_destruction_request()
     }
 
-    fn handle_incoming(&mut self) -> bool {
+    fn handle_incoming(&mut self) -> Result<bool> {
         // update clock
         let mut msg_info = rmw_message_info_t::default(); // we dont care for now
-        let Ok(mut clock_msg) = WrappedNativeMsg::<rosgraph_msgs::msg::Clock>::try_new() else {
-            log::error!("failed to allocate simulated clock message buffer");
-            return false;
-        };
+        let mut clock_msg = WrappedNativeMsg::<rosgraph_msgs::msg::Clock>::try_new()?;
         let ret = unsafe {
             rcl_take(
                 &self.subscriber_handle,
@@ -299,14 +296,17 @@ impl Subscriber_ for TimeSourceSubscriber {
             )
         };
 
-        let mut inner_time_source = self.time_source.inner.lock();
-        if ret == RCL_RET_OK as i32 {
-            let msg = rosgraph_msgs::msg::Clock::from_native(&clock_msg);
-
-            inner_time_source.set_clock_time(msg.clock);
+        if ret != RCL_RET_OK as i32 && ret != RCL_RET_SUBSCRIPTION_TAKE_FAILED as i32 {
+            return Err(Error::from_rcl_error(ret));
         }
 
-        match inner_time_source.subscriber_state {
+        let mut inner_time_source = self.time_source.inner.lock();
+        if ret == RCL_RET_OK as i32 {
+            inner_time_source
+                .set_clock_time(rosgraph_msgs::msg::Clock::from_native(&clock_msg).clock);
+        }
+
+        Ok(match inner_time_source.subscriber_state {
             TimeSourceSubscriberState::Active => {
                 // keep the subscriber
                 false
@@ -317,7 +317,7 @@ impl Subscriber_ for TimeSourceSubscriber {
                 true
             }
             TimeSourceSubscriberState::None => unreachable!(),
-        }
+        })
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
