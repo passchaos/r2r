@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         count += 1;
     }
 
-    let type_name = nt.get(topic).and_then(|types| types.get(0));
+    let type_name = nt.get(topic).and_then(|types| types.first());
     let type_name = match type_name {
         Some(tn) => tn,
         None => {
@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             match msg {
                 Ok(msg) => {
                     let s = serde_json::to_string_pretty(&msg).unwrap();
-                    println!("{}\n---\n", &s);
+                    println!("{}\n---\n", s);
                     echo_pub.publish(msg).unwrap();
                 }
                 Err(err) => {

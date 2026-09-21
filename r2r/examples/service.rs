@@ -29,23 +29,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         service_available.await.expect("could not await service");
         println!("delayed service available.");
 
-        loop {
-            match service.next().await {
-                Some(req) => {
-                    println!("passing request on to delayed service");
-                    let resp = client
-                        .request(&req.message)
-                        .expect("could not send client response")
-                        .await
-                        .expect("expected client response");
-                    println!(
-                        "responding with: {} + {} = {}",
-                        req.message.a, req.message.b, resp.sum
-                    );
-                    req.respond(resp).expect("could not send service response");
-                }
-                None => break,
-            }
+        while let Some(req) = service.next().await {
+            println!("passing request on to delayed service");
+            let resp = client
+                .request(&req.message)
+                .expect("could not send client response")
+                .await
+                .expect("expected client response");
+            println!("responding with: {} + {} = {}", req.message.a, req.message.b, resp.sum);
+            req.respond(resp).expect("could not send service response");
         }
     })?;
 

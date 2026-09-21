@@ -48,8 +48,8 @@ fn bench_cdr_deserialization() {
 }
 
 pub fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("ros_deserialization", |b| b.iter(|| bench_ros_deserialization()));
-    c.bench_function("cdr_deserialization", |b| b.iter(|| bench_cdr_deserialization()));
+    c.bench_function("ros_deserialization", |b| b.iter(bench_ros_deserialization));
+    c.bench_function("cdr_deserialization", |b| b.iter(bench_cdr_deserialization));
 }
 
 criterion_group!(benches, criterion_benchmark);

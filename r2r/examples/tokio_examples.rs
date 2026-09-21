@@ -101,16 +101,11 @@ async fn service(arc_node: Arc<Mutex<r2r::Node>>) -> Result<(), r2r::Error> {
         let mut node = arc_node.lock().unwrap();
         node.create_service::<AddTwoInts::Service>("/add_two_ints", QosProfile::default())?
     };
-    loop {
-        match service.next().await {
-            Some(req) => {
-                let resp = AddTwoInts::Response {
-                    sum: req.message.a + req.message.b,
-                };
-                req.respond(resp).expect("could not send service response");
-            }
-            None => break,
-        }
+    while let Some(req) = service.next().await {
+        let resp = AddTwoInts::Response {
+            sum: req.message.a + req.message.b,
+        };
+        req.respond(resp).expect("could not send service response");
     }
     Ok(())
 }

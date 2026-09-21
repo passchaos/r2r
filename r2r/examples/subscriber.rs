@@ -14,17 +14,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // task that every other time forwards message to topic2
     spawner.spawn_local(async move {
         let mut x: i32 = 0;
-        loop {
-            match sub.next().await {
-                Some(msg) => {
-                    if x % 2 == 0 {
-                        p.publish(&r2r::std_msgs::msg::String {
-                            data: format!("({}): new msg: {}", x, msg.data),
-                        })
-                        .unwrap();
-                    }
-                }
-                None => break,
+        while let Some(msg) = sub.next().await {
+            if x % 2 == 0 {
+                p.publish(&r2r::std_msgs::msg::String {
+                    data: format!("({}): new msg: {}", x, msg.data),
+                })
+                .unwrap();
             }
             x += 1;
         }

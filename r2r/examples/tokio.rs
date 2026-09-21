@@ -22,20 +22,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state_t1 = state.clone();
     task::spawn(async move {
         let mut x: i32 = 0;
-        loop {
-            match sub.next().await {
-                Some(msg) => {
-                    if x % 2 == 0 {
-                        p.publish(&r2r::std_msgs::msg::String {
-                            data: format!("({}): new msg: {}", x, msg.data),
-                        })
-                        .unwrap();
-                    } else {
-                        // update shared state
-                        state_t1.lock().unwrap().state = x;
-                    }
-                }
-                None => break,
+        while let Some(msg) = sub.next().await {
+            if x % 2 == 0 {
+                p.publish(&r2r::std_msgs::msg::String {
+                    data: format!("({}): new msg: {}", x, msg.data),
+                })
+                .unwrap();
+            } else {
+                // update shared state
+                state_t1.lock().unwrap().state = x;
             }
             x += 1;
         }
