@@ -1,5 +1,6 @@
 use futures::{channel::oneshot, TryFutureExt};
 use std::{
+    collections::HashMap,
     ffi::CString,
     future::Future,
     mem::MaybeUninit,
@@ -95,7 +96,7 @@ where
         let (sender, receiver) = oneshot::channel::<T::Response>();
 
         if result == RCL_RET_OK as i32 {
-            self.response_channels.push((seq_no, sender));
+            self.response_channels.insert(seq_no, sender);
             // instead of "canceled" we return invalid client.
             Ok(receiver.map_err(|_| Error::RCL_RET_CLIENT_INVALID))
         } else {
@@ -121,7 +122,7 @@ impl UntypedClient_ {
         let (sender, receiver) = oneshot::channel::<Result<serde_json::Value>>();
 
         if result == RCL_RET_OK as i32 {
-            self.response_channels.push((seq_no, sender));
+            self.response_channels.insert(seq_no, sender);
             // instead of "canceled" we return invalid client.
             Ok(receiver.map_err(|_| Error::RCL_RET_CLIENT_INVALID))
         } else {
@@ -144,7 +145,7 @@ where
     T: WrappedServiceTypeSupport,
 {
     pub rcl_handle: rcl_client_t,
-    pub response_channels: Vec<(i64, oneshot::Sender<T::Response>)>,
+    pub response_channels: HashMap<i64, oneshot::Sender<T::Response>>,
     pub poll_available_channels: Vec<oneshot::Sender<()>>,
 }
 
@@ -169,12 +170,7 @@ where
         };
         if ret == RCL_RET_OK as i32 {
             let request_id = unsafe { request_id.assume_init() };
-            if let Some(idx) = self
-                .response_channels
-                .iter()
-                .position(|(id, _)| id == &request_id.sequence_number)
-            {
-                let (_, sender) = self.response_channels.swap_remove(idx);
+            if let Some(sender) = self.response_channels.remove(&request_id.sequence_number) {
                 let response = T::Response::from_native(&response_msg);
                 match sender.send(response) {
                     Ok(()) => {}
@@ -185,8 +181,8 @@ where
             } else {
                 let we_have: String = self
                     .response_channels
-                    .iter()
-                    .map(|(id, _)| id.to_string())
+                    .keys()
+                    .map(|id| id.to_string())
                     .collect::<Vec<_>>()
                     .join(",");
                 log::error!(
@@ -203,6 +199,8 @@ where
     }
 
     fn poll_available(&mut self, node: &mut rcl_node_t) {
+        self.response_channels
+            .retain(|_, sender| !sender.is_canceled());
         if self.poll_available_channels.is_empty() {
             return;
         }
@@ -234,7 +232,7 @@ where
 pub struct UntypedClient_ {
     pub service_type: UntypedServiceSupport,
     pub rcl_handle: rcl_client_t,
-    pub response_channels: Vec<(i64, oneshot::Sender<Result<serde_json::Value>>)>,
+    pub response_channels: HashMap<i64, oneshot::Sender<Result<serde_json::Value>>>,
     pub poll_available_channels: Vec<oneshot::Sender<()>>,
 }
 
@@ -256,12 +254,7 @@ impl Client_ for UntypedClient_ {
         };
         if ret == RCL_RET_OK as i32 {
             let request_id = unsafe { request_id.assume_init() };
-            if let Some(idx) = self
-                .response_channels
-                .iter()
-                .position(|(id, _)| id == &request_id.sequence_number)
-            {
-                let (_, sender) = self.response_channels.swap_remove(idx);
+            if let Some(sender) = self.response_channels.remove(&request_id.sequence_number) {
                 let response = response_msg.to_json();
                 match sender.send(response) {
                     Ok(()) => {}
@@ -272,8 +265,8 @@ impl Client_ for UntypedClient_ {
             } else {
                 let we_have: String = self
                     .response_channels
-                    .iter()
-                    .map(|(id, _)| id.to_string())
+                    .keys()
+                    .map(|id| id.to_string())
                     .collect::<Vec<_>>()
                     .join(",");
                 log::error!(
@@ -290,6 +283,8 @@ impl Client_ for UntypedClient_ {
     }
 
     fn poll_available(&mut self, node: &mut rcl_node_t) {
+        self.response_channels
+            .retain(|_, sender| !sender.is_canceled());
         if self.poll_available_channels.is_empty() {
             return;
         }

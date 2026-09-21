@@ -810,7 +810,7 @@ impl Node {
         )?;
         let ws = TypedClient::<T> {
             rcl_handle: client_handle,
-            response_channels: Vec::new(),
+            response_channels: HashMap::new(),
             poll_available_channels: Vec::new(),
         };
 
@@ -839,7 +839,7 @@ impl Node {
         let client = UntypedClient_ {
             service_type,
             rcl_handle: client_handle,
-            response_channels: Vec::new(),
+            response_channels: HashMap::new(),
             poll_available_channels: Vec::new(),
         };
 
