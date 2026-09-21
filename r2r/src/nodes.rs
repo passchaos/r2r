@@ -1392,17 +1392,31 @@ impl Node {
     /// Returns a map of topic names and type names of the publishers
     /// visible to this node.
     pub fn get_topic_names_and_types(&self) -> Result<HashMap<String, Vec<String>>> {
+        self.get_names_and_types(|node, allocator, names_and_types| unsafe {
+            rcl_get_topic_names_and_types(node, allocator, false, names_and_types)
+        })
+    }
+
+    /// Returns a map of service names and type names visible to this node.
+    pub fn get_service_names_and_types(&self) -> Result<HashMap<String, Vec<String>>> {
+        self.get_names_and_types(|node, allocator, names_and_types| unsafe {
+            rcl_get_service_names_and_types(node, allocator, names_and_types)
+        })
+    }
+
+    fn get_names_and_types(
+        &self,
+        query: impl FnOnce(
+            *const rcl_node_t,
+            *mut rcutils_allocator_t,
+            *mut rmw_names_and_types_t,
+        ) -> rcl_ret_t,
+    ) -> Result<HashMap<String, Vec<String>>> {
         let mut tnat = unsafe { rmw_get_zero_initialized_names_and_types() };
-        let ret = unsafe {
-            rcl_get_topic_names_and_types(
-                self.node_handle.as_ref(),
-                &mut rcutils_get_default_allocator(),
-                false,
-                &mut tnat,
-            )
-        };
+        let mut allocator = unsafe { rcutils_get_default_allocator() };
+        let ret = query(self.node_handle.as_ref(), &mut allocator, &mut tnat);
         if ret != RCL_RET_OK as i32 {
-            log::error!("could not get topic names and types {}", ret);
+            log::error!("could not get ROS graph names and types {}", ret);
             return Err(Error::from_rcl_error(ret));
         }
         let tnat = NamesAndTypes(tnat);
@@ -1416,11 +1430,11 @@ impl Node {
             let types = unsafe { std::slice::from_raw_parts(tnat.0.types, tnat.0.names.size) };
 
             for (n, t) in names.iter().zip(types) {
-                let topic_name = c_string_from_ptr(*n)?;
+                let entity_name = c_string_from_ptr(*n)?;
                 if t.size > 0 && t.data.is_null() {
                     return Err(Error::RCL_RET_ERROR);
                 }
-                let topic_types = if t.size == 0 {
+                let entity_types = if t.size == 0 {
                     Vec::new()
                 } else {
                     unsafe { std::slice::from_raw_parts(t.data, t.size) }
@@ -1428,7 +1442,7 @@ impl Node {
                         .map(|type_name| c_string_from_ptr(*type_name))
                         .collect::<Result<Vec<_>>>()?
                 };
-                res.insert(topic_name, topic_types);
+                res.insert(entity_name, entity_types);
             }
         }
         Ok(res)
@@ -2051,6 +2065,26 @@ mod tests {
                 && subscription.qos_profile.reliability
                     == QosProfile::default().best_effort().reliability
         }));
+    }
+
+    #[test]
+    fn discovers_service_names_and_their_types() {
+        let ctx = Context::create().unwrap();
+        let mut node = Node::create(ctx, "service_discovery_test", "").unwrap();
+        let service_name = format!("/r2r_service_discovery_{}", uuid::Uuid::new_v4().simple());
+        let _requests = node
+            .create_service::<crate::example_interfaces::srv::AddTwoInts::Service>(
+                &service_name,
+                QosProfile::default(),
+            )
+            .unwrap();
+
+        let services = node.get_service_names_and_types().unwrap();
+
+        assert_eq!(
+            services.get(&service_name),
+            Some(&vec!["example_interfaces/srv/AddTwoInts".to_owned()])
+        );
     }
 
     #[test]
