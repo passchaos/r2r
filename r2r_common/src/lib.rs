@@ -9,7 +9,6 @@ use std::{
     path::Path,
 };
 
-#[cfg(not(feature = "doc-only"))]
 const SUPPORTED_ROS_DISTROS: &[&str] = &[
     "foxy", "galactic", "humble", "iron", "jazzy", "lyrical", "rolling",
 ];
@@ -152,10 +151,6 @@ pub fn print_cargo_ros_distro() {
     }
 }
 
-#[cfg(feature = "doc-only")]
-pub fn print_cargo_used_cfgs(_message_cfgs: &[&str]) {}
-
-#[cfg(not(feature = "doc-only"))]
 pub fn print_cargo_used_cfgs(message_cfgs: &[&str]) {
     // Declare all supported ros distros as cfg directives for cargo
     for d in SUPPORTED_ROS_DISTROS {
