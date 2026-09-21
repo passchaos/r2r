@@ -465,8 +465,15 @@ where
 
         // send out request.
         if let Err(e) = self.goal_request_sender.try_send(gr) {
-            // Dropping the undelivered request sends a rejection and removes its cancel sender.
-            drop(e.into_inner());
+            // We already hold this server's mutex while polling. Disarm the drop guard and
+            // reject directly to avoid trying to lock the same non-reentrant mutex again.
+            let mut request = e.into_inner();
+            request.response.response_sent = true;
+            if let Err(err) =
+                self.reject_goal_request(&request.uuid, &mut request.response.request_id)
+            {
+                log::error!("could not reject undelivered action goal request: {err}");
+            }
         }
     }
 
