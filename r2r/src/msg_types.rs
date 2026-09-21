@@ -862,10 +862,7 @@ mod tests {
         println!("req2 {:?}", req2);
         assert_eq!(req, req2);
 
-        let resp = AddTwoInts::Response {
-            sum: 5,
-            ..Default::default()
-        };
+        let resp = AddTwoInts::Response { sum: 5 };
         let rn = WrappedNativeMsg::<_>::from(&resp);
         let resp2 = AddTwoInts::Response::from_native(&rn);
         println!("resp {:?}", resp2);

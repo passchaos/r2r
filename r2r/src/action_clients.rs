@@ -93,6 +93,7 @@ where
     /// - A goal handle.
     /// - A new future for the eventual result.
     /// - A stream of feedback messages.
+    #[allow(clippy::type_complexity)]
     pub fn send_goal_request(
         &self, goal: T::Goal,
     ) -> Result<
@@ -178,6 +179,8 @@ where
     }
 }
 
+type GoalResponseSender = oneshot::Sender<(bool, builtin_interfaces::msg::Time)>;
+
 pub fn make_action_client<T>(client: Weak<Mutex<WrappedActionClient<T>>>) -> ActionClient<T>
 where
     T: WrappedActionTypeSupport,
@@ -191,8 +194,7 @@ where
     T: WrappedActionTypeSupport,
 {
     pub rcl_handle: rcl_action_client_t,
-    pub goal_response_channels:
-        Vec<(i64, uuid::Uuid, oneshot::Sender<(bool, builtin_interfaces::msg::Time)>)>,
+    pub goal_response_channels: Vec<(i64, uuid::Uuid, GoalResponseSender)>,
     pub cancel_response_channels:
         Vec<(i64, oneshot::Sender<action_msgs::srv::CancelGoal::Response>)>,
     pub feedback_senders: Vec<(uuid::Uuid, mpsc::Sender<T::Feedback>)>,

@@ -85,6 +85,7 @@ impl ActionClientUntyped {
     /// - A goal handle.
     /// - A new future for the eventual result. (as `serde_json::Value`)
     /// - A stream of feedback messages. (as `serde_json::Value`)
+    #[allow(clippy::type_complexity)]
     pub fn send_goal_request(
         &self,
         goal: serde_json::Value, // T::Goal
@@ -169,6 +170,8 @@ impl ActionClientUntyped {
     }
 }
 
+type GoalResponseSender = oneshot::Sender<(bool, builtin_interfaces::msg::Time)>;
+
 pub fn make_action_client_untyped(
     client: Weak<Mutex<WrappedActionClientUntyped>>,
 ) -> ActionClientUntyped {
@@ -179,8 +182,7 @@ pub type ResultSender = (uuid::Uuid, oneshot::Sender<(GoalStatus, Result<serde_j
 pub struct WrappedActionClientUntyped {
     pub action_type_support: UntypedActionSupport,
     pub rcl_handle: rcl_action_client_t,
-    pub goal_response_channels:
-        Vec<(i64, uuid::Uuid, oneshot::Sender<(bool, builtin_interfaces::msg::Time)>)>,
+    pub goal_response_channels: Vec<(i64, uuid::Uuid, GoalResponseSender)>,
     pub cancel_response_channels:
         Vec<(i64, oneshot::Sender<action_msgs::srv::CancelGoal::Response>)>,
     pub feedback_senders: Vec<(uuid::Uuid, mpsc::Sender<Result<serde_json::Value>>)>,

@@ -440,7 +440,7 @@ impl Node {
                     .names
                     .iter()
                     .map(|name| match params.get(name) {
-                        Some(param) => param.value.into_parameter_type(),
+                        Some(param) => param.value.parameter_type(),
                         None => rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET as u8,
                     })
                     .collect();
@@ -611,7 +611,7 @@ impl Node {
             let param = params.get(name).unwrap_or(&default);
             descriptors.push(ParameterDescriptor {
                 name: name.clone(),
-                type_: param.value.into_parameter_type(),
+                type_: param.value.parameter_type(),
                 description: param.description.to_string(),
                 ..Default::default()
             });
@@ -647,11 +647,11 @@ impl Node {
     /// Subscribe to a ROS topic.
     ///
     /// This function returns a `Stream` of ros messages.
-    pub fn subscribe<T: 'static>(
+    pub fn subscribe<T>(
         &mut self, topic: &str, qos_profile: QosProfile,
     ) -> Result<impl Stream<Item = T> + Unpin>
     where
-        T: WrappedTypesupport,
+        T: 'static + WrappedTypesupport,
     {
         let subscription_handle =
             create_subscription_helper(self.node_handle.as_mut(), topic, T::get_ts(), qos_profile)?;
@@ -668,11 +668,11 @@ impl Node {
     /// Subscribe to a ROS topic.
     ///
     /// This function returns a `Stream` of ros messages without the rust convenience types.
-    pub fn subscribe_native<T: 'static>(
+    pub fn subscribe_native<T>(
         &mut self, topic: &str, qos_profile: QosProfile,
     ) -> Result<impl Stream<Item = WrappedNativeMsg<T>> + Unpin>
     where
-        T: WrappedTypesupport,
+        T: 'static + WrappedTypesupport,
     {
         let subscription_handle =
             create_subscription_helper(self.node_handle.as_mut(), topic, T::get_ts(), qos_profile)?;
@@ -765,11 +765,11 @@ impl Node {
     ///
     /// This function returns a `Stream` of `ServiceRequest`:s. Call
     /// `respond` on the Service Request to send the reply.
-    pub fn create_service<T: 'static>(
+    pub fn create_service<T>(
         &mut self, service_name: &str, qos_profile: QosProfile,
     ) -> Result<impl Stream<Item = ServiceRequest<T>> + Unpin>
     where
-        T: WrappedServiceTypeSupport,
+        T: 'static + WrappedServiceTypeSupport,
     {
         let service_handle = create_service_helper(
             self.node_handle.as_mut(),
@@ -791,11 +791,11 @@ impl Node {
     /// Create a ROS service client.
     ///
     /// A service client is used to make requests to a ROS service server.
-    pub fn create_client<T: 'static>(
+    pub fn create_client<T>(
         &mut self, service_name: &str, qos_profile: QosProfile,
     ) -> Result<Client<T>>
     where
-        T: WrappedServiceTypeSupport,
+        T: 'static + WrappedServiceTypeSupport,
     {
         let client_handle = create_client_helper(
             self.node_handle.as_mut(),
@@ -862,9 +862,9 @@ impl Node {
     /// Create a ROS action client.
     ///
     /// An action client is used to make requests to a ROS action server.
-    pub fn create_action_client<T: 'static>(&mut self, action_name: &str) -> Result<ActionClient<T>>
+    pub fn create_action_client<T>(&mut self, action_name: &str) -> Result<ActionClient<T>>
     where
-        T: WrappedActionTypeSupport,
+        T: 'static + WrappedActionTypeSupport,
     {
         let client_handle =
             create_action_client_helper(self.node_handle.as_mut(), action_name, T::get_ts())?;
@@ -922,11 +922,11 @@ impl Node {
     ///
     /// This function returns a stream of `GoalRequest`s, which needs
     /// to be either accepted or rejected.
-    pub fn create_action_server<T: 'static>(
+    pub fn create_action_server<T>(
         &mut self, action_name: &str,
     ) -> Result<impl Stream<Item = ActionServerGoalRequest<T>> + Unpin>
     where
-        T: WrappedActionTypeSupport,
+        T: 'static + WrappedActionTypeSupport,
     {
         // for now automatically create a ros clock...
         let mut clock_handle = MaybeUninit::<rcl_clock_t>::uninit();
@@ -1791,17 +1791,6 @@ fn duration_to_rcl_nanos(duration: Duration) -> Result<i64> {
     i64::try_from(duration.as_nanos()).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn converts_rcl_durations_without_wrapping() {
-        assert_eq!(duration_to_rcl_nanos(Duration::from_nanos(i64::MAX as u64)).unwrap(), i64::MAX);
-        assert!(duration_to_rcl_nanos(Duration::from_nanos(i64::MAX as u64 + 1)).is_err());
-    }
-}
-
 pub trait IsAvailablePollable {
     fn register_poll_available(&self, sender: oneshot::Sender<()>) -> Result<()>;
 }
@@ -1859,4 +1848,15 @@ fn convert_info_array_to_vec(
     }
 
     topic_info_list
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn converts_rcl_durations_without_wrapping() {
+        assert_eq!(duration_to_rcl_nanos(Duration::from_nanos(i64::MAX as u64)).unwrap(), i64::MAX);
+        assert!(duration_to_rcl_nanos(Duration::from_nanos(i64::MAX as u64 + 1)).is_err());
+    }
 }

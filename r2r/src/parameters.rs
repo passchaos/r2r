@@ -258,7 +258,7 @@ impl ParameterValue {
         ret
     }
 
-    pub(crate) fn into_parameter_type(&self) -> u8 {
+    pub(crate) fn parameter_type(&self) -> u8 {
         match self {
             ParameterValue::NotSet => 0,          // uint8 PARAMETER_NOT_SET=0
             ParameterValue::Bool(_) => 1,         // uint8 PARAMETER_BOOL=1
