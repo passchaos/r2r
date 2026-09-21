@@ -1350,6 +1350,19 @@ impl Node {
         }
         self.clients = active_clients;
 
+        // A publisher handle is represented by a Weak reference, while the node owns the native
+        // publisher. Release the native resource after the final public handle and any matching
+        // waiter have both gone away.
+        let mut active_publishers = Vec::with_capacity(self.pubs.len());
+        for publisher in self.pubs.drain(..) {
+            if Arc::weak_count(&publisher) == 0 && !publisher.has_pending_subscriber_waits() {
+                publisher.destroy(&mut self.node_handle);
+            } else {
+                active_publishers.push(publisher);
+            }
+        }
+        self.pubs = active_publishers;
+
         // first handle any completed action cancellation responses
         for a in &mut self.action_servers {
             a.lock().send_completed_cancel_requests();
@@ -2920,5 +2933,56 @@ mod tests {
         assert_eq!(response.sum, 42);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.clients.is_empty());
+    }
+
+    #[test]
+    fn dropped_publishers_are_removed_after_pending_waits_finish() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "publisher_drop_cleanup_test", "").unwrap();
+        let topic = "/publisher_drop_cleanup";
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(topic, QosProfile::default())
+            .unwrap();
+        let wait = publisher.wait_for_subscribers().unwrap();
+
+        drop(publisher);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(node.pubs.len(), 1);
+
+        drop(wait);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.pubs.is_empty());
+
+        let subscription = node
+            .subscribe::<crate::std_msgs::msg::String>(topic, QosProfile::default())
+            .unwrap();
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(topic, QosProfile::default())
+            .unwrap();
+        let wait = publisher.wait_for_subscribers().unwrap();
+        let mut wait = Box::pin(wait);
+        drop(publisher);
+
+        loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(result) = wait.as_mut().now_or_never() {
+                result.unwrap();
+                break;
+            }
+        }
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.pubs.is_empty());
+        drop(subscription);
+
+        let untyped = node
+            .create_publisher_untyped(
+                "/untyped_publisher_drop_cleanup",
+                "std_msgs/msg/String",
+                QosProfile::default(),
+            )
+            .unwrap();
+        drop(untyped);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.pubs.is_empty());
     }
 }

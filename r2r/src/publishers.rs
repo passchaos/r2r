@@ -101,6 +101,12 @@ impl Publisher_ {
         }
     }
 
+    pub(crate) fn has_pending_subscriber_waits(&self) -> bool {
+        let mut waiters = self.poll_subscriber_channels.lock();
+        waiters.retain(|sender| !sender.is_canceled());
+        !waiters.is_empty()
+    }
+
     pub(crate) fn destroy(&self, node: &mut rcl_node_t) {
         if let Some(mut handle) = self.handle.lock().0.take() {
             let ret = unsafe { rcl_publisher_fini(&mut handle, node) };
