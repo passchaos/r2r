@@ -27,6 +27,9 @@ pub trait ActionServer_ {
     fn handle(&self) -> &rcl_action_server_t;
     fn handle_mut(&mut self) -> &mut rcl_action_server_t;
     fn now(&mut self) -> Result<builtin_interfaces::msg::Time>;
+    fn reject_goal_request(
+        &mut self, uuid: &uuid::Uuid, request_id: &mut rmw_request_id_t,
+    ) -> Result<()>;
     fn handle_goal_request(&mut self, server: Arc<Mutex<dyn ActionServer_>>);
     fn send_completed_cancel_requests(&mut self);
     fn handle_cancel_request(&mut self);
@@ -73,8 +76,14 @@ where
     pub uuid: uuid::Uuid,
     pub goal: T::Goal,
     cancel_requests: mpsc::Receiver<ActionServerCancelRequest>,
+    response: GoalRequestResponseGuard,
+}
+
+struct GoalRequestResponseGuard {
     server: Weak<Mutex<dyn ActionServer_>>,
+    uuid: uuid::Uuid,
     request_id: rmw_request_id_t,
+    response_sent: bool,
 }
 
 unsafe impl<T> Send for ActionServerGoalRequest<T> where T: WrappedActionTypeSupport {}
@@ -92,17 +101,12 @@ where
             uuid: self.uuid.as_bytes().to_vec(),
         };
         let server = self
+            .response
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
         let mut server = server.lock().unwrap();
-        let time = match server.now() {
-            Ok(time) => time,
-            Err(err) => {
-                server.forget_cancel_sender(&self.uuid);
-                return Err(err);
-            }
-        };
+        let time = server.now()?;
         let goal_info = action_msgs::msg::GoalInfo {
             goal_id: uuid_msg,
             stamp: time.clone(),
@@ -112,7 +116,6 @@ where
         let goal_handle: *mut rcl_action_goal_handle_t =
             unsafe { rcl_action_accept_new_goal(server.handle_mut(), &*native_goal_info) };
         if goal_handle.is_null() {
-            server.forget_cancel_sender(&self.uuid);
             return Err(Error::RCL_RET_ACTION_GOAL_HANDLE_INVALID);
         }
 
@@ -123,7 +126,6 @@ where
             unsafe {
                 rcl_action_goal_handle_fini(goal_handle);
             }
-            server.forget_cancel_sender(&self.uuid);
             return Err(Error::from_rcl_error(ret));
         }
 
@@ -133,10 +135,11 @@ where
             <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
         >::from(&response_msg);
 
+        self.response.response_sent = true;
         let ret = unsafe {
             rcl_action_send_goal_response(
                 server.handle_mut(),
-                &mut self.request_id,
+                &mut self.response.request_id,
                 response_msg.void_ptr_mut(),
             )
         };
@@ -153,7 +156,7 @@ where
         let g = ActionServerGoal {
             uuid: self.uuid,
             goal: self.goal,
-            server: self.server,
+            server: self.response.server.clone(),
         };
 
         // server.goals.insert(g.uuid.clone(), goal_handle);
@@ -164,31 +167,33 @@ where
 
     /// reject the goal request and be consumed in the process
     pub fn reject(mut self) -> Result<()> {
-        let time = builtin_interfaces::msg::Time::default();
         let server = self
+            .response
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
         let mut server = server.lock().unwrap();
+        self.response.response_sent = true;
+        server.reject_goal_request(&self.uuid, &mut self.response.request_id)
+    }
+}
 
-        let response_msg = T::make_goal_response_msg(false, time);
-        let mut response_msg = WrappedNativeMsg::<
-            <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
-        >::from(&response_msg);
-
-        let ret = unsafe {
-            rcl_action_send_goal_response(
-                server.handle_mut(),
-                &mut self.request_id,
-                response_msg.void_ptr_mut(),
-            )
-        };
-        server.forget_cancel_sender(&self.uuid);
-        if ret != RCL_RET_OK as i32 {
-            return Err(Error::from_rcl_error(ret));
+impl Drop for GoalRequestResponseGuard {
+    fn drop(&mut self) {
+        if self.response_sent {
+            return;
         }
+        let Some(server) = self.server.upgrade() else {
+            return;
+        };
+        let Ok(mut server) = server.lock() else {
+            return;
+        };
 
-        Ok(())
+        if let Err(err) = server.reject_goal_request(&self.uuid, &mut self.request_id) {
+            log::error!("could not reject dropped action goal request: {err}");
+        }
+        self.response_sent = true;
     }
 }
 pub type ActiveCancelRequest = (
@@ -268,6 +273,24 @@ where
             return Err(Error::from_rcl_error(ret));
         }
         time_point_to_builtin(now)
+    }
+
+    fn reject_goal_request(
+        &mut self, uuid: &uuid::Uuid, request_id: &mut rmw_request_id_t,
+    ) -> Result<()> {
+        let response = T::make_goal_response_msg(false, builtin_interfaces::msg::Time::default());
+        let mut response = WrappedNativeMsg::<
+            <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
+        >::from(&response);
+        let ret = unsafe {
+            rcl_action_send_goal_response(&self.rcl_handle, request_id, response.void_ptr_mut())
+        };
+        self.forget_cancel_sender(uuid);
+        if ret == RCL_RET_OK as i32 {
+            Ok(())
+        } else {
+            Err(Error::from_rcl_error(ret))
+        }
     }
 
     fn is_cancelling(&self, uuid: &uuid::Uuid) -> Result<bool> {
@@ -432,29 +455,18 @@ where
             uuid,
             goal,
             cancel_requests: cancel_receiver,
-            server: Arc::downgrade(&server),
-            request_id: unsafe { request_id.assume_init() },
+            response: GoalRequestResponseGuard {
+                server: Arc::downgrade(&server),
+                uuid,
+                request_id: unsafe { request_id.assume_init() },
+                response_sent: false,
+            },
         };
 
         // send out request.
         if let Err(e) = self.goal_request_sender.try_send(gr) {
-            let mut request = e.into_inner();
-            self.cancel_senders.remove(&request.uuid);
-            let response =
-                T::make_goal_response_msg(false, builtin_interfaces::msg::Time::default());
-            let mut response = WrappedNativeMsg::<
-                <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
-            >::from(&response);
-            let ret = unsafe {
-                rcl_action_send_goal_response(
-                    &self.rcl_handle,
-                    &mut request.request_id,
-                    response.void_ptr_mut(),
-                )
-            };
-            if ret != RCL_RET_OK as i32 {
-                log::error!("could not reject goal after request stream closed: {}", ret);
-            }
+            // Dropping the undelivered request sends a rejection and removes its cancel sender.
+            drop(e.into_inner());
         }
     }
 
