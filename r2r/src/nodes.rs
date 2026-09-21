@@ -1399,6 +1399,33 @@ impl Node {
             a.lock().send_completed_cancel_requests();
         }
 
+        let mut active_action_servers = Vec::with_capacity(self.action_servers.len());
+        for server in self.action_servers.drain(..) {
+            let removed_capacities = {
+                let mut handle = server.lock();
+                if handle.should_remove() {
+                    match action_server_wait_set_capacities(handle.handle()) {
+                        Ok(capacities) => {
+                            handle.destroy(&mut self.node_handle);
+                            Some(capacities)
+                        }
+                        Err(err) => {
+                            log::warn!("could not inspect dropped action server: {err}");
+                            None
+                        }
+                    }
+                } else {
+                    None
+                }
+            };
+            if let Some(capacities) = removed_capacities {
+                self.action_wait_set_capacities.subtract(capacities);
+            } else {
+                active_action_servers.push(server);
+            }
+        }
+        self.action_servers = active_action_servers;
+
         // as well as polling any services/action servers for availability
         for c in &mut self.clients {
             c.lock().poll_available(self.node_handle.as_mut());
@@ -3100,6 +3127,24 @@ mod tests {
         drop(untyped);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.action_clients.is_empty());
+        assert_eq!(node.action_wait_set_capacities, WaitSetCapacities::default());
+    }
+
+    #[test]
+    fn dropped_idle_action_server_is_removed_before_waiting() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "action_server_drop_cleanup_test", "").unwrap();
+        let requests = node
+            .create_action_server::<Fibonacci::Action>("/idle_action_server_drop_cleanup")
+            .unwrap();
+        assert_eq!(node.action_servers.len(), 1);
+
+        drop(requests);
+        node.try_spin_once(Duration::ZERO).unwrap();
+
+        assert!(node.action_servers.is_empty());
         assert_eq!(node.action_wait_set_capacities, WaitSetCapacities::default());
     }
 }

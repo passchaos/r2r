@@ -48,6 +48,7 @@ pub trait ActionServer_ {
     fn is_cancelling(&self, uuid: &uuid::Uuid) -> Result<bool>;
     fn add_goal_handle(&mut self, uuid: uuid::Uuid, goal_handle: *mut rcl_action_goal_handle_t);
     fn forget_cancel_sender(&mut self, uuid: &uuid::Uuid);
+    fn should_remove(&self) -> bool;
     fn destroy(&mut self, node: &mut rcl_node_t);
 }
 
@@ -655,6 +656,15 @@ where
 
     fn forget_cancel_sender(&mut self, uuid: &uuid::Uuid) {
         self.cancel_senders.remove(uuid);
+    }
+
+    fn should_remove(&self) -> bool {
+        self.goal_request_sender.is_closed()
+            && self.active_cancel_requests.is_empty()
+            && self.cancel_senders.is_empty()
+            && self.goals.is_empty()
+            && self.result_msgs.is_empty()
+            && self.result_requests.is_empty()
     }
 
     // bit of a hack...
