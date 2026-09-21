@@ -1677,7 +1677,10 @@ fn wait_until_unwrapped<T>(mut a: Arc<T>) -> T {
     loop {
         match Arc::try_unwrap(a) {
             Ok(b) => return b,
-            Err(t) => a = t,
+            Err(t) => {
+                a = t;
+                std::thread::yield_now();
+            }
         }
     }
 }
