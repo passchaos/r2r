@@ -42,7 +42,6 @@ use crate::{
 /// from the ROS network into your ros application, `spin_once` should
 /// be called continously.
 pub struct Node {
-    context: Context,
     /// ROS parameters.
     pub params: Arc<Mutex<IndexMap<String, Parameter>>>,
     pub(crate) node_handle: Box<rcl_node_t>,
@@ -66,6 +65,8 @@ pub struct Node {
     #[cfg(r2r__rosgraph_msgs__msg__Clock)]
     time_source: TimeSource,
     wait_set: WaitSet,
+    // Keep the ROS context alive until all other node resources have been dropped.
+    context: Context,
 }
 
 unsafe impl Send for Node {}
@@ -216,7 +217,6 @@ impl Node {
 
             let mut node = Node {
                 params: Arc::new(Mutex::new(IndexMap::new())),
-                context: ctx,
                 node_handle,
                 subscribers: Vec::new(),
                 services: Vec::new(),
@@ -229,6 +229,7 @@ impl Node {
                 #[cfg(r2r__rosgraph_msgs__msg__Clock)]
                 time_source,
                 wait_set: WaitSet::new(),
+                context: ctx,
             };
             #[cfg(r2r__rosgraph_msgs__msg__Clock)]
             node.time_source
@@ -1706,6 +1707,7 @@ impl Drop for Node {
         for s in &mut self.action_servers {
             s.lock().unwrap().destroy(&mut self.node_handle);
         }
+        self.timers.clear();
         while let Some(p) = self.pubs.pop() {
             let p = wait_until_unwrapped(p);
 
