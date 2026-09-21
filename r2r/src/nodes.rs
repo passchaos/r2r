@@ -739,8 +739,20 @@ impl Node {
             return Err(Error::from_rcl_error(ret));
         }
 
-        let subscription_handle =
-            create_subscription_helper(self.node_handle.as_mut(), topic, msg.ts, qos_profile)?;
+        let subscription_handle = match create_subscription_helper(
+            self.node_handle.as_mut(),
+            topic,
+            msg.ts,
+            qos_profile,
+        ) {
+            Ok(handle) => handle,
+            Err(err) => {
+                unsafe {
+                    rcutils_uint8_array_fini(&mut msg_buf as *mut rcl_serialized_message_t);
+                }
+                return Err(err);
+            }
+        };
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(10);
 
         let ws = RawSubscriber {
