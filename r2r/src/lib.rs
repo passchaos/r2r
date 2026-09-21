@@ -90,6 +90,7 @@ mod utils;
 pub use utils::*;
 
 mod subscribers;
+pub use subscribers::Subscription;
 
 mod publishers;
 pub use publishers::{LoanedMessage, Publisher, PublisherUntyped};

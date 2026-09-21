@@ -786,22 +786,22 @@ impl Node {
     /// Subscribe to a ROS topic.
     ///
     /// This function returns a `Stream` of ros messages.
-    pub fn subscribe<T>(
-        &mut self, topic: &str, qos_profile: QosProfile,
-    ) -> Result<impl Stream<Item = T> + Unpin>
+    pub fn subscribe<T>(&mut self, topic: &str, qos_profile: QosProfile) -> Result<Subscription<T>>
     where
         T: 'static + WrappedTypesupport,
     {
         let subscription_handle =
             create_subscription_helper(self.node_handle.as_mut(), topic, T::get_ts(), qos_profile)?;
         let (sender, receiver) = mpsc::channel::<T>(10);
+        let id = uuid::Uuid::new_v4();
 
         let ws = TypedSubscriber {
             rcl_handle: subscription_handle,
             sender,
+            match_state: SubscriptionMatchState::new(id),
         };
         self.subscribers.push(Box::new(ws));
-        Ok(receiver)
+        Ok(Subscription::new(receiver, id))
     }
 
     /// Subscribe to standard ROS parameter events, optionally filtering by node and parameter.
@@ -825,20 +825,22 @@ impl Node {
     /// This function returns a `Stream` of ros messages without the rust convenience types.
     pub fn subscribe_native<T>(
         &mut self, topic: &str, qos_profile: QosProfile,
-    ) -> Result<impl Stream<Item = WrappedNativeMsg<T>> + Unpin>
+    ) -> Result<Subscription<WrappedNativeMsg<T>>>
     where
         T: 'static + WrappedTypesupport,
     {
         let subscription_handle =
             create_subscription_helper(self.node_handle.as_mut(), topic, T::get_ts(), qos_profile)?;
         let (sender, receiver) = mpsc::channel::<WrappedNativeMsg<T>>(10);
+        let id = uuid::Uuid::new_v4();
 
         let ws = NativeSubscriber {
             rcl_handle: subscription_handle,
             sender,
+            match_state: SubscriptionMatchState::new(id),
         };
         self.subscribers.push(Box::new(ws));
-        Ok(receiver)
+        Ok(Subscription::new(receiver, id))
     }
 
     /// Subscribe to a ROS topic.
@@ -847,19 +849,21 @@ impl Node {
     /// Useful when you cannot know the type of the message at compile time.
     pub fn subscribe_untyped(
         &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
-    ) -> Result<impl Stream<Item = Result<serde_json::Value>> + Unpin> {
+    ) -> Result<Subscription<Result<serde_json::Value>>> {
         let msg = WrappedNativeMsgUntyped::new_from(topic_type)?;
         let subscription_handle =
             create_subscription_helper(self.node_handle.as_mut(), topic, msg.ts, qos_profile)?;
         let (sender, receiver) = mpsc::channel::<Result<serde_json::Value>>(10);
+        let id = uuid::Uuid::new_v4();
 
         let ws = UntypedSubscriber {
             rcl_handle: subscription_handle,
             topic_type: topic_type.to_string(),
             sender,
+            match_state: SubscriptionMatchState::new(id),
         };
         self.subscribers.push(Box::new(ws));
-        Ok(receiver)
+        Ok(Subscription::new(receiver, id))
     }
 
     /// Subscribe to a ROS topic.
@@ -868,7 +872,7 @@ impl Node {
     /// Useful if you just want to pass the data along to another part of the system.
     pub fn subscribe_raw(
         &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
-    ) -> Result<impl Stream<Item = Vec<u8>> + Unpin> {
+    ) -> Result<Subscription<Vec<u8>>> {
         // TODO is it possible to handle the raw message without type support?
         //
         // Passing null ts to rcl_subscription_init throws an error ..
@@ -906,13 +910,37 @@ impl Node {
                 }
             };
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(10);
+        let id = uuid::Uuid::new_v4();
 
         let ws = RawSubscriber {
             rcl_handle: subscription_handle,
             msg_buf,
             sender,
+            match_state: SubscriptionMatchState::new(id),
         };
         self.subscribers.push(Box::new(ws));
+        Ok(Subscription::new(receiver, id))
+    }
+
+    pub(crate) fn get_subscription_publisher_count(&self, id: uuid::Uuid) -> Result<usize> {
+        self.subscribers
+            .iter()
+            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
+            .publisher_count()
+    }
+
+    pub(crate) fn register_subscription_publisher_wait(
+        &mut self, id: uuid::Uuid,
+    ) -> Result<oneshot::Receiver<()>> {
+        let state = self
+            .subscribers
+            .iter_mut()
+            .filter_map(|subscriber| subscriber.match_state_mut())
+            .find(|state| state.id == id)
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
+        let (sender, receiver) = oneshot::channel();
+        state.waiters.push(sender);
         Ok(receiver)
     }
 
@@ -1298,6 +1326,9 @@ impl Node {
 
         for p in &self.pubs {
             p.poll_has_subscribers();
+        }
+        for subscriber in &mut self.subscribers {
+            subscriber.poll_has_publishers();
         }
 
         let timeout = duration_to_rcl_nanos(timeout)?;
@@ -2699,5 +2730,47 @@ mod tests {
             .unwrap();
         drive(&mut node, wait).unwrap();
         assert!(matched_publisher.get_subscription_count().unwrap() >= 1);
+    }
+
+    #[test]
+    fn subscription_match_queries_waits_and_cleanup_work() {
+        fn drive<T>(node: &mut Node, future: impl Future<Output = Result<T>>) -> Result<T> {
+            futures::pin_mut!(future);
+            loop {
+                node.try_spin_once(Duration::from_millis(10))?;
+                if let Some(result) = future.as_mut().now_or_never() {
+                    return result;
+                }
+            }
+        }
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "subscription_match_test", "").unwrap();
+        let missing_topic = format!("/missing_publisher_{}", uuid::Uuid::new_v4().simple());
+        let subscription = node
+            .subscribe::<crate::std_msgs::msg::String>(&missing_topic, QosProfile::default())
+            .unwrap();
+
+        assert_eq!(subscription.get_publisher_count(&node).unwrap(), 0);
+        let timeout = subscription
+            .wait_for_publishers_with_timeout(&mut node, Duration::from_millis(1))
+            .unwrap();
+        assert!(matches!(drive(&mut node, timeout), Err(Error::RCL_RET_TIMEOUT)));
+        node.try_spin_once(Duration::ZERO).unwrap();
+
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(&missing_topic, QosProfile::default())
+            .unwrap();
+        let wait = subscription
+            .wait_for_publishers_with_timeout(&mut node, Duration::from_secs(1))
+            .unwrap();
+        drive(&mut node, wait).unwrap();
+        assert!(subscription.get_publisher_count(&node).unwrap() >= 1);
+
+        node.destroy_publisher(publisher);
+        let subscriptions_before_drop = node.subscribers.len();
+        drop(subscription);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(node.subscribers.len(), subscriptions_before_drop - 1);
     }
 }

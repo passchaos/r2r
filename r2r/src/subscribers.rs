@@ -1,11 +1,122 @@
-use futures::channel::mpsc;
-use std::ffi::CString;
+use futures::{
+    channel::{mpsc, oneshot},
+    Future, Stream, TryFutureExt,
+};
+use std::{
+    ffi::CString,
+    pin::Pin,
+    task::{Context, Poll},
+    time::Duration,
+};
 
-use crate::{error::*, msg_types::*, qos::QosProfile};
+use crate::{
+    error::*,
+    msg_types::*,
+    nodes::{future_with_timeout, Node},
+    qos::QosProfile,
+};
 use r2r_rcl::*;
 
-pub trait Subscriber_ {
+/// A ROS subscription stream with graph matching helpers.
+pub struct Subscription<T> {
+    receiver: mpsc::Receiver<T>,
+    id: uuid::Uuid,
+}
+
+impl<T> Subscription<T> {
+    pub(crate) fn new(receiver: mpsc::Receiver<T>, id: uuid::Uuid) -> Self {
+        Self { receiver, id }
+    }
+
+    /// Gets the number of publishers matched to this subscription.
+    pub fn get_publisher_count(&self, node: &Node) -> Result<usize> {
+        node.get_subscription_publisher_count(self.id)
+    }
+
+    /// Waits for at least one publisher to match this subscription.
+    pub fn wait_for_publishers(&self, node: &mut Node) -> Result<impl Future<Output = Result<()>>> {
+        let receiver = node.register_subscription_publisher_wait(self.id)?;
+        Ok(receiver.map_err(|_| Error::RCL_RET_SUBSCRIPTION_INVALID))
+    }
+
+    /// Waits for a matched publisher up to `timeout`. The node must be spun while awaiting.
+    pub fn wait_for_publishers_with_timeout(
+        &self, node: &mut Node, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<()>>> {
+        let available = self.wait_for_publishers(node)?;
+        let timer = node.create_wall_timer(timeout)?;
+        Ok(future_with_timeout(available, timer))
+    }
+}
+
+impl<T> Stream for Subscription<T> {
+    type Item = T;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.receiver).poll_next(cx)
+    }
+}
+
+pub(crate) struct SubscriptionMatchState {
+    pub(crate) id: uuid::Uuid,
+    pub(crate) waiters: Vec<oneshot::Sender<()>>,
+}
+
+impl SubscriptionMatchState {
+    pub(crate) fn new(id: uuid::Uuid) -> Self {
+        Self {
+            id,
+            waiters: Vec::new(),
+        }
+    }
+}
+
+pub(crate) trait Subscriber_ {
     fn handle(&self) -> &rcl_subscription_t;
+    fn match_state(&self) -> Option<&SubscriptionMatchState> {
+        None
+    }
+    fn match_state_mut(&mut self) -> Option<&mut SubscriptionMatchState> {
+        None
+    }
+    fn publisher_count(&self) -> Result<usize> {
+        let mut count = 0;
+        let ret = unsafe { rcl_subscription_get_publisher_count(self.handle(), &mut count) };
+        if ret == RCL_RET_OK as i32 {
+            Ok(count)
+        } else {
+            Err(Error::from_rcl_error(ret))
+        }
+    }
+    fn poll_has_publishers(&mut self) {
+        {
+            let Some(state) = self.match_state_mut() else {
+                return;
+            };
+            state.waiters.retain(|sender| !sender.is_canceled());
+            if state.waiters.is_empty() {
+                return;
+            }
+        };
+
+        match self.publisher_count() {
+            Ok(0) => {}
+            Ok(_) => {
+                let state = self
+                    .match_state_mut()
+                    .expect("subscriber match state disappeared while polling");
+                while let Some(sender) = state.waiters.pop() {
+                    let _ = sender.send(());
+                }
+            }
+            Err(_) => {
+                self.match_state_mut()
+                    .expect("subscriber match state disappeared while polling")
+                    .waiters
+                    .clear();
+            }
+        }
+    }
     /// Returns true when the subscriber should be destroyed before entering the next wait.
     fn should_remove(&mut self) -> bool {
         false
@@ -21,6 +132,7 @@ where
 {
     pub rcl_handle: rcl_subscription_t,
     pub sender: mpsc::Sender<T>,
+    pub(crate) match_state: SubscriptionMatchState,
 }
 
 pub struct NativeSubscriber<T>
@@ -29,18 +141,21 @@ where
 {
     pub rcl_handle: rcl_subscription_t,
     pub sender: mpsc::Sender<WrappedNativeMsg<T>>,
+    pub(crate) match_state: SubscriptionMatchState,
 }
 
 pub struct UntypedSubscriber {
     pub rcl_handle: rcl_subscription_t,
     pub topic_type: String,
     pub sender: mpsc::Sender<Result<serde_json::Value>>,
+    pub(crate) match_state: SubscriptionMatchState,
 }
 
 pub struct RawSubscriber {
     pub rcl_handle: rcl_subscription_t,
     pub msg_buf: rcl_serialized_message_t,
     pub sender: mpsc::Sender<Vec<u8>>,
+    pub(crate) match_state: SubscriptionMatchState,
 }
 
 impl<T: 'static> Subscriber_ for TypedSubscriber<T>
@@ -49,6 +164,18 @@ where
 {
     fn handle(&self) -> &rcl_subscription_t {
         &self.rcl_handle
+    }
+
+    fn match_state(&self) -> Option<&SubscriptionMatchState> {
+        Some(&self.match_state)
+    }
+
+    fn match_state_mut(&mut self) -> Option<&mut SubscriptionMatchState> {
+        Some(&mut self.match_state)
+    }
+
+    fn should_remove(&mut self) -> bool {
+        self.sender.is_closed()
     }
 
     fn handle_incoming(&mut self) -> bool {
@@ -88,6 +215,18 @@ where
         &self.rcl_handle
     }
 
+    fn match_state(&self) -> Option<&SubscriptionMatchState> {
+        Some(&self.match_state)
+    }
+
+    fn match_state_mut(&mut self) -> Option<&mut SubscriptionMatchState> {
+        Some(&mut self.match_state)
+    }
+
+    fn should_remove(&mut self) -> bool {
+        self.sender.is_closed()
+    }
+
     fn handle_incoming(&mut self) -> bool {
         // The returned stream may outlive the Node. Use caller-owned message storage so
         // dropping an item never has to access an already-finalized subscription handle.
@@ -124,6 +263,18 @@ impl Subscriber_ for UntypedSubscriber {
         &self.rcl_handle
     }
 
+    fn match_state(&self) -> Option<&SubscriptionMatchState> {
+        Some(&self.match_state)
+    }
+
+    fn match_state_mut(&mut self) -> Option<&mut SubscriptionMatchState> {
+        Some(&mut self.match_state)
+    }
+
+    fn should_remove(&mut self) -> bool {
+        self.sender.is_closed()
+    }
+
     fn handle_incoming(&mut self) -> bool {
         let mut msg_info = rmw_message_info_t::default(); // we dont care for now
         let Ok(mut msg) = WrappedNativeMsgUntyped::new_from(&self.topic_type) else {
@@ -156,6 +307,18 @@ impl Subscriber_ for UntypedSubscriber {
 impl Subscriber_ for RawSubscriber {
     fn handle(&self) -> &rcl_subscription_t {
         &self.rcl_handle
+    }
+
+    fn match_state(&self) -> Option<&SubscriptionMatchState> {
+        Some(&self.match_state)
+    }
+
+    fn match_state_mut(&mut self) -> Option<&mut SubscriptionMatchState> {
+        Some(&mut self.match_state)
+    }
+
+    fn should_remove(&mut self) -> bool {
+        self.sender.is_closed()
     }
 
     fn handle_incoming(&mut self) -> bool {
