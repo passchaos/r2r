@@ -248,11 +248,11 @@ pub trait ActionClient_ {
     fn destroy(&mut self, node: &mut rcl_node_t);
     fn has_pending_work(&mut self) -> bool;
 
-    fn handle_goal_response(&mut self);
-    fn handle_cancel_response(&mut self);
-    fn handle_feedback_msg(&mut self);
-    fn handle_status_msg(&mut self);
-    fn handle_result_response(&mut self);
+    fn handle_goal_response(&mut self) -> Result<()>;
+    fn handle_cancel_response(&mut self) -> Result<()>;
+    fn handle_feedback_msg(&mut self) -> Result<()>;
+    fn handle_status_msg(&mut self) -> Result<()>;
+    fn handle_result_response(&mut self) -> Result<()>;
 
     fn send_result_request(&mut self, uuid: uuid::Uuid) -> Result<()>;
 
@@ -374,14 +374,11 @@ where
         &self.rcl_handle
     }
 
-    fn handle_goal_response(&mut self) {
+    fn handle_goal_response(&mut self) -> Result<()> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let Ok(mut response_msg) = WrappedNativeMsg::<
+        let mut response_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
-        >::try_new() else {
-            log::error!("failed to allocate action goal response buffer");
-            return;
-        };
+        >::try_new()?;
 
         let ret = unsafe {
             rcl_action_take_goal_response(
@@ -390,7 +387,7 @@ where
                 response_msg.void_ptr_mut(),
             )
         };
-        if ret == RCL_RET_OK as i32 {
+        if action_client_take_succeeded(ret)? {
             let request_id = unsafe { request_id.assume_init() };
             if let Some(idx) = self
                 .goal_response_channels
@@ -424,16 +421,13 @@ where
                 );
             }
         }
+        Ok(())
     }
 
-    fn handle_cancel_response(&mut self) {
+    fn handle_cancel_response(&mut self) -> Result<()> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let Ok(mut response_msg) =
-            WrappedNativeMsg::<action_msgs::srv::CancelGoal::Response>::try_new()
-        else {
-            log::error!("failed to allocate action cancel response buffer");
-            return;
-        };
+        let mut response_msg =
+            WrappedNativeMsg::<action_msgs::srv::CancelGoal::Response>::try_new()?;
 
         let ret = unsafe {
             rcl_action_take_cancel_response(
@@ -442,7 +436,7 @@ where
                 response_msg.void_ptr_mut(),
             )
         };
-        if ret == RCL_RET_OK as i32 {
+        if action_client_take_succeeded(ret)? {
             let request_id = unsafe { request_id.assume_init() };
             if let Some(idx) = self
                 .cancel_response_channels
@@ -468,16 +462,14 @@ where
                 );
             }
         }
+        Ok(())
     }
 
-    fn handle_feedback_msg(&mut self) {
-        let Ok(mut feedback_msg) = WrappedNativeMsg::<T::FeedbackMessage>::try_new() else {
-            log::error!("failed to allocate action feedback buffer");
-            return;
-        };
+    fn handle_feedback_msg(&mut self) -> Result<()> {
+        let mut feedback_msg = WrappedNativeMsg::<T::FeedbackMessage>::try_new()?;
         let ret =
             unsafe { rcl_action_take_feedback(&self.rcl_handle, feedback_msg.void_ptr_mut()) };
-        if ret == RCL_RET_OK as i32 {
+        if action_client_take_succeeded(ret)? {
             let msg = T::FeedbackMessage::from_native(&feedback_msg);
             let (uuid, feedback) = T::destructure_feedback_msg(msg);
             let msg_uuid = uuid_msg_to_uuid(&uuid);
@@ -491,16 +483,13 @@ where
                 }
             }
         }
+        Ok(())
     }
 
-    fn handle_status_msg(&mut self) {
-        let Ok(mut status_array) = WrappedNativeMsg::<action_msgs::msg::GoalStatusArray>::try_new()
-        else {
-            log::error!("failed to allocate action status buffer");
-            return;
-        };
+    fn handle_status_msg(&mut self) -> Result<()> {
+        let mut status_array = WrappedNativeMsg::<action_msgs::msg::GoalStatusArray>::try_new()?;
         let ret = unsafe { rcl_action_take_status(&self.rcl_handle, status_array.void_ptr_mut()) };
-        if ret == RCL_RET_OK as i32 {
+        if action_client_take_succeeded(ret)? {
             let arr = action_msgs::msg::GoalStatusArray::from_native(&status_array);
             for a in &arr.status_list {
                 let uuid = uuid_msg_to_uuid(&a.goal_info.goal_id);
@@ -511,16 +500,14 @@ where
                 *self.goal_status.entry(uuid).or_insert(GoalStatus::Unknown) = status;
             }
         }
+        Ok(())
     }
 
-    fn handle_result_response(&mut self) {
+    fn handle_result_response(&mut self) -> Result<()> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let Ok(mut response_msg) = WrappedNativeMsg::<
+        let mut response_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
-        >::try_new() else {
-            log::error!("failed to allocate action result response buffer");
-            return;
-        };
+        >::try_new()?;
 
         let ret = unsafe {
             rcl_action_take_result_response(
@@ -530,7 +517,7 @@ where
             )
         };
 
-        if ret == RCL_RET_OK as i32 {
+        if action_client_take_succeeded(ret)? {
             let request_id = unsafe { request_id.assume_init() };
             if let Some(idx) = self
                 .result_requests
@@ -570,6 +557,7 @@ where
                 );
             }
         }
+        Ok(())
     }
 
     fn send_result_request(&mut self, uuid: uuid::Uuid) -> Result<()> {
@@ -641,6 +629,16 @@ where
         unsafe {
             rcl_action_client_fini(&mut self.rcl_handle, node);
         }
+    }
+}
+
+pub(crate) fn action_client_take_succeeded(ret: rcl_ret_t) -> Result<bool> {
+    if ret == RCL_RET_OK as i32 {
+        Ok(true)
+    } else if ret == RCL_RET_ACTION_CLIENT_TAKE_FAILED as i32 {
+        Ok(false)
+    } else {
+        Err(Error::from_rcl_error(ret))
     }
 }
 
@@ -719,5 +717,20 @@ pub fn action_server_available_helper(
     } else {
         log::error!("could not check if action server is available {}", result);
         Err(Error::from_rcl_error(result))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn classifies_action_client_take_results() {
+        assert!(action_client_take_succeeded(RCL_RET_OK as i32).unwrap());
+        assert!(!action_client_take_succeeded(RCL_RET_ACTION_CLIENT_TAKE_FAILED as i32).unwrap());
+        assert!(matches!(
+            action_client_take_succeeded(RCL_RET_ACTION_CLIENT_INVALID as i32),
+            Err(Error::RCL_RET_ACTION_CLIENT_INVALID)
+        ));
     }
 }

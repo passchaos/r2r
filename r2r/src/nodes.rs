@@ -1615,23 +1615,23 @@ impl Node {
             }
 
             if is_feedback_ready {
-                ac.handle_feedback_msg();
+                ac.handle_feedback_msg()?;
             }
 
             if is_status_ready {
-                ac.handle_status_msg();
+                ac.handle_status_msg()?;
             }
 
             if is_goal_response_ready {
-                ac.handle_goal_response();
+                ac.handle_goal_response()?;
             }
 
             if is_cancel_response_ready {
-                ac.handle_cancel_response();
+                ac.handle_cancel_response()?;
             }
 
             if is_result_response_ready {
-                ac.handle_result_response();
+                ac.handle_result_response()?;
             }
         }
 
