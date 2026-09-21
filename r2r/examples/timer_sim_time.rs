@@ -44,7 +44,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ```shell
     // cargo run --example=timer_sim_time -- --ros-args -p use_sim_time:=true
     // ```
-    // this does not work if the parameter is changed during the runtime
+    // Runtime updates with `ros2 param set /testnode use_sim_time true` are applied on the next
+    // node spin.
     let (paramater_handler, _parameter_events) = node.make_parameter_handler()?;
     spawner.spawn_local(paramater_handler)?;
 

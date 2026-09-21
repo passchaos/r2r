@@ -312,6 +312,8 @@ impl Node {
 
         let params = self.params.clone();
         let params_struct_clone = params_struct.clone();
+        #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+        let set_params_time_source = self.time_source.clone();
         let set_params_future = set_params_request_stream.for_each(
             move |req: ServiceRequest<rcl_interfaces::srv::SetParameters::Service>| {
                 let mut result = rcl_interfaces::srv::SetParameters::Response::default();
@@ -322,7 +324,28 @@ impl Node {
                         .get(&p.name)
                         .map(|v| v.value != val)
                         .unwrap_or(true); // changed=true if new
-                    let r = if let Some(ps) = &params_struct_clone {
+                    let r = if p.name == "use_sim_time" {
+                        match val {
+                            ParameterValue::Bool(enabled) => {
+                                let _ = enabled;
+                                params
+                                    .lock()
+                                    .entry(p.name.clone())
+                                    .and_modify(|parameter| parameter.value = val.clone())
+                                    .or_insert_with(|| Parameter::new(val.clone()));
+                                #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+                                set_params_time_source.request_sim_time(enabled);
+                                rcl_interfaces::msg::SetParametersResult {
+                                    successful: true,
+                                    reason: String::new(),
+                                }
+                            }
+                            _ => rcl_interfaces::msg::SetParametersResult {
+                                successful: false,
+                                reason: "use_sim_time must be a boolean".into(),
+                            },
+                        }
+                    } else if let Some(ps) = &params_struct_clone {
                         // Update parameter structure
                         let result = ps.lock().set_parameter(&p.name, &val);
                         if result.is_ok() {
@@ -476,6 +499,8 @@ impl Node {
 
         let params = self.params.clone();
         let params_struct_clone = params_struct.clone();
+        #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+        let atomic_time_source = self.time_source.clone();
         let set_params_atomically_future = set_params_atomically_request_stream.for_each(
             move |req: ServiceRequest<rcl_interfaces::srv::SetParametersAtomically::Service>| {
                 let mut result = rcl_interfaces::srv::SetParametersAtomically::Response::default();
@@ -490,10 +515,29 @@ impl Node {
                         )
                     })
                     .collect::<Vec<_>>();
+                let sim_time_update = updates
+                    .iter()
+                    .rev()
+                    .find_map(|(name, value)| (name == "use_sim_time").then_some(value));
+                let invalid_sim_time = updates.iter().any(|(name, value)| {
+                    name == "use_sim_time" && !matches!(value, ParameterValue::Bool(_))
+                });
+                let derived_updates = updates
+                    .iter()
+                    .filter(|(name, _)| name != "use_sim_time")
+                    .cloned()
+                    .collect::<Vec<_>>();
 
-                let update_result = params_struct_clone
-                    .as_ref()
-                    .map_or(Ok(()), |ps| ps.lock().set_parameters_atomically(&updates));
+                let update_result = if invalid_sim_time {
+                    Err(Error::InvalidParameterType {
+                        name: "use_sim_time".into(),
+                        ty: "boolean",
+                    })
+                } else {
+                    params_struct_clone
+                        .as_ref()
+                        .map_or(Ok(()), |ps| ps.lock().set_parameters_atomically(&derived_updates))
+                };
 
                 match update_result {
                     Ok(()) => {
@@ -520,6 +564,11 @@ impl Node {
                                 log::debug!("Warning: could not send parameter event ({}).", e);
                             }
                         }
+                        if let Some(ParameterValue::Bool(enabled)) = sim_time_update {
+                            let _ = enabled;
+                            #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+                            atomic_time_source.request_sim_time(*enabled);
+                        }
                     }
                     Err(err) => {
                         result.result.successful = false;
@@ -538,18 +587,26 @@ impl Node {
         {
             // create TimeSource based on value of use_sim_time parameter
             let use_sim_time = {
-                let params = self.params.lock();
-                params
-                    .get("use_sim_time")
-                    .and_then(|param| {
-                        if let ParameterValue::Bool(val) = param.value {
-                            Some(val)
-                        } else {
-                            log::error!("Parameter use_sim_time is not bool. Assuming false");
-                            None
-                        }
-                    })
-                    .unwrap_or(false)
+                let mut params = self.params.lock();
+                match params.get("use_sim_time") {
+                    Some(Parameter {
+                        value: ParameterValue::Bool(value),
+                        ..
+                    }) => *value,
+                    Some(_) => {
+                        return Err(Error::InvalidParameterType {
+                            name: "use_sim_time".into(),
+                            ty: "boolean",
+                        });
+                    }
+                    None => {
+                        params.insert(
+                            "use_sim_time".into(),
+                            Parameter::new(ParameterValue::Bool(false)),
+                        );
+                        false
+                    }
+                }
             };
             if use_sim_time {
                 let ts = self.time_source.clone();
@@ -1067,6 +1124,12 @@ impl Node {
 
     /// Spin the ROS node and report errors from the underlying RCL wait set.
     pub fn try_spin_once(&mut self, timeout: Duration) -> Result<()> {
+        #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+        {
+            let time_source = self.time_source.clone();
+            time_source.apply_requested_sim_time(self)?;
+        }
+
         // Some internal subscriptions, such as `/clock`, can be disabled without another
         // message arriving. Remove them before rebuilding the wait set so teardown does not
         // depend on readiness from the subscription being removed.
@@ -1895,6 +1958,7 @@ fn convert_info_array_to_vec(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::{executor::LocalPool, task::LocalSpawnExt};
 
     #[test]
     fn converts_rcl_durations_without_wrapping() {
@@ -1978,5 +2042,104 @@ mod tests {
             Err(Error::RCL_RET_UNSUPPORTED) => {}
             Err(err) => panic!("unexpected loan error: {err}"),
         };
+    }
+
+    #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+    #[test]
+    fn parameter_service_switches_sim_time_at_runtime() {
+        use rcl_interfaces::{
+            msg,
+            srv::{SetParameters, SetParametersAtomically},
+        };
+
+        fn sim_time_parameter(value: msg::ParameterValue) -> msg::Parameter {
+            msg::Parameter {
+                name: "use_sim_time".into(),
+                value,
+            }
+        }
+
+        fn bool_value(enabled: bool) -> msg::ParameterValue {
+            msg::ParameterValue {
+                type_: msg::ParameterType::PARAMETER_BOOL as u8,
+                bool_value: enabled,
+                ..Default::default()
+            }
+        }
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "runtime_sim_time_test", "").unwrap();
+        let (handler, _events) = node.make_parameter_handler().unwrap();
+        let client = node
+            .create_client::<SetParameters::Service>(
+                "runtime_sim_time_test/set_parameters",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let atomic_client = node
+            .create_client::<SetParametersAtomically::Service>(
+                "runtime_sim_time_test/set_parameters_atomically",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let mut pool = LocalPool::new();
+        pool.spawner().spawn_local(handler).unwrap();
+
+        for enabled in [true, false] {
+            let response = client
+                .request(&SetParameters::Request {
+                    parameters: vec![sim_time_parameter(bool_value(enabled))],
+                })
+                .unwrap();
+            let mut response = Box::pin(response);
+            let result = loop {
+                node.try_spin_once(Duration::from_millis(10)).unwrap();
+                pool.run_until_stalled();
+                if let Some(result) = response.as_mut().now_or_never() {
+                    break result.unwrap();
+                }
+            };
+            assert!(result.results[0].successful);
+
+            node.try_spin_once(Duration::ZERO).unwrap();
+            assert_eq!(node.time_source.is_sim_time_enabled(), enabled);
+        }
+
+        let invalid = client
+            .request(&SetParameters::Request {
+                parameters: vec![sim_time_parameter(msg::ParameterValue {
+                    type_: msg::ParameterType::PARAMETER_STRING as u8,
+                    string_value: "true".into(),
+                    ..Default::default()
+                })],
+            })
+            .unwrap();
+        let mut invalid = Box::pin(invalid);
+        let invalid = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            pool.run_until_stalled();
+            if let Some(result) = invalid.as_mut().now_or_never() {
+                break result.unwrap();
+            }
+        };
+        assert!(!invalid.results[0].successful);
+        assert!(!node.time_source.is_sim_time_enabled());
+
+        let atomic = atomic_client
+            .request(&SetParametersAtomically::Request {
+                parameters: vec![sim_time_parameter(bool_value(true))],
+            })
+            .unwrap();
+        let mut atomic = Box::pin(atomic);
+        let atomic = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            pool.run_until_stalled();
+            if let Some(result) = atomic.as_mut().now_or_never() {
+                break result.unwrap();
+            }
+        };
+        assert!(atomic.result.successful);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.time_source.is_sim_time_enabled());
     }
 }

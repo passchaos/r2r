@@ -20,6 +20,7 @@ use std::sync::{Arc, Weak};
 /// The time from `/clock` topic can be activated by either of these:
 /// - calling [`TimeSource::enable_sim_time`]
 /// - having registered parameter handler and launching the node with parameter `use_sim_time:=true`
+/// - changing the registered `use_sim_time` parameter while the node is running
 ///
 /// Similar to `rclcpp/time_source.hpp`
 #[derive(Clone)]
@@ -31,6 +32,7 @@ pub(crate) struct TimeSource_ {
     managed_clocks: Vec<Weak<Mutex<Clock>>>,
     subscriber_state: TimeSourceSubscriberState,
     simulated_time_enabled: bool,
+    requested_simulated_time: Option<bool>,
     last_time_msg: rcl_time_point_value_t,
 }
 
@@ -118,6 +120,7 @@ impl TimeSource {
 
         // Do not publish the enabled state until subscription and clock setup have succeeded.
         inner.simulated_time_enabled = true;
+        inner.requested_simulated_time = None;
 
         Ok(())
     }
@@ -128,6 +131,7 @@ impl TimeSource {
     /// node enters its next wait cycle.
     pub fn disable_sim_time(&self) {
         let mut inner = self.inner.lock();
+        inner.requested_simulated_time = None;
         if inner.simulated_time_enabled {
             inner.simulated_time_enabled = false;
 
@@ -141,6 +145,35 @@ impl TimeSource {
             inner.subscriber_state = TimeSourceSubscriberState::ToBeDestroyed;
         }
     }
+
+    /// Returns whether attached clocks currently use time from `/clock`.
+    pub fn is_sim_time_enabled(&self) -> bool {
+        self.inner.lock().simulated_time_enabled
+    }
+
+    pub(crate) fn request_sim_time(&self, enabled: bool) {
+        let mut inner = self.inner.lock();
+        if inner.simulated_time_enabled == enabled {
+            inner.requested_simulated_time = None;
+        } else {
+            inner.requested_simulated_time = Some(enabled);
+        }
+    }
+
+    pub(crate) fn apply_requested_sim_time(&self, node: &mut Node) -> Result<()> {
+        let requested = self.inner.lock().requested_simulated_time.take();
+        match requested {
+            Some(true) => {
+                if let Err(err) = self.enable_sim_time(node) {
+                    self.inner.lock().requested_simulated_time = Some(true);
+                    return Err(err);
+                }
+            }
+            Some(false) => self.disable_sim_time(),
+            None => {}
+        }
+        Ok(())
+    }
 }
 
 impl TimeSource_ {
@@ -149,6 +182,7 @@ impl TimeSource_ {
             managed_clocks: vec![],
             subscriber_state: TimeSourceSubscriberState::None,
             simulated_time_enabled: false,
+            requested_simulated_time: None,
             last_time_msg: 0,
         }
     }
@@ -316,5 +350,15 @@ mod tests {
         assert!(result.is_err());
         assert!(!inner.simulated_time_enabled);
         assert!(matches!(inner.subscriber_state, TimeSourceSubscriberState::None));
+    }
+
+    #[test]
+    fn latest_sim_time_request_wins_before_spin() {
+        let time_source = TimeSource::new();
+
+        time_source.request_sim_time(true);
+        time_source.request_sim_time(false);
+
+        assert!(time_source.inner.lock().requested_simulated_time.is_none());
     }
 }
