@@ -183,6 +183,23 @@ pub type ActiveCancelRequest = (
     JoinAll<oneshot::Receiver<(uuid::Uuid, bool)>>,
 );
 
+struct CancelResponse(rcl_action_cancel_response_t);
+
+impl CancelResponse {
+    fn new() -> Self {
+        Self(unsafe { rcl_action_get_zero_initialized_cancel_response() })
+    }
+}
+
+impl Drop for CancelResponse {
+    fn drop(&mut self) {
+        let ret = unsafe { rcl_action_cancel_response_fini(&mut self.0) };
+        if ret != RCL_RET_OK as i32 {
+            log::error!("could not finalize action cancel response: {}", ret);
+        }
+    }
+}
+
 fn retain_accepted_cancellations(
     response: &mut action_msgs::srv::CancelGoal::Response,
     decisions: impl IntoIterator<Item = (uuid::Uuid, bool)>,
@@ -415,9 +432,13 @@ where
         // `rcl_action_take_cancel_request` only initializes the request id on success.
         let request_id = unsafe { request_id.assume_init() };
 
-        let mut cancel_response = unsafe { rcl_action_get_zero_initialized_cancel_response() };
+        let mut cancel_response = CancelResponse::new();
         let ret = unsafe {
-            rcl_action_process_cancel_request(&self.rcl_handle, &*request_msg, &mut cancel_response)
+            rcl_action_process_cancel_request(
+                &self.rcl_handle,
+                &*request_msg,
+                &mut cancel_response.0,
+            )
         };
 
         if ret != RCL_RET_OK as i32 {
@@ -426,7 +447,7 @@ where
         }
 
         let response_msg =
-            action_msgs::srv::CancelGoal::Response::from_native(&cancel_response.msg);
+            action_msgs::srv::CancelGoal::Response::from_native(&cancel_response.0.msg);
 
         let return_channels = response_msg
             .goals_canceling
@@ -493,6 +514,7 @@ where
                     "action server: failed to get goal status array: {}",
                     Error::from_rcl_error(ret)
                 );
+                rcl_action_goal_status_array_fini(&mut status);
                 return;
             }
             let ret = rcl_action_publish_status(
@@ -504,7 +526,6 @@ where
                     "action server: failed to publish status: {}",
                     Error::from_rcl_error(ret)
                 );
-                return;
             }
             rcl_action_goal_status_array_fini(&mut status);
         }
