@@ -13,8 +13,6 @@
 )]
 include!(concat!(env!("OUT_DIR"), "/rcl_bindings.rs"));
 
-use std::ffi::{CStr, CString};
-
 impl Default for rmw_message_info_t {
     fn default() -> Self {
         unsafe { rmw_get_zero_initialized_message_info() }
@@ -25,14 +23,20 @@ impl Default for rmw_message_info_t {
 // ros strings are owned by ros, assignment is a copy
 impl rosidl_runtime_c__String {
     pub fn to_str(&self) -> &str {
-        let s = unsafe { CStr::from_ptr(self.data) };
-        s.to_str().unwrap_or("")
+        if self.data.is_null() {
+            return "";
+        }
+        let bytes = unsafe { std::slice::from_raw_parts(self.data.cast::<u8>(), self.size) };
+        std::str::from_utf8(bytes).unwrap_or("")
     }
 
     pub fn assign(&mut self, other: &str) {
-        let q = CString::new(other).unwrap();
         unsafe {
-            rosidl_runtime_c__String__assign(self as *mut _, q.as_ptr());
+            rosidl_runtime_c__String__assignn(
+                self as *mut _,
+                other.as_ptr().cast::<std::os::raw::c_char>(),
+                other.len(),
+            );
         }
     }
 }
@@ -41,9 +45,6 @@ use widestring::U16String;
 impl rosidl_runtime_c__U16String {
     pub fn to_str(&self) -> String {
         let s = unsafe { U16String::from_ptr(self.data, self.size) };
-        // U16Str = U16String::from_ptr(buffer, strlen as usize);
-        // let s = unsafe { CStr::from_ptr(self.data as *mut i8) };
-        //s.to_str().unwrap_or("")
         s.to_string_lossy()
     }
 

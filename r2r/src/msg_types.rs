@@ -733,6 +733,18 @@ mod tests {
     }
 
     #[test]
+    fn generated_strings_preserve_embedded_nul_bytes() {
+        let msg = std_msgs::msg::String {
+            data: "before\0after".into(),
+        };
+
+        let native = WrappedNativeMsg::<std_msgs::msg::String>::from(&msg);
+        let roundtrip = std_msgs::msg::String::from_native(&native);
+
+        assert_eq!(roundtrip, msg);
+    }
+
+    #[test]
     fn test_generation_bool_use() {
         let msg = std_msgs::msg::Bool { data: true };
         let msg_native = WrappedNativeMsg::<std_msgs::msg::Bool>::from(&msg);
