@@ -6,7 +6,7 @@ use futures::{
 use parking_lot::Mutex;
 use std::{
     collections::HashMap,
-    ffi::CString,
+    ffi::{CStr, CString},
     future::Future,
     mem::MaybeUninit,
     sync::{Arc, Weak},
@@ -257,6 +257,16 @@ where
         }
         let client = client.lock();
         action_server_available_helper(node.node_handle.as_ref(), client.handle())
+    }
+
+    /// Returns the fully resolved action name used by the native client.
+    pub fn action_name(&self) -> Result<String> {
+        let client = self
+            .client
+            .upgrade()
+            .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+        let client = client.lock();
+        action_client_name(client.handle())
     }
 }
 
@@ -788,6 +798,20 @@ pub fn action_server_available_helper(
         log::error!("could not check if action server is available {}", result);
         Err(Error::from_rcl_error(result))
     }
+}
+
+pub(crate) fn action_client_name(client: &rcl_action_client_t) -> Result<String> {
+    let name = unsafe { rcl_action_client_get_action_name(client) };
+    if name.is_null() {
+        return Err(Error::RCL_RET_ACTION_CLIENT_INVALID);
+    }
+    unsafe { CStr::from_ptr(name) }
+        .to_str()
+        .map(str::to_owned)
+        .map_err(|err| Error::InvalidUtf8 {
+            context: "action client name",
+            err: err.to_string(),
+        })
 }
 
 #[cfg(test)]

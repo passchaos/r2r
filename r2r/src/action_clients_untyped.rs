@@ -239,6 +239,16 @@ impl ActionClientUntyped {
         let client = client.lock();
         action_server_available_helper(node.node_handle.as_ref(), client.handle())
     }
+
+    /// Returns the fully resolved action name used by the native client.
+    pub fn action_name(&self) -> Result<String> {
+        let client = self
+            .client
+            .upgrade()
+            .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+        let client = client.lock();
+        action_client_name(client.handle())
+    }
 }
 
 type GoalResponseSender = oneshot::Sender<(bool, builtin_interfaces::msg::Time)>;

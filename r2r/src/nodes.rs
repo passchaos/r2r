@@ -1315,6 +1315,15 @@ impl Node {
             .topic_name()
     }
 
+    pub(crate) fn get_subscription_can_loan_messages(&self, id: uuid::Uuid) -> Result<bool> {
+        Ok(self
+            .subscribers
+            .iter()
+            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
+            .can_loan_messages())
+    }
+
     pub(crate) fn register_subscription_publisher_wait(
         &mut self, id: uuid::Uuid,
     ) -> Result<oneshot::Receiver<()>> {
@@ -3753,8 +3762,13 @@ mod tests {
             .subscribe::<crate::std_msgs::msg::String>("relative_topic", QosProfile::default())
             .unwrap();
         assert_eq!(subscription.topic_name(&node).unwrap(), "/scope/relative_topic");
+        let _subscription_supports_loans = subscription.can_loan_messages(&node).unwrap();
         assert!(matches!(
             subscription.topic_name(&other),
+            Err(Error::RCL_RET_SUBSCRIPTION_INVALID)
+        ));
+        assert!(matches!(
+            subscription.can_loan_messages(&other),
             Err(Error::RCL_RET_SUBSCRIPTION_INVALID)
         ));
 
@@ -4247,6 +4261,7 @@ mod tests {
                 ActionClientOptions::default().feedback_channel_capacity(0),
             )
             .unwrap();
+        assert_eq!(flow_client.action_name().unwrap(), flow_name);
         let response = flow_client
             .send_goal_request(Fibonacci::Goal { order: 3 })
             .unwrap();
@@ -4257,7 +4272,9 @@ mod tests {
             node.try_spin_once(Duration::from_millis(10)).unwrap();
             if server_goal.is_none() {
                 if let Some(request) = flow_requests.next().now_or_never().flatten() {
+                    assert_eq!(request.action_name().unwrap(), flow_name);
                     let (goal, cancels) = request.accept().unwrap();
+                    assert_eq!(goal.action_name().unwrap(), flow_name);
                     server_goal = Some(goal);
                     cancel_stream = Some(cancels);
                 }
@@ -4307,6 +4324,7 @@ mod tests {
                 ActionClientOptions::default().feedback_channel_capacity(0),
             )
             .unwrap();
+        assert_eq!(untyped_client.action_name().unwrap(), untyped_name);
         let response = untyped_client
             .send_goal_request(serde_json::json!({ "order": 4 }))
             .unwrap();

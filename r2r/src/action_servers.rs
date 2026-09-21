@@ -7,7 +7,7 @@ use futures::{
 use parking_lot::Mutex;
 use std::{
     collections::{HashMap, HashSet},
-    ffi::CString,
+    ffi::{CStr, CString},
     mem::MaybeUninit,
     sync::{Arc, Weak},
     task::{Context, Poll},
@@ -37,6 +37,7 @@ pub trait ActionServer_ {
     fn handle_cancel_request(&mut self) -> Result<()>;
     fn handle_result_request(&mut self) -> Result<()>;
     fn handle_goal_expired(&mut self) -> Result<()>;
+    fn action_name(&self) -> Result<String>;
     fn publish_status(&self) -> Result<()>;
     fn set_goal_state(
         &mut self, uuid: &uuid::Uuid, new_state: rcl_action_goal_event_t,
@@ -97,6 +98,17 @@ impl<T: 'static> ActionServerGoalRequest<T>
 where
     T: WrappedActionTypeSupport,
 {
+    /// Returns the fully resolved action name used by the native server.
+    pub fn action_name(&self) -> Result<String> {
+        let server = self
+            .response
+            .server
+            .upgrade()
+            .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
+        let server = server.lock();
+        server.action_name()
+    }
+
     /// Accept the goal request and become a ServerGoal.
     /// Returns a handle to the goal and a stream on which cancel requests can be received.
     pub fn accept(
@@ -746,6 +758,20 @@ where
         }
     }
 
+    fn action_name(&self) -> Result<String> {
+        let name = unsafe { rcl_action_server_get_action_name(&self.rcl_handle) };
+        if name.is_null() {
+            return Err(Error::RCL_RET_ACTION_SERVER_INVALID);
+        }
+        unsafe { CStr::from_ptr(name) }
+            .to_str()
+            .map(str::to_owned)
+            .map_err(|err| Error::InvalidUtf8 {
+                context: "action server name",
+                err: err.to_string(),
+            })
+    }
+
     fn publish_status(&self) -> Result<()> {
         publish_action_status(&self.rcl_handle)
     }
@@ -941,6 +967,16 @@ impl<T: 'static> ActionServerGoal<T>
 where
     T: WrappedActionTypeSupport,
 {
+    /// Returns the fully resolved action name used by the native server.
+    pub fn action_name(&self) -> Result<String> {
+        let server = self
+            .server
+            .upgrade()
+            .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
+        let server = server.lock();
+        server.action_name()
+    }
+
     /// Return the server-side state of this goal.
     pub fn get_status(&self) -> Result<GoalStatus> {
         let action_server = self

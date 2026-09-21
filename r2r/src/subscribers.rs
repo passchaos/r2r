@@ -151,6 +151,11 @@ impl<T> Subscription<T> {
         node.get_subscription_topic_name(self.id)
     }
 
+    /// Returns whether the middleware can loan messages for this subscription and message type.
+    pub fn can_loan_messages(&self, node: &Node) -> Result<bool> {
+        node.get_subscription_can_loan_messages(self.id)
+    }
+
     /// Waits for at least one publisher to match this subscription.
     pub fn wait_for_publishers(&self, node: &mut Node) -> Result<impl Future<Output = Result<()>>> {
         let receiver = node.register_subscription_publisher_wait(self.id)?;
@@ -222,6 +227,9 @@ pub(crate) trait Subscriber_ {
                 context: "subscription topic name",
                 err: err.to_string(),
             })
+    }
+    fn can_loan_messages(&self) -> bool {
+        unsafe { rcl_subscription_can_loan_messages(self.handle()) }
     }
     fn poll_has_publishers(&mut self) {
         {
