@@ -1,7 +1,7 @@
 use futures::{channel::oneshot, Future, TryFutureExt};
 use parking_lot::{ArcMutexGuard, Mutex, RawMutex};
 use std::{
-    ffi::CString,
+    ffi::{CStr, CString},
     fmt::Debug,
     marker::PhantomData,
     sync::{Arc, Weak},
@@ -147,6 +147,26 @@ impl Publisher_ {
             let ret = unsafe { rcl_publisher_assert_liveliness(handle) };
             check_publisher_ret(ret)
         })
+    }
+
+    fn topic_name(&self) -> Result<String> {
+        self.with_handle(|handle| {
+            let name = unsafe { rcl_publisher_get_topic_name(handle) };
+            if name.is_null() {
+                return Err(Error::RCL_RET_PUBLISHER_INVALID);
+            }
+            unsafe { CStr::from_ptr(name) }
+                .to_str()
+                .map(str::to_owned)
+                .map_err(|err| Error::InvalidUtf8 {
+                    context: "publisher topic name",
+                    err: err.to_string(),
+                })
+        })
+    }
+
+    fn can_loan_messages(&self) -> Result<bool> {
+        self.with_handle(|handle| Ok(unsafe { rcl_publisher_can_loan_messages(handle) }))
     }
 
     #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
@@ -378,6 +398,22 @@ impl PublisherUntyped {
             .get_actual_qos()
     }
 
+    /// Returns the fully resolved topic name used by the native publisher.
+    pub fn topic_name(&self) -> Result<String> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .topic_name()
+    }
+
+    /// Returns whether the middleware can loan messages for this publisher.
+    pub fn can_loan_messages(&self) -> Result<bool> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .can_loan_messages()
+    }
+
     /// Manually asserts this publisher's liveliness.
     ///
     /// This is intended for publishers using [`crate::qos::LivelinessPolicy::ManualByTopic`].
@@ -520,6 +556,22 @@ where
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
             .get_actual_qos()
+    }
+
+    /// Returns the fully resolved topic name used by the native publisher.
+    pub fn topic_name(&self) -> Result<String> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .topic_name()
+    }
+
+    /// Returns whether the middleware can loan messages for this publisher and message type.
+    pub fn can_loan_messages(&self) -> Result<bool> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .can_loan_messages()
     }
 
     /// Manually asserts this publisher's liveliness.

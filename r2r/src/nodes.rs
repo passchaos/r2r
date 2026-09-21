@@ -3338,6 +3338,31 @@ mod tests {
         untyped.assert_liveliness().unwrap();
     }
 
+    #[test]
+    fn publishers_report_resolved_topics_and_loan_support() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "publisher_introspection_test", "/scope").unwrap();
+
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(
+                "relative_typed",
+                QosProfile::default(),
+            )
+            .unwrap();
+        assert_eq!(publisher.topic_name().unwrap(), "/scope/relative_typed");
+        let _supports_typed_loans = publisher.can_loan_messages().unwrap();
+
+        let untyped = node
+            .create_publisher_untyped(
+                "relative_untyped",
+                "std_msgs/msg/String",
+                QosProfile::default(),
+            )
+            .unwrap();
+        assert_eq!(untyped.topic_name().unwrap(), "/scope/relative_untyped");
+        let _supports_untyped_loans = untyped.can_loan_messages().unwrap();
+    }
+
     #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     #[test]
     fn publishers_wait_for_reliable_acknowledgements() {
