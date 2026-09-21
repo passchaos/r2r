@@ -1206,14 +1206,15 @@ impl Node {
                 if ws_s != &std::ptr::null() {
                     let dropped = s.handle_incoming();
                     if dropped {
+                        let handle = s.handle() as *const rcl_subscription_t;
                         s.destroy(&mut self.node_handle);
-                        subs_to_remove.push(*s.handle());
+                        subs_to_remove.push(handle);
                     }
                 }
             }
         }
         self.subscribers
-            .retain(|s| !subs_to_remove.contains(s.handle()));
+            .retain(|s| !subs_to_remove.contains(&(s.handle() as *const rcl_subscription_t)));
 
         let mut timers_to_remove = vec![];
         if ws.timers != std::ptr::null_mut() {
@@ -1223,14 +1224,14 @@ impl Node {
                     // TODO: move this to impl Timer
                     let dropped = s.handle_incoming();
                     if dropped {
-                        timers_to_remove.push((*s.timer_handle).to_owned());
+                        timers_to_remove.push(s.get_handle());
                     }
                 }
             }
         }
         // drop timers scheduled for deletion
         self.timers
-            .retain(|t| !timers_to_remove.contains(&*t.timer_handle));
+            .retain(|t| !timers_to_remove.contains(&t.get_handle()));
 
         if ws.clients != std::ptr::null_mut() {
             let ws_clients = unsafe { std::slice::from_raw_parts(ws.clients, self.clients.len()) };
@@ -1251,14 +1252,18 @@ impl Node {
                     let mut service = s.lock().unwrap();
                     let dropped = service.handle_request(s.clone());
                     if dropped {
+                        let handle = service.handle() as *const rcl_service_t;
                         service.destroy(&mut self.node_handle);
-                        services_to_remove.push(*service.handle());
+                        services_to_remove.push(handle);
                     }
                 }
             }
         }
         self.services
-            .retain(|s| !services_to_remove.contains(s.lock().unwrap().handle()));
+            .retain(|s| {
+                let service = s.lock().unwrap();
+                !services_to_remove.contains(&(service.handle() as *const rcl_service_t))
+            });
 
         for ac in &self.action_clients {
             let mut is_feedback_ready = false;
@@ -1574,7 +1579,7 @@ pub unsafe fn init_timer(
     rcl_timer_init2(timer, clock, context, period, callback, allocator, true)
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 struct RclTimer {
     handle: rcl_timer_t,
     _pin: PhantomPinned, // To prevent Unpin implementation

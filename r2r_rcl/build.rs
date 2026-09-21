@@ -93,7 +93,6 @@ fn gen_bindings(out_file: &Path) {
         .allowlist_function(".*_typesupport_.*")
         .allowlist_function(".*_sequence_bound_.*")
         .no_debug("_OSUnaligned.*")
-        .derive_partialeq(true)
         .derive_copy(true)
         .generate_comments(false)
         .generate()
