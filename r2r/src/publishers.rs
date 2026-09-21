@@ -311,18 +311,15 @@ where
                 return Err(Error::from_rcl_error(ret));
             }
 
-            let handle_box = Box::new(publisher.handle);
             let msg = WrappedNativeMsg::<T>::from_loaned(
                 loaned_msg as *mut T::CStruct,
-                Box::new(|msg: *mut T::CStruct| {
+                Box::new(move |msg: *mut T::CStruct| {
+                    // Keep the publisher alive until the middleware loan is returned.
                     let ret = unsafe {
-                        let handle_ptr = Box::into_raw(handle_box);
-                        let ret = rcl_return_loaned_message_from_publisher(
-                            handle_ptr,
+                        rcl_return_loaned_message_from_publisher(
+                            &publisher.handle,
                             msg as *mut c_void,
-                        );
-                        drop(Box::from_raw(handle_ptr));
-                        ret
+                        )
                     };
 
                     if ret != RCL_RET_OK as i32 {
