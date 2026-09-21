@@ -274,6 +274,7 @@ where
     pub goals: HashMap<uuid::Uuid, *mut rcl_action_goal_handle_t>,
     pub result_msgs: HashMap<uuid::Uuid, Box<dyn VoidPtr>>,
     pub result_requests: HashMap<uuid::Uuid, Vec<rmw_request_id_t>>,
+    pub cancel_request_channel_capacity: usize,
 }
 
 impl<T: 'static> ActionServer_ for WrappedActionServer<T>
@@ -505,7 +506,8 @@ where
         let (uuid_msg, goal) = T::destructure_goal_request_msg(msg);
         let uuid = uuid_msg_to_uuid(&uuid_msg);
 
-        let (cancel_sender, cancel_receiver) = mpsc::channel::<ActionServerCancelRequest>(10);
+        let (cancel_sender, cancel_receiver) =
+            mpsc::channel::<ActionServerCancelRequest>(self.cancel_request_channel_capacity);
         self.cancel_senders.insert(uuid, cancel_sender);
 
         let gr: ActionServerGoalRequest<T> = ActionServerGoalRequest {
@@ -1015,6 +1017,27 @@ mod tests {
             action_server_take_succeeded(RCL_RET_ACTION_SERVER_INVALID as i32),
             Err(Error::RCL_RET_ACTION_SERVER_INVALID)
         ));
+    }
+
+    #[test]
+    fn zero_capacity_cancel_channel_applies_backpressure() {
+        let (mut sender, mut receiver) = mpsc::channel::<ActionServerCancelRequest>(0);
+        let (response_sender, _response_receiver) = oneshot::channel();
+        sender
+            .try_send(ActionServerCancelRequest {
+                uuid: uuid::Uuid::nil(),
+                response_sender,
+            })
+            .unwrap();
+        let (response_sender, _response_receiver) = oneshot::channel();
+        assert!(sender
+            .try_send(ActionServerCancelRequest {
+                uuid: uuid::Uuid::nil(),
+                response_sender,
+            })
+            .unwrap_err()
+            .is_full());
+        assert!(receiver.next().now_or_never().flatten().is_some());
     }
 
     #[test]

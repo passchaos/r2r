@@ -5,13 +5,28 @@ use r2r_actions::{rcl_action_client_options_t, rcl_action_server_options_t};
 
 /// Optional QoS overrides for an action client. Unset fields retain the ROS distribution's
 /// native defaults.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct ActionClientOptions {
     pub goal_service_qos: Option<QosProfile>,
     pub result_service_qos: Option<QosProfile>,
     pub cancel_service_qos: Option<QosProfile>,
     pub feedback_topic_qos: Option<QosProfile>,
     pub status_topic_qos: Option<QosProfile>,
+    /// Rust-side buffer for each accepted goal's feedback stream.
+    pub feedback_channel_capacity: usize,
+}
+
+impl Default for ActionClientOptions {
+    fn default() -> Self {
+        Self {
+            goal_service_qos: None,
+            result_service_qos: None,
+            cancel_service_qos: None,
+            feedback_topic_qos: None,
+            status_topic_qos: None,
+            feedback_channel_capacity: 10,
+        }
+    }
 }
 
 impl ActionClientOptions {
@@ -40,7 +55,17 @@ impl ActionClientOptions {
         self
     }
 
-    pub(crate) fn apply(&self, options: &mut rcl_action_client_options_t) {
+    pub fn feedback_channel_capacity(mut self, capacity: usize) -> Self {
+        self.feedback_channel_capacity = capacity;
+        self
+    }
+
+    pub(crate) fn validate(&self) -> Result<()> {
+        validate_channel_capacity(self.feedback_channel_capacity)
+    }
+
+    pub(crate) fn apply(&self, options: &mut rcl_action_client_options_t) -> Result<()> {
+        self.validate()?;
         if let Some(qos) = &self.goal_service_qos {
             options.goal_service_qos = qos.clone().into();
         }
@@ -56,12 +81,13 @@ impl ActionClientOptions {
         if let Some(qos) = &self.status_topic_qos {
             options.status_topic_qos = qos.clone().into();
         }
+        Ok(())
     }
 }
 
 /// Optional QoS and result-retention overrides for an action server. Unset fields retain the ROS
 /// distribution's native defaults.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct ActionServerOptions {
     pub goal_service_qos: Option<QosProfile>,
     pub cancel_service_qos: Option<QosProfile>,
@@ -69,6 +95,25 @@ pub struct ActionServerOptions {
     pub feedback_topic_qos: Option<QosProfile>,
     pub status_topic_qos: Option<QosProfile>,
     pub result_timeout: Option<Duration>,
+    /// Rust-side buffer for the goal request stream returned at server creation.
+    pub goal_request_channel_capacity: usize,
+    /// Rust-side buffer for each accepted goal's cancel request stream.
+    pub cancel_request_channel_capacity: usize,
+}
+
+impl Default for ActionServerOptions {
+    fn default() -> Self {
+        Self {
+            goal_service_qos: None,
+            cancel_service_qos: None,
+            result_service_qos: None,
+            feedback_topic_qos: None,
+            status_topic_qos: None,
+            result_timeout: None,
+            goal_request_channel_capacity: 10,
+            cancel_request_channel_capacity: 10,
+        }
+    }
 }
 
 impl ActionServerOptions {
@@ -102,7 +147,23 @@ impl ActionServerOptions {
         self
     }
 
+    pub fn goal_request_channel_capacity(mut self, capacity: usize) -> Self {
+        self.goal_request_channel_capacity = capacity;
+        self
+    }
+
+    pub fn cancel_request_channel_capacity(mut self, capacity: usize) -> Self {
+        self.cancel_request_channel_capacity = capacity;
+        self
+    }
+
+    pub(crate) fn validate(&self) -> Result<()> {
+        validate_channel_capacity(self.goal_request_channel_capacity)?;
+        validate_channel_capacity(self.cancel_request_channel_capacity)
+    }
+
     pub(crate) fn apply(&self, options: &mut rcl_action_server_options_t) -> Result<()> {
+        self.validate()?;
         if let Some(qos) = &self.goal_service_qos {
             options.goal_service_qos = qos.clone().into();
         }
@@ -122,6 +183,14 @@ impl ActionServerOptions {
             options.result_timeout.nanoseconds =
                 i64::try_from(timeout.as_nanos()).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
         }
+        Ok(())
+    }
+}
+
+fn validate_channel_capacity(capacity: usize) -> Result<()> {
+    if capacity >= usize::MAX >> 2 {
+        Err(Error::RCL_RET_INVALID_ARGUMENT)
+    } else {
         Ok(())
     }
 }
@@ -214,7 +283,8 @@ mod tests {
         let default_goal_depth = client.goal_service_qos.depth;
         ActionClientOptions::default()
             .feedback_topic_qos(QosProfile::sensor_data())
-            .apply(&mut client);
+            .apply(&mut client)
+            .unwrap();
         assert_eq!(client.goal_service_qos.depth, default_goal_depth);
         assert_eq!(client.feedback_topic_qos.depth, QosProfile::sensor_data().depth);
 
@@ -226,6 +296,9 @@ mod tests {
             .unwrap();
         assert_eq!(server.result_timeout.nanoseconds, 250_000_000);
         assert_eq!(server.status_topic_qos.depth, QosProfile::services_default().depth);
+        assert_eq!(ActionClientOptions::default().feedback_channel_capacity, 10);
+        assert_eq!(ActionServerOptions::default().goal_request_channel_capacity, 10);
+        assert_eq!(ActionServerOptions::default().cancel_request_channel_capacity, 10);
     }
 
     #[test]
@@ -234,6 +307,22 @@ mod tests {
         assert!(ActionServerOptions::default()
             .result_timeout(Duration::from_nanos(i64::MAX as u64 + 1))
             .apply(&mut server)
+            .is_err());
+    }
+
+    #[test]
+    fn action_options_reject_oversized_channel_capacities() {
+        assert!(ActionClientOptions::default()
+            .feedback_channel_capacity(usize::MAX)
+            .validate()
+            .is_err());
+        assert!(ActionServerOptions::default()
+            .goal_request_channel_capacity(usize::MAX)
+            .validate()
+            .is_err());
+        assert!(ActionServerOptions::default()
+            .cancel_request_channel_capacity(usize::MAX)
+            .validate()
             .is_err());
     }
 }

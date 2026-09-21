@@ -154,7 +154,7 @@ impl ActionClientUntyped {
             let (goal_req_sender, goal_req_receiver) =
                 oneshot::channel::<(bool, builtin_interfaces::msg::Time)>();
             let (feedback_sender, feedback_receiver) =
-                mpsc::channel::<Result<serde_json::Value>>(10);
+                mpsc::channel::<Result<serde_json::Value>>(client.feedback_channel_capacity);
             client.feedback_senders.push((uuid, feedback_sender));
             let (result_sender, result_receiver) =
                 oneshot::channel::<(GoalStatus, Result<serde_json::Value>)>();
@@ -247,6 +247,7 @@ pub struct WrappedActionClientUntyped {
     pub result_requests: Vec<(i64, uuid::Uuid)>,
     pub result_senders: Vec<ResultSender>,
     pub goal_status: HashMap<uuid::Uuid, GoalStatus>,
+    pub feedback_channel_capacity: usize,
 
     pub poll_available_channels: Vec<oneshot::Sender<()>>,
 }

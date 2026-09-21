@@ -1339,6 +1339,7 @@ impl Node {
     where
         T: 'static + WrappedActionTypeSupport,
     {
+        options.validate()?;
         let mut client_handle = create_action_client_helper(
             self.node_handle.as_mut(),
             action_name,
@@ -1362,6 +1363,7 @@ impl Node {
             result_senders: Vec::new(),
             result_requests: Vec::new(),
             goal_status: HashMap::new(),
+            feedback_channel_capacity: options.feedback_channel_capacity,
             poll_available_channels: Vec::new(),
         };
 
@@ -1392,6 +1394,7 @@ impl Node {
     pub fn create_action_client_untyped_with_options(
         &mut self, action_name: &str, action_type: &str, options: ActionClientOptions,
     ) -> Result<ActionClientUntyped> {
+        options.validate()?;
         let action_type_support = UntypedActionSupport::new_from(action_type)?;
         let mut client_handle = create_action_client_helper(
             self.node_handle.as_mut(),
@@ -1417,6 +1420,7 @@ impl Node {
             result_senders: Vec::new(),
             result_requests: Vec::new(),
             goal_status: HashMap::new(),
+            feedback_channel_capacity: options.feedback_channel_capacity,
             poll_available_channels: Vec::new(),
         };
 
@@ -1447,8 +1451,11 @@ impl Node {
     where
         T: 'static + WrappedActionTypeSupport,
     {
+        options.validate()?;
+        let goal_request_channel_capacity = options.goal_request_channel_capacity;
+        let cancel_request_channel_capacity = options.cancel_request_channel_capacity;
         let (goal_request_sender, goal_request_receiver) =
-            mpsc::channel::<ActionServerGoalRequest<T>>(10);
+            mpsc::channel::<ActionServerGoalRequest<T>>(goal_request_channel_capacity);
 
         let clock = self.ros_clock.clone();
         let mut server_handle = {
@@ -1479,6 +1486,7 @@ impl Node {
             goals: HashMap::new(),
             result_msgs: HashMap::new(),
             result_requests: HashMap::new(),
+            cancel_request_channel_capacity,
         };
 
         let server_arc = Arc::new(Mutex::new(server));
@@ -3582,6 +3590,128 @@ mod tests {
         assert!(subscriptions.iter().all(|endpoint| {
             endpoint.qos_profile.reliability == QosProfile::sensor_data().reliability
         }));
+    }
+
+    #[test]
+    fn action_options_control_stream_buffering() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "action_stream_options_test", "").unwrap();
+
+        let invalid_client = node.create_action_client_with_options::<Fibonacci::Action>(
+            "/invalid_action_client_capacity",
+            ActionClientOptions::default().feedback_channel_capacity(usize::MAX),
+        );
+        assert!(matches!(invalid_client, Err(Error::RCL_RET_INVALID_ARGUMENT)));
+        let invalid_server = node.create_action_server_with_options::<Fibonacci::Action>(
+            "/invalid_action_server_capacity",
+            ActionServerOptions::default().goal_request_channel_capacity(usize::MAX),
+        );
+        assert!(matches!(invalid_server, Err(Error::RCL_RET_INVALID_ARGUMENT)));
+        let invalid_cancel = node.create_action_server_with_options::<Fibonacci::Action>(
+            "/invalid_action_cancel_capacity",
+            ActionServerOptions::default().cancel_request_channel_capacity(usize::MAX),
+        );
+        assert!(matches!(invalid_cancel, Err(Error::RCL_RET_INVALID_ARGUMENT)));
+        let invalid_untyped = node.create_action_client_untyped_with_options(
+            "/invalid_untyped_action_client_capacity",
+            "example_interfaces/action/Fibonacci",
+            ActionClientOptions::default().feedback_channel_capacity(usize::MAX),
+        );
+        assert!(matches!(invalid_untyped, Err(Error::RCL_RET_INVALID_ARGUMENT)));
+
+        let action_name = "/buffered_action";
+        let mut requests = node
+            .create_action_server_with_options::<Fibonacci::Action>(
+                action_name,
+                ActionServerOptions::default()
+                    .goal_request_channel_capacity(0)
+                    .cancel_request_channel_capacity(0),
+            )
+            .unwrap();
+        let client = node
+            .create_action_client_with_options::<Fibonacci::Action>(
+                action_name,
+                ActionClientOptions::default().feedback_channel_capacity(0),
+            )
+            .unwrap();
+
+        let first = client
+            .send_goal_request(Fibonacci::Goal { order: 1 })
+            .unwrap();
+        let second = client
+            .send_goal_request(Fibonacci::Goal { order: 2 })
+            .unwrap();
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if requests.next().now_or_never().flatten().is_some() {
+                break;
+            }
+        }
+        assert!(requests.next().now_or_never().is_none());
+        node.try_spin_once(Duration::from_millis(10)).unwrap();
+        assert!(requests.next().now_or_never().flatten().is_some());
+
+        // Cancel the unanswered goal futures so client-side pending work is cleaned up.
+        drop(first);
+        drop(second);
+
+        let flow_name = "/action_stream_flow";
+        let mut flow_requests = node
+            .create_action_server_with_options::<Fibonacci::Action>(
+                flow_name,
+                ActionServerOptions::default().cancel_request_channel_capacity(0),
+            )
+            .unwrap();
+        let flow_client = node
+            .create_action_client_with_options::<Fibonacci::Action>(
+                flow_name,
+                ActionClientOptions::default().feedback_channel_capacity(0),
+            )
+            .unwrap();
+        let response = flow_client
+            .send_goal_request(Fibonacci::Goal { order: 3 })
+            .unwrap();
+        let mut response = Box::pin(response);
+        let mut server_goal = None;
+        let mut cancel_stream = None;
+        let (client_goal, mut feedback) = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if server_goal.is_none() {
+                if let Some(request) = flow_requests.next().now_or_never().flatten() {
+                    let (goal, cancels) = request.accept().unwrap();
+                    server_goal = Some(goal);
+                    cancel_stream = Some(cancels);
+                }
+            }
+            if let Some(response) = response.as_mut().now_or_never() {
+                let (goal, _result, feedback) = response.unwrap();
+                break (goal, feedback);
+            }
+        };
+        let goal = server_goal.as_ref().unwrap();
+        for value in 1..=3 {
+            goal.publish_feedback(Fibonacci::Feedback {
+                sequence: vec![value],
+            })
+            .unwrap();
+        }
+        for _ in 0..3 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+        }
+        assert_eq!(feedback.next().now_or_never().flatten().unwrap().sequence, vec![1]);
+        assert!(feedback.next().now_or_never().is_none());
+
+        let first_cancel = client_goal.cancel().unwrap();
+        for _ in 0..3 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+        }
+        let cancel_stream = cancel_stream.as_mut().unwrap();
+        let first_request = cancel_stream.next().now_or_never().flatten().unwrap();
+        first_request.reject();
+        assert!(cancel_stream.next().now_or_never().is_none());
+        drop(first_cancel);
     }
 
     #[test]
