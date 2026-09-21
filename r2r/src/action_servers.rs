@@ -4,7 +4,7 @@ use futures::{
     stream::Stream,
 };
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     ffi::CString,
     mem::MaybeUninit,
     sync::{Arc, Mutex, Weak},
@@ -165,6 +165,26 @@ pub type ActiveCancelRequest = (
     JoinAll<oneshot::Receiver<(uuid::Uuid, bool)>>,
 );
 
+fn retain_accepted_cancellations(
+    response: &mut action_msgs::srv::CancelGoal::Response,
+    decisions: impl IntoIterator<Item = (uuid::Uuid, bool)>,
+) -> Vec<uuid::Uuid> {
+    let accepted: HashSet<_> = decisions
+        .into_iter()
+        .filter_map(|(uuid, accept)| accept.then_some(uuid))
+        .collect();
+
+    response.goals_canceling.retain(|goal_info| {
+        accepted.contains(&uuid_msg_to_uuid(&goal_info.goal_id))
+    });
+
+    response
+        .goals_canceling
+        .iter()
+        .map(|goal_info| uuid_msg_to_uuid(&goal_info.goal_id))
+        .collect()
+}
+
 pub struct WrappedActionServer<T>
 where
     T: WrappedActionTypeSupport,
@@ -269,25 +289,17 @@ where
                 if let Some(results) = boxed.now_or_never() {
                     let mut response_msg = msg.clone();
                     let requested_cancels = response_msg.goals_canceling.len();
-                    for r in results {
-                        match r {
-                            Ok((uuid, do_cancel)) => {
-                                // cancel goal and filter response msg.
-                                if do_cancel {
-                                    canceled.push(uuid);
-                                }
-
-                                response_msg.goals_canceling.retain(|goal_info| {
-                                    let msg_uuid = uuid_msg_to_uuid(&goal_info.goal_id);
-                                    do_cancel && msg_uuid == uuid
-                                });
-                            }
-                            Err(oneshot::Canceled) => {
-                                log::error!("Warning, cancel request not handled!");
-                                return false; // skip this request.
-                            }
+                    let decisions = results.into_iter().filter_map(|result| match result {
+                        Ok(decision) => Some(decision),
+                        Err(oneshot::Canceled) => {
+                            log::error!("Warning, cancel request not handled!");
+                            None
                         }
-                    }
+                    });
+                    canceled.extend(retain_accepted_cancellations(
+                        &mut response_msg,
+                        decisions,
+                    ));
 
                     // check if all cancels were rejected.
                     if requested_cancels >= 1 && response_msg.goals_canceling.is_empty() {
@@ -771,5 +783,50 @@ pub fn action_server_get_num_waits(
         } else {
             Err(Error::from_rcl_error(result))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn goal_info(uuid: uuid::Uuid) -> action_msgs::msg::GoalInfo {
+        action_msgs::msg::GoalInfo {
+            goal_id: unique_identifier_msgs::msg::UUID {
+                uuid: uuid.as_bytes().to_vec(),
+            },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn retains_all_accepted_cancellations() {
+        let accepted_a = uuid::Uuid::from_u128(1);
+        let rejected = uuid::Uuid::from_u128(2);
+        let accepted_b = uuid::Uuid::from_u128(3);
+        let mut response = action_msgs::srv::CancelGoal::Response {
+            goals_canceling: vec![
+                goal_info(accepted_a),
+                goal_info(rejected),
+                goal_info(accepted_b),
+            ],
+            ..Default::default()
+        };
+
+        let canceled = retain_accepted_cancellations(
+            &mut response,
+            [(accepted_a, true), (rejected, false), (accepted_b, true)],
+        );
+
+        assert_eq!(canceled, vec![accepted_a, accepted_b]);
+        assert_eq!(response.goals_canceling.len(), 2);
+        assert_eq!(
+            uuid_msg_to_uuid(&response.goals_canceling[0].goal_id),
+            accepted_a
+        );
+        assert_eq!(
+            uuid_msg_to_uuid(&response.goals_canceling[1].goal_id),
+            accepted_b
+        );
     }
 }
