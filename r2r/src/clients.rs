@@ -1,8 +1,16 @@
 use futures::{channel::oneshot, TryFutureExt};
 use parking_lot::Mutex;
-use std::{collections::HashMap, ffi::CString, future::Future, mem::MaybeUninit, sync::Weak};
+use std::{
+    collections::HashMap, ffi::CString, future::Future, mem::MaybeUninit, sync::Weak,
+    time::Duration,
+};
 
-use crate::{error::*, msg_types::*, QosProfile};
+use crate::{
+    error::*,
+    msg_types::*,
+    nodes::{future_with_timeout, Node},
+    QosProfile,
+};
 use r2r_rcl::*;
 
 /// ROS service client.
@@ -32,6 +40,17 @@ where
         let mut client = client.lock();
         client.request(msg)
     }
+
+    /// Make a service request and wait up to `timeout` for its response.
+    ///
+    /// This future is runtime-agnostic and advances while `node` is spun.
+    pub fn request_with_timeout(
+        &self, node: &mut Node, msg: &T::Request, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<T::Response>>> {
+        let response = self.request(msg)?;
+        let timer = node.create_wall_timer(timeout)?;
+        Ok(future_with_timeout(response, timer))
+    }
 }
 
 /// ROS "untyped" service client.
@@ -59,6 +78,17 @@ impl ClientUntyped {
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
         let mut client = client.lock();
         client.request(msg)
+    }
+
+    /// Make an untyped service request and wait up to `timeout` for its response.
+    ///
+    /// This future is runtime-agnostic and advances while `node` is spun.
+    pub fn request_with_timeout(
+        &self, node: &mut Node, msg: serde_json::Value, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<Result<serde_json::Value>>>> {
+        let response = self.request(msg)?;
+        let timer = node.create_wall_timer(timeout)?;
+        Ok(future_with_timeout(response, timer))
     }
 }
 
@@ -188,7 +218,7 @@ where
                     .map(|id| id.to_string())
                     .collect::<Vec<_>>()
                     .join(",");
-                log::error!(
+                log::debug!(
                     "no such req id: {}, we have [{}], ignoring",
                     request_id.sequence_number,
                     we_have
@@ -290,7 +320,7 @@ impl Client_ for UntypedClient_ {
                     .map(|id| id.to_string())
                     .collect::<Vec<_>>()
                     .join(",");
-                log::error!(
+                log::debug!(
                     "no such req id: {}, we have [{}], ignoring",
                     request_id.sequence_number,
                     we_have

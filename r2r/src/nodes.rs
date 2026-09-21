@@ -3102,6 +3102,83 @@ mod tests {
     }
 
     #[test]
+    fn service_requests_support_runtime_agnostic_timeouts() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        fn drive<T>(node: &mut Node, future: impl Future<Output = Result<T>>) -> Result<T> {
+            futures::pin_mut!(future);
+            loop {
+                node.try_spin_once(Duration::from_millis(10))?;
+                if let Some(result) = future.as_mut().now_or_never() {
+                    return result;
+                }
+            }
+        }
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "service_request_timeout_test", "").unwrap();
+        let missing = node
+            .create_client::<AddTwoInts::Service>(
+                "/missing_request_timeout_service",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let timeout = missing
+            .request_with_timeout(
+                &mut node,
+                &AddTwoInts::Request { a: 1, b: 2 },
+                Duration::from_millis(1),
+            )
+            .unwrap();
+        assert!(matches!(drive(&mut node, timeout), Err(Error::RCL_RET_TIMEOUT)));
+        drop(missing);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.clients.is_empty());
+
+        let service_name = "/successful_request_timeout_service";
+        let mut requests = node
+            .create_service::<AddTwoInts::Service>(service_name, QosProfile::default())
+            .unwrap();
+        let client = node
+            .create_client::<AddTwoInts::Service>(service_name, QosProfile::default())
+            .unwrap();
+        let response = client
+            .request_with_timeout(
+                &mut node,
+                &AddTwoInts::Request { a: 20, b: 22 },
+                Duration::from_secs(1),
+            )
+            .unwrap();
+        let mut response = Box::pin(response);
+        let result = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(request) = requests.next().now_or_never().flatten() {
+                request.respond(AddTwoInts::Response { sum: 42 }).unwrap();
+            }
+            if let Some(response) = response.as_mut().now_or_never() {
+                break response.unwrap();
+            }
+        };
+        assert_eq!(result.sum, 42);
+
+        let untyped = node
+            .create_client_untyped(
+                "/missing_untyped_request_timeout_service",
+                "example_interfaces/srv/AddTwoInts",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let timeout = untyped
+            .request_with_timeout(
+                &mut node,
+                serde_json::json!({ "a": 1, "b": 2 }),
+                Duration::from_millis(1),
+            )
+            .unwrap();
+        assert!(matches!(drive(&mut node, timeout), Err(Error::RCL_RET_TIMEOUT)));
+    }
+
+    #[test]
     fn subscription_match_queries_waits_and_cleanup_work() {
         fn drive<T>(node: &mut Node, future: impl Future<Output = Result<T>>) -> Result<T> {
             futures::pin_mut!(future);
