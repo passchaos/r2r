@@ -1330,6 +1330,26 @@ impl Node {
         }
         self.services = active_services;
 
+        // Public clients only keep weak references to their native state. Retain a client while
+        // any request or availability future is still live, then release it once both the public
+        // handle and all asynchronous work have gone away.
+        let mut active_clients = Vec::with_capacity(self.clients.len());
+        for client in self.clients.drain(..) {
+            let removed = {
+                let mut handle = client.lock();
+                if Arc::weak_count(&client) == 0 && !handle.has_pending_work() {
+                    handle.destroy(&mut self.node_handle);
+                    true
+                } else {
+                    false
+                }
+            };
+            if !removed {
+                active_clients.push(client);
+            }
+        }
+        self.clients = active_clients;
+
         // first handle any completed action cancellation responses
         for a in &mut self.action_servers {
             a.lock().send_completed_cancel_requests();
@@ -2834,5 +2854,71 @@ mod tests {
         node.try_spin_once(Duration::ZERO).unwrap();
 
         assert_eq!(node.services.len(), services_before_drop - 1);
+    }
+
+    #[test]
+    fn dropped_clients_are_removed_after_pending_work_is_gone() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "client_drop_cleanup_test", "").unwrap();
+        let client = node
+            .create_client::<AddTwoInts::Service>(
+                "/missing_client_drop_cleanup",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let availability = Node::is_available(&client).unwrap();
+
+        drop(client);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(node.clients.len(), 1);
+
+        drop(availability);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.clients.is_empty());
+
+        let untyped = node
+            .create_client_untyped(
+                "/missing_untyped_client_drop_cleanup",
+                "example_interfaces/srv/AddTwoInts",
+                QosProfile::default(),
+            )
+            .unwrap();
+        drop(untyped);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.clients.is_empty());
+
+        let service_name = "/pending_request_client_drop_cleanup";
+        let mut requests = node
+            .create_service::<AddTwoInts::Service>(service_name, QosProfile::default())
+            .unwrap();
+        let client = node
+            .create_client::<AddTwoInts::Service>(service_name, QosProfile::default())
+            .unwrap();
+        let response = client
+            .request(&AddTwoInts::Request { a: 20, b: 22 })
+            .unwrap();
+        let mut response = Box::pin(response);
+        drop(client);
+
+        let request = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            assert_eq!(node.clients.len(), 1);
+            if let Some(request) = requests.next().now_or_never().flatten() {
+                break request;
+            }
+        };
+        request.respond(AddTwoInts::Response { sum: 42 }).unwrap();
+
+        let response = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(response) = response.as_mut().now_or_never() {
+                break response.unwrap();
+            }
+        };
+        assert_eq!(response.sum, 42);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.clients.is_empty());
     }
 }

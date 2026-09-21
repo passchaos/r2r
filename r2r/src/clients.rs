@@ -132,6 +132,7 @@ pub trait Client_ {
     fn handle_response(&mut self);
     fn register_poll_available(&mut self, s: oneshot::Sender<()>);
     fn poll_available(&mut self, node: &mut rcl_node_t);
+    fn has_pending_work(&mut self) -> bool;
     fn destroy(&mut self, node: &mut rcl_node_t);
 }
 
@@ -222,6 +223,14 @@ where
         }
     }
 
+    fn has_pending_work(&mut self) -> bool {
+        self.response_channels
+            .retain(|_, sender| !sender.is_canceled());
+        self.poll_available_channels
+            .retain(|sender| !sender.is_canceled());
+        !self.response_channels.is_empty() || !self.poll_available_channels.is_empty()
+    }
+
     fn destroy(&mut self, node: &mut rcl_node_t) {
         unsafe {
             rcl_client_fini(&mut self.rcl_handle, node);
@@ -309,6 +318,14 @@ impl Client_ for UntypedClient_ {
                 self.poll_available_channels.clear();
             }
         }
+    }
+
+    fn has_pending_work(&mut self) -> bool {
+        self.response_channels
+            .retain(|_, sender| !sender.is_canceled());
+        self.poll_available_channels
+            .retain(|sender| !sender.is_canceled());
+        !self.response_channels.is_empty() || !self.poll_available_channels.is_empty()
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
