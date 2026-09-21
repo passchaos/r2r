@@ -91,7 +91,7 @@ pub use utils::*;
 mod subscribers;
 
 mod publishers;
-pub use publishers::{Publisher, PublisherUntyped};
+pub use publishers::{LoanedMessage, Publisher, PublisherUntyped};
 
 mod services;
 pub use services::ServiceRequest;

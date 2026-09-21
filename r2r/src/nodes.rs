@@ -68,7 +68,7 @@ pub struct Node {
     // timers,
     timers: Vec<Timer_>,
     // and the publishers, whom we allow to be shared.. hmm.
-    pubs: Vec<Arc<Publisher_>>,
+    pub(crate) pubs: Vec<Arc<Publisher_>>,
     // RosTime clock used by all timers created by create_timer()
     ros_clock: Arc<Mutex<Clock>>,
     // time source that provides simulated time
@@ -82,6 +82,12 @@ pub struct Node {
 unsafe impl Send for Node {}
 
 impl Node {
+    pub(crate) fn owns_publisher(&self, publisher: &Arc<Publisher_>) -> bool {
+        self.pubs
+            .iter()
+            .any(|candidate| Arc::ptr_eq(candidate, publisher))
+    }
+
     /// Returns the name of the node.
     pub fn name(&self) -> Result<String> {
         let cstr = unsafe { rcl_node_get_name(self.node_handle.as_ref()) };
@@ -1878,5 +1884,23 @@ mod tests {
         assert!(publishers
             .iter()
             .any(|publisher| publisher.topic_type == "std_msgs/msg/String"));
+    }
+
+    #[test]
+    fn publisher_loan_is_returned_or_reports_unsupported() {
+        let ctx = Context::create().unwrap();
+        let mut node = Node::create(ctx, "publisher_loan_test", "").unwrap();
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(
+                "/r2r_publisher_loan_test",
+                QosProfile::default(),
+            )
+            .unwrap();
+
+        match publisher.borrow_loaned_message(&mut node) {
+            Ok(loan) => drop(loan),
+            Err(Error::RCL_RET_UNSUPPORTED) => {}
+            Err(err) => panic!("unexpected loan error: {err}"),
+        };
     }
 }

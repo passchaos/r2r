@@ -245,7 +245,6 @@ where
     T: WrappedTypesupport,
 {
     pub(crate) msg: *mut T::CStruct,
-    pub(crate) is_loaned: bool,
     deallocator: Option<Box<dyn FnOnce(*mut T::CStruct) + Send>>,
 }
 
@@ -547,7 +546,6 @@ where
         Ok(WrappedNativeMsg {
             msg,
             deallocator: Some(Box::new(T::destroy_msg)),
-            is_loaned: false,
         })
     }
 
@@ -576,12 +574,7 @@ where
         WrappedNativeMsg {
             msg,
             deallocator: Some(deallocator),
-            is_loaned: true,
         }
-    }
-
-    pub(crate) fn release(&mut self) {
-        self.deallocator.take();
     }
 }
 
