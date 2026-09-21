@@ -12,6 +12,65 @@ use std::{
 use crate::{error::*, msg_types::*, nodes::Node, qos::QosProfile};
 use r2r_rcl::*;
 
+/// Metadata reported by the RMW implementation for a received message.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MessageInfo {
+    /// Source timestamp in nanoseconds, or zero when unsupported by the RMW implementation.
+    pub source_timestamp: i64,
+    /// Receive timestamp in nanoseconds, or zero when unsupported by the RMW implementation.
+    pub received_timestamp: i64,
+    /// Sequence number assigned by the publisher, when supported.
+    pub publication_sequence_number: Option<u64>,
+    /// Sequence number assigned by the subscription, when supported.
+    pub reception_sequence_number: Option<u64>,
+    /// Publisher GID bytes. The length is RMW implementation dependent.
+    pub publisher_gid: Vec<u8>,
+    /// Whether the message was delivered through intra-process communication.
+    pub from_intra_process: bool,
+}
+
+impl From<rmw_message_info_t> for MessageInfo {
+    fn from(info: rmw_message_info_t) -> Self {
+        fn sequence_number(value: u64) -> Option<u64> {
+            (value != u64::MAX).then_some(value)
+        }
+
+        Self {
+            source_timestamp: info.source_timestamp,
+            received_timestamp: info.received_timestamp,
+            publication_sequence_number: sequence_number(info.publication_sequence_number),
+            reception_sequence_number: sequence_number(info.reception_sequence_number),
+            publisher_gid: info.publisher_gid.data.to_vec(),
+            from_intra_process: info.from_intra_process,
+        }
+    }
+}
+
+/// A received ROS message together with its RMW metadata.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReceivedMessage<T> {
+    pub message: T,
+    pub info: MessageInfo,
+}
+
+impl<T> ReceivedMessage<T> {
+    pub(crate) fn new(message: T, info: MessageInfo) -> Self {
+        Self { message, info }
+    }
+
+    pub fn into_parts(self) -> (T, MessageInfo) {
+        (self.message, self.info)
+    }
+}
+
+pub(crate) fn discard_message_info<T>(message: T, _info: MessageInfo) -> T {
+    message
+}
+
+pub(crate) fn attach_message_info<T>(message: T, info: MessageInfo) -> ReceivedMessage<T> {
+    ReceivedMessage::new(message, info)
+}
+
 /// A ROS subscription stream with graph matching helpers.
 pub struct Subscription<T> {
     receiver: mpsc::Receiver<T>,
@@ -130,39 +189,43 @@ pub(crate) trait Subscriber_ {
     fn destroy(&mut self, node: &mut rcl_node_t);
 }
 
-pub struct TypedSubscriber<T>
+pub struct TypedSubscriber<T, O>
 where
     T: WrappedTypesupport,
 {
     pub rcl_handle: rcl_subscription_t,
-    pub sender: mpsc::Sender<T>,
+    pub sender: mpsc::Sender<O>,
+    pub transform: fn(T, MessageInfo) -> O,
     pub(crate) match_state: SubscriptionMatchState,
 }
 
-pub struct NativeSubscriber<T>
+pub struct NativeSubscriber<T, O>
 where
     T: WrappedTypesupport,
 {
     pub rcl_handle: rcl_subscription_t,
-    pub sender: mpsc::Sender<WrappedNativeMsg<T>>,
+    pub sender: mpsc::Sender<O>,
+    pub transform: fn(WrappedNativeMsg<T>, MessageInfo) -> O,
     pub(crate) match_state: SubscriptionMatchState,
 }
 
-pub struct UntypedSubscriber {
+pub struct UntypedSubscriber<O> {
     pub rcl_handle: rcl_subscription_t,
     pub topic_type: String,
-    pub sender: mpsc::Sender<Result<serde_json::Value>>,
+    pub sender: mpsc::Sender<O>,
+    pub transform: fn(Result<serde_json::Value>, MessageInfo) -> O,
     pub(crate) match_state: SubscriptionMatchState,
 }
 
-pub struct RawSubscriber {
+pub struct RawSubscriber<O> {
     pub rcl_handle: rcl_subscription_t,
     pub msg_buf: rcl_serialized_message_t,
-    pub sender: mpsc::Sender<Vec<u8>>,
+    pub sender: mpsc::Sender<O>,
+    pub transform: fn(Vec<u8>, MessageInfo) -> O,
     pub(crate) match_state: SubscriptionMatchState,
 }
 
-impl<T: 'static> Subscriber_ for TypedSubscriber<T>
+impl<T: 'static, O: 'static> Subscriber_ for TypedSubscriber<T, O>
 where
     T: WrappedTypesupport,
 {
@@ -189,7 +252,7 @@ where
             rcl_take(&self.rcl_handle, msg.void_ptr_mut(), &mut msg_info, std::ptr::null_mut())
         };
         if ret == RCL_RET_OK as i32 {
-            let msg = T::from_native(&msg);
+            let msg = (self.transform)(T::from_native(&msg), msg_info.into());
             if let Err(e) = self.sender.try_send(msg) {
                 if e.is_disconnected() {
                     // user dropped the handle to the stream, signal removal.
@@ -210,7 +273,7 @@ where
     }
 }
 
-impl<T: 'static> Subscriber_ for NativeSubscriber<T>
+impl<T: 'static, O: 'static> Subscriber_ for NativeSubscriber<T, O>
 where
     T: WrappedTypesupport,
 {
@@ -244,6 +307,7 @@ where
         if ret != RCL_RET_OK as i32 {
             return Err(Error::from_rcl_error(ret));
         }
+        let msg = (self.transform)(msg, msg_info.into());
         if let Err(e) = self.sender.try_send(msg) {
             if e.is_disconnected() {
                 // user dropped the handle to the stream, signal removal.
@@ -261,7 +325,7 @@ where
     }
 }
 
-impl Subscriber_ for UntypedSubscriber {
+impl<O: 'static> Subscriber_ for UntypedSubscriber<O> {
     fn handle(&self) -> &rcl_subscription_t {
         &self.rcl_handle
     }
@@ -285,7 +349,7 @@ impl Subscriber_ for UntypedSubscriber {
             rcl_take(&self.rcl_handle, msg.void_ptr_mut(), &mut msg_info, std::ptr::null_mut())
         };
         if ret == RCL_RET_OK as i32 {
-            let json = msg.to_json();
+            let json = (self.transform)(msg.to_json(), msg_info.into());
             if let Err(e) = self.sender.try_send(json) {
                 if e.is_disconnected() {
                     // user dropped the handle to the stream, signal removal.
@@ -306,7 +370,7 @@ impl Subscriber_ for UntypedSubscriber {
     }
 }
 
-impl Subscriber_ for RawSubscriber {
+impl<O: 'static> Subscriber_ for RawSubscriber<O> {
     fn handle(&self) -> &rcl_subscription_t {
         &self.rcl_handle
     }
@@ -348,7 +412,8 @@ impl Subscriber_ for RawSubscriber {
             }
         };
 
-        if let Err(e) = self.sender.try_send(data_bytes) {
+        let message = (self.transform)(data_bytes, msg_info.into());
+        if let Err(e) = self.sender.try_send(message) {
             if e.is_disconnected() {
                 // user dropped the handle to the stream, signal removal.
                 return Ok(true);

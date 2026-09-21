@@ -790,14 +790,35 @@ impl Node {
     where
         T: 'static + WrappedTypesupport,
     {
+        self.subscribe_with_transform(topic, qos_profile, discard_message_info::<T>)
+    }
+
+    /// Subscribe to a ROS topic and retain the RMW metadata for each message.
+    pub fn subscribe_with_info<T>(
+        &mut self, topic: &str, qos_profile: QosProfile,
+    ) -> Result<Subscription<ReceivedMessage<T>>>
+    where
+        T: 'static + WrappedTypesupport,
+    {
+        self.subscribe_with_transform(topic, qos_profile, attach_message_info::<T>)
+    }
+
+    fn subscribe_with_transform<T, O>(
+        &mut self, topic: &str, qos_profile: QosProfile, transform: fn(T, MessageInfo) -> O,
+    ) -> Result<Subscription<O>>
+    where
+        T: 'static + WrappedTypesupport,
+        O: 'static,
+    {
         let subscription_handle =
             create_subscription_helper(self.node_handle.as_mut(), topic, T::get_ts(), qos_profile)?;
-        let (sender, receiver) = mpsc::channel::<T>(10);
+        let (sender, receiver) = mpsc::channel::<O>(10);
         let id = uuid::Uuid::new_v4();
 
         let ws = TypedSubscriber {
             rcl_handle: subscription_handle,
             sender,
+            transform,
             match_state: SubscriptionMatchState::new(id),
         };
         self.subscribers.push(Box::new(ws));
@@ -829,14 +850,44 @@ impl Node {
     where
         T: 'static + WrappedTypesupport,
     {
+        self.subscribe_native_with_transform(
+            topic,
+            qos_profile,
+            discard_message_info::<WrappedNativeMsg<T>>,
+        )
+    }
+
+    /// Subscribe to native ROS messages and retain the RMW metadata for each message.
+    pub fn subscribe_native_with_info<T>(
+        &mut self, topic: &str, qos_profile: QosProfile,
+    ) -> Result<Subscription<ReceivedMessage<WrappedNativeMsg<T>>>>
+    where
+        T: 'static + WrappedTypesupport,
+    {
+        self.subscribe_native_with_transform(
+            topic,
+            qos_profile,
+            attach_message_info::<WrappedNativeMsg<T>>,
+        )
+    }
+
+    fn subscribe_native_with_transform<T, O>(
+        &mut self, topic: &str, qos_profile: QosProfile,
+        transform: fn(WrappedNativeMsg<T>, MessageInfo) -> O,
+    ) -> Result<Subscription<O>>
+    where
+        T: 'static + WrappedTypesupport,
+        O: 'static,
+    {
         let subscription_handle =
             create_subscription_helper(self.node_handle.as_mut(), topic, T::get_ts(), qos_profile)?;
-        let (sender, receiver) = mpsc::channel::<WrappedNativeMsg<T>>(10);
+        let (sender, receiver) = mpsc::channel::<O>(10);
         let id = uuid::Uuid::new_v4();
 
         let ws = NativeSubscriber {
             rcl_handle: subscription_handle,
             sender,
+            transform,
             match_state: SubscriptionMatchState::new(id),
         };
         self.subscribers.push(Box::new(ws));
@@ -850,16 +901,44 @@ impl Node {
     pub fn subscribe_untyped(
         &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
     ) -> Result<Subscription<Result<serde_json::Value>>> {
+        self.subscribe_untyped_with_transform(
+            topic,
+            topic_type,
+            qos_profile,
+            discard_message_info::<Result<serde_json::Value>>,
+        )
+    }
+
+    /// Subscribe to untyped ROS messages and retain the RMW metadata for each message.
+    pub fn subscribe_untyped_with_info(
+        &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
+    ) -> Result<Subscription<ReceivedMessage<Result<serde_json::Value>>>> {
+        self.subscribe_untyped_with_transform(
+            topic,
+            topic_type,
+            qos_profile,
+            attach_message_info::<Result<serde_json::Value>>,
+        )
+    }
+
+    fn subscribe_untyped_with_transform<O>(
+        &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
+        transform: fn(Result<serde_json::Value>, MessageInfo) -> O,
+    ) -> Result<Subscription<O>>
+    where
+        O: 'static,
+    {
         let msg = WrappedNativeMsgUntyped::new_from(topic_type)?;
         let subscription_handle =
             create_subscription_helper(self.node_handle.as_mut(), topic, msg.ts, qos_profile)?;
-        let (sender, receiver) = mpsc::channel::<Result<serde_json::Value>>(10);
+        let (sender, receiver) = mpsc::channel::<O>(10);
         let id = uuid::Uuid::new_v4();
 
         let ws = UntypedSubscriber {
             rcl_handle: subscription_handle,
             topic_type: topic_type.to_string(),
             sender,
+            transform,
             match_state: SubscriptionMatchState::new(id),
         };
         self.subscribers.push(Box::new(ws));
@@ -873,6 +952,33 @@ impl Node {
     pub fn subscribe_raw(
         &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
     ) -> Result<Subscription<Vec<u8>>> {
+        self.subscribe_raw_with_transform(
+            topic,
+            topic_type,
+            qos_profile,
+            discard_message_info::<Vec<u8>>,
+        )
+    }
+
+    /// Subscribe to serialized ROS messages and retain the RMW metadata for each message.
+    pub fn subscribe_raw_with_info(
+        &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
+    ) -> Result<Subscription<ReceivedMessage<Vec<u8>>>> {
+        self.subscribe_raw_with_transform(
+            topic,
+            topic_type,
+            qos_profile,
+            attach_message_info::<Vec<u8>>,
+        )
+    }
+
+    fn subscribe_raw_with_transform<O>(
+        &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
+        transform: fn(Vec<u8>, MessageInfo) -> O,
+    ) -> Result<Subscription<O>>
+    where
+        O: 'static,
+    {
         // TODO is it possible to handle the raw message without type support?
         //
         // Passing null ts to rcl_subscription_init throws an error ..
@@ -909,13 +1015,14 @@ impl Node {
                     return Err(err);
                 }
             };
-        let (sender, receiver) = mpsc::channel::<Vec<u8>>(10);
+        let (sender, receiver) = mpsc::channel::<O>(10);
         let id = uuid::Uuid::new_v4();
 
         let ws = RawSubscriber {
             rcl_handle: subscription_handle,
             msg_buf,
             sender,
+            transform,
             match_state: SubscriptionMatchState::new(id),
         };
         self.subscribers.push(Box::new(ws));
@@ -2816,6 +2923,75 @@ mod tests {
         assert_eq!(subscription_qos.history, crate::qos::HistoryPolicy::KeepLast);
         assert_eq!(subscription_qos.depth, 7);
         assert_eq!(subscription_qos.reliability, crate::qos::ReliabilityPolicy::BestEffort);
+    }
+
+    #[test]
+    fn subscriptions_can_retain_rmw_message_info() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "message_info_test", "").unwrap();
+        let topic = format!("/message_info_{}", uuid::Uuid::new_v4().simple());
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::Int32>(&topic, QosProfile::default())
+            .unwrap();
+        let mut typed = node
+            .subscribe_with_info::<crate::std_msgs::msg::Int32>(&topic, QosProfile::default())
+            .unwrap();
+        let mut native = node
+            .subscribe_native_with_info::<crate::std_msgs::msg::Int32>(
+                &topic,
+                QosProfile::default(),
+            )
+            .unwrap();
+        let mut untyped = node
+            .subscribe_untyped_with_info(&topic, "std_msgs/msg/Int32", QosProfile::default())
+            .unwrap();
+        let mut raw = node
+            .subscribe_raw_with_info(&topic, "std_msgs/msg/Int32", QosProfile::default())
+            .unwrap();
+
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if publisher.get_subscription_count().unwrap() >= 4 {
+                break;
+            }
+        }
+        publisher
+            .publish(&crate::std_msgs::msg::Int32 { data: 42 })
+            .unwrap();
+
+        let mut typed_message = None;
+        let mut native_message = None;
+        let mut untyped_message = None;
+        let mut raw_message = None;
+        let (typed, native, untyped, raw) = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            typed_message = typed_message.or_else(|| typed.next().now_or_never().flatten());
+            native_message = native_message.or_else(|| native.next().now_or_never().flatten());
+            untyped_message = untyped_message.or_else(|| untyped.next().now_or_never().flatten());
+            raw_message = raw_message.or_else(|| raw.next().now_or_never().flatten());
+            if typed_message.is_some()
+                && native_message.is_some()
+                && untyped_message.is_some()
+                && raw_message.is_some()
+            {
+                break (
+                    typed_message.take().unwrap(),
+                    native_message.take().unwrap(),
+                    untyped_message.take().unwrap(),
+                    raw_message.take().unwrap(),
+                );
+            }
+        };
+
+        assert_eq!(typed.message.data, 42);
+        assert_eq!(native.message.data, 42);
+        assert_eq!(untyped.message.unwrap()["data"], 42);
+        assert!(!raw.message.is_empty());
+        assert!(!typed.info.publisher_gid.is_empty());
+        assert_eq!(typed.info.publisher_gid, native.info.publisher_gid);
+        assert_eq!(typed.info.publisher_gid, untyped.info.publisher_gid);
+        assert_eq!(typed.info.publisher_gid, raw.info.publisher_gid);
+        assert!(typed.info.received_timestamp >= 0);
     }
 
     #[test]
