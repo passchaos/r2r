@@ -2853,6 +2853,27 @@ impl Timer {
         Ok(canceled)
     }
 
+    /// Returns whether the timer is ready to trigger now.
+    pub fn is_ready(&self, node: &Node) -> Result<bool> {
+        let timer = node.timer(self.id)?;
+        let mut ready = false;
+        let ret = unsafe { rcl_timer_is_ready(timer.get_handle(), &mut ready) };
+        check_rcl_ret(ret)?;
+        Ok(ready)
+    }
+
+    /// Returns the remaining time until the next trigger.
+    ///
+    /// A timer that is ready or overdue returns [`Duration::ZERO`]. A canceled timer returns
+    /// [`Error::RCL_RET_TIMER_CANCELED`].
+    pub fn time_until_next_call(&self, node: &Node) -> Result<Duration> {
+        let timer = node.timer(self.id)?;
+        let mut nanos = 0;
+        let ret = unsafe { rcl_timer_get_time_until_next_call(timer.get_handle(), &mut nanos) };
+        check_rcl_ret(ret)?;
+        Ok(Duration::from_nanos(u64::try_from(nanos).unwrap_or(0)))
+    }
+
     /// Returns the timer period.
     pub fn period(&self, node: &Node) -> Result<Duration> {
         let timer = node.timer(self.id)?;
@@ -4919,9 +4940,14 @@ mod tests {
 
         assert_eq!(timer.period(&node).unwrap(), Duration::from_millis(100));
         assert!(!timer.is_canceled(&node).unwrap());
+        assert!(!timer.is_ready(&node).unwrap());
+        assert!(timer.time_until_next_call(&node).unwrap() <= Duration::from_millis(100));
         timer.cancel(&mut node).unwrap();
         assert!(timer.is_canceled(&node).unwrap());
+        assert!(!timer.is_ready(&node).unwrap());
+        assert!(matches!(timer.time_until_next_call(&node), Err(Error::RCL_RET_TIMER_CANCELED)));
         assert!(matches!(timer.period(&other), Err(Error::RCL_RET_TIMER_INVALID)));
+        assert!(matches!(timer.is_ready(&other), Err(Error::RCL_RET_TIMER_INVALID)));
 
         let previous = timer
             .set_period(&mut node, Duration::from_millis(25))
@@ -4935,6 +4961,11 @@ mod tests {
 
         timer.reset(&mut node).unwrap();
         assert!(!timer.is_canceled(&node).unwrap());
+
+        timer.set_period(&mut node, Duration::ZERO).unwrap();
+        timer.reset(&mut node).unwrap();
+        assert!(timer.is_ready(&node).unwrap());
+        assert_eq!(timer.time_until_next_call(&node).unwrap(), Duration::ZERO);
     }
 
     #[test]
