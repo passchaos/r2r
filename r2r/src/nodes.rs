@@ -1834,7 +1834,7 @@ impl Node {
         // waiter have both gone away.
         let node_handle = self.node_handle.as_mut();
         self.pubs.retain(|publisher| {
-            if Arc::weak_count(publisher) == 0 && !publisher.has_pending_subscriber_waits() {
+            if Arc::weak_count(publisher) == 0 && !publisher.has_pending_waits() {
                 publisher.destroy(node_handle);
                 false
             } else {
@@ -1908,6 +1908,8 @@ impl Node {
 
         for p in &self.pubs {
             p.poll_has_subscribers();
+            #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+            p.poll_all_acked();
         }
         for subscriber in &mut self.subscribers {
             subscriber.poll_has_publishers();
@@ -3518,6 +3520,60 @@ mod tests {
             )
             .unwrap();
         untyped.wait_for_all_acked(Duration::ZERO).unwrap();
+    }
+
+    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+    #[test]
+    fn publishers_wait_for_acknowledgements_without_blocking() {
+        fn drive<T>(node: &mut Node, future: impl Future<Output = Result<T>>) -> Result<T> {
+            futures::pin_mut!(future);
+            loop {
+                node.try_spin_once(Duration::from_millis(10))?;
+                if let Some(result) = future.as_mut().now_or_never() {
+                    return result;
+                }
+            }
+        }
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "publisher_async_ack_test", "").unwrap();
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(
+                "/publisher_async_ack",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let acked = publisher.wait_for_all_acked_async().unwrap();
+        drive(&mut node, acked).unwrap();
+
+        let untyped = node
+            .create_publisher_untyped(
+                "/publisher_async_ack_untyped",
+                "std_msgs/msg/String",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let acked = untyped
+            .wait_for_all_acked_async_with_timeout(&mut node, Duration::from_secs(1))
+            .unwrap();
+        drive(&mut node, acked).unwrap();
+
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(
+                "/publisher_canceled_ack_wait",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let publisher_count = node.pubs.len();
+        let acked = publisher.wait_for_all_acked_async().unwrap();
+        drop(publisher);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        // Cleanup runs before ACK polling, so the waiter keeps the native publisher alive for
+        // the spin that resolves it. The next spin may release it.
+        assert_eq!(node.pubs.len(), publisher_count);
+        drop(acked);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(node.pubs.len(), publisher_count - 1);
     }
 
     #[test]

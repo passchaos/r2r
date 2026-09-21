@@ -124,6 +124,8 @@ pub(crate) struct Publisher_ {
 
     // TODO use a mpsc to avoid the mutex?
     poll_subscriber_channels: Mutex<Vec<oneshot::Sender<()>>>,
+    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+    poll_ack_channels: Mutex<Vec<oneshot::Sender<Result<()>>>>,
 }
 
 struct PublisherHandle(Option<rcl_publisher_t>);
@@ -179,6 +181,11 @@ impl Publisher_ {
         })
     }
 
+    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+    fn register_ack_wait(&self, sender: oneshot::Sender<Result<()>>) {
+        self.poll_ack_channels.lock().push(sender);
+    }
+
     fn get_actual_qos(&self) -> Result<QosProfile> {
         let handle = self.handle.lock();
         let handle = handle.0.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
@@ -229,10 +236,37 @@ impl Publisher_ {
         }
     }
 
-    pub(crate) fn has_pending_subscriber_waits(&self) -> bool {
+    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+    pub(crate) fn poll_all_acked(&self) {
+        let mut waiters = self.poll_ack_channels.lock();
+        waiters.retain(|sender| !sender.is_canceled());
+        if waiters.is_empty() {
+            return;
+        }
+
+        let result = self.wait_for_all_acked(Duration::ZERO);
+        if matches!(result, Err(Error::RCL_RET_TIMEOUT)) {
+            return;
+        }
+        while let Some(sender) = waiters.pop() {
+            let _ = sender.send(result.clone());
+        }
+    }
+
+    pub(crate) fn has_pending_waits(&self) -> bool {
         let mut waiters = self.poll_subscriber_channels.lock();
         waiters.retain(|sender| !sender.is_canceled());
-        !waiters.is_empty()
+        if !waiters.is_empty() {
+            return true;
+        }
+        #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+        {
+            let mut waiters = self.poll_ack_channels.lock();
+            waiters.retain(|sender| !sender.is_canceled());
+            !waiters.is_empty()
+        }
+        #[cfg(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic))]
+        false
     }
 
     pub(crate) fn destroy(&self, node: &mut rcl_node_t) {
@@ -383,6 +417,8 @@ pub fn create_publisher_helper(
         Ok(Publisher_ {
             handle: Arc::new(Mutex::new(PublisherHandle(Some(publisher_handle)))),
             poll_subscriber_channels: Mutex::new(Vec::new()),
+            #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+            poll_ack_channels: Mutex::new(Vec::new()),
         })
     } else {
         Err(Error::from_rcl_error(result))
@@ -431,6 +467,34 @@ impl PublisherUntyped {
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
             .wait_for_all_acked(timeout)
+    }
+
+    /// Asynchronously waits until all previously published reliable data is acknowledged.
+    ///
+    /// The owning node must be spun while awaiting. Unlike [`Self::wait_for_all_acked`], this does
+    /// not block the calling thread.
+    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+    pub fn wait_for_all_acked_async(&self) -> Result<impl Future<Output = Result<()>>> {
+        let publisher = self
+            .handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        let (sender, receiver) = oneshot::channel();
+        publisher.register_ack_wait(sender);
+        Ok(async move {
+            receiver
+                .await
+                .map_err(|_| Error::RCL_RET_PUBLISHER_INVALID)?
+        })
+    }
+
+    /// Asynchronously waits for acknowledgements up to `timeout`. The node must be spun.
+    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+    pub fn wait_for_all_acked_async_with_timeout(
+        &self, node: &mut Node, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<()>>> {
+        let acked = self.wait_for_all_acked_async()?;
+        node.with_timeout(acked, timeout)
     }
 
     /// Publish an "untyped" ROS message represented by a `serde_json::Value`.
@@ -591,6 +655,34 @@ where
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
             .wait_for_all_acked(timeout)
+    }
+
+    /// Asynchronously waits until all previously published reliable data is acknowledged.
+    ///
+    /// The owning node must be spun while awaiting. Unlike [`Self::wait_for_all_acked`], this does
+    /// not block the calling thread.
+    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+    pub fn wait_for_all_acked_async(&self) -> Result<impl Future<Output = Result<()>>> {
+        let publisher = self
+            .handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        let (sender, receiver) = oneshot::channel();
+        publisher.register_ack_wait(sender);
+        Ok(async move {
+            receiver
+                .await
+                .map_err(|_| Error::RCL_RET_PUBLISHER_INVALID)?
+        })
+    }
+
+    /// Asynchronously waits for acknowledgements up to `timeout`. The node must be spun.
+    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+    pub fn wait_for_all_acked_async_with_timeout(
+        &self, node: &mut Node, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<()>>> {
+        let acked = self.wait_for_all_acked_async()?;
+        node.with_timeout(acked, timeout)
     }
 
     /// Publish a ROS message.
