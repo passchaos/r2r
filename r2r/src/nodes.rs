@@ -47,6 +47,34 @@ impl Drop for RclParams {
     }
 }
 
+struct NodeOptionsNative(rcl_node_options_t);
+
+impl NodeOptionsNative {
+    fn new(use_global_arguments: bool) -> Result<Self> {
+        let mut options = unsafe { rcl_node_get_default_options() };
+        options.use_global_arguments = use_global_arguments;
+        if !use_global_arguments {
+            let ret = unsafe {
+                rcl_parse_arguments(0, std::ptr::null(), options.allocator, &mut options.arguments)
+            };
+            if ret != RCL_RET_OK as i32 {
+                unsafe { rcl_node_options_fini(&mut options) };
+                return Err(Error::from_rcl_error(ret));
+            }
+        }
+        Ok(Self(options))
+    }
+}
+
+impl Drop for NodeOptionsNative {
+    fn drop(&mut self) {
+        let ret = unsafe { rcl_node_options_fini(&mut self.0) };
+        if ret != RCL_RET_OK as i32 {
+            log::error!("could not finalize node options: {ret}");
+        }
+    }
+}
+
 #[derive(Default)]
 struct ParameterEventChanges {
     new_parameters: Vec<rcl_interfaces::msg::Parameter>,
@@ -131,6 +159,43 @@ pub struct Node {
     wait_set: WaitSet,
     // Keep the ROS context alive until all other node resources have been dropped.
     context: Context,
+}
+
+/// Options applied while creating a [`Node`].
+#[derive(Debug, Clone)]
+pub struct NodeOptions {
+    /// Whether the node consumes global ROS arguments from its [`Context`].
+    pub use_global_arguments: bool,
+    /// Programmatic parameter overrides. These take precedence over global CLI/YAML overrides.
+    pub parameter_overrides: IndexMap<String, ParameterValue>,
+}
+
+impl Default for NodeOptions {
+    fn default() -> Self {
+        Self {
+            use_global_arguments: true,
+            parameter_overrides: IndexMap::new(),
+        }
+    }
+}
+
+impl NodeOptions {
+    pub fn use_global_arguments(mut self, enabled: bool) -> Self {
+        self.use_global_arguments = enabled;
+        self
+    }
+
+    pub fn parameter_override(mut self, name: impl Into<String>, value: ParameterValue) -> Self {
+        self.parameter_overrides.insert(name.into(), value);
+        self
+    }
+
+    pub fn parameter_overrides(
+        mut self, overrides: impl IntoIterator<Item = (String, ParameterValue)>,
+    ) -> Self {
+        self.parameter_overrides.extend(overrides);
+        self
+    }
 }
 
 unsafe impl Send for Node {}
@@ -240,21 +305,28 @@ impl Node {
 
     /// Creates a ROS node.
     pub fn create(ctx: Context, name: &str, namespace: &str) -> Result<Node> {
+        Self::create_with_options(ctx, name, namespace, NodeOptions::default())
+    }
+
+    /// Creates a ROS node with explicit initialization options.
+    pub fn create_with_options(
+        ctx: Context, name: &str, namespace: &str, options: NodeOptions,
+    ) -> Result<Node> {
         let c_node_name = CString::new(name).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
         let c_node_ns = CString::new(namespace).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
+        let node_options = NodeOptionsNative::new(options.use_global_arguments)?;
         let (res, node_handle) = {
             let mut ctx_handle = ctx.context_handle.lock();
 
             let mut node_handle: Box<rcl_node_t> =
                 unsafe { Box::new(rcl_get_zero_initialized_node()) };
             let res = unsafe {
-                let node_options = rcl_node_get_default_options();
                 rcl_node_init(
                     node_handle.as_mut(),
                     c_node_name.as_ptr(),
                     c_node_ns.as_ptr(),
                     ctx_handle.as_mut(),
-                    &node_options as *const _,
+                    &node_options.0 as *const _,
                 )
             };
             (res, node_handle)
@@ -294,7 +366,15 @@ impl Node {
             #[cfg(r2r__rosgraph_msgs__msg__Clock)]
             node.time_source
                 .attach_ros_clock(Arc::downgrade(&node.ros_clock))?;
-            node.load_params()?;
+            if options.use_global_arguments {
+                node.load_params()?;
+            }
+            {
+                let mut params = node.params.lock();
+                for (name, value) in options.parameter_overrides {
+                    params.insert(name, Parameter::new(value));
+                }
+            }
             Ok(node)
         } else {
             log::error!("could not create node{}", res);
@@ -2981,6 +3061,72 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn node_options_apply_programmatic_parameter_overrides() {
+        let context = Context::create().unwrap();
+        let node = Node::create_with_options(
+            context,
+            "node_options_test",
+            "",
+            NodeOptions::default()
+                .use_global_arguments(false)
+                .parameter_override("answer", ParameterValue::Integer(42))
+                .parameter_overrides([
+                    ("answer".to_owned(), ParameterValue::Integer(43)),
+                    ("enabled".to_owned(), ParameterValue::Bool(true)),
+                ]),
+        )
+        .unwrap();
+
+        assert_eq!(node.get_parameter::<i64>("answer").unwrap(), 43);
+        assert!(node.get_parameter::<bool>("enabled").unwrap());
+        let native_options = unsafe { rcl_node_get_options(node.node_handle.as_ref()) };
+        assert!(!native_options.is_null());
+        assert!(!unsafe { (*native_options).use_global_arguments });
+    }
+
+    #[test]
+    fn node_options_control_global_parameter_arguments() {
+        const CHILD_ENV: &str = "R2R_NODE_OPTIONS_CHILD";
+        if let Ok(mode) = std::env::var(CHILD_ENV) {
+            let context = Context::create().unwrap();
+            let options = match mode.as_str() {
+                "global" => NodeOptions::default(),
+                "isolated" => NodeOptions::default().use_global_arguments(false),
+                "override" => {
+                    NodeOptions::default().parameter_override("answer", ParameterValue::Integer(43))
+                }
+                _ => unreachable!(),
+            };
+            let node =
+                Node::create_with_options(context, "node_options_cli_test", "", options).unwrap();
+            match mode.as_str() {
+                "global" => assert_eq!(node.get_parameter::<i64>("answer").unwrap(), 42),
+                "isolated" => assert!(node.get_parameter::<i64>("answer").is_err()),
+                "override" => assert_eq!(node.get_parameter::<i64>("answer").unwrap(), 43),
+                _ => unreachable!(),
+            }
+            return;
+        }
+
+        let test_binary = std::env::current_exe().unwrap();
+        for mode in ["global", "isolated", "override"] {
+            let status = std::process::Command::new(&test_binary)
+                .arg("nodes::tests::node_options_control_global_parameter_arguments")
+                .arg("--exact")
+                .arg("--nocapture")
+                .arg("--test-threads=1")
+                .arg("--")
+                .arg("--ros-args")
+                .arg("-p")
+                .arg("answer:=42")
+                .env(CHILD_ENV, mode)
+                .status()
+                .unwrap();
+            assert!(status.success(), "child mode {mode} failed");
+        }
     }
 
     #[test]
