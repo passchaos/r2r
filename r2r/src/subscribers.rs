@@ -19,12 +19,15 @@ use r2r_rcl::*;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SubscriptionOptions {
     pub channel_capacity: usize,
+    /// Ignore messages published by this process.
+    pub ignore_local_publications: bool,
 }
 
 impl Default for SubscriptionOptions {
     fn default() -> Self {
         Self {
             channel_capacity: 10,
+            ignore_local_publications: false,
         }
     }
 }
@@ -35,6 +38,11 @@ impl SubscriptionOptions {
     /// The channel implementation additionally reserves one slot for its single sender.
     pub const fn channel_capacity(mut self, channel_capacity: usize) -> Self {
         self.channel_capacity = channel_capacity;
+        self
+    }
+
+    pub const fn ignore_local_publications(mut self, ignore: bool) -> Self {
+        self.ignore_local_publications = ignore;
         self
     }
 
@@ -468,9 +476,9 @@ impl<O: 'static> Subscriber_ for RawSubscriber<O> {
     }
 }
 
-pub fn create_subscription_helper(
+pub(crate) fn create_subscription_helper(
     node: &mut rcl_node_t, topic: &str, ts: *const rosidl_message_type_support_t,
-    qos_profile: QosProfile,
+    qos_profile: QosProfile, ignore_local_publications: bool,
 ) -> Result<rcl_subscription_t> {
     let mut subscription_handle = unsafe { rcl_get_zero_initialized_subscription() };
     let topic_c_string = CString::new(topic).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
@@ -478,6 +486,9 @@ pub fn create_subscription_helper(
     let result = unsafe {
         let mut subscription_options = rcl_subscription_get_default_options();
         subscription_options.qos = qos_profile.into();
+        subscription_options
+            .rmw_subscription_options
+            .ignore_local_publications = ignore_local_publications;
         rcl_subscription_init(
             &mut subscription_handle,
             node,

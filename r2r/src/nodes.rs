@@ -832,8 +832,13 @@ impl Node {
         O: 'static,
     {
         let options = options.validate()?;
-        let subscription_handle =
-            create_subscription_helper(self.node_handle.as_mut(), topic, T::get_ts(), qos_profile)?;
+        let subscription_handle = create_subscription_helper(
+            self.node_handle.as_mut(),
+            topic,
+            T::get_ts(),
+            qos_profile,
+            options.ignore_local_publications,
+        )?;
         let (sender, receiver) = mpsc::channel::<O>(options.channel_capacity);
         let id = uuid::Uuid::new_v4();
 
@@ -928,8 +933,13 @@ impl Node {
         O: 'static,
     {
         let options = options.validate()?;
-        let subscription_handle =
-            create_subscription_helper(self.node_handle.as_mut(), topic, T::get_ts(), qos_profile)?;
+        let subscription_handle = create_subscription_helper(
+            self.node_handle.as_mut(),
+            topic,
+            T::get_ts(),
+            qos_profile,
+            options.ignore_local_publications,
+        )?;
         let (sender, receiver) = mpsc::channel::<O>(options.channel_capacity);
         let id = uuid::Uuid::new_v4();
 
@@ -1007,8 +1017,13 @@ impl Node {
     {
         let options = options.validate()?;
         let msg = WrappedNativeMsgUntyped::new_from(topic_type)?;
-        let subscription_handle =
-            create_subscription_helper(self.node_handle.as_mut(), topic, msg.ts, qos_profile)?;
+        let subscription_handle = create_subscription_helper(
+            self.node_handle.as_mut(),
+            topic,
+            msg.ts,
+            qos_profile,
+            options.ignore_local_publications,
+        )?;
         let (sender, receiver) = mpsc::channel::<O>(options.channel_capacity);
         let id = uuid::Uuid::new_v4();
 
@@ -1111,17 +1126,21 @@ impl Node {
             return Err(Error::from_rcl_error(ret));
         }
 
-        let subscription_handle =
-            match create_subscription_helper(self.node_handle.as_mut(), topic, msg.ts, qos_profile)
-            {
-                Ok(handle) => handle,
-                Err(err) => {
-                    unsafe {
-                        rcutils_uint8_array_fini(&mut msg_buf as *mut rcl_serialized_message_t);
-                    }
-                    return Err(err);
+        let subscription_handle = match create_subscription_helper(
+            self.node_handle.as_mut(),
+            topic,
+            msg.ts,
+            qos_profile,
+            options.ignore_local_publications,
+        ) {
+            Ok(handle) => handle,
+            Err(err) => {
+                unsafe {
+                    rcutils_uint8_array_fini(&mut msg_buf as *mut rcl_serialized_message_t);
                 }
-            };
+                return Err(err);
+            }
+        };
         let (sender, receiver) = mpsc::channel::<O>(options.channel_capacity);
         let id = uuid::Uuid::new_v4();
 
@@ -3166,6 +3185,52 @@ mod tests {
             SubscriptionOptions::default().channel_capacity(usize::MAX),
         );
         assert!(matches!(invalid, Err(Error::RCL_RET_INVALID_ARGUMENT)));
+    }
+
+    #[test]
+    fn subscription_options_can_ignore_local_publications() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "ignore_local_publications_test", "").unwrap();
+        let topic = format!("/ignore_local_{}", uuid::Uuid::new_v4().simple());
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::Int32>(&topic, QosProfile::default())
+            .unwrap();
+        let mut control = node
+            .subscribe::<crate::std_msgs::msg::Int32>(&topic, QosProfile::default())
+            .unwrap();
+        let mut ignored = node
+            .subscribe_with_info_and_options::<crate::std_msgs::msg::Int32>(
+                &topic,
+                QosProfile::default(),
+                SubscriptionOptions::default().ignore_local_publications(true),
+            )
+            .unwrap();
+
+        let wait = publisher
+            .wait_for_subscribers_with_timeout(&mut node, Duration::from_secs(1))
+            .unwrap();
+        futures::pin_mut!(wait);
+        loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if wait.as_mut().now_or_never().is_some() {
+                break;
+            }
+        }
+        publisher
+            .publish(&crate::std_msgs::msg::Int32 { data: 42 })
+            .unwrap();
+
+        let control = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(message) = control.next().now_or_never().flatten() {
+                break message;
+            }
+        };
+        assert_eq!(control.data, 42);
+        for _ in 0..5 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+        }
+        assert!(ignored.next().now_or_never().is_none());
     }
 
     #[test]

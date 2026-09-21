@@ -263,6 +263,7 @@ impl TimeSourceSubscriber {
             "/clock",
             crate::rosgraph_msgs::msg::Clock::get_ts(),
             qos,
+            false,
         )?;
         Ok(Self {
             subscriber_handle: subscriber,
