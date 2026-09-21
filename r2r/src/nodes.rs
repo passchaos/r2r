@@ -2517,7 +2517,7 @@ impl TopicEndpointInfo {
             node_namespace: c_string_from_ptr(info.node_namespace)?,
             topic_type: c_string_from_ptr(info.topic_type)?,
             endpoint_gid: info.endpoint_gid,
-            qos_profile: QosProfile::from(info.qos_profile),
+            qos_profile: QosProfile::try_from(&info.qos_profile)?,
         })
     }
 }

@@ -941,10 +941,10 @@ impl From<r2r_rcl::rmw_qos_profile_t> for QosProfile {
             depth: rmw_qos.depth,
             reliability: rmw_qos.reliability.into(),
             durability: rmw_qos.durability.into(),
-            deadline: Duration::from_rmw_time_t(&rmw_qos.deadline),
-            lifespan: Duration::from_rmw_time_t(&rmw_qos.lifespan),
+            deadline: Duration::from_rmw_time_t_lossy(&rmw_qos.deadline),
+            lifespan: Duration::from_rmw_time_t_lossy(&rmw_qos.lifespan),
             liveliness: rmw_qos.liveliness.into(),
-            liveliness_lease_duration: Duration::from_rmw_time_t(
+            liveliness_lease_duration: Duration::from_rmw_time_t_lossy(
                 &rmw_qos.liveliness_lease_duration,
             ),
             avoid_ros_namespace_conventions: rmw_qos.avoid_ros_namespace_conventions,
@@ -952,9 +952,32 @@ impl From<r2r_rcl::rmw_qos_profile_t> for QosProfile {
     }
 }
 
+impl TryFrom<&r2r_rcl::rmw_qos_profile_t> for QosProfile {
+    type Error = Error;
+
+    fn try_from(rmw_qos: &r2r_rcl::rmw_qos_profile_t) -> Result<Self> {
+        Ok(Self {
+            history: rmw_qos.history.into(),
+            depth: rmw_qos.depth,
+            reliability: rmw_qos.reliability.into(),
+            durability: rmw_qos.durability.into(),
+            deadline: Duration::try_from_rmw_time_t(&rmw_qos.deadline)?,
+            lifespan: Duration::try_from_rmw_time_t(&rmw_qos.lifespan)?,
+            liveliness: rmw_qos.liveliness.into(),
+            liveliness_lease_duration: Duration::try_from_rmw_time_t(
+                &rmw_qos.liveliness_lease_duration,
+            )?,
+            avoid_ros_namespace_conventions: rmw_qos.avoid_ros_namespace_conventions,
+        })
+    }
+}
+
 pub(crate) trait RclDurationT {
     fn to_rmw_time_t(&self) -> rmw_time_t;
-    fn from_rmw_time_t(rmw_time: &rmw_time_t) -> Self;
+    fn try_from_rmw_time_t(rmw_time: &rmw_time_t) -> Result<Self>
+    where
+        Self: Sized;
+    fn from_rmw_time_t_lossy(rmw_time: &rmw_time_t) -> Self;
 }
 
 impl RclDurationT for Duration {
@@ -965,28 +988,30 @@ impl RclDurationT for Duration {
         }
     }
 
-    fn from_rmw_time_t(rmw_time: &rmw_time_t) -> Self {
-        #[cfg(not(r2r__ros__distro__foxy))]
-        {
-            assert!(
-                rmw_time.nsec < 1_000_000_000,
-                "nsec part of rmw_time_t should be less than 1 billion"
-            );
-        }
-
+    fn try_from_rmw_time_t(rmw_time: &rmw_time_t) -> Result<Self> {
         #[cfg(r2r__ros__distro__foxy)]
         {
             // FIXME: In foxy, duration data obtained from publisher with default qos profile is
             // sec: 7FFFFFFF (2147483647), nsec: FFFFFFFF (4294967295)
             if rmw_time.nsec == 4294967295 {
                 // 0s indicates deadline policies are not tracked or enforced in foxy
-                return Duration::new(0, 0);
-            } else if rmw_time.nsec > 1_000_000_000 {
-                panic!("nsec part of rmw_time_t should be less than 1 billion");
+                return Ok(Duration::ZERO);
             }
         }
+        if rmw_time.nsec >= 1_000_000_000 {
+            return Err(Error::RCL_RET_INVALID_ARGUMENT);
+        }
+        Ok(Duration::new(rmw_time.sec, rmw_time.nsec as u32))
+    }
 
-        Duration::new(rmw_time.sec, rmw_time.nsec as u32)
+    fn from_rmw_time_t_lossy(rmw_time: &rmw_time_t) -> Self {
+        Self::try_from_rmw_time_t(rmw_time).unwrap_or_else(|_| {
+            let extra_seconds = rmw_time.nsec / 1_000_000_000;
+            Duration::new(
+                rmw_time.sec.saturating_add(extra_seconds),
+                (rmw_time.nsec % 1_000_000_000) as u32,
+            )
+        })
     }
 }
 
@@ -1024,5 +1049,17 @@ mod tests {
             .unwrap();
         assert_eq!(uncertain.compatibility, QosCompatibility::Warning);
         assert!(!uncertain.reason.is_empty());
+    }
+
+    #[test]
+    fn invalid_native_qos_duration_does_not_panic() {
+        let mut native: r2r_rcl::rmw_qos_profile_t = QosProfile::default().into();
+        native.deadline = rmw_time_t {
+            sec: 2,
+            nsec: 1_000_000_000,
+        };
+
+        assert!(matches!(QosProfile::try_from(&native), Err(Error::RCL_RET_INVALID_ARGUMENT)));
+        assert_eq!(QosProfile::from(native).deadline, Duration::from_secs(3));
     }
 }
