@@ -790,7 +790,17 @@ impl Node {
     where
         T: 'static + WrappedTypesupport,
     {
-        self.subscribe_with_transform(topic, qos_profile, discard_message_info::<T>)
+        self.subscribe_with_options(topic, qos_profile, SubscriptionOptions::default())
+    }
+
+    /// Subscribe to a ROS topic with explicit Rust-side stream buffering options.
+    pub fn subscribe_with_options<T>(
+        &mut self, topic: &str, qos_profile: QosProfile, options: SubscriptionOptions,
+    ) -> Result<Subscription<T>>
+    where
+        T: 'static + WrappedTypesupport,
+    {
+        self.subscribe_with_transform(topic, qos_profile, options, discard_message_info::<T>)
     }
 
     /// Subscribe to a ROS topic and retain the RMW metadata for each message.
@@ -800,19 +810,31 @@ impl Node {
     where
         T: 'static + WrappedTypesupport,
     {
-        self.subscribe_with_transform(topic, qos_profile, attach_message_info::<T>)
+        self.subscribe_with_info_and_options(topic, qos_profile, SubscriptionOptions::default())
+    }
+
+    /// Subscribe with RMW metadata and explicit Rust-side stream buffering options.
+    pub fn subscribe_with_info_and_options<T>(
+        &mut self, topic: &str, qos_profile: QosProfile, options: SubscriptionOptions,
+    ) -> Result<Subscription<ReceivedMessage<T>>>
+    where
+        T: 'static + WrappedTypesupport,
+    {
+        self.subscribe_with_transform(topic, qos_profile, options, attach_message_info::<T>)
     }
 
     fn subscribe_with_transform<T, O>(
-        &mut self, topic: &str, qos_profile: QosProfile, transform: fn(T, MessageInfo) -> O,
+        &mut self, topic: &str, qos_profile: QosProfile, options: SubscriptionOptions,
+        transform: fn(T, MessageInfo) -> O,
     ) -> Result<Subscription<O>>
     where
         T: 'static + WrappedTypesupport,
         O: 'static,
     {
+        let options = options.validate()?;
         let subscription_handle =
             create_subscription_helper(self.node_handle.as_mut(), topic, T::get_ts(), qos_profile)?;
-        let (sender, receiver) = mpsc::channel::<O>(10);
+        let (sender, receiver) = mpsc::channel::<O>(options.channel_capacity);
         let id = uuid::Uuid::new_v4();
 
         let ws = TypedSubscriber {
@@ -850,9 +872,20 @@ impl Node {
     where
         T: 'static + WrappedTypesupport,
     {
+        self.subscribe_native_with_options(topic, qos_profile, SubscriptionOptions::default())
+    }
+
+    /// Subscribe to native ROS messages with explicit Rust-side stream buffering options.
+    pub fn subscribe_native_with_options<T>(
+        &mut self, topic: &str, qos_profile: QosProfile, options: SubscriptionOptions,
+    ) -> Result<Subscription<WrappedNativeMsg<T>>>
+    where
+        T: 'static + WrappedTypesupport,
+    {
         self.subscribe_native_with_transform(
             topic,
             qos_profile,
+            options,
             discard_message_info::<WrappedNativeMsg<T>>,
         )
     }
@@ -864,24 +897,40 @@ impl Node {
     where
         T: 'static + WrappedTypesupport,
     {
+        self.subscribe_native_with_info_and_options(
+            topic,
+            qos_profile,
+            SubscriptionOptions::default(),
+        )
+    }
+
+    /// Subscribe to native messages with metadata and explicit stream buffering options.
+    pub fn subscribe_native_with_info_and_options<T>(
+        &mut self, topic: &str, qos_profile: QosProfile, options: SubscriptionOptions,
+    ) -> Result<Subscription<ReceivedMessage<WrappedNativeMsg<T>>>>
+    where
+        T: 'static + WrappedTypesupport,
+    {
         self.subscribe_native_with_transform(
             topic,
             qos_profile,
+            options,
             attach_message_info::<WrappedNativeMsg<T>>,
         )
     }
 
     fn subscribe_native_with_transform<T, O>(
-        &mut self, topic: &str, qos_profile: QosProfile,
+        &mut self, topic: &str, qos_profile: QosProfile, options: SubscriptionOptions,
         transform: fn(WrappedNativeMsg<T>, MessageInfo) -> O,
     ) -> Result<Subscription<O>>
     where
         T: 'static + WrappedTypesupport,
         O: 'static,
     {
+        let options = options.validate()?;
         let subscription_handle =
             create_subscription_helper(self.node_handle.as_mut(), topic, T::get_ts(), qos_profile)?;
-        let (sender, receiver) = mpsc::channel::<O>(10);
+        let (sender, receiver) = mpsc::channel::<O>(options.channel_capacity);
         let id = uuid::Uuid::new_v4();
 
         let ws = NativeSubscriber {
@@ -901,10 +950,24 @@ impl Node {
     pub fn subscribe_untyped(
         &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
     ) -> Result<Subscription<Result<serde_json::Value>>> {
+        self.subscribe_untyped_with_options(
+            topic,
+            topic_type,
+            qos_profile,
+            SubscriptionOptions::default(),
+        )
+    }
+
+    /// Subscribe to untyped messages with explicit Rust-side stream buffering options.
+    pub fn subscribe_untyped_with_options(
+        &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
+        options: SubscriptionOptions,
+    ) -> Result<Subscription<Result<serde_json::Value>>> {
         self.subscribe_untyped_with_transform(
             topic,
             topic_type,
             qos_profile,
+            options,
             discard_message_info::<Result<serde_json::Value>>,
         )
     }
@@ -913,25 +976,40 @@ impl Node {
     pub fn subscribe_untyped_with_info(
         &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
     ) -> Result<Subscription<ReceivedMessage<Result<serde_json::Value>>>> {
+        self.subscribe_untyped_with_info_and_options(
+            topic,
+            topic_type,
+            qos_profile,
+            SubscriptionOptions::default(),
+        )
+    }
+
+    /// Subscribe to untyped messages with metadata and explicit stream buffering options.
+    pub fn subscribe_untyped_with_info_and_options(
+        &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
+        options: SubscriptionOptions,
+    ) -> Result<Subscription<ReceivedMessage<Result<serde_json::Value>>>> {
         self.subscribe_untyped_with_transform(
             topic,
             topic_type,
             qos_profile,
+            options,
             attach_message_info::<Result<serde_json::Value>>,
         )
     }
 
     fn subscribe_untyped_with_transform<O>(
         &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
-        transform: fn(Result<serde_json::Value>, MessageInfo) -> O,
+        options: SubscriptionOptions, transform: fn(Result<serde_json::Value>, MessageInfo) -> O,
     ) -> Result<Subscription<O>>
     where
         O: 'static,
     {
+        let options = options.validate()?;
         let msg = WrappedNativeMsgUntyped::new_from(topic_type)?;
         let subscription_handle =
             create_subscription_helper(self.node_handle.as_mut(), topic, msg.ts, qos_profile)?;
-        let (sender, receiver) = mpsc::channel::<O>(10);
+        let (sender, receiver) = mpsc::channel::<O>(options.channel_capacity);
         let id = uuid::Uuid::new_v4();
 
         let ws = UntypedSubscriber {
@@ -952,10 +1030,24 @@ impl Node {
     pub fn subscribe_raw(
         &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
     ) -> Result<Subscription<Vec<u8>>> {
+        self.subscribe_raw_with_options(
+            topic,
+            topic_type,
+            qos_profile,
+            SubscriptionOptions::default(),
+        )
+    }
+
+    /// Subscribe to serialized messages with explicit Rust-side stream buffering options.
+    pub fn subscribe_raw_with_options(
+        &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
+        options: SubscriptionOptions,
+    ) -> Result<Subscription<Vec<u8>>> {
         self.subscribe_raw_with_transform(
             topic,
             topic_type,
             qos_profile,
+            options,
             discard_message_info::<Vec<u8>>,
         )
     }
@@ -964,21 +1056,36 @@ impl Node {
     pub fn subscribe_raw_with_info(
         &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
     ) -> Result<Subscription<ReceivedMessage<Vec<u8>>>> {
+        self.subscribe_raw_with_info_and_options(
+            topic,
+            topic_type,
+            qos_profile,
+            SubscriptionOptions::default(),
+        )
+    }
+
+    /// Subscribe to serialized messages with metadata and explicit stream buffering options.
+    pub fn subscribe_raw_with_info_and_options(
+        &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
+        options: SubscriptionOptions,
+    ) -> Result<Subscription<ReceivedMessage<Vec<u8>>>> {
         self.subscribe_raw_with_transform(
             topic,
             topic_type,
             qos_profile,
+            options,
             attach_message_info::<Vec<u8>>,
         )
     }
 
     fn subscribe_raw_with_transform<O>(
         &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
-        transform: fn(Vec<u8>, MessageInfo) -> O,
+        options: SubscriptionOptions, transform: fn(Vec<u8>, MessageInfo) -> O,
     ) -> Result<Subscription<O>>
     where
         O: 'static,
     {
+        let options = options.validate()?;
         // TODO is it possible to handle the raw message without type support?
         //
         // Passing null ts to rcl_subscription_init throws an error ..
@@ -1015,7 +1122,7 @@ impl Node {
                     return Err(err);
                 }
             };
-        let (sender, receiver) = mpsc::channel::<O>(10);
+        let (sender, receiver) = mpsc::channel::<O>(options.channel_capacity);
         let id = uuid::Uuid::new_v4();
 
         let ws = RawSubscriber {
@@ -2992,6 +3099,53 @@ mod tests {
         assert_eq!(typed.info.publisher_gid, untyped.info.publisher_gid);
         assert_eq!(typed.info.publisher_gid, raw.info.publisher_gid);
         assert!(typed.info.received_timestamp >= 0);
+    }
+
+    #[test]
+    fn subscription_options_control_rust_side_buffering() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "subscription_options_test", "").unwrap();
+        let topic = format!("/subscription_options_{}", uuid::Uuid::new_v4().simple());
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::Int32>(&topic, QosProfile::default())
+            .unwrap();
+        let mut subscription = node
+            .subscribe_with_options::<crate::std_msgs::msg::Int32>(
+                &topic,
+                QosProfile::default(),
+                SubscriptionOptions::default().channel_capacity(0),
+            )
+            .unwrap();
+
+        let wait = publisher
+            .wait_for_subscribers_with_timeout(&mut node, Duration::from_secs(1))
+            .unwrap();
+        futures::pin_mut!(wait);
+        loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if wait.as_mut().now_or_never().is_some() {
+                break;
+            }
+        }
+
+        for value in 1..=3 {
+            publisher
+                .publish(&crate::std_msgs::msg::Int32 { data: value })
+                .unwrap();
+        }
+        for _ in 0..3 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+        }
+
+        assert_eq!(subscription.next().now_or_never().flatten().unwrap().data, 1);
+        assert!(subscription.next().now_or_never().is_none());
+
+        let invalid = node.subscribe_with_info_and_options::<crate::std_msgs::msg::Int32>(
+            "/invalid_subscription_capacity",
+            QosProfile::default(),
+            SubscriptionOptions::default().channel_capacity(usize::MAX),
+        );
+        assert!(matches!(invalid, Err(Error::RCL_RET_INVALID_ARGUMENT)));
     }
 
     #[test]

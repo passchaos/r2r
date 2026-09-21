@@ -12,6 +12,42 @@ use std::{
 use crate::{error::*, msg_types::*, nodes::Node, qos::QosProfile};
 use r2r_rcl::*;
 
+/// Rust-side buffering options for a ROS subscription stream.
+///
+/// These options are independent from DDS history/depth QoS. They control messages after they
+/// have been taken from RCL and before the user polls the returned [`Subscription`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SubscriptionOptions {
+    pub channel_capacity: usize,
+}
+
+impl Default for SubscriptionOptions {
+    fn default() -> Self {
+        Self {
+            channel_capacity: 10,
+        }
+    }
+}
+
+impl SubscriptionOptions {
+    /// Sets the shared futures-mpsc buffer size.
+    ///
+    /// The channel implementation additionally reserves one slot for its single sender.
+    pub const fn channel_capacity(mut self, channel_capacity: usize) -> Self {
+        self.channel_capacity = channel_capacity;
+        self
+    }
+
+    pub(crate) fn validate(self) -> Result<Self> {
+        // Mirrors futures-channel's private MAX_BUFFER boundary so invalid public input returns
+        // an error instead of reaching the assertion in mpsc::channel.
+        if self.channel_capacity >= usize::MAX >> 2 {
+            return Err(Error::RCL_RET_INVALID_ARGUMENT);
+        }
+        Ok(self)
+    }
+}
+
 /// Metadata reported by the RMW implementation for a received message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MessageInfo {
