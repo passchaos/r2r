@@ -1408,36 +1408,24 @@ impl Node {
         let topic_c_string =
             CString::new(topic_name).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
 
-        let mut allocator = unsafe { rcutils_get_default_allocator() };
-
-        let mut info_array: rcl_topic_endpoint_info_array_t =
-            unsafe { rmw_get_zero_initialized_topic_endpoint_info_array() };
+        let mut info_array = TopicEndpointInfoArray::new();
 
         let result = unsafe {
             rcl_get_publishers_info_by_topic(
                 node,
-                &mut allocator,
+                &mut info_array.allocator,
                 topic_c_string.as_ptr(),
                 no_mangle,
-                &mut info_array,
+                &mut info_array.value,
             )
         };
 
         if result != RCL_RET_OK as i32 {
-            unsafe { rmw_topic_endpoint_info_array_fini(&mut info_array, &mut allocator) };
             return Err(Error::from_rcl_error(result));
         }
 
         // Convert info_array to Vec<TopicEndpointInfo>
-        let topic_info_list = convert_info_array_to_vec(&info_array);
-
-        let result = unsafe { rmw_topic_endpoint_info_array_fini(&mut info_array, &mut allocator) };
-
-        if result != RCL_RET_OK as i32 {
-            return Err(Error::from_rcl_error(result));
-        }
-
-        Ok(topic_info_list)
+        convert_info_array_to_vec(&info_array.value)
     }
 
     /// Create a ROS wall timer.
@@ -1545,6 +1533,30 @@ impl Drop for NamesAndTypes {
         let ret = unsafe { rmw_names_and_types_fini(&mut self.0) };
         if ret != RCL_RET_OK as i32 {
             log::error!("could not finalize topic names and types: {ret}");
+        }
+    }
+}
+
+struct TopicEndpointInfoArray {
+    value: rcl_topic_endpoint_info_array_t,
+    allocator: rcutils_allocator_t,
+}
+
+impl TopicEndpointInfoArray {
+    fn new() -> Self {
+        Self {
+            value: unsafe { rmw_get_zero_initialized_topic_endpoint_info_array() },
+            allocator: unsafe { rcutils_get_default_allocator() },
+        }
+    }
+}
+
+impl Drop for TopicEndpointInfoArray {
+    fn drop(&mut self) {
+        let ret =
+            unsafe { rmw_topic_endpoint_info_array_fini(&mut self.value, &mut self.allocator) };
+        if ret != RCL_RET_OK as i32 {
+            log::error!("could not finalize topic endpoint information: {ret}");
         }
     }
 }
@@ -1809,15 +1821,9 @@ pub struct TopicEndpointInfo {
 impl From<rmw_topic_endpoint_info_t> for TopicEndpointInfo {
     fn from(info: rmw_topic_endpoint_info_t) -> Self {
         // Convert C strings to Rust String
-        let node_name = unsafe { CStr::from_ptr(info.node_name) }
-            .to_string_lossy()
-            .into_owned();
-        let node_namespace = unsafe { CStr::from_ptr(info.node_namespace) }
-            .to_string_lossy()
-            .into_owned();
-        let topic_type = unsafe { CStr::from_ptr(info.topic_type) }
-            .to_string_lossy()
-            .into_owned();
+        let node_name = c_string_from_ptr(info.node_name).unwrap_or_default();
+        let node_namespace = c_string_from_ptr(info.node_namespace).unwrap_or_default();
+        let topic_type = c_string_from_ptr(info.topic_type).unwrap_or_default();
 
         // Copy the endpoint_gid array
         let endpoint_gid: [u8; RMW_GID_STORAGE_SIZE as usize] = info.endpoint_gid;
@@ -1837,20 +1843,20 @@ impl From<rmw_topic_endpoint_info_t> for TopicEndpointInfo {
 
 fn convert_info_array_to_vec(
     info_array: &rcl_topic_endpoint_info_array_t,
-) -> Vec<TopicEndpointInfo> {
+) -> Result<Vec<TopicEndpointInfo>> {
     let mut topic_info_list = Vec::with_capacity(info_array.size);
 
-    if !info_array.info_array.is_null() {
-        unsafe {
-            let infos = std::slice::from_raw_parts(info_array.info_array, info_array.size);
-            for &info in infos {
-                let endpoint_info = TopicEndpointInfo::from(info);
-                topic_info_list.push(endpoint_info);
-            }
+    if info_array.size > 0 {
+        if info_array.info_array.is_null() {
+            return Err(Error::RCL_RET_ERROR);
+        }
+        let infos = unsafe { std::slice::from_raw_parts(info_array.info_array, info_array.size) };
+        for &info in infos {
+            topic_info_list.push(TopicEndpointInfo::from(info));
         }
     }
 
-    topic_info_list
+    Ok(topic_info_list)
 }
 
 #[cfg(test)]
@@ -1873,7 +1879,11 @@ mod tests {
             .unwrap();
 
         let topics = node.get_topic_names_and_types().unwrap();
+        let publishers = node.get_publishers_info_by_topic(&topic, false).unwrap();
 
         assert_eq!(topics.get(&topic), Some(&vec!["std_msgs/msg/String".to_owned()]));
+        assert!(publishers
+            .iter()
+            .any(|publisher| publisher.topic_type == "std_msgs/msg/String"));
     }
 }
