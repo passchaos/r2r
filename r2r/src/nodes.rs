@@ -180,11 +180,11 @@ impl Node {
 
     /// Creates a ROS node.
     pub fn create(ctx: Context, name: &str, namespace: &str) -> Result<Node> {
+        let c_node_name = CString::new(name).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
+        let c_node_ns = CString::new(namespace).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
         let (res, node_handle) = {
             let mut ctx_handle = ctx.context_handle.lock().unwrap();
 
-            let c_node_name = CString::new(name).unwrap();
-            let c_node_ns = CString::new(namespace).unwrap();
             let mut node_handle: Box<rcl_node_t> =
                 unsafe { Box::new(rcl_get_zero_initialized_node()) };
             let res = unsafe {
@@ -201,13 +201,18 @@ impl Node {
         };
 
         if res == RCL_RET_OK as i32 {
-            let ros_clock = Arc::new(Mutex::new(Clock::create(ClockType::RosTime)?));
-            #[cfg(r2r__rosgraph_msgs__msg__Clock)]
-            let time_source = {
-                let time_source = TimeSource::new();
-                time_source.attach_ros_clock(Arc::downgrade(&ros_clock))?;
-                time_source
+            let ros_clock = match Clock::create(ClockType::RosTime) {
+                Ok(clock) => Arc::new(Mutex::new(clock)),
+                Err(err) => {
+                    let mut node_handle = node_handle;
+                    unsafe {
+                        rcl_node_fini(node_handle.as_mut());
+                    }
+                    return Err(err);
+                }
             };
+            #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+            let time_source = TimeSource::new();
 
             let mut node = Node {
                 params: Arc::new(Mutex::new(IndexMap::new())),
@@ -225,6 +230,9 @@ impl Node {
                 time_source,
                 wait_set: WaitSet::new(),
             };
+            #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+            node.time_source
+                .attach_ros_clock(Arc::downgrade(&node.ros_clock))?;
             node.load_params()?;
             Ok(node)
         } else {
