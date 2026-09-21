@@ -60,7 +60,7 @@ impl rosidl_runtime_c__U16String__Sequence {
         unsafe {
             rosidl_runtime_c__U16String__Sequence__init(self as *mut _, values.len());
         }
-        if self.data != std::ptr::null_mut() {
+        if !self.data.is_null() {
             let strs = unsafe { std::slice::from_raw_parts_mut(self.data, values.len()) };
             for (target, source) in strs.iter_mut().zip(values) {
                 target.assign(source);
@@ -69,7 +69,7 @@ impl rosidl_runtime_c__U16String__Sequence {
     }
 
     pub fn to_vec(&self) -> Vec<String> {
-        if self.data == std::ptr::null_mut() {
+        if self.data.is_null() {
             return Vec::new();
         }
         let mut target = Vec::with_capacity(self.size);
@@ -89,7 +89,7 @@ impl rosidl_runtime_c__String__Sequence {
         unsafe {
             rosidl_runtime_c__String__Sequence__init(self as *mut _, values.len());
         }
-        if self.data != std::ptr::null_mut() {
+        if !self.data.is_null() {
             let strs = unsafe { std::slice::from_raw_parts_mut(self.data, values.len()) };
             for (target, source) in strs.iter_mut().zip(values) {
                 target.assign(source);
@@ -98,7 +98,7 @@ impl rosidl_runtime_c__String__Sequence {
     }
 
     pub fn to_vec(&self) -> Vec<String> {
-        if self.data == std::ptr::null_mut() {
+        if self.data.is_null() {
             return Vec::new();
         }
         let mut target = Vec::with_capacity(self.size);
@@ -119,13 +119,13 @@ macro_rules! primitive_sequence {
                 pub fn update(&mut self, values: &[$element_type]) {
                     unsafe { [<$ctype __Sequence__fini>] (self as *mut _); }
                     unsafe { [<$ctype __Sequence__init>] (self as *mut _, values.len()); }
-                    if self.data != std::ptr::null_mut() {
+                    if !self.data.is_null() {
                         unsafe { std::ptr::copy_nonoverlapping(values.as_ptr(), self.data, values.len()); }
                     }
                 }
 
                 pub fn to_vec(&self) -> Vec<$element_type> {
-                    if self.data == std::ptr::null_mut() {
+                    if self.data.is_null() {
                         return Vec::new();
                     }
                     let mut target = Vec::with_capacity(self.size);
