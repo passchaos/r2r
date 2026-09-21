@@ -272,22 +272,27 @@ impl Node {
             return Ok(());
         }
 
+        let num_nodes = unsafe { (*params.0).num_nodes };
+        if num_nodes == 0 {
+            return Ok(());
+        }
         unsafe {
             if (*params.0).node_names.is_null() || (*params.0).params.is_null() {
-                return Ok(());
+                return Err(Error::RCL_RET_ERROR);
             }
         }
 
-        let node_names =
-            unsafe { std::slice::from_raw_parts((*params.0).node_names, (*params.0).num_nodes) };
+        let node_names = unsafe { std::slice::from_raw_parts((*params.0).node_names, num_nodes) };
 
-        let node_params =
-            unsafe { std::slice::from_raw_parts((*params.0).params, (*params.0).num_nodes) };
+        let node_params = unsafe { std::slice::from_raw_parts((*params.0).params, num_nodes) };
 
         let qualified_name = self.fully_qualified_name()?;
         let name = self.name()?;
 
         for (nn, np) in node_names.iter().zip(node_params) {
+            if nn.is_null() {
+                return Err(Error::RCL_RET_ERROR);
+            }
             let node_name_cstr = unsafe { CStr::from_ptr(*nn) };
             let node_name = c_str_to_str(node_name_cstr, "parameter override node name")?;
 
@@ -304,19 +309,26 @@ impl Node {
 
             // make key value pairs.
             let mut params = self.params.lock();
-            if !np.parameter_names.is_null() && !np.parameter_values.is_null() {
-                let param_names =
-                    unsafe { std::slice::from_raw_parts(np.parameter_names, np.num_params) };
+            if np.num_params == 0 {
+                continue;
+            }
+            if np.parameter_names.is_null() || np.parameter_values.is_null() {
+                return Err(Error::RCL_RET_ERROR);
+            }
+            let param_names =
+                unsafe { std::slice::from_raw_parts(np.parameter_names, np.num_params) };
 
-                let param_values =
-                    unsafe { std::slice::from_raw_parts(np.parameter_values, np.num_params) };
+            let param_values =
+                unsafe { std::slice::from_raw_parts(np.parameter_values, np.num_params) };
 
-                for (s, v) in param_names.iter().zip(param_values) {
-                    let s = unsafe { CStr::from_ptr(*s) };
-                    let key = c_str_to_str(s, "parameter override name")?;
-                    let val = ParameterValue::from_rcl(v)?;
-                    params.insert(key.to_owned(), Parameter::new(val));
+            for (s, v) in param_names.iter().zip(param_values) {
+                if s.is_null() {
+                    return Err(Error::RCL_RET_ERROR);
                 }
+                let s = unsafe { CStr::from_ptr(*s) };
+                let key = c_str_to_str(s, "parameter override name")?;
+                let val = ParameterValue::from_rcl(v)?;
+                params.insert(key.to_owned(), Parameter::new(val));
             }
         }
 

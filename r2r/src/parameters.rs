@@ -5,6 +5,16 @@ use crate::msg_types::generated_msgs::rcl_interfaces;
 use indexmap::IndexMap;
 use r2r_rcl::*;
 
+unsafe fn copy_native_array<T: Copy>(values: *const T, size: usize) -> Result<Vec<T>> {
+    if size == 0 {
+        return Ok(Vec::new());
+    }
+    if values.is_null() {
+        return Err(Error::RCL_RET_ERROR);
+    }
+    Ok(std::slice::from_raw_parts(values, size).to_vec())
+}
+
 /// The kind of change represented by a ROS parameter event.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ParameterEventKind {
@@ -175,65 +185,21 @@ impl ParameterValue {
             let string = string.to_owned();
             ParameterValue::String(string)
         } else if !v.byte_array_value.is_null() {
-            let vals = unsafe {
-                if (*v.byte_array_value).values.is_null() {
-                    &[]
-                } else {
-                    std::slice::from_raw_parts(
-                        (*v.byte_array_value).values,
-                        (*v.byte_array_value).size,
-                    )
-                }
-            };
-            ParameterValue::ByteArray(vals.to_vec())
+            let array = unsafe { &*v.byte_array_value };
+            ParameterValue::ByteArray(unsafe { copy_native_array(array.values, array.size) }?)
         } else if !v.bool_array_value.is_null() {
-            let vals = unsafe {
-                if (*v.bool_array_value).values.is_null() {
-                    &[]
-                } else {
-                    std::slice::from_raw_parts(
-                        (*v.bool_array_value).values,
-                        (*v.bool_array_value).size,
-                    )
-                }
-            };
-            ParameterValue::BoolArray(vals.to_vec())
+            let array = unsafe { &*v.bool_array_value };
+            ParameterValue::BoolArray(unsafe { copy_native_array(array.values, array.size) }?)
         } else if !v.integer_array_value.is_null() {
-            let vals = unsafe {
-                if (*v.integer_array_value).values.is_null() {
-                    &[]
-                } else {
-                    std::slice::from_raw_parts(
-                        (*v.integer_array_value).values,
-                        (*v.integer_array_value).size,
-                    )
-                }
-            };
-            ParameterValue::IntegerArray(vals.to_vec())
+            let array = unsafe { &*v.integer_array_value };
+            ParameterValue::IntegerArray(unsafe { copy_native_array(array.values, array.size) }?)
         } else if !v.double_array_value.is_null() {
-            let vals = unsafe {
-                if (*v.double_array_value).values.is_null() {
-                    &[]
-                } else {
-                    std::slice::from_raw_parts(
-                        (*v.double_array_value).values,
-                        (*v.double_array_value).size,
-                    )
-                }
-            };
-            ParameterValue::DoubleArray(vals.to_vec())
+            let array = unsafe { &*v.double_array_value };
+            ParameterValue::DoubleArray(unsafe { copy_native_array(array.values, array.size) }?)
         } else if !v.string_array_value.is_null() {
-            let vals = unsafe {
-                if (*v.string_array_value).data.is_null() {
-                    &[]
-                } else {
-                    std::slice::from_raw_parts(
-                        (*v.string_array_value).data,
-                        (*v.string_array_value).size,
-                    )
-                }
-            };
-            let s = vals
+            let array = unsafe { &*v.string_array_value };
+            let values = unsafe { copy_native_array(array.data, array.size) }?;
+            let s = values
                 .iter()
                 .map(|cs| {
                     if cs.is_null() {
@@ -628,5 +594,47 @@ mod tests {
         assert!(strings
             .check_parameter("", &ParameterValue::IntegerArray(vec![1]))
             .is_err());
+    }
+
+    #[test]
+    fn malformed_native_parameter_arrays_are_rejected() {
+        let mut bytes = rcl_byte_array_t {
+            values: std::ptr::null_mut(),
+            size: 1,
+        };
+        let variant = rcl_variant_t {
+            bool_value: std::ptr::null_mut(),
+            integer_value: std::ptr::null_mut(),
+            double_value: std::ptr::null_mut(),
+            string_value: std::ptr::null_mut(),
+            byte_array_value: &mut bytes,
+            bool_array_value: std::ptr::null_mut(),
+            integer_array_value: std::ptr::null_mut(),
+            double_array_value: std::ptr::null_mut(),
+            string_array_value: std::ptr::null_mut(),
+        };
+        assert!(matches!(ParameterValue::from_rcl(&variant), Err(Error::RCL_RET_ERROR)));
+
+        bytes.size = 0;
+        assert_eq!(ParameterValue::from_rcl(&variant).unwrap(), ParameterValue::ByteArray(vec![]));
+
+        let mut null_string = std::ptr::null_mut();
+        let mut strings = rcutils_string_array_t {
+            size: 1,
+            data: &mut null_string,
+            allocator: unsafe { rcutils_get_default_allocator() },
+        };
+        let variant = rcl_variant_t {
+            bool_value: std::ptr::null_mut(),
+            integer_value: std::ptr::null_mut(),
+            double_value: std::ptr::null_mut(),
+            string_value: std::ptr::null_mut(),
+            byte_array_value: std::ptr::null_mut(),
+            bool_array_value: std::ptr::null_mut(),
+            integer_array_value: std::ptr::null_mut(),
+            double_array_value: std::ptr::null_mut(),
+            string_array_value: &mut strings,
+        };
+        assert!(matches!(ParameterValue::from_rcl(&variant), Err(Error::RCL_RET_ERROR)));
     }
 }
