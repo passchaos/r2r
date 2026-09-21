@@ -178,17 +178,33 @@ impl Error {
             _ if e == RCL_RET_INVALID_LOG_LEVEL_RULE => Error::RCL_RET_INVALID_LOG_LEVEL_RULE,
             _ if e == RCL_RET_EVENT_INVALID => Error::RCL_RET_EVENT_INVALID,
             _ if e == RCL_RET_EVENT_TAKE_FAILED => Error::RCL_RET_EVENT_TAKE_FAILED,
-            _ if e == r2r_actions::RCL_RET_ACTION_NAME_INVALID => Error::RCL_RET_ACTION_NAME_INVALID,
-            _ if e == r2r_actions::RCL_RET_ACTION_GOAL_ACCEPTED => Error::RCL_RET_ACTION_GOAL_ACCEPTED,
-            _ if e == r2r_actions::RCL_RET_ACTION_GOAL_REJECTED => Error::RCL_RET_ACTION_GOAL_REJECTED,
-            _ if e == r2r_actions::RCL_RET_ACTION_CLIENT_INVALID => Error::RCL_RET_ACTION_CLIENT_INVALID,
-            _ if e == r2r_actions::RCL_RET_ACTION_CLIENT_TAKE_FAILED => Error::RCL_RET_ACTION_CLIENT_TAKE_FAILED,
-            _ if e == r2r_actions::RCL_RET_ACTION_SERVER_INVALID => Error::RCL_RET_ACTION_SERVER_INVALID,
-            _ if e == r2r_actions::RCL_RET_ACTION_SERVER_TAKE_FAILED => Error::RCL_RET_ACTION_SERVER_TAKE_FAILED,
+            _ if e == r2r_actions::RCL_RET_ACTION_NAME_INVALID => {
+                Error::RCL_RET_ACTION_NAME_INVALID
+            }
+            _ if e == r2r_actions::RCL_RET_ACTION_GOAL_ACCEPTED => {
+                Error::RCL_RET_ACTION_GOAL_ACCEPTED
+            }
+            _ if e == r2r_actions::RCL_RET_ACTION_GOAL_REJECTED => {
+                Error::RCL_RET_ACTION_GOAL_REJECTED
+            }
+            _ if e == r2r_actions::RCL_RET_ACTION_CLIENT_INVALID => {
+                Error::RCL_RET_ACTION_CLIENT_INVALID
+            }
+            _ if e == r2r_actions::RCL_RET_ACTION_CLIENT_TAKE_FAILED => {
+                Error::RCL_RET_ACTION_CLIENT_TAKE_FAILED
+            }
+            _ if e == r2r_actions::RCL_RET_ACTION_SERVER_INVALID => {
+                Error::RCL_RET_ACTION_SERVER_INVALID
+            }
+            _ if e == r2r_actions::RCL_RET_ACTION_SERVER_TAKE_FAILED => {
+                Error::RCL_RET_ACTION_SERVER_TAKE_FAILED
+            }
             _ if e == r2r_actions::RCL_RET_ACTION_GOAL_HANDLE_INVALID => {
                 Error::RCL_RET_ACTION_GOAL_HANDLE_INVALID
             }
-            _ if e == r2r_actions::RCL_RET_ACTION_GOAL_EVENT_INVALID => Error::RCL_RET_ACTION_GOAL_EVENT_INVALID,
+            _ if e == r2r_actions::RCL_RET_ACTION_GOAL_EVENT_INVALID => {
+                Error::RCL_RET_ACTION_GOAL_EVENT_INVALID
+            }
             _ => Error::UnknownRclError(e as i32),
         }
     }
@@ -218,9 +234,6 @@ mod tests {
 
     #[test]
     fn preserves_unknown_rcl_error_codes() {
-        assert!(matches!(
-            Error::from_rcl_error(-12345),
-            Error::UnknownRclError(-12345)
-        ));
+        assert!(matches!(Error::from_rcl_error(-12345), Error::UnknownRclError(-12345)));
     }
 }

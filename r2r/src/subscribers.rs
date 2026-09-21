@@ -105,7 +105,10 @@ where
                         drop(Box::from_raw(handle_ptr));
                     } else {
                         let topic_str = rcl_subscription_get_topic_name(handle_ptr);
-                        let topic = CStr::from_ptr(topic_str).to_str().expect("to_str() call failed").to_owned();
+                        let topic = CStr::from_ptr(topic_str)
+                            .to_str()
+                            .expect("to_str() call failed")
+                            .to_owned();
                         drop(Box::from_raw(handle_ptr));
 
                         let err_str = rcutils_get_error_string();

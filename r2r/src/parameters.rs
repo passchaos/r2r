@@ -362,9 +362,7 @@ macro_rules! impl_ros_params {
                 }
             }
 
-            fn check_parameter(
-                &self, param_name: &str, param_val: &ParameterValue,
-            ) -> Result<()> {
+            fn check_parameter(&self, param_name: &str, param_val: &ParameterValue) -> Result<()> {
                 if param_name != "" {
                     return Err(Error::InvalidParameterName {
                         name: param_name.to_owned(),

@@ -518,7 +518,8 @@ impl Node {
                         };
                         // if the value changed, send out new value on parameter event stream
                         if changed && r.successful {
-                            if let Err(e) = set_atomically_event_tx.try_send((p.name.clone(), val)) {
+                            if let Err(e) = set_atomically_event_tx.try_send((p.name.clone(), val))
+                            {
                                 log::debug!("Warning: could not send parameter event ({}).", e);
                             }
                         }
@@ -741,20 +742,17 @@ impl Node {
             return Err(Error::from_rcl_error(ret));
         }
 
-        let subscription_handle = match create_subscription_helper(
-            self.node_handle.as_mut(),
-            topic,
-            msg.ts,
-            qos_profile,
-        ) {
-            Ok(handle) => handle,
-            Err(err) => {
-                unsafe {
-                    rcutils_uint8_array_fini(&mut msg_buf as *mut rcl_serialized_message_t);
+        let subscription_handle =
+            match create_subscription_helper(self.node_handle.as_mut(), topic, msg.ts, qos_profile)
+            {
+                Ok(handle) => handle,
+                Err(err) => {
+                    unsafe {
+                        rcutils_uint8_array_fini(&mut msg_buf as *mut rcl_serialized_message_t);
+                    }
+                    return Err(err);
                 }
-                return Err(err);
-            }
-        };
+            };
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(10);
 
         let ws = RawSubscriber {
@@ -1011,7 +1009,9 @@ impl Node {
     pub fn destroy_publisher<T: WrappedTypesupport>(&mut self, p: Publisher<T>) {
         if let Some(handle) = p.handle.upgrade() {
             // Remove handle from list of publishers.
-            self.pubs.iter().position(|p| Arc::ptr_eq(p, &handle))
+            self.pubs
+                .iter()
+                .position(|p| Arc::ptr_eq(p, &handle))
                 .map(|i| self.pubs.swap_remove(i));
 
             let handle = wait_until_unwrapped(handle);
@@ -1023,7 +1023,9 @@ impl Node {
     pub fn destroy_publisher_untyped(&mut self, p: PublisherUntyped) {
         if let Some(handle) = p.handle.upgrade() {
             // Remove handle from list of publishers.
-            self.pubs.iter().position(|p| Arc::ptr_eq(p, &handle))
+            self.pubs
+                .iter()
+                .position(|p| Arc::ptr_eq(p, &handle))
                 .map(|i| self.pubs.swap_remove(i));
 
             let handle = wait_until_unwrapped(handle);
@@ -1259,11 +1261,10 @@ impl Node {
                 }
             }
         }
-        self.services
-            .retain(|s| {
-                let service = s.lock().unwrap();
-                !services_to_remove.contains(&(service.handle() as *const rcl_service_t))
-            });
+        self.services.retain(|s| {
+            let service = s.lock().unwrap();
+            !services_to_remove.contains(&(service.handle() as *const rcl_service_t))
+        });
 
         for ac in &self.action_clients {
             let mut is_feedback_ready = false;
@@ -1504,7 +1505,7 @@ impl Node {
                 ctx.as_mut(),
                 duration_to_rcl_nanos(period)?,
                 None,
-                rcutils_get_default_allocator()
+                rcutils_get_default_allocator(),
             )
         };
 
@@ -1550,12 +1551,8 @@ impl Node {
 ))]
 #[inline]
 pub unsafe fn init_timer(
-    timer: *mut rcl_timer_t,
-    clock: *mut rcl_clock_t,
-    context: *mut rcl_context_t,
-    period: i64,
-    callback: rcl_timer_callback_t,
-    allocator: rcl_allocator_t,
+    timer: *mut rcl_timer_t, clock: *mut rcl_clock_t, context: *mut rcl_context_t, period: i64,
+    callback: rcl_timer_callback_t, allocator: rcl_allocator_t,
 ) -> rcl_ret_t {
     rcl_timer_init(timer, clock, context, period, callback, allocator)
 }
@@ -1569,12 +1566,8 @@ pub unsafe fn init_timer(
 )))]
 #[inline]
 pub unsafe fn init_timer(
-    timer: *mut rcl_timer_t,
-    clock: *mut rcl_clock_t,
-    context: *mut rcl_context_t,
-    period: i64,
-    callback: rcl_timer_callback_t,
-    allocator: rcl_allocator_t,
+    timer: *mut rcl_timer_t, clock: *mut rcl_clock_t, context: *mut rcl_context_t, period: i64,
+    callback: rcl_timer_callback_t, allocator: rcl_allocator_t,
 ) -> rcl_ret_t {
     rcl_timer_init2(timer, clock, context, period, callback, allocator, true)
 }
@@ -1807,10 +1800,7 @@ mod tests {
 
     #[test]
     fn converts_rcl_durations_without_wrapping() {
-        assert_eq!(
-            duration_to_rcl_nanos(Duration::from_nanos(i64::MAX as u64)).unwrap(),
-            i64::MAX
-        );
+        assert_eq!(duration_to_rcl_nanos(Duration::from_nanos(i64::MAX as u64)).unwrap(), i64::MAX);
         assert!(duration_to_rcl_nanos(Duration::from_nanos(i64::MAX as u64 + 1)).is_err());
     }
 }

@@ -209,9 +209,9 @@ fn retain_accepted_cancellations(
         .filter_map(|(uuid, accept)| accept.then_some(uuid))
         .collect();
 
-    response.goals_canceling.retain(|goal_info| {
-        accepted.contains(&uuid_msg_to_uuid(&goal_info.goal_id))
-    });
+    response
+        .goals_canceling
+        .retain(|goal_info| accepted.contains(&uuid_msg_to_uuid(&goal_info.goal_id)));
 
     response
         .goals_canceling
@@ -331,10 +331,7 @@ where
                             None
                         }
                     });
-                    canceled.extend(retain_accepted_cancellations(
-                        &mut response_msg,
-                        decisions,
-                    ));
+                    canceled.extend(retain_accepted_cancellations(&mut response_msg, decisions));
 
                     // check if all cancels were rejected.
                     if requested_cancels >= 1 && response_msg.goals_canceling.is_empty() {
@@ -695,10 +692,7 @@ where
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
         let mut action_server = action_server.lock().unwrap();
 
-        action_server.set_goal_state(
-            &self.uuid,
-            rcl_action_goal_event_t::GOAL_EVENT_CANCELED,
-        )?;
+        action_server.set_goal_state(&self.uuid, rcl_action_goal_event_t::GOAL_EVENT_CANCELED)?;
 
         // create result message
         let result_msg =
@@ -839,13 +833,7 @@ mod tests {
 
         assert_eq!(canceled, vec![accepted_a, accepted_b]);
         assert_eq!(response.goals_canceling.len(), 2);
-        assert_eq!(
-            uuid_msg_to_uuid(&response.goals_canceling[0].goal_id),
-            accepted_a
-        );
-        assert_eq!(
-            uuid_msg_to_uuid(&response.goals_canceling[1].goal_id),
-            accepted_b
-        );
+        assert_eq!(uuid_msg_to_uuid(&response.goals_canceling[0].goal_id), accepted_a);
+        assert_eq!(uuid_msg_to_uuid(&response.goals_canceling[1].goal_id), accepted_b);
     }
 }
