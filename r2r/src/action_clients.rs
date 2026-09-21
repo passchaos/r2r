@@ -245,6 +245,16 @@ where
         let response = self.send_goal_request(goal)?;
         node.with_timeout(response, timeout)
     }
+
+    /// Checks whether the action server is currently available without registering a waiter.
+    pub fn is_available(&self, node: &Node) -> Result<bool> {
+        let client = self
+            .client
+            .upgrade()
+            .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+        let client = client.lock();
+        action_server_available_helper(node.node_handle.as_ref(), client.handle())
+    }
 }
 
 type GoalResponseSender = oneshot::Sender<(bool, builtin_interfaces::msg::Time)>;

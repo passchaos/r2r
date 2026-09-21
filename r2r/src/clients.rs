@@ -70,6 +70,13 @@ where
         let client = client.lock();
         client_service_name(client.handle())
     }
+
+    /// Checks whether the service is currently available without registering a waiter.
+    pub fn is_available(&self, node: &Node) -> Result<bool> {
+        let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
+        let client = client.lock();
+        service_available_helper(node.node_handle.as_ref(), client.handle())
+    }
 }
 
 /// ROS "untyped" service client.
@@ -128,6 +135,13 @@ impl ClientUntyped {
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
         let client = client.lock();
         client_service_name(client.handle())
+    }
+
+    /// Checks whether the service is currently available without registering a waiter.
+    pub fn is_available(&self, node: &Node) -> Result<bool> {
+        let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
+        let client = client.lock();
+        service_available_helper(node.node_handle.as_ref(), client.handle())
     }
 }
 
@@ -466,7 +480,7 @@ pub fn create_client_helper(
     }
 }
 
-pub fn service_available_helper(node: &mut rcl_node_t, client: &rcl_client_t) -> Result<bool> {
+pub fn service_available_helper(node: &rcl_node_t, client: &rcl_client_t) -> Result<bool> {
     let mut avail = false;
     let result = unsafe { rcl_service_server_is_available(node, client, &mut avail) };
 

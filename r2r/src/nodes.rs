@@ -4340,6 +4340,62 @@ mod tests {
     }
 
     #[test]
+    fn clients_can_check_availability_without_registering_waiters() {
+        use crate::example_interfaces::{action::Fibonacci, srv::AddTwoInts};
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "immediate_availability_test", "").unwrap();
+
+        let service_name = "/immediate_availability_service";
+        let client = node
+            .create_client::<AddTwoInts::Service>(service_name, QosProfile::default())
+            .unwrap();
+        let untyped_client = node
+            .create_client_untyped(
+                service_name,
+                "example_interfaces/srv/AddTwoInts",
+                QosProfile::default(),
+            )
+            .unwrap();
+        assert!(!client.is_available(&node).unwrap());
+        assert!(!untyped_client.is_available(&node).unwrap());
+        let _service = node
+            .create_service::<AddTwoInts::Service>(service_name, QosProfile::default())
+            .unwrap();
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if client.is_available(&node).unwrap() && untyped_client.is_available(&node).unwrap() {
+                break;
+            }
+        }
+        assert!(client.is_available(&node).unwrap());
+        assert!(untyped_client.is_available(&node).unwrap());
+
+        let action_name = "/immediate_availability_action";
+        let action_client = node
+            .create_action_client::<Fibonacci::Action>(action_name)
+            .unwrap();
+        let untyped_action_client = node
+            .create_action_client_untyped(action_name, "example_interfaces/action/Fibonacci")
+            .unwrap();
+        assert!(!action_client.is_available(&node).unwrap());
+        assert!(!untyped_action_client.is_available(&node).unwrap());
+        let _action_server = node
+            .create_action_server::<Fibonacci::Action>(action_name)
+            .unwrap();
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if action_client.is_available(&node).unwrap()
+                && untyped_action_client.is_available(&node).unwrap()
+            {
+                break;
+            }
+        }
+        assert!(action_client.is_available(&node).unwrap());
+        assert!(untyped_action_client.is_available(&node).unwrap());
+    }
+
+    #[test]
     fn service_requests_support_runtime_agnostic_timeouts() {
         use crate::example_interfaces::srv::AddTwoInts;
 
