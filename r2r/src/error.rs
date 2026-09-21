@@ -1,5 +1,4 @@
 #![allow(non_camel_case_types)]
-use r2r_actions::*;
 use r2r_rcl::*;
 use thiserror::Error;
 
@@ -136,6 +135,9 @@ pub enum Error {
         expected_type: &'static str,
         actual_type: &'static str,
     },
+
+    #[error("Unknown RCL error code: {0}")]
+    UnknownRclError(i32),
 }
 
 impl Error {
@@ -187,7 +189,7 @@ impl Error {
                 Error::RCL_RET_ACTION_GOAL_HANDLE_INVALID
             }
             _ if e == r2r_actions::RCL_RET_ACTION_GOAL_EVENT_INVALID => Error::RCL_RET_ACTION_GOAL_EVENT_INVALID,
-            _ => panic!("TODO: add error code {}", e),
+            _ => Error::UnknownRclError(e as i32),
         }
     }
 
@@ -207,5 +209,18 @@ impl Error {
             },
             _ => self,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preserves_unknown_rcl_error_codes() {
+        assert!(matches!(
+            Error::from_rcl_error(-12345),
+            Error::UnknownRclError(-12345)
+        ));
     }
 }
