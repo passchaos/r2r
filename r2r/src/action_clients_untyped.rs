@@ -316,34 +316,7 @@ impl WrappedActionClientUntyped {
 
             self.cancel_response_channels
                 .push((seq_no, cancel_req_sender));
-            // instead of "canceled" we return invalid client.
-            let future = cancel_req_receiver
-                .map_err(|_| Error::RCL_RET_CLIENT_INVALID)
-                .map(|r| match r {
-                    Ok(r) => match r.return_code {
-                        e if e == action_msgs::srv::CancelGoal::Response::ERROR_NONE as i8 => {
-                            Ok(())
-                        }
-                        e if e == action_msgs::srv::CancelGoal::Response::ERROR_REJECTED as i8 => {
-                            Err(Error::GoalCancelRejected)
-                        }
-                        e if e
-                            == action_msgs::srv::CancelGoal::Response::ERROR_UNKNOWN_GOAL_ID
-                                as i8 =>
-                        {
-                            Err(Error::GoalCancelUnknownGoalID)
-                        }
-                        e if e
-                            == action_msgs::srv::CancelGoal::Response::ERROR_GOAL_TERMINATED
-                                as i8 =>
-                        {
-                            Err(Error::GoalCancelAlreadyTerminated)
-                        }
-                        code => Err(Error::UnknownActionCancelResponse(code)),
-                    },
-                    Err(e) => Err(e),
-                });
-            Ok(future)
+            Ok(cancel_response_future(cancel_req_receiver))
         } else {
             log::error!("could not send goal request {}", result);
             Err(Error::from_rcl_error(result))

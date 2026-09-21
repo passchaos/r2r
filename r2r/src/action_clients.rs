@@ -360,34 +360,7 @@ where
 
             self.cancel_response_channels
                 .push((seq_no, cancel_req_sender));
-            // instead of "canceled" we return invalid client.
-            let future = cancel_req_receiver
-                .map_err(|_| Error::RCL_RET_CLIENT_INVALID)
-                .map(|r| match r {
-                    Ok(r) => match r.return_code {
-                        e if e == action_msgs::srv::CancelGoal::Response::ERROR_NONE as i8 => {
-                            Ok(())
-                        }
-                        e if e == action_msgs::srv::CancelGoal::Response::ERROR_REJECTED as i8 => {
-                            Err(Error::GoalCancelRejected)
-                        }
-                        e if e
-                            == action_msgs::srv::CancelGoal::Response::ERROR_UNKNOWN_GOAL_ID
-                                as i8 =>
-                        {
-                            Err(Error::GoalCancelUnknownGoalID)
-                        }
-                        e if e
-                            == action_msgs::srv::CancelGoal::Response::ERROR_GOAL_TERMINATED
-                                as i8 =>
-                        {
-                            Err(Error::GoalCancelAlreadyTerminated)
-                        }
-                        code => Err(Error::UnknownActionCancelResponse(code)),
-                    },
-                    Err(e) => Err(e),
-                });
-            Ok(future)
+            Ok(cancel_response_future(cancel_req_receiver))
         } else {
             log::error!("could not send goal request {}", result);
             Err(Error::from_rcl_error(result))
@@ -671,6 +644,27 @@ pub(crate) fn action_client_take_succeeded(ret: rcl_ret_t) -> Result<bool> {
     }
 }
 
+pub(crate) async fn cancel_response_future(
+    receiver: oneshot::Receiver<action_msgs::srv::CancelGoal::Response>,
+) -> Result<()> {
+    let response = receiver
+        .await
+        .map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+    match response.return_code {
+        code if code == action_msgs::srv::CancelGoal::Response::ERROR_NONE as i8 => Ok(()),
+        code if code == action_msgs::srv::CancelGoal::Response::ERROR_REJECTED as i8 => {
+            Err(Error::GoalCancelRejected)
+        }
+        code if code == action_msgs::srv::CancelGoal::Response::ERROR_UNKNOWN_GOAL_ID as i8 => {
+            Err(Error::GoalCancelUnknownGoalID)
+        }
+        code if code == action_msgs::srv::CancelGoal::Response::ERROR_GOAL_TERMINATED as i8 => {
+            Err(Error::GoalCancelAlreadyTerminated)
+        }
+        code => Err(Error::UnknownActionCancelResponse(code)),
+    }
+}
+
 pub fn create_action_client_helper(
     node: &mut rcl_node_t, action_name: &str, action_ts: *const rosidl_action_type_support_t,
     overrides: &ActionClientOptions,
@@ -759,6 +753,17 @@ mod tests {
         assert!(!action_client_take_succeeded(RCL_RET_ACTION_CLIENT_TAKE_FAILED as i32).unwrap());
         assert!(matches!(
             action_client_take_succeeded(RCL_RET_ACTION_CLIENT_INVALID as i32),
+            Err(Error::RCL_RET_ACTION_CLIENT_INVALID)
+        ));
+    }
+
+    #[test]
+    fn closed_cancel_channel_reports_action_client_invalid() {
+        let (sender, receiver) = oneshot::channel();
+        drop(sender);
+
+        assert!(matches!(
+            futures::executor::block_on(cancel_response_future(receiver)),
             Err(Error::RCL_RET_ACTION_CLIENT_INVALID)
         ));
     }
