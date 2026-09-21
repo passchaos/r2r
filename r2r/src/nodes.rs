@@ -65,6 +65,7 @@ pub struct Node {
     action_clients: Vec<Arc<Mutex<dyn ActionClient_>>>,
     // action servers
     action_servers: Vec<Arc<Mutex<dyn ActionServer_>>>,
+    action_wait_set_capacities: WaitSetCapacities,
     // timers,
     timers: Vec<Timer_>,
     // and the publishers, whom we allow to be shared.. hmm.
@@ -228,6 +229,7 @@ impl Node {
                 clients: Vec::new(),
                 action_clients: Vec::new(),
                 action_servers: Vec::new(),
+                action_wait_set_capacities: WaitSetCapacities::default(),
                 timers: Vec::new(),
                 pubs: Vec::new(),
                 ros_clock,
@@ -871,8 +873,17 @@ impl Node {
     where
         T: 'static + WrappedActionTypeSupport,
     {
-        let client_handle =
+        let mut client_handle =
             create_action_client_helper(self.node_handle.as_mut(), action_name, T::get_ts())?;
+        let action_capacities = match action_client_wait_set_capacities(&client_handle) {
+            Ok(capacities) => capacities,
+            Err(err) => {
+                unsafe {
+                    rcl_action_client_fini(&mut client_handle, self.node_handle.as_mut());
+                }
+                return Err(err);
+            }
+        };
         let client = WrappedActionClient::<T> {
             rcl_handle: client_handle,
             goal_response_channels: Vec::new(),
@@ -886,6 +897,7 @@ impl Node {
 
         let client_arc = Arc::new(Mutex::new(client));
         self.action_clients.push(client_arc.clone());
+        self.action_wait_set_capacities.add(action_capacities);
         let c = make_action_client(Arc::downgrade(&client_arc));
         Ok(c)
     }
@@ -900,11 +912,20 @@ impl Node {
         &mut self, action_name: &str, action_type: &str,
     ) -> Result<ActionClientUntyped> {
         let action_type_support = UntypedActionSupport::new_from(action_type)?;
-        let client_handle = create_action_client_helper(
+        let mut client_handle = create_action_client_helper(
             self.node_handle.as_mut(),
             action_name,
             action_type_support.ts,
         )?;
+        let action_capacities = match action_client_wait_set_capacities(&client_handle) {
+            Ok(capacities) => capacities,
+            Err(err) => {
+                unsafe {
+                    rcl_action_client_fini(&mut client_handle, self.node_handle.as_mut());
+                }
+                return Err(err);
+            }
+        };
         let client = WrappedActionClientUntyped {
             action_type_support,
             rcl_handle: client_handle,
@@ -919,6 +940,7 @@ impl Node {
 
         let client_arc = Arc::new(Mutex::new(client));
         self.action_clients.push(client_arc.clone());
+        self.action_wait_set_capacities.add(action_capacities);
         let c = make_action_client_untyped(Arc::downgrade(&client_arc));
         Ok(c)
     }
@@ -937,7 +959,7 @@ impl Node {
             mpsc::channel::<ActionServerGoalRequest<T>>(10);
 
         let clock = self.ros_clock.clone();
-        let server_handle = {
+        let mut server_handle = {
             let mut clock_handle = clock.lock();
             create_action_server_helper(
                 self.node_handle.as_mut(),
@@ -945,6 +967,15 @@ impl Node {
                 clock_handle.clock_handle.as_mut(),
                 T::get_ts(),
             )?
+        };
+        let action_capacities = match action_server_wait_set_capacities(&server_handle) {
+            Ok(capacities) => capacities,
+            Err(err) => {
+                unsafe {
+                    rcl_action_server_fini(&mut server_handle, self.node_handle.as_mut());
+                }
+                return Err(err);
+            }
         };
         let server = WrappedActionServer::<T> {
             rcl_handle: server_handle,
@@ -959,6 +990,7 @@ impl Node {
 
         let server_arc = Arc::new(Mutex::new(server));
         self.action_servers.push(server_arc);
+        self.action_wait_set_capacities.add(action_capacities);
         Ok(goal_request_receiver)
     }
 
@@ -1074,65 +1106,12 @@ impl Node {
         // #[doc = "* For example, calling rcl_wait() in two threads on two different wait sets"]
         // #[doc = "* that both contain a single, shared guard condition is undefined behavior."]
 
-        // count action client wait set needs
-        let mut total_action_subs = 0;
-        let mut total_action_guard_conditions = 0;
-        let mut total_action_timers = 0;
-        let mut total_action_clients = 0;
-        let mut total_action_services = 0;
-        for c in &self.action_clients {
-            let mut num_subs = 0;
-            let mut num_gc = 0;
-            let mut num_timers = 0;
-            let mut num_clients = 0;
-            let mut num_services = 0;
-
-            action_client_get_num_waits(
-                c.lock().handle(),
-                &mut num_subs,
-                &mut num_gc,
-                &mut num_timers,
-                &mut num_clients,
-                &mut num_services,
-            )?;
-
-            total_action_subs += num_subs;
-            total_action_guard_conditions += num_gc;
-            total_action_timers += num_timers;
-            total_action_clients += num_clients;
-            total_action_services += num_services;
-        }
-
-        // count action server wait set needs
-        for s in &self.action_servers {
-            let mut num_subs = 0;
-            let mut num_gc = 0;
-            let mut num_timers = 0;
-            let mut num_clients = 0;
-            let mut num_services = 0;
-
-            action_server_get_num_waits(
-                s.lock().handle(),
-                &mut num_subs,
-                &mut num_gc,
-                &mut num_timers,
-                &mut num_clients,
-                &mut num_services,
-            )?;
-
-            total_action_subs += num_subs;
-            total_action_guard_conditions += num_gc;
-            total_action_timers += num_timers;
-            total_action_clients += num_clients;
-            total_action_services += num_services;
-        }
-
         let capacities = WaitSetCapacities {
-            subscriptions: self.subscribers.len() + total_action_subs,
-            guard_conditions: total_action_guard_conditions,
-            timers: self.timers.len() + total_action_timers,
-            clients: self.clients.len() + total_action_clients,
-            services: self.services.len() + total_action_services,
+            subscriptions: self.subscribers.len() + self.action_wait_set_capacities.subscriptions,
+            guard_conditions: self.action_wait_set_capacities.guard_conditions,
+            timers: self.timers.len() + self.action_wait_set_capacities.timers,
+            clients: self.clients.len() + self.action_wait_set_capacities.clients,
+            services: self.services.len() + self.action_wait_set_capacities.services,
         };
         {
             let mut ctx = self.context.context_handle.lock();
@@ -1261,6 +1240,7 @@ impl Node {
         });
 
         for ac in &self.action_clients {
+            let mut ac = ac.lock();
             let mut is_feedback_ready = false;
             let mut is_status_ready = false;
             let mut is_goal_response_ready = false;
@@ -1270,7 +1250,7 @@ impl Node {
             let ret = unsafe {
                 rcl_action_client_wait_set_get_entities_ready(
                     ws,
-                    ac.lock().handle(),
+                    ac.handle(),
                     &mut is_feedback_ready,
                     &mut is_status_ready,
                     &mut is_goal_response_ready,
@@ -1284,32 +1264,28 @@ impl Node {
             }
 
             if is_feedback_ready {
-                let mut acs = ac.lock();
-                acs.handle_feedback_msg();
+                ac.handle_feedback_msg();
             }
 
             if is_status_ready {
-                let mut acs = ac.lock();
-                acs.handle_status_msg();
+                ac.handle_status_msg();
             }
 
             if is_goal_response_ready {
-                let mut acs = ac.lock();
-                acs.handle_goal_response();
+                ac.handle_goal_response();
             }
 
             if is_cancel_response_ready {
-                let mut acs = ac.lock();
-                acs.handle_cancel_response();
+                ac.handle_cancel_response();
             }
 
             if is_result_response_ready {
-                let mut acs = ac.lock();
-                acs.handle_result_response();
+                ac.handle_result_response();
             }
         }
 
         for s in &self.action_servers {
+            let mut server = s.lock();
             let mut is_goal_request_ready = false;
             let mut is_cancel_request_ready = false;
             let mut is_result_request_ready = false;
@@ -1318,7 +1294,7 @@ impl Node {
             let ret = unsafe {
                 rcl_action_server_wait_set_get_entities_ready(
                     ws,
-                    s.lock().handle(),
+                    server.handle(),
                     &mut is_goal_request_ready,
                     &mut is_cancel_request_ready,
                     &mut is_result_request_ready,
@@ -1331,23 +1307,19 @@ impl Node {
             }
 
             if is_goal_request_ready {
-                let mut acs = s.lock();
-                acs.handle_goal_request(s.clone());
+                server.handle_goal_request(s.clone());
             }
 
             if is_cancel_request_ready {
-                let mut acs = s.lock();
-                acs.handle_cancel_request();
+                server.handle_cancel_request();
             }
 
             if is_result_request_ready {
-                let mut acs = s.lock();
-                acs.handle_result_request();
+                server.handle_result_request();
             }
 
             if is_goal_expired {
-                let mut acs = s.lock();
-                acs.handle_goal_expired();
+                server.handle_goal_expired();
             }
         }
 
@@ -1720,13 +1692,49 @@ impl Drop for Node {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct WaitSetCapacities {
     subscriptions: usize,
     guard_conditions: usize,
     timers: usize,
     clients: usize,
     services: usize,
+}
+
+impl WaitSetCapacities {
+    fn add(&mut self, other: Self) {
+        self.subscriptions += other.subscriptions;
+        self.guard_conditions += other.guard_conditions;
+        self.timers += other.timers;
+        self.clients += other.clients;
+        self.services += other.services;
+    }
+}
+
+fn action_client_wait_set_capacities(handle: &rcl_action_client_t) -> Result<WaitSetCapacities> {
+    let mut capacities = WaitSetCapacities::default();
+    action_client_get_num_waits(
+        handle,
+        &mut capacities.subscriptions,
+        &mut capacities.guard_conditions,
+        &mut capacities.timers,
+        &mut capacities.clients,
+        &mut capacities.services,
+    )?;
+    Ok(capacities)
+}
+
+fn action_server_wait_set_capacities(handle: &rcl_action_server_t) -> Result<WaitSetCapacities> {
+    let mut capacities = WaitSetCapacities::default();
+    action_server_get_num_waits(
+        handle,
+        &mut capacities.subscriptions,
+        &mut capacities.guard_conditions,
+        &mut capacities.timers,
+        &mut capacities.clients,
+        &mut capacities.services,
+    )?;
+    Ok(capacities)
 }
 
 struct WaitSet {
@@ -1866,6 +1874,35 @@ mod tests {
     fn converts_rcl_durations_without_wrapping() {
         assert_eq!(duration_to_rcl_nanos(Duration::from_nanos(i64::MAX as u64)).unwrap(), i64::MAX);
         assert!(duration_to_rcl_nanos(Duration::from_nanos(i64::MAX as u64 + 1)).is_err());
+    }
+
+    #[test]
+    fn adds_cached_action_wait_set_capacities() {
+        let mut total = WaitSetCapacities {
+            subscriptions: 1,
+            guard_conditions: 2,
+            timers: 3,
+            clients: 4,
+            services: 5,
+        };
+        total.add(WaitSetCapacities {
+            subscriptions: 5,
+            guard_conditions: 4,
+            timers: 3,
+            clients: 2,
+            services: 1,
+        });
+
+        assert_eq!(
+            total,
+            WaitSetCapacities {
+                subscriptions: 6,
+                guard_conditions: 6,
+                timers: 6,
+                clients: 6,
+                services: 6,
+            }
+        );
     }
 
     #[test]
