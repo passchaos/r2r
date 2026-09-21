@@ -46,7 +46,7 @@ pub(crate) struct Publisher_ {
     handle: Arc<Mutex<PublisherHandle>>,
 
     // TODO use a mpsc to avoid the mutex?
-    poll_inter_process_subscriber_channels: Mutex<Vec<oneshot::Sender<()>>>,
+    poll_subscriber_channels: Mutex<Vec<oneshot::Sender<()>>>,
 }
 
 struct PublisherHandle(Option<rcl_publisher_t>);
@@ -59,49 +59,44 @@ unsafe impl Send for Publisher_ {}
 unsafe impl Sync for Publisher_ {}
 
 impl Publisher_ {
-    fn get_inter_process_subscription_count(&self) -> Result<usize> {
+    fn get_subscription_count(&self) -> Result<usize> {
         // See https://github.com/ros2/rclcpp/issues/623
 
-        let mut inter_process_subscription_count = 0;
+        let mut subscription_count = 0;
         let handle = self.handle.lock();
         let handle = handle.0.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
 
         let result = unsafe {
-            rcl_publisher_get_subscription_count(
-                handle,
-                &mut inter_process_subscription_count as *mut usize,
-            )
+            rcl_publisher_get_subscription_count(handle, &mut subscription_count as *mut usize)
         };
 
         if result == RCL_RET_OK as i32 {
-            Ok(inter_process_subscription_count)
+            Ok(subscription_count)
         } else {
             Err(Error::from_rcl_error(result))
         }
     }
 
-    pub(crate) fn poll_has_inter_process_subscribers(&self) {
-        let mut poll_inter_process_subscriber_channels =
-            self.poll_inter_process_subscriber_channels.lock();
-        poll_inter_process_subscriber_channels.retain(|sender| !sender.is_canceled());
+    pub(crate) fn poll_has_subscribers(&self) {
+        let mut poll_subscriber_channels = self.poll_subscriber_channels.lock();
+        poll_subscriber_channels.retain(|sender| !sender.is_canceled());
 
-        if poll_inter_process_subscriber_channels.is_empty() {
+        if poll_subscriber_channels.is_empty() {
             return;
         }
-        let inter_process_subscription_count = self.get_inter_process_subscription_count();
-        match inter_process_subscription_count {
+        match self.get_subscription_count() {
             Ok(0) => {
                 // not available...
             }
             Ok(_) => {
                 // send ok and close channels
-                while let Some(sender) = poll_inter_process_subscriber_channels.pop() {
+                while let Some(sender) = poll_subscriber_channels.pop() {
                     let _res = sender.send(()); // we ignore if receiver dropped.
                 }
             }
             Err(_) => {
                 // error, close all channels
-                poll_inter_process_subscriber_channels.clear();
+                poll_subscriber_channels.clear();
             }
         }
     }
@@ -250,7 +245,7 @@ pub fn create_publisher_helper(
     if result == RCL_RET_OK as i32 {
         Ok(Publisher_ {
             handle: Arc::new(Mutex::new(PublisherHandle(Some(publisher_handle)))),
-            poll_inter_process_subscriber_channels: Mutex::new(Vec::new()),
+            poll_subscriber_channels: Mutex::new(Vec::new()),
         })
     } else {
         Err(Error::from_rcl_error(result))
@@ -323,37 +318,52 @@ impl PublisherUntyped {
         }
     }
 
-    /// Gets the number of external subscribers (i.e. it doesn't
-    /// count subscribers from the same process).
-    pub fn get_inter_process_subscription_count(&self) -> Result<usize> {
+    /// Gets the number of subscriptions matched to this publisher.
+    pub fn get_subscription_count(&self) -> Result<usize> {
         self.handle
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
-            .get_inter_process_subscription_count()
+            .get_subscription_count()
     }
 
-    /// Waits for at least one external subscriber to begin subscribing to the
-    /// topic. It doesn't count subscribers from the same process.
-    pub fn wait_for_inter_process_subscribers(&self) -> Result<impl Future<Output = Result<()>>> {
+    /// Waits for at least one subscription to match this publisher.
+    pub fn wait_for_subscribers(&self) -> Result<impl Future<Output = Result<()>>> {
         let (sender, receiver) = oneshot::channel();
 
         self.handle
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
-            .poll_inter_process_subscriber_channels
+            .poll_subscriber_channels
             .lock()
             .push(sender);
 
-        Ok(receiver.map_err(|_| Error::RCL_RET_CLIENT_INVALID))
+        Ok(receiver.map_err(|_| Error::RCL_RET_PUBLISHER_INVALID))
     }
 
-    /// Wait for a subscriber up to `timeout`. The node must be spun while awaiting.
+    /// Wait for a matched subscription up to `timeout`. The node must be spun while awaiting.
+    pub fn wait_for_subscribers_with_timeout(
+        &self, node: &mut Node, timeout: std::time::Duration,
+    ) -> Result<impl Future<Output = Result<()>>> {
+        let available = self.wait_for_subscribers()?;
+        let timer = node.create_wall_timer(timeout)?;
+        Ok(future_with_timeout(available, timer))
+    }
+
+    #[deprecated(note = "use get_subscription_count; the RCL count includes local matches")]
+    pub fn get_inter_process_subscription_count(&self) -> Result<usize> {
+        self.get_subscription_count()
+    }
+
+    #[deprecated(note = "use wait_for_subscribers; local matches are included")]
+    pub fn wait_for_inter_process_subscribers(&self) -> Result<impl Future<Output = Result<()>>> {
+        self.wait_for_subscribers()
+    }
+
+    #[deprecated(note = "use wait_for_subscribers_with_timeout; local matches are included")]
     pub fn wait_for_inter_process_subscribers_with_timeout(
         &self, node: &mut Node, timeout: std::time::Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
-        let available = self.wait_for_inter_process_subscribers()?;
-        let timer = node.create_wall_timer(timeout)?;
-        Ok(future_with_timeout(available, timer))
+        self.wait_for_subscribers_with_timeout(node, timeout)
     }
 }
 
@@ -443,36 +453,51 @@ where
         }
     }
 
-    /// Gets the number of external subscribers (i.e. it doesn't
-    /// count subscribers from the same process).
-    pub fn get_inter_process_subscription_count(&self) -> Result<usize> {
+    /// Gets the number of subscriptions matched to this publisher.
+    pub fn get_subscription_count(&self) -> Result<usize> {
         self.handle
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
-            .get_inter_process_subscription_count()
+            .get_subscription_count()
     }
 
-    /// Waits for at least one external subscriber to begin subscribing to the
-    /// topic. It doesn't count subscribers from the same process.
-    pub fn wait_for_inter_process_subscribers(&self) -> Result<impl Future<Output = Result<()>>> {
+    /// Waits for at least one subscription to match this publisher.
+    pub fn wait_for_subscribers(&self) -> Result<impl Future<Output = Result<()>>> {
         let (sender, receiver) = oneshot::channel();
 
         self.handle
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
-            .poll_inter_process_subscriber_channels
+            .poll_subscriber_channels
             .lock()
             .push(sender);
 
-        Ok(receiver.map_err(|_| Error::RCL_RET_CLIENT_INVALID))
+        Ok(receiver.map_err(|_| Error::RCL_RET_PUBLISHER_INVALID))
     }
 
-    /// Wait for a subscriber up to `timeout`. The node must be spun while awaiting.
+    /// Wait for a matched subscription up to `timeout`. The node must be spun while awaiting.
+    pub fn wait_for_subscribers_with_timeout(
+        &self, node: &mut Node, timeout: std::time::Duration,
+    ) -> Result<impl Future<Output = Result<()>>> {
+        let available = self.wait_for_subscribers()?;
+        let timer = node.create_wall_timer(timeout)?;
+        Ok(future_with_timeout(available, timer))
+    }
+
+    #[deprecated(note = "use get_subscription_count; the RCL count includes local matches")]
+    pub fn get_inter_process_subscription_count(&self) -> Result<usize> {
+        self.get_subscription_count()
+    }
+
+    #[deprecated(note = "use wait_for_subscribers; local matches are included")]
+    pub fn wait_for_inter_process_subscribers(&self) -> Result<impl Future<Output = Result<()>>> {
+        self.wait_for_subscribers()
+    }
+
+    #[deprecated(note = "use wait_for_subscribers_with_timeout; local matches are included")]
     pub fn wait_for_inter_process_subscribers_with_timeout(
         &self, node: &mut Node, timeout: std::time::Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
-        let available = self.wait_for_inter_process_subscribers()?;
-        let timer = node.create_wall_timer(timeout)?;
-        Ok(future_with_timeout(available, timer))
+        self.wait_for_subscribers_with_timeout(node, timeout)
     }
 }

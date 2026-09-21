@@ -1297,7 +1297,7 @@ impl Node {
         }
 
         for p in &self.pubs {
-            p.poll_has_inter_process_subscribers();
+            p.poll_has_subscribers();
         }
 
         let timeout = duration_to_rcl_nanos(timeout)?;
@@ -2677,9 +2677,27 @@ mod tests {
             )
             .unwrap();
         let wait = publisher
-            .wait_for_inter_process_subscribers_with_timeout(&mut node, Duration::from_millis(1))
+            .wait_for_subscribers_with_timeout(&mut node, Duration::from_millis(1))
             .unwrap();
         assert!(matches!(drive(&mut node, wait), Err(Error::RCL_RET_TIMEOUT)));
         node.try_spin_once(Duration::ZERO).unwrap();
+
+        let matched_publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(
+                "/local_subscription_match",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let _matched_subscriber = node
+            .subscribe::<crate::std_msgs::msg::String>(
+                "/local_subscription_match",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let wait = matched_publisher
+            .wait_for_subscribers_with_timeout(&mut node, Duration::from_secs(1))
+            .unwrap();
+        drive(&mut node, wait).unwrap();
+        assert!(matched_publisher.get_subscription_count().unwrap() >= 1);
     }
 }
