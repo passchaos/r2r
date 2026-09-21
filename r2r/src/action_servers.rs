@@ -582,7 +582,7 @@ where
 
         let uuid = uuid_msg_to_uuid(&goal_info.goal_id);
 
-        let response_msg = if !goal_exists {
+        if !goal_exists {
             // Goal does not exists
             let msg = T::make_result_response_msg(
                 action_msgs::msg::GoalStatus::STATUS_UNKNOWN as i8,
@@ -591,32 +591,39 @@ where
             let mut response_msg = WrappedNativeMsg::<
                 <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
             >::from(&msg);
-            Some(response_msg.void_ptr_mut())
-        } else {
-            self.result_msgs
-                .get_mut(&uuid)
-                .map(|msg| msg.void_ptr_mut())
-        };
-
-        let mut request_id = unsafe { request_id.assume_init() };
-        if let Some(response_msg) = response_msg {
             let ret = unsafe {
-                rcl_action_send_result_response(&self.rcl_handle, &mut request_id, response_msg)
+                rcl_action_send_result_response(
+                    &self.rcl_handle,
+                    &mut request_id.assume_init(),
+                    response_msg.void_ptr_mut(),
+                )
             };
-
             if ret != RCL_RET_OK as i32 {
                 log::debug!(
-                    "action server: could send result request response. {}",
+                    "action server: could not send result request response. {}",
+                    Error::from_rcl_error(ret)
+                );
+            }
+        } else if let Some(response_msg) = self.result_msgs.get_mut(&uuid) {
+            let ret = unsafe {
+                rcl_action_send_result_response(
+                    &self.rcl_handle,
+                    &mut request_id.assume_init(),
+                    response_msg.void_ptr_mut(),
+                )
+            };
+            if ret != RCL_RET_OK as i32 {
+                log::debug!(
+                    "action server: could not send result request response. {}",
                     Error::from_rcl_error(ret)
                 );
             }
         } else {
             // keep request for later when result comes in
-            // todo: add logic that replies to the requests
             self.result_requests
                 .entry(uuid)
                 .or_default()
-                .push(request_id);
+                .push(unsafe { request_id.assume_init() });
         }
     }
 
