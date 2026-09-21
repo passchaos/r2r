@@ -43,6 +43,12 @@ pub(crate) struct Publisher_ {
     poll_inter_process_subscriber_channels: Mutex<Vec<oneshot::Sender<()>>>,
 }
 
+// SAFETY: The only shared operations exposed for this handle are RCL's thread-safe
+// publish and subscription-count calls. Destruction requires ownership of the final Arc,
+// so it cannot run concurrently with either operation.
+unsafe impl Send for Publisher_ {}
+unsafe impl Sync for Publisher_ {}
+
 impl Publisher_ {
     fn get_inter_process_subscription_count(&self) -> Result<usize> {
         // See https://github.com/ros2/rclcpp/issues/623
