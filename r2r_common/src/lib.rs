@@ -76,7 +76,7 @@ pub fn setup_bindgen_builder() -> bindgen::Builder {
         let ament_prefix_var = {
             let mut ament_str = env::var_os(ament_prefix_var_name).expect("Source your ROS!");
             if let Some(cmake_prefix_var) = env::var_os("CMAKE_PREFIX_PATH") {
-                ament_str.push(&split_char.to_string());
+                ament_str.push(split_char.to_string());
                 ament_str.push(cmake_prefix_var);
             }
             RawOsString::new(ament_str)
