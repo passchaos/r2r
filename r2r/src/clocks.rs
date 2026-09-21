@@ -48,6 +48,10 @@ impl Clock {
         })
     }
 
+    /// Returns the current clock value.
+    ///
+    /// [`Duration`] cannot represent clock values before zero, so a negative ROS time is
+    /// reported as [`Error::RCL_RET_INVALID_ARGUMENT`] instead of wrapping to a very large value.
     pub fn get_now(&mut self) -> Result<Duration> {
         let valid = unsafe { rcl_clock_valid(&mut *self.clock_handle) };
         if !valid {
@@ -61,7 +65,8 @@ impl Clock {
             return Err(Error::from_rcl_error(ret));
         }
 
-        let dur = Duration::from_nanos(tp as u64);
+        let nanos = u64::try_from(tp).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
+        let dur = Duration::from_nanos(nanos);
 
         Ok(dur)
     }
@@ -190,5 +195,14 @@ mod tests {
                 nanosec: 999_999_999,
             }
         );
+    }
+
+    #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+    #[test]
+    fn rejects_negative_ros_clock_values_instead_of_wrapping() {
+        let mut clock = Clock::create(ClockType::RosTime).unwrap();
+        clock.enable_ros_time_override(-1).unwrap();
+
+        assert!(matches!(clock.get_now(), Err(Error::RCL_RET_INVALID_ARGUMENT)));
     }
 }
