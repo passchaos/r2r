@@ -20,7 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         let time_diff = clock.get_now()? - zero_time;
         let time = time_diff.mul_f64(SIM_TIME_MULTIPLIER);
-        msg.clock = Clock::to_builtin_time(&time);
+        msg.clock = Clock::try_to_builtin_time(&time)?;
 
         publisher.publish(&msg)?;
         println!("Publishing time {}.{:9} s", time.as_secs(), time.subsec_nanos());

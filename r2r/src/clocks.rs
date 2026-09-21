@@ -72,9 +72,17 @@ impl Clock {
 
     /// TODO: move to builtin helper methods module.
     pub fn to_builtin_time(d: &Duration) -> builtin_interfaces::msg::Time {
-        let sec = d.as_secs() as i32;
+        Self::try_to_builtin_time(d).unwrap_or(builtin_interfaces::msg::Time {
+            sec: i32::MAX,
+            nanosec: 999_999_999,
+        })
+    }
+
+    /// Convert a duration to a ROS time, returning an error if its seconds exceed `i32`.
+    pub fn try_to_builtin_time(d: &Duration) -> Result<builtin_interfaces::msg::Time> {
+        let sec = i32::try_from(d.as_secs()).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
         let nanosec = d.subsec_nanos();
-        builtin_interfaces::msg::Time { sec, nanosec }
+        Ok(builtin_interfaces::msg::Time { sec, nanosec })
     }
 
     /// Enables alternative source of time for this clock
@@ -159,5 +167,28 @@ impl Drop for Clock {
         unsafe {
             rcl_clock_fini(&mut *self.clock_handle);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_builtin_times_outside_the_ros_range() {
+        assert_eq!(
+            Clock::try_to_builtin_time(&Duration::new(i32::MAX as u64, 42))
+                .unwrap()
+                .nanosec,
+            42
+        );
+        assert!(Clock::try_to_builtin_time(&Duration::from_secs(i32::MAX as u64 + 1)).is_err());
+        assert_eq!(
+            Clock::to_builtin_time(&Duration::from_secs(i32::MAX as u64 + 1)),
+            builtin_interfaces::msg::Time {
+                sec: i32::MAX,
+                nanosec: 999_999_999,
+            }
+        );
     }
 }
