@@ -1548,7 +1548,7 @@ impl Node {
             for (s, ws_s) in self.timers.iter_mut().zip(ws_timers) {
                 if ws_s != &std::ptr::null() {
                     // TODO: move this to impl Timer
-                    let dropped = s.handle_incoming();
+                    let dropped = s.handle_incoming()?;
                     if dropped {
                         timers_to_remove.push(s.get_handle());
                     }
@@ -2101,31 +2101,32 @@ impl Timer_ {
             .get_unchecked_mut()
     }
 
-    fn handle_incoming(&mut self) -> bool {
+    fn handle_incoming(&mut self) -> Result<bool> {
         let mut is_ready = false;
         let ret = unsafe { rcl_timer_is_ready(self.get_handle(), &mut is_ready) };
-        if ret == RCL_RET_OK as i32 && is_ready {
-            let mut nanos = 0i64;
-            // todo: error handling
-            let ret = unsafe { rcl_timer_get_time_since_last_call(self.get_handle(), &mut nanos) };
-            if ret == RCL_RET_OK as i32 {
-                let ret = unsafe { rcl_timer_call(self.get_handle_mut()) };
-                if ret == RCL_RET_OK as i32 {
-                    if let Err(e) = self.sender.try_send(Duration::from_nanos(nanos as u64)) {
-                        if e.is_disconnected() {
-                            // client dropped the timer handle, let's drop our timer as well.
-                            return true;
-                        }
-                        if e.is_full() {
-                            log::debug!(
-                                "Warning: timer tick not handled in time - no wakeup will occur"
-                            );
-                        }
-                    }
-                }
+        check_rcl_ret(ret)?;
+        if !is_ready {
+            return Ok(false);
+        }
+
+        let mut nanos = 0i64;
+        let ret = unsafe { rcl_timer_get_time_since_last_call(self.get_handle(), &mut nanos) };
+        check_rcl_ret(ret)?;
+        let elapsed = duration_from_nonnegative_nanos(nanos)?;
+
+        let ret = unsafe { rcl_timer_call(self.get_handle_mut()) };
+        check_rcl_ret(ret)?;
+
+        if let Err(e) = self.sender.try_send(elapsed) {
+            if e.is_disconnected() {
+                // client dropped the timer handle, let's drop our timer as well.
+                return Ok(true);
+            }
+            if e.is_full() {
+                log::debug!("Warning: timer tick not handled in time - no wakeup will occur");
             }
         }
-        false
+        Ok(false)
     }
 }
 
@@ -2329,6 +2330,11 @@ fn duration_to_rcl_nanos(duration: Duration) -> Result<i64> {
     i64::try_from(duration.as_nanos()).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)
 }
 
+fn duration_from_nonnegative_nanos(nanos: i64) -> Result<Duration> {
+    let nanos = u64::try_from(nanos).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
+    Ok(Duration::from_nanos(nanos))
+}
+
 pub trait IsAvailablePollable {
     fn register_poll_available(&self, sender: oneshot::Sender<()>) -> Result<()>;
 }
@@ -2403,6 +2409,8 @@ mod tests {
     fn converts_rcl_durations_without_wrapping() {
         assert_eq!(duration_to_rcl_nanos(Duration::from_nanos(i64::MAX as u64)).unwrap(), i64::MAX);
         assert!(duration_to_rcl_nanos(Duration::from_nanos(i64::MAX as u64 + 1)).is_err());
+        assert_eq!(duration_from_nonnegative_nanos(42).unwrap(), Duration::from_nanos(42));
+        assert!(duration_from_nonnegative_nanos(-1).is_err());
     }
 
     #[test]
