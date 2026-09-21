@@ -36,6 +36,16 @@ use crate::{
     subscribers::*,
 };
 
+struct RclParams(*mut rcl_params_t);
+
+impl Drop for RclParams {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            unsafe { rcl_yaml_node_struct_fini(self.0) };
+        }
+    }
+}
+
 /// A ROS Node.
 ///
 /// This struct owns all subscribes, publishers, etc.  To get events
@@ -104,39 +114,32 @@ impl Node {
 
     fn load_params(&mut self) -> Result<()> {
         let ctx = self.context.context_handle.lock().unwrap();
-        let mut params: Box<*mut rcl_params_t> = Box::new(std::ptr::null_mut());
+        let mut params = RclParams(std::ptr::null_mut());
 
-        let ret =
-            unsafe { rcl_arguments_get_param_overrides(&ctx.global_arguments, params.as_mut()) };
+        let ret = unsafe {
+            rcl_arguments_get_param_overrides(&ctx.global_arguments, &mut params.0)
+        };
         if ret != RCL_RET_OK as i32 {
             log::error!("could not read parameters: {}", ret);
             return Err(Error::from_rcl_error(ret));
         }
 
-        if params.is_null() {
+        if params.0.is_null() {
             return Ok(());
         }
 
         unsafe {
-            if (*(*params.as_ref())).node_names.is_null() || (*(*params.as_ref())).params.is_null()
-            {
-                rcl_yaml_node_struct_fini(*params);
+            if (*params.0).node_names.is_null() || (*params.0).params.is_null() {
                 return Ok(());
             }
         }
 
         let node_names = unsafe {
-            std::slice::from_raw_parts(
-                (*(*params.as_ref())).node_names,
-                (*(*params.as_ref())).num_nodes,
-            )
+            std::slice::from_raw_parts((*params.0).node_names, (*params.0).num_nodes)
         };
 
         let node_params = unsafe {
-            std::slice::from_raw_parts(
-                (*(*params.as_ref())).params,
-                (*(*params.as_ref())).num_nodes,
-            )
+            std::slice::from_raw_parts((*params.0).params, (*params.0).num_nodes)
         };
 
         let qualified_name = self.fully_qualified_name()?;
@@ -175,7 +178,6 @@ impl Node {
             }
         }
 
-        unsafe { rcl_yaml_node_struct_fini(*params) };
         Ok(())
     }
 
