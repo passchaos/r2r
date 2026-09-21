@@ -3,12 +3,13 @@ use futures::{
     future::{FutureExt, TryFutureExt},
     stream::Stream,
 };
+use parking_lot::Mutex;
 use std::{
     collections::HashMap,
     ffi::CString,
     future::Future,
     mem::MaybeUninit,
-    sync::{Arc, Mutex, Weak},
+    sync::{Arc, Weak},
 };
 
 use crate::{
@@ -63,9 +64,7 @@ where
 {
     fn drop(&mut self) {
         if let Some(client) = self.client.upgrade() {
-            if let Ok(mut client) = client.lock() {
-                client.goal_status.remove(&self.uuid);
-            }
+            client.lock().goal_status.remove(&self.uuid);
         }
     }
 }
@@ -93,7 +92,7 @@ where
             .client
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
-        let client = client.lock().unwrap();
+        let client = client.lock();
 
         Ok(client.get_goal_status(&self.uuid))
     }
@@ -111,7 +110,7 @@ where
             .client
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
-        let mut client = client.lock().unwrap();
+        let mut client = client.lock();
 
         client.send_cancel_request(&self.uuid)
     }
@@ -147,7 +146,7 @@ where
             .client
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
-        let mut client = client.lock().unwrap();
+        let mut client = client.lock();
 
         let uuid = uuid::Uuid::new_v4();
         let uuid_msg = unique_identifier_msgs::msg::UUID {
@@ -184,7 +183,7 @@ where
                                 let c = fut_client
                                     .upgrade()
                                     .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
-                                let mut c = c.lock().unwrap();
+                                let mut c = c.lock();
                                 c.send_result_request(uuid)?;
                             }
                             let status_registration = Arc::new(GoalStatusRegistration {
@@ -203,7 +202,7 @@ where
                             ))
                         } else {
                             if let Some(c) = fut_client.upgrade() {
-                                c.lock().unwrap().forget_goal(&uuid);
+                                c.lock().forget_goal(&uuid);
                             }
                             Err(Error::RCL_RET_ACTION_GOAL_REJECTED)
                         }
@@ -681,7 +680,7 @@ where
             .client
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
-        let mut client = client.lock().unwrap();
+        let mut client = client.lock();
         client.register_poll_available(sender);
         Ok(())
     }

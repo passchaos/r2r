@@ -1,10 +1,6 @@
 use futures::{channel::oneshot, Future, TryFutureExt};
-use std::{
-    ffi::CString,
-    fmt::Debug,
-    marker::PhantomData,
-    sync::{Mutex, Weak},
-};
+use parking_lot::Mutex;
+use std::{ffi::CString, fmt::Debug, marker::PhantomData, sync::Weak};
 
 use crate::{error::*, msg_types::*, qos::QosProfile};
 use r2r_rcl::*;
@@ -52,7 +48,7 @@ impl Publisher_ {
         // See https://github.com/ros2/rclcpp/issues/623
 
         let mut inter_process_subscription_count = 0;
-        let handle = self.handle.lock().unwrap();
+        let handle = self.handle.lock();
         let handle = handle.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
 
         let result = unsafe {
@@ -71,7 +67,7 @@ impl Publisher_ {
 
     pub(crate) fn poll_has_inter_process_subscribers(&self) {
         let mut poll_inter_process_subscriber_channels =
-            self.poll_inter_process_subscriber_channels.lock().unwrap();
+            self.poll_inter_process_subscriber_channels.lock();
         poll_inter_process_subscriber_channels.retain(|sender| !sender.is_canceled());
 
         if poll_inter_process_subscriber_channels.is_empty() {
@@ -96,7 +92,7 @@ impl Publisher_ {
     }
 
     pub(crate) fn destroy(&self, node: &mut rcl_node_t) {
-        if let Some(mut handle) = self.handle.lock().unwrap().take() {
+        if let Some(mut handle) = self.handle.lock().take() {
             let ret = unsafe { rcl_publisher_fini(&mut handle, node) };
             if ret != RCL_RET_OK as i32 {
                 log::error!("could not finalize publisher: {}", ret);
@@ -182,7 +178,7 @@ impl PublisherUntyped {
             .handle
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
-        let handle = publisher.handle.lock().unwrap();
+        let handle = publisher.handle.lock();
         let handle = handle.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
 
         let native_msg = WrappedNativeMsgUntyped::new_from(&self.type_)?;
@@ -209,7 +205,7 @@ impl PublisherUntyped {
             .handle
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
-        let handle = publisher.handle.lock().unwrap();
+        let handle = publisher.handle.lock();
         let handle = handle.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
 
         // Safety: Not retained beyond this function
@@ -257,7 +253,6 @@ impl PublisherUntyped {
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
             .poll_inter_process_subscriber_channels
             .lock()
-            .unwrap()
             .push(sender);
 
         Ok(receiver.map_err(|_| Error::RCL_RET_CLIENT_INVALID))
@@ -278,7 +273,7 @@ where
             .handle
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
-        let handle = publisher.handle.lock().unwrap();
+        let handle = publisher.handle.lock();
         let handle = handle.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
         let native_msg = WrappedNativeMsg::<T>::try_from(msg)?;
         let result = unsafe { rcl_publish(handle, native_msg.void_ptr(), std::ptr::null_mut()) };
@@ -318,7 +313,7 @@ where
             .handle
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
-        let handle = publisher.handle.lock().unwrap();
+        let handle = publisher.handle.lock();
         let handle = handle.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
 
         let result = if msg.is_loaned {
@@ -360,7 +355,6 @@ where
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
             .poll_inter_process_subscriber_channels
             .lock()
-            .unwrap()
             .push(sender);
 
         Ok(receiver.map_err(|_| Error::RCL_RET_CLIENT_INVALID))

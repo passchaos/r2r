@@ -1,8 +1,9 @@
+use parking_lot::Mutex;
 use std::{
     ffi::CString,
     fmt::Debug,
     ops::{Deref, DerefMut},
-    sync::{Arc, Mutex, OnceLock},
+    sync::{Arc, OnceLock},
 };
 
 use crate::{error::*, log_guard};
@@ -29,8 +30,7 @@ impl Context {
     pub fn create() -> Result<Context> {
         let mut shared = CONTEXT
             .get_or_init(|| Mutex::new(WeakContextHandle::new()))
-            .lock()
-            .unwrap();
+            .lock();
         if let Some(context_handle) = shared.upgrade() {
             return Ok(Context { context_handle });
         }
@@ -44,14 +44,14 @@ impl Context {
     ///
     /// (This is abbreviated to rcl_ok() in the other bindings.)
     pub fn is_valid(&self) -> bool {
-        let mut ctx = self.context_handle.lock().unwrap();
+        let mut ctx = self.context_handle.lock();
         unsafe { rcl_context_is_valid(ctx.as_mut()) }
     }
 }
 
 impl Clone for Context {
     fn clone(&self) -> Self {
-        let _shared = CONTEXT.get().unwrap().lock().unwrap();
+        let _shared = CONTEXT.get().unwrap().lock();
         Self {
             context_handle: Arc::clone(&self.context_handle),
         }
@@ -64,14 +64,14 @@ impl Drop for Context {
             return;
         }
 
-        let mut shared = CONTEXT.get().unwrap().lock().unwrap();
+        let mut shared = CONTEXT.get().unwrap().lock();
         // A concurrent clone may have been made before the global lock was acquired.
         if Arc::strong_count(&self.context_handle) != 1 {
             return;
         }
 
         *shared = WeakContextHandle::new();
-        self.context_handle.lock().unwrap().shutdown();
+        self.context_handle.lock().shutdown();
     }
 }
 

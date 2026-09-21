@@ -8,11 +8,12 @@ use crate::{
     subscribers::{create_subscription_helper, Subscriber_},
     Clock, ClockType, Node, QosProfile, WrappedTypesupport,
 };
+use parking_lot::Mutex;
 use r2r_rcl::{
     rcl_node_t, rcl_subscription_fini, rcl_subscription_t, rcl_take, rcl_time_point_value_t,
     rmw_message_info_t, RCL_RET_OK,
 };
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Weak};
 
 /// Provides time from `/clock` topic to attached ROS clocks
 ///
@@ -59,11 +60,11 @@ impl TimeSource {
     /// If the simulated time is enabled the [`TimeSource`] will distribute simulated time
     /// to all attached clocks.
     pub fn attach_ros_clock(&self, clock: Weak<Mutex<Clock>>) -> Result<()> {
-        let mut time_source = self.inner.lock().unwrap();
+        let mut time_source = self.inner.lock();
         let clock_valid = clock
             .upgrade()
             .map(|clock_arc| {
-                let mut clock = clock_arc.lock().unwrap();
+                let mut clock = clock_arc.lock();
 
                 if !matches!(clock.get_clock_type(), ClockType::RosTime) {
                     return Err(Error::ClockTypeNotRosTime);
@@ -91,7 +92,7 @@ impl TimeSource {
     ///
     /// See example: sim_time_publisher.rs
     pub fn enable_sim_time(&self, node: &mut Node) -> Result<()> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock();
         if inner.simulated_time_enabled {
             // already enabled nothing to do
             return Ok(());
@@ -128,7 +129,7 @@ impl TimeSource {
     /// This schedules removal of the internal subscriber to the `"/clock"` topic before the
     /// node enters its next wait cycle.
     pub fn disable_sim_time(&self) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock();
         if inner.simulated_time_enabled {
             inner.simulated_time_enabled = false;
 
@@ -164,7 +165,7 @@ impl TimeSource_ {
                 return false;
             };
 
-            let mut clock = clock_arc.lock().unwrap();
+            let mut clock = clock_arc.lock();
             f(&mut clock);
 
             // retain clock
@@ -247,7 +248,6 @@ impl Subscriber_ for TimeSourceSubscriber {
         self.time_source
             .inner
             .lock()
-            .unwrap()
             .take_subscriber_destruction_request()
     }
 
@@ -267,7 +267,7 @@ impl Subscriber_ for TimeSourceSubscriber {
             )
         };
 
-        let mut inner_time_source = self.time_source.inner.lock().unwrap();
+        let mut inner_time_source = self.time_source.inner.lock();
         if ret == RCL_RET_OK as i32 {
             let msg = rosgraph_msgs::msg::Clock::from_native(&clock_msg);
 

@@ -1,8 +1,9 @@
 use futures::{channel::mpsc, task::noop_waker_ref};
+use parking_lot::Mutex;
 use std::{
     ffi::CString,
     mem::MaybeUninit,
-    sync::{Arc, Mutex, Weak},
+    sync::{Arc, Weak},
     task::{Context, Poll},
 };
 
@@ -38,7 +39,7 @@ where
             .service
             .upgrade()
             .ok_or(Error::RCL_RET_SERVICE_INVALID)?;
-        let mut service = service.lock().unwrap();
+        let mut service = service.lock();
         let native_msg = WrappedNativeMsg::<T::Response>::try_from(&msg)?;
         service.send_response(self.request_id, Box::new(native_msg))
     }

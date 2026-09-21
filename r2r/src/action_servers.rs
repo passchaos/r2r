@@ -4,11 +4,12 @@ use futures::{
     stream::Stream,
     task::noop_waker_ref,
 };
+use parking_lot::Mutex;
 use std::{
     collections::{HashMap, HashSet},
     ffi::CString,
     mem::MaybeUninit,
-    sync::{Arc, Mutex, Weak},
+    sync::{Arc, Weak},
     task::{Context, Poll},
 };
 
@@ -105,7 +106,7 @@ where
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
-        let mut server = server.lock().unwrap();
+        let mut server = server.lock();
         let time = server.now()?;
         let goal_info = action_msgs::msg::GoalInfo {
             goal_id: uuid_msg,
@@ -173,7 +174,7 @@ where
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
-        let mut server = server.lock().unwrap();
+        let mut server = server.lock();
         self.response.response_sent = true;
         server.reject_goal_request(&self.uuid, &mut self.response.request_id)
     }
@@ -187,9 +188,7 @@ impl Drop for GoalRequestResponseGuard {
         let Some(server) = self.server.upgrade() else {
             return;
         };
-        let Ok(mut server) = server.lock() else {
-            return;
-        };
+        let mut server = server.lock();
 
         if let Err(err) = server.reject_goal_request(&self.uuid, &mut self.request_id) {
             log::error!("could not reject dropped action goal request: {err}");
@@ -267,7 +266,7 @@ where
     }
 
     fn now(&mut self) -> Result<builtin_interfaces::msg::Time> {
-        let mut clock = self.clock.lock().unwrap();
+        let mut clock = self.clock.lock();
         let mut now = 0;
         let ret = unsafe { rcl_clock_get_now(clock.clock_handle.as_mut(), &mut now) };
         if ret != RCL_RET_OK as i32 {
@@ -762,7 +761,7 @@ where
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
 
-        let action_server = action_server.lock().unwrap();
+        let action_server = action_server.lock();
         action_server.is_cancelling(&self.uuid)
     }
 
@@ -782,10 +781,7 @@ where
         let feedback_msg = T::make_feedback_msg(uuid_msg, msg);
         let mut native_msg = WrappedNativeMsg::<T::FeedbackMessage>::try_from(&feedback_msg)?;
         let ret = unsafe {
-            rcl_action_publish_feedback(
-                action_server.lock().unwrap().handle(),
-                native_msg.void_ptr_mut(),
-            )
+            rcl_action_publish_feedback(action_server.lock().handle(), native_msg.void_ptr_mut())
         };
 
         if ret != RCL_RET_OK as i32 {
@@ -801,7 +797,7 @@ where
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
-        let mut action_server = action_server.lock().unwrap();
+        let mut action_server = action_server.lock();
 
         // create result message
         let result_msg =
@@ -821,7 +817,7 @@ where
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
-        let mut action_server = action_server.lock().unwrap();
+        let mut action_server = action_server.lock();
 
         // create result message
         let result_msg =
@@ -844,7 +840,7 @@ where
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
-        let mut action_server = action_server.lock().unwrap();
+        let mut action_server = action_server.lock();
 
         // create result message
         let result_msg =

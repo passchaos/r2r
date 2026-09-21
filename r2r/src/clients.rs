@@ -1,11 +1,6 @@
 use futures::{channel::oneshot, TryFutureExt};
-use std::{
-    collections::HashMap,
-    ffi::CString,
-    future::Future,
-    mem::MaybeUninit,
-    sync::{Mutex, Weak},
-};
+use parking_lot::Mutex;
+use std::{collections::HashMap, ffi::CString, future::Future, mem::MaybeUninit, sync::Weak};
 
 use crate::{error::*, msg_types::*, QosProfile};
 use r2r_rcl::*;
@@ -34,7 +29,7 @@ where
     {
         // upgrade to actual ref. if still alive
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
-        let mut client = client.lock().unwrap();
+        let mut client = client.lock();
         client.request(msg)
     }
 }
@@ -62,7 +57,7 @@ impl ClientUntyped {
     ) -> Result<impl Future<Output = Result<Result<serde_json::Value>>>> {
         // upgrade to actual ref. if still alive
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
-        let mut client = client.lock().unwrap();
+        let mut client = client.lock();
         client.request(msg)
     }
 }
@@ -368,7 +363,7 @@ where
 {
     fn register_poll_available(&self, sender: oneshot::Sender<()>) -> Result<()> {
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
-        let mut client = client.lock().unwrap();
+        let mut client = client.lock();
         client.register_poll_available(sender);
         Ok(())
     }
@@ -377,7 +372,7 @@ where
 impl IsAvailablePollable for ClientUntyped {
     fn register_poll_available(&self, sender: oneshot::Sender<()>) -> Result<()> {
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
-        let mut client = client.lock().unwrap();
+        let mut client = client.lock();
         client.register_poll_available(sender);
         Ok(())
     }

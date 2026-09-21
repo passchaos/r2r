@@ -4,13 +4,14 @@ use futures::{
     stream::{Stream, StreamExt},
 };
 use indexmap::IndexMap;
+use parking_lot::Mutex;
 use std::{
     collections::HashMap,
     ffi::{CStr, CString},
     future::Future,
     marker::PhantomPinned,
     pin::Pin,
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::Duration,
 };
 
@@ -112,7 +113,7 @@ impl Node {
     }
 
     fn load_params(&mut self) -> Result<()> {
-        let ctx = self.context.context_handle.lock().unwrap();
+        let ctx = self.context.context_handle.lock();
         let mut params = RclParams(std::ptr::null_mut());
 
         let ret =
@@ -157,7 +158,7 @@ impl Node {
             }
 
             // make key value pairs.
-            let mut params = self.params.lock().unwrap();
+            let mut params = self.params.lock();
             if !np.parameter_names.is_null() && !np.parameter_values.is_null() {
                 let param_names =
                     unsafe { std::slice::from_raw_parts(np.parameter_names, np.num_params) };
@@ -182,7 +183,7 @@ impl Node {
         let c_node_name = CString::new(name).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
         let c_node_ns = CString::new(namespace).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
         let (res, node_handle) = {
-            let mut ctx_handle = ctx.context_handle.lock().unwrap();
+            let mut ctx_handle = ctx.context_handle.lock();
 
             let mut node_handle: Box<rcl_node_t> =
                 unsafe { Box::new(rcl_get_zero_initialized_node()) };
@@ -285,8 +286,7 @@ impl Node {
         if let Some(ps) = &params_struct {
             // register all parameters
             ps.lock()
-                .unwrap()
-                .register_parameters("", None, &mut self.params.lock().unwrap())?;
+                .register_parameters("", None, &mut self.params.lock())?;
         }
         let mut handlers: Vec<std::pin::Pin<Box<dyn Future<Output = ()> + Send>>> = Vec::new();
 
@@ -311,18 +311,16 @@ impl Node {
                     let val = ParameterValue::from_parameter_value_msg(p.value.clone());
                     let changed = params
                         .lock()
-                        .unwrap()
                         .get(&p.name)
                         .map(|v| v.value != val)
                         .unwrap_or(true); // changed=true if new
                     let r = if let Some(ps) = &params_struct_clone {
                         // Update parameter structure
-                        let result = ps.lock().unwrap().set_parameter(&p.name, &val);
+                        let result = ps.lock().set_parameter(&p.name, &val);
                         if result.is_ok() {
                             // Also update Node::params
                             params
                                 .lock()
-                                .unwrap()
                                 .entry(p.name.clone())
                                 .and_modify(|p| p.value = val.clone());
                         }
@@ -334,7 +332,6 @@ impl Node {
                         // No parameter structure - update only Node::params
                         params
                             .lock()
-                            .unwrap()
                             .entry(p.name.clone())
                             .and_modify(|p| p.value = val.clone())
                             .or_insert(Parameter::new(val.clone()));
@@ -370,7 +367,7 @@ impl Node {
         let params_struct_clone = params_struct.clone();
         let get_params_future = get_params_request_stream.for_each(
             move |req: ServiceRequest<rcl_interfaces::srv::GetParameters::Service>| {
-                let params = params.lock().unwrap();
+                let params = params.lock();
                 let values = req
                     .message
                     .names
@@ -378,7 +375,7 @@ impl Node {
                     .map(|n| {
                         // First try to get the parameter from the param structure
                         if let Some(ps) = &params_struct_clone {
-                            if let Ok(value) = ps.lock().unwrap().get_parameter(n) {
+                            if let Ok(value) = ps.lock().get_parameter(n) {
                                 return value;
                             }
                         }
@@ -443,7 +440,7 @@ impl Node {
         let params = self.params.clone();
         let get_param_types_future = get_param_types_request_stream.for_each(
             move |req: ServiceRequest<GetParameterTypes::Service>| {
-                let params = params.lock().unwrap();
+                let params = params.lock();
                 let types = req
                     .message
                     .names
@@ -488,13 +485,13 @@ impl Node {
 
                 let update_result = params_struct_clone
                     .as_ref()
-                    .map_or(Ok(()), |ps| ps.lock().unwrap().set_parameters_atomically(&updates));
+                    .map_or(Ok(()), |ps| ps.lock().set_parameters_atomically(&updates));
 
                 match update_result {
                     Ok(()) => {
                         result.result.successful = true;
                         let changed = {
-                            let mut params = params.lock().unwrap();
+                            let mut params = params.lock();
                             updates
                                 .iter()
                                 .filter_map(|(name, value)| {
@@ -533,7 +530,7 @@ impl Node {
         {
             // create TimeSource based on value of use_sim_time parameter
             let use_sim_time = {
-                let params = self.params.lock().unwrap();
+                let params = self.params.lock();
                 params
                     .get("use_sim_time")
                     .and_then(|param| {
@@ -565,7 +562,7 @@ impl Node {
         let depth = req.message.depth;
         let prefixes = &req.message.prefixes;
         let separator = '.';
-        let params = params.lock().unwrap();
+        let params = params.lock();
         let mut result = rcl_interfaces::msg::ListParametersResult {
             names: vec![],
             prefixes: vec![],
@@ -606,7 +603,7 @@ impl Node {
     ) -> future::Ready<()> {
         use rcl_interfaces::{msg::ParameterDescriptor, srv::DescribeParameters};
         let mut descriptors = Vec::<ParameterDescriptor>::new();
-        let params = params.lock().unwrap();
+        let params = params.lock();
         for name in &req.message.names {
             let default = Parameter::empty();
             let param = params.get(name).unwrap_or(&default);
@@ -628,7 +625,7 @@ impl Node {
     where
         ParameterValue: TryInto<T, Error = WrongParameterType>,
     {
-        let params = self.params.lock().unwrap();
+        let params = self.params.lock();
         let value = params
             .get(name)
             .map(|parameter| parameter.value.clone())
@@ -935,7 +932,7 @@ impl Node {
 
         let clock = self.ros_clock.clone();
         let server_handle = {
-            let mut clock_handle = clock.lock().unwrap();
+            let mut clock_handle = clock.lock();
             create_action_server_helper(
                 self.node_handle.as_mut(),
                 action_name,
@@ -1047,16 +1044,16 @@ impl Node {
 
         // first handle any completed action cancellation responses
         for a in &mut self.action_servers {
-            a.lock().unwrap().send_completed_cancel_requests();
+            a.lock().send_completed_cancel_requests();
         }
 
         // as well as polling any services/action servers for availability
         for c in &mut self.clients {
-            c.lock().unwrap().poll_available(self.node_handle.as_mut());
+            c.lock().poll_available(self.node_handle.as_mut());
         }
 
         for c in &mut self.action_clients {
-            c.lock().unwrap().poll_available(self.node_handle.as_mut());
+            c.lock().poll_available(self.node_handle.as_mut());
         }
 
         for p in &self.pubs {
@@ -1085,7 +1082,7 @@ impl Node {
             let mut num_services = 0;
 
             action_client_get_num_waits(
-                c.lock().unwrap().handle(),
+                c.lock().handle(),
                 &mut num_subs,
                 &mut num_gc,
                 &mut num_timers,
@@ -1109,7 +1106,7 @@ impl Node {
             let mut num_services = 0;
 
             action_server_get_num_waits(
-                s.lock().unwrap().handle(),
+                s.lock().handle(),
                 &mut num_subs,
                 &mut num_gc,
                 &mut num_timers,
@@ -1132,7 +1129,7 @@ impl Node {
             services: self.services.len() + total_action_services,
         };
         {
-            let mut ctx = self.context.context_handle.lock().unwrap();
+            let mut ctx = self.context.context_handle.lock();
             self.wait_set.prepare(capacities, ctx.as_mut())?;
         }
         let ws = &mut self.wait_set.handle;
@@ -1151,13 +1148,13 @@ impl Node {
 
         for s in &self.clients {
             check_rcl_ret(unsafe {
-                rcl_wait_set_add_client(ws, s.lock().unwrap().handle(), std::ptr::null_mut())
+                rcl_wait_set_add_client(ws, s.lock().handle(), std::ptr::null_mut())
             })?;
         }
 
         for s in &self.services {
             check_rcl_ret(unsafe {
-                rcl_wait_set_add_service(ws, s.lock().unwrap().handle(), std::ptr::null_mut())
+                rcl_wait_set_add_service(ws, s.lock().handle(), std::ptr::null_mut())
             })?;
         }
 
@@ -1170,7 +1167,7 @@ impl Node {
             check_rcl_ret(unsafe {
                 rcl_action_wait_set_add_action_client(
                     ws,
-                    ac.lock().unwrap().handle(),
+                    ac.lock().handle(),
                     std::ptr::null_mut(),
                     std::ptr::null_mut(),
                 )
@@ -1178,11 +1175,7 @@ impl Node {
         }
         for acs in &self.action_servers {
             check_rcl_ret(unsafe {
-                rcl_action_wait_set_add_action_server(
-                    ws,
-                    acs.lock().unwrap().handle(),
-                    std::ptr::null_mut(),
-                )
+                rcl_action_wait_set_add_action_server(ws, acs.lock().handle(), std::ptr::null_mut())
             })?;
         }
 
@@ -1234,7 +1227,7 @@ impl Node {
             let ws_clients = unsafe { std::slice::from_raw_parts(ws.clients, self.clients.len()) };
             for (s, ws_s) in self.clients.iter_mut().zip(ws_clients) {
                 if ws_s != &std::ptr::null() {
-                    let mut s = s.lock().unwrap();
+                    let mut s = s.lock();
                     s.handle_response();
                 }
             }
@@ -1246,7 +1239,7 @@ impl Node {
                 unsafe { std::slice::from_raw_parts(ws.services, self.services.len()) };
             for (s, ws_s) in self.services.iter_mut().zip(ws_services) {
                 if ws_s != &std::ptr::null() {
-                    let mut service = s.lock().unwrap();
+                    let mut service = s.lock();
                     let dropped = service.handle_request(s.clone());
                     if dropped {
                         let handle = service.handle() as *const rcl_service_t;
@@ -1257,7 +1250,7 @@ impl Node {
             }
         }
         self.services.retain(|s| {
-            let service = s.lock().unwrap();
+            let service = s.lock();
             !services_to_remove.contains(&(service.handle() as *const rcl_service_t))
         });
 
@@ -1271,7 +1264,7 @@ impl Node {
             let ret = unsafe {
                 rcl_action_client_wait_set_get_entities_ready(
                     ws,
-                    ac.lock().unwrap().handle(),
+                    ac.lock().handle(),
                     &mut is_feedback_ready,
                     &mut is_status_ready,
                     &mut is_goal_response_ready,
@@ -1285,27 +1278,27 @@ impl Node {
             }
 
             if is_feedback_ready {
-                let mut acs = ac.lock().unwrap();
+                let mut acs = ac.lock();
                 acs.handle_feedback_msg();
             }
 
             if is_status_ready {
-                let mut acs = ac.lock().unwrap();
+                let mut acs = ac.lock();
                 acs.handle_status_msg();
             }
 
             if is_goal_response_ready {
-                let mut acs = ac.lock().unwrap();
+                let mut acs = ac.lock();
                 acs.handle_goal_response();
             }
 
             if is_cancel_response_ready {
-                let mut acs = ac.lock().unwrap();
+                let mut acs = ac.lock();
                 acs.handle_cancel_response();
             }
 
             if is_result_response_ready {
-                let mut acs = ac.lock().unwrap();
+                let mut acs = ac.lock();
                 acs.handle_result_response();
             }
         }
@@ -1319,7 +1312,7 @@ impl Node {
             let ret = unsafe {
                 rcl_action_server_wait_set_get_entities_ready(
                     ws,
-                    s.lock().unwrap().handle(),
+                    s.lock().handle(),
                     &mut is_goal_request_ready,
                     &mut is_cancel_request_ready,
                     &mut is_result_request_ready,
@@ -1332,22 +1325,22 @@ impl Node {
             }
 
             if is_goal_request_ready {
-                let mut acs = s.lock().unwrap();
+                let mut acs = s.lock();
                 acs.handle_goal_request(s.clone());
             }
 
             if is_cancel_request_ready {
-                let mut acs = s.lock().unwrap();
+                let mut acs = s.lock();
                 acs.handle_cancel_request();
             }
 
             if is_result_request_ready {
-                let mut acs = s.lock().unwrap();
+                let mut acs = s.lock();
                 acs.handle_result_request();
             }
 
             if is_goal_expired {
-                let mut acs = s.lock().unwrap();
+                let mut acs = s.lock();
                 acs.handle_goal_expired();
             }
         }
@@ -1457,7 +1450,7 @@ impl Node {
     ///
     /// This timer uses node's [`ClockType::RosTime`] clock.
     pub fn create_timer(&mut self, period: Duration) -> Result<Timer> {
-        let mut clock = self.ros_clock.lock().unwrap();
+        let mut clock = self.ros_clock.lock();
         let timer_handle = self.create_timer_helper(&mut clock, period)?;
 
         let (tx, rx) = mpsc::channel::<Duration>(1);
@@ -1480,7 +1473,7 @@ impl Node {
         // rcl expects that the address of the rcl_timer_t does not change.
         let mut timer_handle = unsafe { Box::pin(RclTimer::new()) };
 
-        let mut ctx = self.context.context_handle.lock().unwrap();
+        let mut ctx = self.context.context_handle.lock();
         let ret = unsafe {
             init_timer(
                 &mut timer_handle.as_mut().get_unchecked_mut().handle,
@@ -1693,23 +1686,23 @@ impl Timer {
 impl Drop for Node {
     fn drop(&mut self) {
         // fini functions are not thread safe so lock the context.
-        let _ctx_handle = self.context.context_handle.lock().unwrap();
+        let _ctx_handle = self.context.context_handle.lock();
         self.wait_set.fini();
 
         for s in &mut self.subscribers {
             s.destroy(&mut self.node_handle);
         }
         for c in &mut self.clients {
-            c.lock().unwrap().destroy(&mut self.node_handle);
+            c.lock().destroy(&mut self.node_handle);
         }
         for s in &mut self.services {
-            s.lock().unwrap().destroy(&mut self.node_handle);
+            s.lock().destroy(&mut self.node_handle);
         }
         for c in &mut self.action_clients {
-            c.lock().unwrap().destroy(&mut self.node_handle);
+            c.lock().destroy(&mut self.node_handle);
         }
         for s in &mut self.action_servers {
-            s.lock().unwrap().destroy(&mut self.node_handle);
+            s.lock().destroy(&mut self.node_handle);
         }
         self.timers.clear();
         while let Some(p) = self.pubs.pop() {
