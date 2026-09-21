@@ -72,6 +72,7 @@ impl Publisher_ {
     pub(crate) fn poll_has_inter_process_subscribers(&self) {
         let mut poll_inter_process_subscriber_channels =
             self.poll_inter_process_subscriber_channels.lock().unwrap();
+        poll_inter_process_subscriber_channels.retain(|sender| !sender.is_canceled());
 
         if poll_inter_process_subscriber_channels.is_empty() {
             return;

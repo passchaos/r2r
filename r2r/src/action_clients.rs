@@ -540,6 +540,8 @@ where
 
     fn poll_available(&mut self, node: &mut rcl_node_t) {
         self.prune_canceled_requests();
+        self.poll_available_channels
+            .retain(|sender| !sender.is_canceled());
         if self.poll_available_channels.is_empty() {
             return;
         }

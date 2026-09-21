@@ -201,6 +201,8 @@ where
     fn poll_available(&mut self, node: &mut rcl_node_t) {
         self.response_channels
             .retain(|_, sender| !sender.is_canceled());
+        self.poll_available_channels
+            .retain(|sender| !sender.is_canceled());
         if self.poll_available_channels.is_empty() {
             return;
         }
@@ -285,6 +287,8 @@ impl Client_ for UntypedClient_ {
     fn poll_available(&mut self, node: &mut rcl_node_t) {
         self.response_channels
             .retain(|_, sender| !sender.is_canceled());
+        self.poll_available_channels
+            .retain(|sender| !sender.is_canceled());
         if self.poll_available_channels.is_empty() {
             return;
         }
