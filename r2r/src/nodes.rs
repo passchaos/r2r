@@ -945,12 +945,20 @@ impl Node {
         let (goal_request_sender, goal_request_receiver) =
             mpsc::channel::<ActionServerGoalRequest<T>>(10);
 
-        let server_handle = create_action_server_helper(
+        let server_handle = match create_action_server_helper(
             self.node_handle.as_mut(),
             action_name,
             clock_handle.as_mut(),
             T::get_ts(),
-        )?;
+        ) {
+            Ok(handle) => handle,
+            Err(err) => {
+                unsafe {
+                    rcl_ros_clock_fini(clock_handle.as_mut());
+                }
+                return Err(err);
+            }
+        };
         let server = WrappedActionServer::<T> {
             rcl_handle: server_handle,
             clock_handle,
