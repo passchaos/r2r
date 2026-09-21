@@ -1,5 +1,3 @@
-#![cfg(r2r__rosgraph_msgs__msg__Clock)]
-
 use crate::{
     builtin_interfaces::msg::Time,
     error::*,

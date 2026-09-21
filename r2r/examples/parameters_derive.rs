@@ -1,6 +1,7 @@
 use futures::{executor::LocalPool, prelude::*, task::LocalSpawnExt};
+use r2r::parking_lot::Mutex;
 use r2r::RosParams;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 // try to run like this
 // cargo run --example parameters_derive -- --ros-args -p par1:=5.1 -p nested.par4:=42 -r __ns:=/demo -r __node:=my_node
@@ -94,7 +95,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     spawner.spawn_local(async move {
         parameter_events
             .for_each(|_| {
-                println!("event: {:#?}", params_clone.lock().unwrap());
+                println!("event: {:#?}", params_clone.lock());
                 future::ready(())
             })
             .await
@@ -104,7 +105,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut timer = node.create_wall_timer(std::time::Duration::from_secs(5))?;
     spawner.spawn_local(async move {
         loop {
-            println!("timer: {:#?}", params.lock().unwrap());
+            println!("timer: {:#?}", params.lock());
             let _elapsed = timer.tick().await.expect("could not tick");
         }
     })?;

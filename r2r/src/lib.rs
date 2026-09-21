@@ -74,6 +74,7 @@
 // otherwise crates using r2r needs to specify the same version of indexmap and uuid as
 // this crate depend on, which seem like bad user experience.
 pub extern crate indexmap;
+pub extern crate parking_lot;
 pub extern crate uuid;
 
 mod error;

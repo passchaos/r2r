@@ -1,11 +1,8 @@
 use futures::{executor::LocalPool, task::LocalSpawnExt};
 
+use r2r::parking_lot::Mutex;
 use r2r::{Clock, ClockType};
-use std::{
-    cell::RefCell,
-    rc::Rc,
-    sync::{Arc, Mutex},
-};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 async fn timer_task(
     mut t: r2r::Timer, ros_clock: Arc<Mutex<Clock>>, mut system_clock: Clock,
@@ -14,7 +11,7 @@ async fn timer_task(
     loop {
         let elapsed = t.tick().await?;
 
-        let ros_time = ros_clock.lock().unwrap().get_now()?;
+        let ros_time = ros_clock.lock().get_now()?;
         let system_time = system_clock.get_now()?;
 
         println!("Timer called ({}), {}us since last call", iteration, elapsed.as_micros());

@@ -62,7 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     spawner.spawn_local(async move {
         loop {
             println!("node parameters");
-            params.lock().unwrap().iter().for_each(|(k, v)| {
+            params.lock().iter().for_each(|(k, v)| {
                 println!("{} - {:?}", k, v.value);
             });
             let _elapsed = timer.tick().await.expect("could not tick");
