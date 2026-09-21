@@ -3317,6 +3317,55 @@ mod tests {
     }
 
     #[test]
+    fn publishers_support_manual_liveliness_assertions() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "publisher_controls_test", "").unwrap();
+        let qos = QosProfile::default()
+            .liveliness(crate::qos::LivelinessPolicy::ManualByTopic)
+            .liveliness_lease_duration(Duration::from_secs(1));
+
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(
+                "/publisher_controls_typed",
+                qos.clone(),
+            )
+            .unwrap();
+        publisher.assert_liveliness().unwrap();
+
+        let untyped = node
+            .create_publisher_untyped("/publisher_controls_untyped", "std_msgs/msg/String", qos)
+            .unwrap();
+        untyped.assert_liveliness().unwrap();
+    }
+
+    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+    #[test]
+    fn publishers_wait_for_reliable_acknowledgements() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "publisher_ack_test", "").unwrap();
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(
+                "/publisher_ack_typed",
+                QosProfile::default(),
+            )
+            .unwrap();
+        publisher.wait_for_all_acked(Duration::ZERO).unwrap();
+        assert!(matches!(
+            publisher.wait_for_all_acked(Duration::from_nanos(i64::MAX as u64 + 1)),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+
+        let untyped = node
+            .create_publisher_untyped(
+                "/publisher_ack_untyped",
+                "std_msgs/msg/String",
+                QosProfile::default(),
+            )
+            .unwrap();
+        untyped.wait_for_all_acked(Duration::ZERO).unwrap();
+    }
+
+    #[test]
     fn subscriptions_can_retain_rmw_message_info() {
         let context = Context::create().unwrap();
         let mut node = Node::create(context, "message_info_test", "").unwrap();

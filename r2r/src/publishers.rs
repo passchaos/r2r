@@ -5,6 +5,7 @@ use std::{
     fmt::Debug,
     marker::PhantomData,
     sync::{Arc, Weak},
+    time::Duration,
 };
 
 use crate::{error::*, msg_types::*, nodes::Node, qos::QosProfile};
@@ -135,6 +136,29 @@ unsafe impl Send for Publisher_ {}
 unsafe impl Sync for Publisher_ {}
 
 impl Publisher_ {
+    fn with_handle<T>(&self, operation: impl FnOnce(&rcl_publisher_t) -> Result<T>) -> Result<T> {
+        let handle = self.handle.lock();
+        let handle = handle.0.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        operation(handle)
+    }
+
+    fn assert_liveliness(&self) -> Result<()> {
+        self.with_handle(|handle| {
+            let ret = unsafe { rcl_publisher_assert_liveliness(handle) };
+            check_publisher_ret(ret)
+        })
+    }
+
+    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+    fn wait_for_all_acked(&self, timeout: Duration) -> Result<()> {
+        let timeout =
+            i64::try_from(timeout.as_nanos()).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
+        self.with_handle(|handle| {
+            let ret = unsafe { rcl_publisher_wait_for_all_acked(handle, timeout) };
+            check_publisher_ret(ret)
+        })
+    }
+
     fn get_actual_qos(&self) -> Result<QosProfile> {
         let handle = self.handle.lock();
         let handle = handle.0.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
@@ -354,6 +378,25 @@ impl PublisherUntyped {
             .get_actual_qos()
     }
 
+    /// Manually asserts this publisher's liveliness.
+    ///
+    /// This is intended for publishers using [`crate::qos::LivelinessPolicy::ManualByTopic`].
+    pub fn assert_liveliness(&self) -> Result<()> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .assert_liveliness()
+    }
+
+    /// Blocks until all previously published reliable data is acknowledged or `timeout` expires.
+    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+    pub fn wait_for_all_acked(&self, timeout: Duration) -> Result<()> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .wait_for_all_acked(timeout)
+    }
+
     /// Publish an "untyped" ROS message represented by a `serde_json::Value`.
     ///
     /// It is up to the user to make sure the fields are correct.
@@ -477,6 +520,25 @@ where
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
             .get_actual_qos()
+    }
+
+    /// Manually asserts this publisher's liveliness.
+    ///
+    /// This is intended for publishers using [`crate::qos::LivelinessPolicy::ManualByTopic`].
+    pub fn assert_liveliness(&self) -> Result<()> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .assert_liveliness()
+    }
+
+    /// Blocks until all previously published reliable data is acknowledged or `timeout` expires.
+    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+    pub fn wait_for_all_acked(&self, timeout: Duration) -> Result<()> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .wait_for_all_acked(timeout)
     }
 
     /// Publish a ROS message.
@@ -606,5 +668,13 @@ where
         &self, node: &mut Node, timeout: std::time::Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
         self.wait_for_subscribers_with_timeout(node, timeout)
+    }
+}
+
+fn check_publisher_ret(ret: rcl_ret_t) -> Result<()> {
+    if ret == RCL_RET_OK as i32 {
+        Ok(())
+    } else {
+        Err(Error::from_rcl_error(ret))
     }
 }
