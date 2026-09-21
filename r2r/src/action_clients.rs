@@ -127,18 +127,16 @@ where
             rcl_action_send_goal_request(&client.rcl_handle, native_msg.void_ptr(), &mut seq_no)
         };
 
-        // set up channels
-        let (goal_req_sender, goal_req_receiver) =
-            oneshot::channel::<(bool, builtin_interfaces::msg::Time)>();
-        let (feedback_sender, feedback_receiver) = mpsc::channel::<T::Feedback>(10);
-        client.feedback_senders.push((uuid, feedback_sender));
-        let (result_sender, result_receiver) = oneshot::channel::<(GoalStatus, T::Result)>();
-        client.result_senders.push((uuid, result_sender));
-
         if result == RCL_RET_OK as i32 {
+            let (goal_req_sender, goal_req_receiver) =
+                oneshot::channel::<(bool, builtin_interfaces::msg::Time)>();
+            let (feedback_sender, feedback_receiver) = mpsc::channel::<T::Feedback>(10);
+            client.feedback_senders.push((uuid, feedback_sender));
+            let (result_sender, result_receiver) = oneshot::channel::<(GoalStatus, T::Result)>();
+            client.result_senders.push((uuid, result_sender));
             client
                 .goal_response_channels
-                .push((seq_no, goal_req_sender));
+                .push((seq_no, uuid, goal_req_sender));
             // instead of "canceled" we return invalid client.
             let fut_client = Weak::clone(&self.client);
             let future = goal_req_receiver
@@ -152,7 +150,7 @@ where
                                     .upgrade()
                                     .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
                                 let mut c = c.lock().unwrap();
-                                c.send_result_request(uuid);
+                                c.send_result_request(uuid)?;
                             }
 
                             Ok((
@@ -164,6 +162,9 @@ where
                                 feedback_receiver,
                             ))
                         } else {
+                            if let Some(c) = fut_client.upgrade() {
+                                c.lock().unwrap().forget_goal(&uuid);
+                            }
                             Err(Error::RCL_RET_ACTION_GOAL_REJECTED)
                         }
                     }
@@ -190,7 +191,8 @@ where
     T: WrappedActionTypeSupport,
 {
     pub rcl_handle: rcl_action_client_t,
-    pub goal_response_channels: Vec<(i64, oneshot::Sender<(bool, builtin_interfaces::msg::Time)>)>,
+    pub goal_response_channels:
+        Vec<(i64, uuid::Uuid, oneshot::Sender<(bool, builtin_interfaces::msg::Time)>)>,
     pub cancel_response_channels:
         Vec<(i64, oneshot::Sender<action_msgs::srv::CancelGoal::Response>)>,
     pub feedback_senders: Vec<(uuid::Uuid, mpsc::Sender<T::Feedback>)>,
@@ -211,7 +213,7 @@ pub trait ActionClient_ {
     fn handle_status_msg(&mut self);
     fn handle_result_response(&mut self);
 
-    fn send_result_request(&mut self, uuid: uuid::Uuid);
+    fn send_result_request(&mut self, uuid: uuid::Uuid) -> Result<()>;
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>);
     fn poll_available(&mut self, node: &mut rcl_node_t);
@@ -223,6 +225,39 @@ where
 {
     pub fn get_goal_status(&self, uuid: &uuid::Uuid) -> GoalStatus {
         *self.goal_status.get(uuid).unwrap_or(&GoalStatus::Unknown)
+    }
+
+    fn forget_goal(&mut self, uuid: &uuid::Uuid) {
+        self.feedback_senders.retain(|(id, _)| id != uuid);
+        self.result_senders.retain(|(id, _)| id != uuid);
+        self.result_requests.retain(|(_, id)| id != uuid);
+        self.goal_status.remove(uuid);
+    }
+
+    fn prune_canceled_requests(&mut self) {
+        let canceled_goals: Vec<_> = self
+            .goal_response_channels
+            .iter()
+            .filter_map(|(_, uuid, sender)| sender.is_canceled().then_some(*uuid))
+            .collect();
+        self.goal_response_channels
+            .retain(|(_, _, sender)| !sender.is_canceled());
+        for uuid in canceled_goals {
+            self.forget_goal(&uuid);
+        }
+        self.cancel_response_channels
+            .retain(|(_, sender)| !sender.is_canceled());
+        self.feedback_senders
+            .retain(|(_, sender)| !sender.is_closed());
+        let canceled_results: Vec<_> = self
+            .result_senders
+            .iter()
+            .filter_map(|(uuid, sender)| sender.is_canceled().then_some(*uuid))
+            .collect();
+        self.result_senders
+            .retain(|(_, sender)| !sender.is_canceled());
+        self.result_requests
+            .retain(|(_, uuid)| !canceled_results.contains(uuid));
     }
 
     pub fn send_cancel_request(
@@ -312,14 +347,15 @@ where
             if let Some(idx) = self
                 .goal_response_channels
                 .iter()
-                .position(|(id, _)| id == &request_id.sequence_number)
+                .position(|(id, _, _)| id == &request_id.sequence_number)
             {
-                let (_, sender) = self.goal_response_channels.swap_remove(idx);
+                let (_, uuid, sender) = self.goal_response_channels.swap_remove(idx);
                 let response = <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response::from_native(&response_msg);
                 let (accept, stamp) = T::destructure_goal_response_msg(response);
                 match sender.send((accept, stamp)) {
                     Ok(()) => {}
                     Err(e) => {
+                        self.forget_goal(&uuid);
                         log::debug!("error sending to action client: {:?}", e);
                     }
                 }
@@ -327,7 +363,7 @@ where
                 let we_have: String = self
                     .goal_response_channels
                     .iter()
-                    .map(|(id, _)| id.to_string())
+                    .map(|(id, _, _)| id.to_string())
                     .collect::<Vec<_>>()
                     .join(",");
                 log::error!(
@@ -364,7 +400,7 @@ where
                 }
             } else {
                 let we_have: String = self
-                    .goal_response_channels
+                    .cancel_response_channels
                     .iter()
                     .map(|(id, _)| id.to_string())
                     .collect::<Vec<_>>()
@@ -442,6 +478,8 @@ where
                     .position(|(suuid, _)| suuid == &uuid)
                 {
                     let (_, sender) = self.result_senders.swap_remove(idx);
+                    self.feedback_senders
+                        .retain(|(feedback_uuid, _)| feedback_uuid != &uuid);
                     let response = <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response::from_native(&response_msg);
                     let (status, result) = T::destructure_result_response_msg(response);
                     let status = GoalStatus::from_rcl(status);
@@ -468,7 +506,7 @@ where
         }
     }
 
-    fn send_result_request(&mut self, uuid: uuid::Uuid) {
+    fn send_result_request(&mut self, uuid: uuid::Uuid) -> Result<()> {
         let uuid_msg = unique_identifier_msgs::msg::UUID {
             uuid: uuid.as_bytes().to_vec(),
         };
@@ -483,8 +521,11 @@ where
 
         if result == RCL_RET_OK as i32 {
             self.result_requests.push((seq_no, uuid));
+            Ok(())
         } else {
             log::error!("could not send request {}", result);
+            self.forget_goal(&uuid);
+            Err(Error::from_rcl_error(result))
         }
     }
 
@@ -493,6 +534,7 @@ where
     }
 
     fn poll_available(&mut self, node: &mut rcl_node_t) {
+        self.prune_canceled_requests();
         if self.poll_available_channels.is_empty() {
             return;
         }
