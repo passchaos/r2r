@@ -3412,6 +3412,10 @@ mod tests {
 
         assert_eq!(subscription.next().now_or_never().flatten().unwrap().data, 1);
         assert!(subscription.next().now_or_never().is_none());
+        node.try_spin_once(Duration::from_millis(10)).unwrap();
+        assert_eq!(subscription.next().now_or_never().flatten().unwrap().data, 2);
+        node.try_spin_once(Duration::from_millis(10)).unwrap();
+        assert_eq!(subscription.next().now_or_never().flatten().unwrap().data, 3);
 
         let invalid = node.subscribe_with_info_and_options::<crate::std_msgs::msg::Int32>(
             "/invalid_subscription_capacity",

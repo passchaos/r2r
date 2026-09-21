@@ -1,5 +1,6 @@
 use futures::{
     channel::{mpsc, oneshot},
+    task::noop_waker_ref,
     Future, Stream, TryFutureExt,
 };
 use std::{
@@ -242,6 +243,15 @@ pub(crate) trait Subscriber_ {
     fn destroy(&mut self, node: &mut rcl_node_t);
 }
 
+fn sender_ready<T>(sender: &mut mpsc::Sender<T>) -> Result<bool> {
+    let mut cx = Context::from_waker(noop_waker_ref());
+    match sender.poll_ready(&mut cx) {
+        Poll::Ready(Ok(())) => Ok(true),
+        Poll::Pending => Ok(false),
+        Poll::Ready(Err(_)) => Err(Error::RCL_RET_SUBSCRIPTION_INVALID),
+    }
+}
+
 pub struct TypedSubscriber<T, O>
 where
     T: WrappedTypesupport,
@@ -299,6 +309,11 @@ where
     }
 
     fn handle_incoming(&mut self) -> Result<bool> {
+        match sender_ready(&mut self.sender) {
+            Ok(true) => {}
+            Ok(false) => return Ok(false),
+            Err(_) => return Ok(true),
+        }
         let mut msg_info = rmw_message_info_t::default(); // we dont care for now
         let mut msg = WrappedNativeMsg::<T>::try_new()?;
         let ret = unsafe {
@@ -347,6 +362,11 @@ where
     }
 
     fn handle_incoming(&mut self) -> Result<bool> {
+        match sender_ready(&mut self.sender) {
+            Ok(true) => {}
+            Ok(false) => return Ok(false),
+            Err(_) => return Ok(true),
+        }
         // The returned stream may outlive the Node. Use caller-owned message storage so
         // dropping an item never has to access an already-finalized subscription handle.
         let mut msg_info = rmw_message_info_t::default();
@@ -396,6 +416,11 @@ impl<O: 'static> Subscriber_ for UntypedSubscriber<O> {
     }
 
     fn handle_incoming(&mut self) -> Result<bool> {
+        match sender_ready(&mut self.sender) {
+            Ok(true) => {}
+            Ok(false) => return Ok(false),
+            Err(_) => return Ok(true),
+        }
         let mut msg_info = rmw_message_info_t::default(); // we dont care for now
         let mut msg = WrappedNativeMsgUntyped::new_from(&self.topic_type)?;
         let ret = unsafe {
@@ -441,6 +466,11 @@ impl<O: 'static> Subscriber_ for RawSubscriber<O> {
     }
 
     fn handle_incoming(&mut self) -> Result<bool> {
+        match sender_ready(&mut self.sender) {
+            Ok(true) => {}
+            Ok(false) => return Ok(false),
+            Err(_) => return Ok(true),
+        }
         let mut msg_info = rmw_message_info_t::default(); // we dont care for now
         let ret = unsafe {
             rcl_take_serialized_message(
