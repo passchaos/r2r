@@ -14,6 +14,7 @@ use std::{
 };
 
 use crate::{
+    action_common::GoalStatus,
     clocks::Clock,
     error::*,
     msg_types::{
@@ -42,6 +43,8 @@ pub trait ActionServer_ {
     ) -> Result<()>;
     fn add_result(&mut self, uuid: uuid::Uuid, msg: Box<dyn VoidPtr>);
     fn cancel_goal(&mut self, uuid: &uuid::Uuid);
+    fn execute_goal(&mut self, uuid: &uuid::Uuid) -> Result<()>;
+    fn get_goal_status(&self, uuid: &uuid::Uuid) -> Result<GoalStatus>;
     fn is_cancelling(&self, uuid: &uuid::Uuid) -> Result<bool>;
     fn add_goal_handle(&mut self, uuid: uuid::Uuid, goal_handle: *mut rcl_action_goal_handle_t);
     fn forget_cancel_sender(&mut self, uuid: &uuid::Uuid);
@@ -96,8 +99,24 @@ where
     /// Accept the goal request and become a ServerGoal.
     /// Returns a handle to the goal and a stream on which cancel requests can be received.
     pub fn accept(
-        mut self,
+        self,
     ) -> Result<(ActionServerGoal<T>, impl Stream<Item = ActionServerCancelRequest> + Unpin)> {
+        self.accept_with_execution(true)
+    }
+
+    /// Accept the goal without starting its execution.
+    ///
+    /// The returned goal remains in [`GoalStatus::Accepted`] until
+    /// [`ActionServerGoal::execute`] is called.
+    pub fn accept_deferred(
+        self,
+    ) -> Result<(ActionServerGoal<T>, impl Stream<Item = ActionServerCancelRequest> + Unpin)> {
+        self.accept_with_execution(false)
+    }
+
+    fn accept_with_execution(
+        mut self, execute: bool,
+    ) -> Result<(ActionServerGoal<T>, mpsc::Receiver<ActionServerCancelRequest>)> {
         let uuid_msg = unique_identifier_msgs::msg::UUID {
             uuid: self.uuid.as_bytes().to_vec(),
         };
@@ -121,14 +140,19 @@ where
             return Err(Error::RCL_RET_ACTION_GOAL_HANDLE_INVALID);
         }
 
-        let ret = unsafe {
-            rcl_action_update_goal_state(goal_handle, rcl_action_goal_event_t::GOAL_EVENT_EXECUTE)
-        };
-        if ret != RCL_RET_OK as i32 {
-            unsafe {
-                rcl_action_goal_handle_fini(goal_handle);
+        if execute {
+            let ret = unsafe {
+                rcl_action_update_goal_state(
+                    goal_handle,
+                    rcl_action_goal_event_t::GOAL_EVENT_EXECUTE,
+                )
+            };
+            if ret != RCL_RET_OK as i32 {
+                unsafe {
+                    rcl_action_goal_handle_fini(goal_handle);
+                }
+                return Err(Error::from_rcl_error(ret));
             }
-            return Err(Error::from_rcl_error(ret));
         }
 
         // send response
@@ -153,16 +177,14 @@ where
             return Err(Error::from_rcl_error(ret));
         }
 
-        server.publish_status();
-
         let g = ActionServerGoal {
             uuid: self.uuid,
             goal: self.goal,
             server: self.response.server.clone(),
         };
 
-        // server.goals.insert(g.uuid.clone(), goal_handle);
         server.add_goal_handle(g.uuid, goal_handle);
+        server.publish_status();
 
         Ok((g, self.cancel_requests))
     }
@@ -294,6 +316,10 @@ where
     }
 
     fn is_cancelling(&self, uuid: &uuid::Uuid) -> Result<bool> {
+        Ok(self.get_goal_status(uuid)? == GoalStatus::Canceling)
+    }
+
+    fn get_goal_status(&self, uuid: &uuid::Uuid) -> Result<GoalStatus> {
         if let Some(handle) = self.goals.get(uuid) {
             let mut state = action_msgs::msg::GoalStatus::STATUS_UNKNOWN as u8;
             let ret = unsafe { rcl_action_goal_handle_get_status(*handle, &mut state) };
@@ -302,9 +328,24 @@ where
                 log::debug!("action server: Failed to get goal handle state: {}", ret);
                 return Err(Error::from_rcl_error(ret));
             }
-            return Ok(state == action_msgs::msg::GoalStatus::STATUS_CANCELING as u8);
+            return Ok(GoalStatus::from_rcl(state as i8));
         }
         Err(Error::RCL_RET_ACTION_GOAL_HANDLE_INVALID)
+    }
+
+    fn execute_goal(&mut self, uuid: &uuid::Uuid) -> Result<()> {
+        let handle = self
+            .goals
+            .get(uuid)
+            .ok_or(Error::RCL_RET_ACTION_GOAL_HANDLE_INVALID)?;
+        let ret = unsafe {
+            rcl_action_update_goal_state(*handle, rcl_action_goal_event_t::GOAL_EVENT_EXECUTE)
+        };
+        if ret != RCL_RET_OK as i32 {
+            return Err(Error::from_rcl_error(ret));
+        }
+        self.publish_status();
+        Ok(())
     }
 
     fn cancel_goal(&mut self, uuid: &uuid::Uuid) {
@@ -755,6 +796,26 @@ impl<T: 'static> ActionServerGoal<T>
 where
     T: WrappedActionTypeSupport,
 {
+    /// Return the server-side state of this goal.
+    pub fn get_status(&self) -> Result<GoalStatus> {
+        let action_server = self
+            .server
+            .upgrade()
+            .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
+        let action_server = action_server.lock();
+        action_server.get_goal_status(&self.uuid)
+    }
+
+    /// Start executing a goal accepted with [`ActionServerGoalRequest::accept_deferred`].
+    pub fn execute(&self) -> Result<()> {
+        let action_server = self
+            .server
+            .upgrade()
+            .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
+        let result = action_server.lock().execute_goal(&self.uuid);
+        result
+    }
+
     pub fn is_cancelling(&self) -> Result<bool> {
         let action_server = self
             .server
@@ -906,6 +967,9 @@ pub fn action_server_get_num_waits(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{example_interfaces::action::Fibonacci, Context, Node};
+    use futures::{executor::LocalPool, task::LocalSpawnExt, StreamExt};
+    use std::time::Duration;
 
     fn goal_info(uuid: uuid::Uuid) -> action_msgs::msg::GoalInfo {
         action_msgs::msg::GoalInfo {
@@ -958,5 +1022,67 @@ mod tests {
             }
         );
         assert!(time_point_to_builtin((i32::MAX as i64 + 1) * 1_000_000_000).is_err());
+    }
+
+    #[test]
+    fn accepted_goal_can_defer_execution() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "deferred_action_test", "").unwrap();
+        let mut requests = node
+            .create_action_server::<Fibonacci::Action>("/deferred_action")
+            .unwrap();
+        let client = node
+            .create_action_client::<Fibonacci::Action>("/deferred_action")
+            .unwrap();
+        let mut pool = LocalPool::new();
+        let (goal_sender, goal_receiver) = oneshot::channel();
+        pool.spawner()
+            .spawn_local(async move {
+                let request = requests.next().await.unwrap();
+                let (goal, _cancel_requests) = request.accept_deferred().unwrap();
+                goal_sender.send(goal).ok();
+            })
+            .unwrap();
+
+        let response = client
+            .send_goal_request(Fibonacci::Goal { order: 1 })
+            .unwrap();
+        let mut response = Box::pin(response);
+        let mut goal_receiver = Box::pin(goal_receiver);
+        let server_goal = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            pool.run_until_stalled();
+            if let Some(server_goal) = goal_receiver.as_mut().now_or_never() {
+                break server_goal.unwrap();
+            }
+        };
+        let (client_goal, result_future) = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            pool.run_until_stalled();
+            if let Some(client_goal) = response.as_mut().now_or_never() {
+                let (goal, result, _feedback) = client_goal.unwrap();
+                break (goal, result);
+            }
+        };
+
+        assert_eq!(server_goal.get_status().unwrap(), GoalStatus::Accepted);
+        assert_eq!(client_goal.get_status().unwrap(), GoalStatus::Accepted);
+        server_goal.execute().unwrap();
+        assert_eq!(server_goal.get_status().unwrap(), GoalStatus::Executing);
+
+        let mut server_goal = server_goal;
+        server_goal
+            .succeed(Fibonacci::Result { sequence: vec![1] })
+            .unwrap();
+        let mut result_future = Box::pin(result_future);
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(20)).unwrap();
+            pool.run_until_stalled();
+            if let Some(result) = result_future.as_mut().now_or_never() {
+                assert_eq!(result.unwrap().0, GoalStatus::Succeeded);
+                return;
+            }
+        }
+        panic!("client did not receive the deferred goal result");
     }
 }
