@@ -1300,131 +1300,111 @@ impl Node {
         // Some internal subscriptions, such as `/clock`, can be disabled without another
         // message arriving. Remove them before rebuilding the wait set so teardown does not
         // depend on readiness from the subscription being removed.
-        let mut active_subscribers = Vec::with_capacity(self.subscribers.len());
-        for mut subscriber in self.subscribers.drain(..) {
+        let node_handle = self.node_handle.as_mut();
+        self.subscribers.retain_mut(|subscriber| {
             if subscriber.should_remove() {
-                subscriber.destroy(&mut self.node_handle);
+                subscriber.destroy(node_handle);
+                false
             } else {
-                active_subscribers.push(subscriber);
+                true
             }
-        }
-        self.subscribers = active_subscribers;
+        });
 
         // A dropped service stream cannot receive another request to trigger its old reactive
         // cleanup path. Remove it before rebuilding the wait set so it leaves the ROS graph even
         // when the service is idle.
-        let mut active_services = Vec::with_capacity(self.services.len());
-        for service in self.services.drain(..) {
-            let removed = {
-                let mut handle = service.lock();
-                if handle.should_remove() {
-                    handle.destroy(&mut self.node_handle);
-                    true
-                } else {
-                    false
-                }
-            };
-            if !removed {
-                active_services.push(service);
+        let node_handle = self.node_handle.as_mut();
+        self.services.retain(|service| {
+            let mut handle = service.lock();
+            if handle.should_remove() {
+                handle.destroy(node_handle);
+                false
+            } else {
+                true
             }
-        }
-        self.services = active_services;
+        });
 
         // Public clients only keep weak references to their native state. Retain a client while
         // any request or availability future is still live, then release it once both the public
         // handle and all asynchronous work have gone away.
-        let mut active_clients = Vec::with_capacity(self.clients.len());
-        for client in self.clients.drain(..) {
-            let removed = {
-                let mut handle = client.lock();
-                if Arc::weak_count(&client) == 0 && !handle.has_pending_work() {
-                    handle.destroy(&mut self.node_handle);
-                    true
-                } else {
-                    false
-                }
-            };
-            if !removed {
-                active_clients.push(client);
+        let node_handle = self.node_handle.as_mut();
+        self.clients.retain(|client| {
+            let mut handle = client.lock();
+            if Arc::weak_count(client) == 0 && !handle.has_pending_work() {
+                handle.destroy(node_handle);
+                false
+            } else {
+                true
             }
-        }
-        self.clients = active_clients;
+        });
 
         // A publisher handle is represented by a Weak reference, while the node owns the native
         // publisher. Release the native resource after the final public handle and any matching
         // waiter have both gone away.
-        let mut active_publishers = Vec::with_capacity(self.pubs.len());
-        for publisher in self.pubs.drain(..) {
-            if Arc::weak_count(&publisher) == 0 && !publisher.has_pending_subscriber_waits() {
-                publisher.destroy(&mut self.node_handle);
+        let node_handle = self.node_handle.as_mut();
+        self.pubs.retain(|publisher| {
+            if Arc::weak_count(publisher) == 0 && !publisher.has_pending_subscriber_waits() {
+                publisher.destroy(node_handle);
+                false
             } else {
-                active_publishers.push(publisher);
+                true
             }
-        }
-        self.pubs = active_publishers;
+        });
 
         // Do not wait for a long-period timer to become ready before noticing that its public
         // handle has gone away. Dropping Timer closes the receiver immediately.
         self.timers.retain(|timer| !timer.sender.is_closed());
 
-        let mut active_action_clients = Vec::with_capacity(self.action_clients.len());
-        for client in self.action_clients.drain(..) {
-            let removed_capacities = {
-                let mut handle = client.lock();
-                if Arc::weak_count(&client) == 0 && !handle.has_pending_work() {
-                    match action_client_wait_set_capacities(handle.handle()) {
-                        Ok(capacities) => {
-                            handle.destroy(&mut self.node_handle);
-                            Some(capacities)
-                        }
-                        Err(err) => {
-                            log::warn!("could not inspect dropped action client: {err}");
-                            None
-                        }
+        let node_handle = self.node_handle.as_mut();
+        let mut removed_action_capacities = WaitSetCapacities::default();
+        self.action_clients.retain(|client| {
+            let mut handle = client.lock();
+            if Arc::weak_count(client) == 0 && !handle.has_pending_work() {
+                match action_client_wait_set_capacities(handle.handle()) {
+                    Ok(capacities) => {
+                        handle.destroy(node_handle);
+                        removed_action_capacities.add(capacities);
+                        false
                     }
-                } else {
-                    None
+                    Err(err) => {
+                        log::warn!("could not inspect dropped action client: {err}");
+                        true
+                    }
                 }
-            };
-            if let Some(capacities) = removed_capacities {
-                self.action_wait_set_capacities.subtract(capacities);
             } else {
-                active_action_clients.push(client);
+                true
             }
-        }
-        self.action_clients = active_action_clients;
+        });
+        self.action_wait_set_capacities
+            .subtract(removed_action_capacities);
 
         // first handle any completed action cancellation responses
         for a in &mut self.action_servers {
             a.lock().send_completed_cancel_requests()?;
         }
 
-        let mut active_action_servers = Vec::with_capacity(self.action_servers.len());
-        for server in self.action_servers.drain(..) {
-            let removed_capacities = {
-                let mut handle = server.lock();
-                if handle.should_remove() {
-                    match action_server_wait_set_capacities(handle.handle()) {
-                        Ok(capacities) => {
-                            handle.destroy(&mut self.node_handle);
-                            Some(capacities)
-                        }
-                        Err(err) => {
-                            log::warn!("could not inspect dropped action server: {err}");
-                            None
-                        }
+        let node_handle = self.node_handle.as_mut();
+        let mut removed_action_capacities = WaitSetCapacities::default();
+        self.action_servers.retain(|server| {
+            let mut handle = server.lock();
+            if handle.should_remove() {
+                match action_server_wait_set_capacities(handle.handle()) {
+                    Ok(capacities) => {
+                        handle.destroy(node_handle);
+                        removed_action_capacities.add(capacities);
+                        false
                     }
-                } else {
-                    None
+                    Err(err) => {
+                        log::warn!("could not inspect dropped action server: {err}");
+                        true
+                    }
                 }
-            };
-            if let Some(capacities) = removed_capacities {
-                self.action_wait_set_capacities.subtract(capacities);
             } else {
-                active_action_servers.push(server);
+                true
             }
-        }
-        self.action_servers = active_action_servers;
+        });
+        self.action_wait_set_capacities
+            .subtract(removed_action_capacities);
 
         // as well as polling any services/action servers for availability
         for c in &mut self.clients {
