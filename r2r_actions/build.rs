@@ -1,6 +1,5 @@
 use std::{
     env, fs,
-    fs::OpenOptions,
     path::{Path, PathBuf},
 };
 
@@ -15,14 +14,10 @@ fn main() {
 }
 
 fn run_bindgen() {
-    let env_hash = r2r_common::get_env_hash();
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let bindgen_dir = out_dir.join(env_hash);
     let save_dir = manifest_dir.join("bindings");
-    let cache_file = bindgen_dir.join(BINDINGS_FILENAME);
     let target_file = out_dir.join(BINDINGS_FILENAME);
-    let mark_file = bindgen_dir.join("done");
     let saved_file = save_dir.join(BINDINGS_FILENAME);
 
     if cfg!(feature = "doc-only") {
@@ -30,22 +25,13 @@ fn run_bindgen() {
         eprintln!("Copy from '{}' to '{}'", saved_file.display(), target_file.display());
         fs::copy(&saved_file, &target_file).unwrap();
     } else {
-        // If bindgen was done before, use cached files.
-        if !mark_file.exists() {
-            eprintln!("Generate bindings file '{}'", cache_file.display());
-            fs::create_dir_all(&bindgen_dir).unwrap();
-            generate_bindings(&cache_file);
-            touch(&mark_file);
-        } else {
-            eprintln!("Used cached file  '{}'", cache_file.display());
-        }
-
-        fs::copy(&cache_file, &target_file).unwrap();
+        eprintln!("Generate bindings file '{}'", target_file.display());
+        generate_bindings(&target_file);
 
         #[cfg(feature = "save-bindgen")]
         {
             fs::create_dir_all(&save_dir).unwrap();
-            fs::copy(&cache_file, &saved_file).unwrap();
+            fs::copy(&target_file, &saved_file).unwrap();
         }
     }
 }
@@ -98,13 +84,4 @@ fn generate_bindings(out_file: &Path) {
     bindings
         .write_to_file(out_file)
         .expect("Couldn't write bindings!");
-}
-
-fn touch(path: &Path) {
-    OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .open(path)
-        .unwrap_or_else(|_| panic!("Unable to create file '{}'", path.display()));
 }

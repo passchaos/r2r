@@ -3,7 +3,7 @@ use {
     quote::{format_ident, quote},
     rayon::prelude::*,
     std::fmt,
-    std::fs::{File, OpenOptions},
+    std::fs::File,
     std::io::{self, prelude::*, BufWriter},
 };
 
@@ -65,17 +65,9 @@ fn main() {
 
     #[cfg(not(feature = "doc-only"))]
     {
-        let env_hash = r2r_common::get_env_hash();
-        let bindgen_dir = out_dir.join(env_hash);
-        let mark_file = bindgen_dir.join("done");
-        // If bindgen was done before, use cached files.
-        if !mark_file.exists() {
-            eprintln!("Generate bindings in '{}'", bindgen_dir.display());
-            generate_bindings(&bindgen_dir);
-            touch(&mark_file);
-        } else {
-            eprintln!("Used cached files in '{}'", bindgen_dir.display());
-        }
+        let bindgen_dir = out_dir.join("generated");
+        eprintln!("Generate bindings in '{}'", bindgen_dir.display());
+        generate_bindings(&bindgen_dir);
 
         copy_files(&bindgen_dir, &out_dir);
 
@@ -310,16 +302,6 @@ fn copy_files(src_dir: &Path, tgt_dir: &Path) {
         });
 
     fs::copy(&src_list_file, tgt_list_file).unwrap();
-}
-
-#[cfg(not(feature = "doc-only"))]
-fn touch(path: &Path) {
-    OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .open(path)
-        .unwrap_or_else(|_| panic!("Unable to create file '{}'", path.display()));
 }
 
 #[cfg(not(feature = "doc-only"))]

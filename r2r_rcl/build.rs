@@ -1,6 +1,5 @@
 use std::{
     env, fs,
-    fs::OpenOptions,
     path::{Path, PathBuf},
 };
 
@@ -12,12 +11,8 @@ fn main() {
 }
 
 fn run_bindgen() {
-    let env_hash = r2r_common::get_env_hash();
     let out_dir: PathBuf = env::var_os("OUT_DIR").unwrap().into();
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let bindgen_dir = out_dir.join(env_hash);
-    let cached_file = bindgen_dir.join("rcl_bindings.rs");
-    let mark_file = bindgen_dir.join("done");
     let target_file = out_dir.join("rcl_bindings.rs");
     let saved_file = manifest_dir.join("bindings").join("rcl_bindings.rs");
 
@@ -25,15 +20,8 @@ fn run_bindgen() {
     let src_file = if cfg!(feature = "doc-only") {
         &saved_file
     } else {
-        // Generate bindings if bindings file does not
-        // exist. Otherwise, use cached bindings file.
-        if !mark_file.exists() {
-            eprintln!("Generate bindings file '{}'", cached_file.display());
-            gen_bindings(&cached_file);
-            touch(&mark_file);
-        } else {
-            eprintln!("Use cached bindings file '{}'", cached_file.display());
-        }
+        eprintln!("Generate bindings file '{}'", target_file.display());
+        gen_bindings(&target_file);
 
         #[cfg(feature = "save-bindgen")]
         {
@@ -41,15 +29,17 @@ fn run_bindgen() {
                 fs::create_dir_all(dir)
                     .unwrap_or_else(|_| panic!("Unable to create directory '{}'", dir.display()));
             }
-            fs::copy(&cached_file, &saved_file).expect("File copy failed");
+            fs::copy(&target_file, &saved_file).expect("File copy failed");
         }
 
-        &cached_file
+        &target_file
     };
 
-    fs::copy(src_file, &target_file).unwrap_or_else(|_| {
-        panic!("Unable to copy from '{}' to '{}'", src_file.display(), target_file.display())
-    });
+    if src_file != &target_file {
+        fs::copy(src_file, &target_file).unwrap_or_else(|_| {
+            panic!("Unable to copy from '{}' to '{}'", src_file.display(), target_file.display())
+        });
+    }
 }
 
 #[cfg(feature = "doc-only")]
@@ -101,13 +91,4 @@ fn gen_bindings(out_file: &Path) {
     bindings
         .write_to_file(out_file)
         .expect("Couldn't write bindings!");
-}
-
-fn touch(path: &Path) {
-    OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .open(path)
-        .unwrap_or_else(|_| panic!("Unable to create file '{}'", path.display()));
 }

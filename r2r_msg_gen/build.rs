@@ -5,7 +5,7 @@ use r2r_common::{camel_to_snake, RosMsg};
 use rayon::prelude::*;
 use std::{
     env, fs,
-    fs::{File, OpenOptions},
+    fs::File,
     io::{prelude::*, BufWriter},
     mem,
     path::{Path, PathBuf},
@@ -36,11 +36,9 @@ fn main() {
 }
 
 fn run_bindgen(msg_list: &[RosMsg]) {
-    let env_hash = r2r_common::get_env_hash();
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let bindgen_dir = out_dir.join(env_hash);
-    let mark_file = bindgen_dir.join("done");
+    let bindgen_dir = out_dir.join("generated");
     let save_dir = manifest_dir.join("bindings");
 
     if cfg!(feature = "doc-only") {
@@ -53,15 +51,9 @@ fn run_bindgen(msg_list: &[RosMsg]) {
             fs::copy(&src, &tgt).unwrap();
         }
     } else {
-        // If bindgen was done before, use cached files.
-        if !mark_file.exists() {
-            eprintln!("Generate bindings in '{}'", bindgen_dir.display());
-            fs::create_dir_all(&bindgen_dir).unwrap();
-            generate_bindings(&bindgen_dir, msg_list);
-            touch(&mark_file);
-        } else {
-            eprintln!("Used cached files in '{}'", bindgen_dir.display());
-        }
+        eprintln!("Generate bindings in '{}'", bindgen_dir.display());
+        fs::create_dir_all(&bindgen_dir).unwrap();
+        generate_bindings(&bindgen_dir, msg_list);
 
         for filename in GENERATED_FILES {
             let src = bindgen_dir.join(filename);
@@ -541,15 +533,6 @@ fn run_dynlink(msg_list: &[RosMsg]) {
         println!("cargo:rustc-link-lib=dylib={}__rosidl_typesupport_introspection_c", module);
         println!("cargo:rustc-link-lib=dylib={}__rosidl_generator_c", module);
     }
-}
-
-fn touch(path: &Path) {
-    OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .open(path)
-        .unwrap_or_else(|_| panic!("Unable to create file '{}'", path.display()));
 }
 
 unsafe fn force_send<T>(value: T) -> force_send_sync::Send<T> {
