@@ -219,8 +219,8 @@ pub struct WrappedNativeMsg<T>
 where
     T: WrappedTypesupport,
 {
-    pub msg: *mut T::CStruct,
-    pub is_loaned: bool,
+    pub(crate) msg: *mut T::CStruct,
+    pub(crate) is_loaned: bool,
     deallocator: Option<Box<dyn FnOnce(*mut T::CStruct)>>,
 }
 
@@ -415,9 +415,12 @@ impl WrappedNativeMsgUntyped {
             })
         };
 
+        let msg = T::create_msg() as *mut std::os::raw::c_void;
+        assert!(!msg.is_null(), "failed to allocate native ROS message");
+
         WrappedNativeMsgUntyped {
             ts: T::get_ts(),
-            msg: T::create_msg() as *mut std::os::raw::c_void,
+            msg,
             destroy,
             msg_to_json,
             msg_from_json,
@@ -486,8 +489,10 @@ where
     T: WrappedTypesupport + 'static,
 {
     pub fn new() -> Self {
+        let msg = T::create_msg();
+        assert!(!msg.is_null(), "failed to allocate native ROS message");
         WrappedNativeMsg {
-            msg: T::create_msg(),
+            msg,
             deallocator: Some(Box::new(T::destroy_msg)),
             is_loaned: false,
         }
@@ -499,9 +504,17 @@ where
         native_msg
     }
 
-    pub fn from_loaned(
+    /// Wrap a native message loan whose ownership is returned by `deallocator`.
+    ///
+    /// # Safety
+    ///
+    /// `msg` must be non-null, point to a valid `T::CStruct`, and remain valid until
+    /// `deallocator` is invoked or ownership is released. The deallocator must accept
+    /// exactly this allocation and may be called at most once.
+    pub unsafe fn from_loaned(
         msg: *mut T::CStruct, deallocator: Box<dyn FnOnce(*mut <T as WrappedTypesupport>::CStruct)>,
     ) -> Self {
+        assert!(!msg.is_null(), "cannot wrap a null loaned ROS message");
         WrappedNativeMsg {
             msg,
             deallocator: Some(deallocator),
@@ -509,7 +522,7 @@ where
         }
     }
 
-    pub fn release(&mut self) {
+    pub(crate) fn release(&mut self) {
         self.deallocator.take();
     }
 }
@@ -740,10 +753,12 @@ mod tests {
 
         let borrowed_msg = MsgType::create_msg();
 
-        let native = WrappedNativeMsg::<MsgType>::from_loaned(
-            borrowed_msg as *mut CMsgType,
-            Box::new(|_: *mut CMsgType| {}),
-        );
+        let native = unsafe {
+            WrappedNativeMsg::<MsgType>::from_loaned(
+                borrowed_msg as *mut CMsgType,
+                Box::new(MsgType::destroy_msg),
+            )
+        };
 
         assert!(native.void_ptr() == borrowed_msg as *mut core::ffi::c_void);
     }
