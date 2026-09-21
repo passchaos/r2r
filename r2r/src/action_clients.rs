@@ -46,7 +46,28 @@ where
 {
     client: Weak<Mutex<WrappedActionClient<T>>>,
     pub uuid: uuid::Uuid,
-    lifetime: Arc<()>,
+    status_registration: Arc<GoalStatusRegistration<T>>,
+}
+
+struct GoalStatusRegistration<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    client: Weak<Mutex<WrappedActionClient<T>>>,
+    uuid: uuid::Uuid,
+}
+
+impl<T> Drop for GoalStatusRegistration<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    fn drop(&mut self) {
+        if let Some(client) = self.client.upgrade() {
+            if let Ok(mut client) = client.lock() {
+                client.goal_status.remove(&self.uuid);
+            }
+        }
+    }
 }
 
 impl<T> Clone for ActionClientGoal<T>
@@ -57,20 +78,7 @@ where
         Self {
             client: self.client.clone(),
             uuid: self.uuid,
-            lifetime: self.lifetime.clone(),
-        }
-    }
-}
-
-impl<T> Drop for ActionClientGoal<T>
-where
-    T: WrappedActionTypeSupport,
-{
-    fn drop(&mut self) {
-        if Arc::strong_count(&self.lifetime) == 1 {
-            if let Some(client) = self.client.upgrade() {
-                client.lock().unwrap().goal_status.remove(&self.uuid);
-            }
+            status_registration: self.status_registration.clone(),
         }
     }
 }
@@ -179,12 +187,16 @@ where
                                 let mut c = c.lock().unwrap();
                                 c.send_result_request(uuid)?;
                             }
+                            let status_registration = Arc::new(GoalStatusRegistration {
+                                client: fut_client.clone(),
+                                uuid,
+                            });
 
                             Ok((
                                 ActionClientGoal {
                                     client: fut_client,
                                     uuid,
-                                    lifetime: Arc::new(()),
+                                    status_registration,
                                 },
                                 result_receiver.map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID),
                                 feedback_receiver,
