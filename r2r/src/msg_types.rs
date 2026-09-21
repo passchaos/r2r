@@ -38,6 +38,16 @@ pub(crate) fn uuid_msg_to_uuid(msg: &unique_identifier_msgs::msg::UUID) -> uuid:
 
 struct SerializedMessageBuffer(rcl_serialized_message_t);
 
+pub(crate) unsafe fn serialized_message_bytes(msg: &rcl_serialized_message_t) -> Result<&[u8]> {
+    if msg.buffer_length == 0 {
+        return Ok(&[]);
+    }
+    if msg.buffer.is_null() || msg.buffer_length > msg.buffer_capacity {
+        return Err(Error::RCL_RET_ERROR);
+    }
+    Ok(std::slice::from_raw_parts(msg.buffer, msg.buffer_length))
+}
+
 impl Drop for SerializedMessageBuffer {
     fn drop(&mut self) {
         let ret = unsafe { r2r_rcl::rcutils_uint8_array_fini(&mut self.0) };
@@ -116,16 +126,8 @@ pub unsafe trait WrappedTypesupport:
                 )
             };
 
-            let data_bytes = if msg_buf.buffer.is_null() {
-                Vec::new()
-            } else {
-                unsafe {
-                    std::slice::from_raw_parts(msg_buf.buffer, msg_buf.buffer_length).to_vec()
-                }
-            };
-
             if result == RCL_RET_OK as i32 {
-                Ok(data_bytes)
+                Ok(unsafe { serialized_message_bytes(msg_buf) }?.to_vec())
             } else {
                 Err(Error::from_rcl_error(result))
             }
@@ -898,6 +900,29 @@ mod tests {
 
         assert_eq!(bytes, bytes_2);
         assert_eq!(bytes, bytes_3);
+    }
+
+    #[test]
+    fn rejects_inconsistent_serialized_message_buffers() {
+        let mut buffer = unsafe { r2r_rcl::rcutils_get_zero_initialized_uint8_array() };
+        buffer.buffer_length = 1;
+        assert!(matches!(
+            unsafe { serialized_message_bytes(&buffer) },
+            Err(Error::RCL_RET_ERROR)
+        ));
+
+        let mut byte = 42;
+        buffer.buffer = &mut byte;
+        buffer.buffer_capacity = 0;
+        assert!(matches!(
+            unsafe { serialized_message_bytes(&buffer) },
+            Err(Error::RCL_RET_ERROR)
+        ));
+
+        buffer.buffer_length = 0;
+        assert!(unsafe { serialized_message_bytes(&buffer) }
+            .unwrap()
+            .is_empty());
     }
 
     #[test]

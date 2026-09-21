@@ -487,13 +487,7 @@ impl<O: 'static> Subscriber_ for RawSubscriber<O> {
             return Err(Error::from_rcl_error(ret));
         }
 
-        let data_bytes = if self.msg_buf.buffer.is_null() {
-            Vec::new()
-        } else {
-            unsafe {
-                std::slice::from_raw_parts(self.msg_buf.buffer, self.msg_buf.buffer_length).to_vec()
-            }
-        };
+        let data_bytes = unsafe { serialized_message_bytes(&self.msg_buf) }?.to_vec();
 
         let message = (self.transform)(data_bytes, msg_info.into());
         if let Err(e) = self.sender.try_send(message) {
