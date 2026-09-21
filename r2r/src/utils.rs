@@ -43,16 +43,16 @@ pub fn log(msg: &str, logger_name: &str, file: &str, line: u32, severity: LogSev
     }
     // currently not possible to get function name in rust.
     // see https://github.com/rust-lang/rfcs/pull/2818
-    let function = CString::new("").unwrap();
-    let file = CString::new(file).unwrap();
+    let function = CString::default();
+    let file = cstring_without_nul(file);
     let location = rcutils_log_location_t {
         function_name: function.as_ptr(),
         file_name: file.as_ptr(),
         line_number: line as usize,
     };
-    let format = CString::new("%s").unwrap();
-    let logger_name = CString::new(logger_name).unwrap();
-    let message = CString::new(msg).unwrap();
+    let format = CString::new("%s").expect("static format contains no NUL");
+    let logger_name = cstring_without_nul(logger_name);
+    let message = cstring_without_nul(msg);
     let severity = severity.to_native();
     unsafe {
         rcutils_log(
@@ -63,6 +63,13 @@ pub fn log(msg: &str, logger_name: &str, file: &str, line: u32, severity: LogSev
             message.as_ptr(),
         );
     }
+}
+
+fn cstring_without_nul(value: &str) -> CString {
+    let mut bytes = value.as_bytes().to_vec();
+    bytes.retain(|byte| *byte != 0);
+    // Removing all interior NUL bytes makes this infallible.
+    CString::new(bytes).expect("interior NUL bytes were removed")
 }
 
 /// Logging severity
@@ -166,4 +173,9 @@ fn test_log() {
     log_warn!("log_test", "warn msg");
     log_error!("log_test", "error msg");
     log_fatal!("log_test", "fatal msg");
+}
+
+#[test]
+fn log_fields_with_nul_bytes_do_not_panic() {
+    log("message\0suffix", "logger\0suffix", "file\0suffix", 1, LogSeverity::Info);
 }
