@@ -82,17 +82,12 @@ where
     }
 
     fn handle_incoming(&mut self) -> bool {
-        let mut msg_info = rmw_message_info_t::default(); // we dont care for now
         // The returned stream may outlive the Node. Use caller-owned message storage so
         // dropping an item never has to access an already-finalized subscription handle.
+        let mut msg_info = rmw_message_info_t::default();
         let mut msg = WrappedNativeMsg::<T>::new();
         let ret = unsafe {
-            rcl_take(
-                &self.rcl_handle,
-                msg.void_ptr_mut(),
-                &mut msg_info,
-                std::ptr::null_mut(),
-            )
+            rcl_take(&self.rcl_handle, msg.void_ptr_mut(), &mut msg_info, std::ptr::null_mut())
         };
         if ret != RCL_RET_OK as i32 {
             return false;
