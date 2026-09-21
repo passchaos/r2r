@@ -315,6 +315,9 @@ impl ActionClient_ for WrappedActionClientUntyped {
                 let (_, uuid, sender) = self.goal_response_channels.swap_remove(idx);
                 let (accept, stamp) =
                     (self.action_type_support.destructure_goal_response_msg)(response_msg);
+                if !accept {
+                    self.forget_goal(&uuid);
+                }
                 match sender.send((accept, stamp)) {
                     Ok(()) => {}
                     Err(e) => {

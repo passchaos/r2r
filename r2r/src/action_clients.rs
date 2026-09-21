@@ -354,6 +354,9 @@ where
                 let (_, uuid, sender) = self.goal_response_channels.swap_remove(idx);
                 let response = <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response::from_native(&response_msg);
                 let (accept, stamp) = T::destructure_goal_response_msg(response);
+                if !accept {
+                    self.forget_goal(&uuid);
+                }
                 match sender.send((accept, stamp)) {
                     Ok(()) => {}
                     Err(e) => {
