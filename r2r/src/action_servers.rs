@@ -406,7 +406,22 @@ where
 
         // send out request.
         if let Err(e) = self.goal_request_sender.unbounded_send(gr) {
-            log::error!("warning: could not send service request ({})", e)
+            let mut request = e.into_inner();
+            self.cancel_senders.remove(&request.uuid);
+            let response = T::make_goal_response_msg(false, builtin_interfaces::msg::Time::default());
+            let mut response = WrappedNativeMsg::<
+                <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
+            >::from(&response);
+            let ret = unsafe {
+                rcl_action_send_goal_response(
+                    &self.rcl_handle,
+                    &mut request.request_id,
+                    response.void_ptr_mut(),
+                )
+            };
+            if ret != RCL_RET_OK as i32 {
+                log::error!("could not reject goal after request stream closed: {}", ret);
+            }
         }
     }
 
