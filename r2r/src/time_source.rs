@@ -97,21 +97,14 @@ impl TimeSource {
             return Ok(());
         }
 
-        inner.simulated_time_enabled = true;
-
-        match inner.subscriber_state {
-            TimeSourceSubscriberState::None => {
-                let subscriber = TimeSourceSubscriber::new(&mut node.node_handle, self.clone())?;
-                node.subscribers.push(Box::new(subscriber));
-                inner.subscriber_state = TimeSourceSubscriberState::Active;
-            }
-            TimeSourceSubscriberState::ToBeDestroyed => {
-                inner.subscriber_state = TimeSourceSubscriberState::Active;
-            }
-            TimeSourceSubscriberState::Active => {
-                // nothing to do
-            }
+        if let Some(subscriber) = inner.activate_subscriber(|| {
+            TimeSourceSubscriber::new(&mut node.node_handle, self.clone())
+        })? {
+            node.subscribers.push(Box::new(subscriber));
         }
+        // Do not publish the enabled state until subscription setup has succeeded. Otherwise a
+        // transient creation failure makes later calls return early without ever subscribing.
+        inner.simulated_time_enabled = true;
 
         let initial_time = inner.last_time_msg;
         // enable ros time override on all attached clocks
@@ -175,6 +168,21 @@ impl TimeSource_ {
             // retain clock
             true
         });
+    }
+
+    fn activate_subscriber<T>(&mut self, create: impl FnOnce() -> Result<T>) -> Result<Option<T>> {
+        match self.subscriber_state {
+            TimeSourceSubscriberState::None => {
+                let subscriber = create()?;
+                self.subscriber_state = TimeSourceSubscriberState::Active;
+                Ok(Some(subscriber))
+            }
+            TimeSourceSubscriberState::ToBeDestroyed => {
+                self.subscriber_state = TimeSourceSubscriberState::Active;
+                Ok(None)
+            }
+            TimeSourceSubscriberState::Active => Ok(None),
+        }
     }
 
     fn take_subscriber_destruction_request(&mut self) -> bool {
@@ -283,5 +291,16 @@ mod tests {
         assert!(inner.take_subscriber_destruction_request());
         assert!(matches!(inner.subscriber_state, TimeSourceSubscriberState::None));
         assert!(!inner.take_subscriber_destruction_request());
+    }
+
+    #[test]
+    fn failed_subscription_setup_does_not_activate_time_source() {
+        let mut inner = TimeSource_::new();
+
+        let result = inner.activate_subscriber::<()>(|| Err(Error::RCL_RET_ERROR));
+
+        assert!(result.is_err());
+        assert!(!inner.simulated_time_enabled);
+        assert!(matches!(inner.subscriber_state, TimeSourceSubscriberState::None));
     }
 }
