@@ -1371,32 +1371,32 @@ impl Node {
             log::error!("could not get topic names and types {}", ret);
             return Err(Error::from_rcl_error(ret));
         }
+        let tnat = NamesAndTypes(tnat);
 
         let mut res = HashMap::new();
-        if !tnat.names.data.is_null() && !tnat.types.is_null() {
-            let names = unsafe { std::slice::from_raw_parts(tnat.names.data, tnat.names.size) };
-            let types = unsafe { std::slice::from_raw_parts(tnat.types, tnat.names.size) };
+        if tnat.0.names.size > 0 {
+            if tnat.0.names.data.is_null() || tnat.0.types.is_null() {
+                return Err(Error::RCL_RET_ERROR);
+            }
+            let names = unsafe { std::slice::from_raw_parts(tnat.0.names.data, tnat.0.names.size) };
+            let types = unsafe { std::slice::from_raw_parts(tnat.0.types, tnat.0.names.size) };
 
             for (n, t) in names.iter().zip(types) {
-                assert!(!(*n).is_null());
-                let topic_name = unsafe { CStr::from_ptr(*n).to_str().unwrap().to_owned() };
-                assert!(!t.data.is_null());
-                let topic_types = unsafe { std::slice::from_raw_parts(t, t.size) };
-                let topic_types: Vec<String> = unsafe {
-                    topic_types
+                let topic_name = c_string_from_ptr(*n)?;
+                if t.size > 0 && t.data.is_null() {
+                    return Err(Error::RCL_RET_ERROR);
+                }
+                let topic_types = if t.size == 0 {
+                    Vec::new()
+                } else {
+                    unsafe { std::slice::from_raw_parts(t.data, t.size) }
                         .iter()
-                        .map(|t| {
-                            assert!(!(*(t.data)).is_null());
-                            CStr::from_ptr(*(t.data)).to_str().unwrap().to_owned()
-                        })
-                        .collect()
+                        .map(|type_name| c_string_from_ptr(*type_name))
+                        .collect::<Result<Vec<_>>>()?
                 };
                 res.insert(topic_name, topic_types);
             }
         }
-        unsafe {
-            rmw_names_and_types_fini(&mut tnat);
-        } // TODO: check return value
         Ok(res)
     }
 
@@ -1536,6 +1536,26 @@ impl Node {
     pub fn get_ros_clock(&self) -> Arc<Mutex<Clock>> {
         self.ros_clock.clone()
     }
+}
+
+struct NamesAndTypes(rmw_names_and_types_t);
+
+impl Drop for NamesAndTypes {
+    fn drop(&mut self) {
+        let ret = unsafe { rmw_names_and_types_fini(&mut self.0) };
+        if ret != RCL_RET_OK as i32 {
+            log::error!("could not finalize topic names and types: {ret}");
+        }
+    }
+}
+
+fn c_string_from_ptr(ptr: *const std::os::raw::c_char) -> Result<String> {
+    if ptr.is_null() {
+        return Err(Error::RCL_RET_ERROR);
+    }
+    Ok(unsafe { CStr::from_ptr(ptr) }
+        .to_string_lossy()
+        .into_owned())
 }
 
 #[cfg(any(
@@ -1841,5 +1861,19 @@ mod tests {
     fn converts_rcl_durations_without_wrapping() {
         assert_eq!(duration_to_rcl_nanos(Duration::from_nanos(i64::MAX as u64)).unwrap(), i64::MAX);
         assert!(duration_to_rcl_nanos(Duration::from_nanos(i64::MAX as u64 + 1)).is_err());
+    }
+
+    #[test]
+    fn discovers_topic_names_and_their_types() {
+        let ctx = Context::create().unwrap();
+        let mut node = Node::create(ctx, "topic_discovery_test", "").unwrap();
+        let topic = format!("/r2r_discovery_{}", uuid::Uuid::new_v4().simple());
+        let _publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(&topic, QosProfile::default())
+            .unwrap();
+
+        let topics = node.get_topic_names_and_types().unwrap();
+
+        assert_eq!(topics.get(&topic), Some(&vec!["std_msgs/msg/String".to_owned()]));
     }
 }
