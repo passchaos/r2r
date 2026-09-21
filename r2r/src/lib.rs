@@ -137,7 +137,7 @@ mod time_source;
 #[cfg(r2r__rosgraph_msgs__msg__Clock)]
 pub use time_source::TimeSource;
 
-pub use qos::QosProfile;
+pub use qos::{qos_check_compatible, QosCompatibility, QosCompatibilityResult, QosProfile};
 
 /// The ros version currently built against.
 #[cfg(r2r__ros__distro__foxy)]

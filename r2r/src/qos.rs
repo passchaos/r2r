@@ -205,12 +205,31 @@
 //! QoS (Quality of Service)
 //! full credit goes to <https://github.com/rclrust/rclrust/blob/main/rclrust/src/qos.rs>
 
-use std::time::Duration;
+use std::{ffi::CStr, time::Duration};
 
 use r2r_rcl::{
-    rmw_qos_durability_policy_t, rmw_qos_history_policy_t, rmw_qos_liveliness_policy_t,
-    rmw_qos_reliability_policy_t, rmw_time_t,
+    rmw_qos_compatibility_type_t, rmw_qos_durability_policy_t, rmw_qos_history_policy_t,
+    rmw_qos_liveliness_policy_t, rmw_qos_profile_check_compatible, rmw_qos_reliability_policy_t,
+    rmw_time_t, RMW_RET_OK,
 };
+
+use crate::{Error, Result};
+
+/// Compatibility between an offered publisher QoS and a requested subscription QoS.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QosCompatibility {
+    Compatible,
+    Warning,
+    Incompatible,
+}
+
+/// Result of checking publisher/subscription QoS compatibility.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QosCompatibilityResult {
+    pub compatibility: QosCompatibility,
+    /// Explanation supplied by RMW for warnings and incompatibilities.
+    pub reason: String,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HistoryPolicy {
@@ -499,6 +518,11 @@ pub struct QosProfile {
 }
 
 impl QosProfile {
+    /// Checks whether this publisher QoS can communicate with `subscription_qos`.
+    pub fn compatibility_with(&self, subscription_qos: &Self) -> Result<QosCompatibilityResult> {
+        qos_check_compatible(self, subscription_qos)
+    }
+
     /// Sensor Data QoS class
     ///    - History: Keep last,
     ///    - Depth: 5,
@@ -855,6 +879,45 @@ impl QosProfile {
     }
 }
 
+/// Checks whether an offered publisher QoS can communicate with a requested subscription QoS.
+pub fn qos_check_compatible(
+    publisher_qos: &QosProfile, subscription_qos: &QosProfile,
+) -> Result<QosCompatibilityResult> {
+    const REASON_CAPACITY: usize = 2048;
+
+    let mut compatibility = rmw_qos_compatibility_type_t::RMW_QOS_COMPATIBILITY_OK;
+    let mut reason = [0 as std::os::raw::c_char; REASON_CAPACITY];
+    let ret = unsafe {
+        rmw_qos_profile_check_compatible(
+            publisher_qos.clone().into(),
+            subscription_qos.clone().into(),
+            &mut compatibility,
+            reason.as_mut_ptr(),
+            reason.len(),
+        )
+    };
+    if ret != RMW_RET_OK as i32 {
+        return Err(Error::from_rcl_error(ret));
+    }
+    reason[REASON_CAPACITY - 1] = 0;
+    let reason = unsafe { CStr::from_ptr(reason.as_ptr()) }
+        .to_str()
+        .map_err(|err| Error::InvalidUtf8 {
+            context: "QoS compatibility reason",
+            err: err.to_string(),
+        })?
+        .to_owned();
+    let compatibility = match compatibility {
+        rmw_qos_compatibility_type_t::RMW_QOS_COMPATIBILITY_OK => QosCompatibility::Compatible,
+        rmw_qos_compatibility_type_t::RMW_QOS_COMPATIBILITY_WARNING => QosCompatibility::Warning,
+        rmw_qos_compatibility_type_t::RMW_QOS_COMPATIBILITY_ERROR => QosCompatibility::Incompatible,
+    };
+    Ok(QosCompatibilityResult {
+        compatibility,
+        reason,
+    })
+}
+
 impl From<QosProfile> for r2r_rcl::rmw_qos_profile_t {
     fn from(qos: QosProfile) -> Self {
         Self {
@@ -924,5 +987,42 @@ impl RclDurationT for Duration {
         }
 
         Duration::new(rmw_time.sec, rmw_time.nsec as u32)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reports_qos_compatibility_and_reason() {
+        let best_effort_publisher = QosProfile::default()
+            .best_effort()
+            .liveliness(LivelinessPolicy::Automatic);
+        let reliable_subscription = QosProfile::default()
+            .reliable()
+            .liveliness(LivelinessPolicy::Automatic);
+        let incompatible = best_effort_publisher
+            .compatibility_with(&reliable_subscription)
+            .unwrap();
+        assert_eq!(incompatible.compatibility, QosCompatibility::Incompatible);
+        assert!(!incompatible.reason.is_empty());
+
+        let reliable_publisher = QosProfile::default()
+            .reliable()
+            .liveliness(LivelinessPolicy::Automatic);
+        let best_effort_subscription = QosProfile::default()
+            .best_effort()
+            .liveliness(LivelinessPolicy::Automatic);
+        let compatible =
+            qos_check_compatible(&reliable_publisher, &best_effort_subscription).unwrap();
+        assert_eq!(compatible.compatibility, QosCompatibility::Compatible);
+        assert!(compatible.reason.is_empty());
+
+        let uncertain = QosProfile::system_default()
+            .compatibility_with(&QosProfile::system_default())
+            .unwrap();
+        assert_eq!(uncertain.compatibility, QosCompatibility::Warning);
+        assert!(!uncertain.reason.is_empty());
     }
 }
