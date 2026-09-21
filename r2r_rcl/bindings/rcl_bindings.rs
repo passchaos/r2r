@@ -7379,6 +7379,20 @@ extern "C" {
     ) -> rcl_ret_t;
 }
 extern "C" {
+    pub fn rcl_count_clients(
+        node: *const rcl_node_t,
+        service_name: *const ::std::os::raw::c_char,
+        count: *mut usize,
+    ) -> rcl_ret_t;
+}
+extern "C" {
+    pub fn rcl_count_services(
+        node: *const rcl_node_t,
+        service_name: *const ::std::os::raw::c_char,
+        count: *mut usize,
+    ) -> rcl_ret_t;
+}
+extern "C" {
     pub fn rcl_wait_for_publishers(
         node: *const rcl_node_t,
         allocator: *mut rcl_allocator_t,

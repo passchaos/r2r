@@ -1727,6 +1727,57 @@ impl Node {
             .collect())
     }
 
+    /// Returns the number of publishers advertised on `topic_name`.
+    pub fn count_publishers(&self, topic_name: &str) -> Result<usize> {
+        self.count_graph_entities(topic_name, |node, name, count| unsafe {
+            rcl_count_publishers(node, name, count)
+        })
+    }
+
+    /// Returns the number of subscriptions created for `topic_name`.
+    pub fn count_subscribers(&self, topic_name: &str) -> Result<usize> {
+        self.count_graph_entities(topic_name, |node, name, count| unsafe {
+            rcl_count_subscribers(node, name, count)
+        })
+    }
+
+    /// Returns the number of clients created for `service_name`.
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble,
+        r2r__ros__distro__iron
+    )))]
+    pub fn count_clients(&self, service_name: &str) -> Result<usize> {
+        self.count_graph_entities(service_name, |node, name, count| unsafe {
+            rcl_count_clients(node, name, count)
+        })
+    }
+
+    /// Returns the number of servers created for `service_name`.
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble,
+        r2r__ros__distro__iron
+    )))]
+    pub fn count_services(&self, service_name: &str) -> Result<usize> {
+        self.count_graph_entities(service_name, |node, name, count| unsafe {
+            rcl_count_services(node, name, count)
+        })
+    }
+
+    fn count_graph_entities(
+        &self, name: &str,
+        query: impl FnOnce(*const rcl_node_t, *const std::os::raw::c_char, *mut usize) -> rcl_ret_t,
+    ) -> Result<usize> {
+        let name = CString::new(name).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
+        let mut count = 0;
+        let ret = query(self.node_handle.as_ref(), name.as_ptr(), &mut count);
+        check_rcl_ret(ret)?;
+        Ok(count)
+    }
+
     /// Returns publisher topic names and types associated with a remote node.
     pub fn get_publisher_names_and_types_by_node(
         &self, node_name: &str, node_namespace: &str, no_demangle: bool,
@@ -2610,6 +2661,60 @@ mod tests {
             services.get(&service_name),
             Some(&vec!["example_interfaces/srv/AddTwoInts".to_owned()])
         );
+    }
+
+    #[test]
+    fn counts_topic_and_service_graph_entities() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "graph_count_test", "").unwrap();
+        let topic = format!("/graph_count_topic_{}", uuid::Uuid::new_v4().simple());
+        let service = format!("/graph_count_service_{}", uuid::Uuid::new_v4().simple());
+
+        assert_eq!(node.count_publishers(&topic).unwrap(), 0);
+        assert_eq!(node.count_subscribers(&topic).unwrap(), 0);
+        #[cfg(not(any(
+            r2r__ros__distro__foxy,
+            r2r__ros__distro__galactic,
+            r2r__ros__distro__humble,
+            r2r__ros__distro__iron
+        )))]
+        {
+            assert_eq!(node.count_clients(&service).unwrap(), 0);
+            assert_eq!(node.count_services(&service).unwrap(), 0);
+        }
+
+        let _publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(&topic, QosProfile::default())
+            .unwrap();
+        let _subscription = node
+            .subscribe::<crate::std_msgs::msg::String>(&topic, QosProfile::default())
+            .unwrap();
+        let _client = node
+            .create_client::<AddTwoInts::Service>(&service, QosProfile::default())
+            .unwrap();
+        let _requests = node
+            .create_service::<AddTwoInts::Service>(&service, QosProfile::default())
+            .unwrap();
+
+        assert!(node.count_publishers(&topic).unwrap() >= 1);
+        assert!(node.count_subscribers(&topic).unwrap() >= 1);
+        #[cfg(not(any(
+            r2r__ros__distro__foxy,
+            r2r__ros__distro__galactic,
+            r2r__ros__distro__humble,
+            r2r__ros__distro__iron
+        )))]
+        {
+            assert!(node.count_clients(&service).unwrap() >= 1);
+            assert!(node.count_services(&service).unwrap() >= 1);
+        }
+
+        assert!(matches!(
+            node.count_publishers("bad\0topic"),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
     }
 
     #[test]
