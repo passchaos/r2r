@@ -1,9 +1,9 @@
 use futures::{channel::oneshot, Future, TryFutureExt};
 use std::{
-    ffi::{c_void, CString},
+    ffi::CString,
     fmt::Debug,
     marker::PhantomData,
-    sync::{Mutex, Once, Weak},
+    sync::{Mutex, Weak},
 };
 
 use crate::{error::*, msg_types::*, qos::QosProfile};
@@ -297,53 +297,14 @@ where
     where
         T: WrappedTypesupport,
     {
-        // upgrade to actual ref. if still alive
-        let publisher = self
-            .handle
+        self.handle
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
 
-        if unsafe { rcl_publisher_can_loan_messages(&publisher.handle as *const rcl_publisher_t) } {
-            let mut loaned_msg: *mut c_void = std::ptr::null_mut();
-            let ret = unsafe {
-                rcl_borrow_loaned_message(
-                    &publisher.handle as *const rcl_publisher_t,
-                    T::get_ts(),
-                    &mut loaned_msg,
-                )
-            };
-            if ret != RCL_RET_OK as i32 {
-                log::error!("Failed getting loaned message");
-                return Err(Error::from_rcl_error(ret));
-            }
-
-            let msg = WrappedNativeMsg::<T>::from_loaned(
-                loaned_msg as *mut T::CStruct,
-                Box::new(move |msg: *mut T::CStruct| {
-                    // Keep the publisher alive until the middleware loan is returned.
-                    let ret = unsafe {
-                        rcl_return_loaned_message_from_publisher(
-                            &publisher.handle,
-                            msg as *mut c_void,
-                        )
-                    };
-
-                    if ret != RCL_RET_OK as i32 {
-                        panic!("rcl_deallocate_loaned_message failed");
-                    }
-                }),
-            );
-            Ok(msg)
-        } else {
-            static LOG_LOANED_ERROR: Once = Once::new();
-            LOG_LOANED_ERROR.call_once(|| {
-                log::error!(
-                    "Currently used middleware can't loan messages. Local allocator will be used."
-                );
-            });
-
-            Ok(WrappedNativeMsg::<T>::new())
-        }
+        // A middleware loan must be returned before its publisher and node are finalized.
+        // The current public return type carries no lifetime tied to either owner, so use
+        // message-owned storage until a lifetime-bound loan type can enforce that contract.
+        Ok(WrappedNativeMsg::<T>::new())
     }
 
     /// Publish a "native" ROS message.
