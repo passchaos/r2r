@@ -1351,7 +1351,7 @@ impl Node {
             subscriber.poll_has_publishers();
         }
 
-        let timeout = duration_to_rcl_nanos(timeout)?;
+        let timeout_nanos = duration_to_rcl_nanos(timeout)?;
 
         // #[doc = "* This function is thread-safe for unique wait sets with unique contents."]
         // #[doc = "* This function cannot operate on the same wait set in multiple threads, and"]
@@ -1366,6 +1366,13 @@ impl Node {
             clients: self.clients.len() + self.action_wait_set_capacities.clients,
             services: self.services.len() + self.action_wait_set_capacities.services,
         };
+        if capacities == WaitSetCapacities::default() {
+            // RCL rejects an empty wait set instead of treating it as an idle wait. Honor the
+            // documented spin timeout and avoid a busy loop for nodes that only publish or have
+            // not created any waitables yet.
+            std::thread::sleep(timeout);
+            return Ok(());
+        }
         {
             let mut ctx = self.context.context_handle.lock();
             self.wait_set.prepare(capacities, ctx.as_mut())?;
@@ -1417,7 +1424,7 @@ impl Node {
             })?;
         }
 
-        let ret = unsafe { rcl_wait(ws, timeout) };
+        let ret = unsafe { rcl_wait(ws, timeout_nanos) };
 
         if ret == RCL_RET_TIMEOUT as i32 {
             return Ok(());
@@ -2297,6 +2304,18 @@ mod tests {
     fn converts_rcl_durations_without_wrapping() {
         assert_eq!(duration_to_rcl_nanos(Duration::from_nanos(i64::MAX as u64)).unwrap(), i64::MAX);
         assert!(duration_to_rcl_nanos(Duration::from_nanos(i64::MAX as u64 + 1)).is_err());
+    }
+
+    #[test]
+    fn empty_node_spin_honors_timeout_without_an_rcl_error() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "empty_spin_test", "").unwrap();
+        let timeout = Duration::from_millis(5);
+        let started = std::time::Instant::now();
+
+        node.try_spin_once(timeout).unwrap();
+
+        assert!(started.elapsed() >= timeout);
     }
 
     #[test]
