@@ -210,7 +210,7 @@ impl Subscriber_ for RawSubscriber {
             return false;
         }
 
-        let data_bytes = if self.msg_buf.buffer == std::ptr::null_mut() {
+        let data_bytes = if self.msg_buf.buffer.is_null() {
             Vec::new()
         } else {
             unsafe {

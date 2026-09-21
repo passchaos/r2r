@@ -121,7 +121,7 @@ impl ParameterValue {
             ParameterValue::String(string)
         } else if !v.byte_array_value.is_null() {
             let vals = unsafe {
-                if (*v.byte_array_value).values == std::ptr::null_mut() {
+                if (*v.byte_array_value).values.is_null() {
                     &[]
                 } else {
                     std::slice::from_raw_parts(
@@ -133,7 +133,7 @@ impl ParameterValue {
             ParameterValue::ByteArray(vals.to_vec())
         } else if !v.bool_array_value.is_null() {
             let vals = unsafe {
-                if (*v.bool_array_value).values == std::ptr::null_mut() {
+                if (*v.bool_array_value).values.is_null() {
                     &[]
                 } else {
                     std::slice::from_raw_parts(
@@ -145,7 +145,7 @@ impl ParameterValue {
             ParameterValue::BoolArray(vals.to_vec())
         } else if !v.integer_array_value.is_null() {
             let vals = unsafe {
-                if (*v.integer_array_value).values == std::ptr::null_mut() {
+                if (*v.integer_array_value).values.is_null() {
                     &[]
                 } else {
                     std::slice::from_raw_parts(
@@ -157,7 +157,7 @@ impl ParameterValue {
             ParameterValue::IntegerArray(vals.to_vec())
         } else if !v.double_array_value.is_null() {
             let vals = unsafe {
-                if (*v.double_array_value).values == std::ptr::null_mut() {
+                if (*v.double_array_value).values.is_null() {
                     &[]
                 } else {
                     std::slice::from_raw_parts(
@@ -169,7 +169,7 @@ impl ParameterValue {
             ParameterValue::DoubleArray(vals.to_vec())
         } else if !v.string_array_value.is_null() {
             let vals = unsafe {
-                if (*v.string_array_value).data == std::ptr::null_mut() {
+                if (*v.string_array_value).data.is_null() {
                     &[]
                 } else {
                     std::slice::from_raw_parts(

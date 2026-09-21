@@ -117,8 +117,7 @@ impl Node {
         }
 
         unsafe {
-            if (*(*params.as_ref())).node_names == std::ptr::null_mut()
-                || (*(*params.as_ref())).params == std::ptr::null_mut()
+            if (*(*params.as_ref())).node_names.is_null() || (*(*params.as_ref())).params.is_null()
             {
                 rcl_yaml_node_struct_fini(*params);
                 return Ok(());
@@ -159,9 +158,7 @@ impl Node {
 
             // make key value pairs.
             let mut params = self.params.lock().unwrap();
-            if np.parameter_names != std::ptr::null_mut()
-                && np.parameter_values != std::ptr::null_mut()
-            {
+            if !np.parameter_names.is_null() && !np.parameter_values.is_null() {
                 let param_names =
                     unsafe { std::slice::from_raw_parts(np.parameter_names, np.num_params) };
 
@@ -1201,7 +1198,7 @@ impl Node {
         }
 
         let mut subs_to_remove = vec![];
-        if ws.subscriptions != std::ptr::null_mut() {
+        if !ws.subscriptions.is_null() {
             let ws_subs =
                 unsafe { std::slice::from_raw_parts(ws.subscriptions, self.subscribers.len()) };
             for (s, ws_s) in self.subscribers.iter_mut().zip(ws_subs) {
@@ -1219,7 +1216,7 @@ impl Node {
             .retain(|s| !subs_to_remove.contains(&(s.handle() as *const rcl_subscription_t)));
 
         let mut timers_to_remove = vec![];
-        if ws.timers != std::ptr::null_mut() {
+        if !ws.timers.is_null() {
             let ws_timers = unsafe { std::slice::from_raw_parts(ws.timers, self.timers.len()) };
             for (s, ws_s) in self.timers.iter_mut().zip(ws_timers) {
                 if ws_s != &std::ptr::null() {
@@ -1235,7 +1232,7 @@ impl Node {
         self.timers
             .retain(|t| !timers_to_remove.contains(&t.get_handle()));
 
-        if ws.clients != std::ptr::null_mut() {
+        if !ws.clients.is_null() {
             let ws_clients = unsafe { std::slice::from_raw_parts(ws.clients, self.clients.len()) };
             for (s, ws_s) in self.clients.iter_mut().zip(ws_clients) {
                 if ws_s != &std::ptr::null() {
@@ -1246,7 +1243,7 @@ impl Node {
         }
 
         let mut services_to_remove = vec![];
-        if ws.services != std::ptr::null_mut() {
+        if !ws.services.is_null() {
             let ws_services =
                 unsafe { std::slice::from_raw_parts(ws.services, self.services.len()) };
             for (s, ws_s) in self.services.iter_mut().zip(ws_services) {
@@ -1378,7 +1375,7 @@ impl Node {
         }
 
         let mut res = HashMap::new();
-        if tnat.names.data != std::ptr::null_mut() && tnat.types != std::ptr::null_mut() {
+        if !tnat.names.data.is_null() && !tnat.types.is_null() {
             let names = unsafe { std::slice::from_raw_parts(tnat.names.data, tnat.names.size) };
             let types = unsafe { std::slice::from_raw_parts(tnat.types, tnat.names.size) };
 
@@ -1391,7 +1388,7 @@ impl Node {
                     topic_types
                         .iter()
                         .map(|t| {
-                            assert!(*(t.data) != std::ptr::null_mut());
+                            assert!(!(*(t.data)).is_null());
                             CStr::from_ptr(*(t.data)).to_str().unwrap().to_owned()
                         })
                         .collect()
@@ -1851,7 +1848,7 @@ fn convert_info_array_to_vec(
 ) -> Vec<TopicEndpointInfo> {
     let mut topic_info_list = Vec::with_capacity(info_array.size);
 
-    if info_array.info_array != std::ptr::null_mut() {
+    if !info_array.info_array.is_null() {
         unsafe {
             let infos = std::slice::from_raw_parts(info_array.info_array, info_array.size);
             for &info in infos {
