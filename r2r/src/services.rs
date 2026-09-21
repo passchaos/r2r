@@ -80,6 +80,10 @@ where
     }
 
     fn handle_request(&mut self, service: Arc<Mutex<dyn Service_>>) -> bool {
+        if self.sender.is_closed() {
+            return true;
+        }
+
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut request_msg = WrappedNativeMsg::<T::Request>::new();
 

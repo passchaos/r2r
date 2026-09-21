@@ -408,7 +408,8 @@ where
         if let Err(e) = self.goal_request_sender.unbounded_send(gr) {
             let mut request = e.into_inner();
             self.cancel_senders.remove(&request.uuid);
-            let response = T::make_goal_response_msg(false, builtin_interfaces::msg::Time::default());
+            let response =
+                T::make_goal_response_msg(false, builtin_interfaces::msg::Time::default());
             let mut response = WrappedNativeMsg::<
                 <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
             >::from(&response);
