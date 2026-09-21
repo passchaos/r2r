@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
-use syn::{parse_macro_input, spanned::Spanned, Data, DeriveInput, Fields};
+use syn::{parse_macro_input, spanned::Spanned, Data, DeriveInput, Fields, FieldsNamed};
 
 extern crate proc_macro;
 
@@ -10,16 +10,37 @@ extern crate proc_macro;
 pub fn derive_r2r_params(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     // Parse the input tokens into a syntax tree.
     let input = parse_macro_input!(input as DeriveInput);
+    expand_r2r_params(&input)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+fn expand_r2r_params(input: &DeriveInput) -> syn::Result<TokenStream> {
+    let fields = match &input.data {
+        Data::Struct(data) => match &data.fields {
+            Fields::Named(fields) => fields,
+            _ => {
+                return Err(syn::Error::new_spanned(
+                    input,
+                    "RosParams can only be derived for structs with named fields",
+                ));
+            }
+        },
+        Data::Enum(_) | Data::Union(_) => {
+            return Err(syn::Error::new_spanned(
+                input,
+                "RosParams can only be derived for structs with named fields",
+            ));
+        }
+    };
 
     // Used in the quasi-quotation below as `#name`.
-    let name = input.ident;
+    let name = &input.ident;
 
-    let register_calls = get_register_calls(&input.data);
-    let get_param_matches = param_matches_for(quote!(get_parameter(suffix)), &input.data);
-    let set_param_matches =
-        param_matches_for(quote!(set_parameter(suffix, param_val)), &input.data);
-    let check_param_matches =
-        param_matches_for(quote!(check_parameter(suffix, param_val)), &input.data);
+    let register_calls = get_register_calls(fields)?;
+    let get_param_matches = param_matches_for(quote!(get_parameter(suffix)), fields);
+    let set_param_matches = param_matches_for(quote!(set_parameter(suffix, param_val)), fields);
+    let check_param_matches = param_matches_for(quote!(check_parameter(suffix, param_val)), fields);
 
     let expanded = quote! {
         // The generated impl.
@@ -84,76 +105,89 @@ pub fn derive_r2r_params(input: proc_macro::TokenStream) -> proc_macro::TokenStr
     };
 
     // Hand the output tokens back to the compiler.
-    proc_macro::TokenStream::from(expanded)
+    Ok(expanded)
 }
 
 // Generate calls to register functions of struct fields
-fn get_register_calls(data: &Data) -> TokenStream {
-    match *data {
-        Data::Struct(ref data) => match data.fields {
-            Fields::Named(ref fields) => {
-                let field_matches = fields.named.iter().map(|f| {
-                    let name = &f.ident;
-                    let format_str = format!("{{prefix}}{}", name.as_ref().unwrap());
-                    let desc = get_field_doc(f);
-                    quote_spanned! {
-                        f.span() =>
-                            let param = ::r2r::Parameter {
-                                value: ::r2r::ParameterValue::NotSet, // will be set for leaf params by register_parameters() below
-                                description: #desc,
-                            };
-                            self.#name.register_parameters(&format!(#format_str), Some(param), params)?;
-                    }
-                });
-                quote! {
-                    #(#field_matches)*
-                }
-            }
-            _ => unimplemented!(),
-        },
-        Data::Enum(_) | Data::Union(_) => unimplemented!(),
-    }
+fn get_register_calls(fields: &FieldsNamed) -> syn::Result<TokenStream> {
+    let field_matches = fields
+        .named
+        .iter()
+        .map(|f| {
+            let name = &f.ident;
+            let format_str = format!("{{prefix}}{}", name.as_ref().expect("named field"));
+            let desc = get_field_doc(f)?;
+            Ok(quote_spanned! {
+                f.span() =>
+                    let param = ::r2r::Parameter {
+                        value: ::r2r::ParameterValue::NotSet, // will be set for leaf params by register_parameters() below
+                        description: #desc,
+                    };
+                    self.#name.register_parameters(&format!(#format_str), Some(param), params)?;
+            })
+        })
+        .collect::<syn::Result<Vec<_>>>()?;
+    Ok(quote! {
+        #(#field_matches)*
+    })
 }
 
-fn get_field_doc(f: &syn::Field) -> String {
-    if let Some(doc) = f
-        .attrs
-        .iter()
-        .find(|&attr| attr.path().get_ident().is_some_and(|id| id == "doc"))
-    {
-        match &doc.meta.require_name_value().unwrap().value {
-            ::syn::Expr::Lit(exprlit) => match &exprlit.lit {
-                ::syn::Lit::Str(s) => s.value().trim().to_owned(),
-                _ => unimplemented!(),
-            },
-            _ => unimplemented!(),
-        }
-    } else {
-        "".to_string()
+fn get_field_doc(f: &syn::Field) -> syn::Result<String> {
+    let mut lines = Vec::new();
+    for doc in f.attrs.iter().filter(|attr| attr.path().is_ident("doc")) {
+        let value = &doc.meta.require_name_value()?.value;
+        let ::syn::Expr::Lit(expr_lit) = value else {
+            return Err(syn::Error::new_spanned(value, "expected a string doc comment"));
+        };
+        let ::syn::Lit::Str(value) = &expr_lit.lit else {
+            return Err(syn::Error::new_spanned(value, "expected a string doc comment"));
+        };
+        lines.push(value.value().trim().to_owned());
     }
+    Ok(lines.join("\n"))
 }
 
 // Generate match arms for RosParams::update_parameters()
-fn param_matches_for(call: TokenStream, data: &Data) -> TokenStream {
-    match *data {
-        Data::Struct(ref data) => match data.fields {
-            Fields::Named(ref fields) => {
-                let field_matches = fields.named.iter().map(|f| {
-                    let name = &f.ident;
-                    let name_str = format!("{}", name.as_ref().unwrap());
-                    quote_spanned! {
-                        f.span() =>
-                            #name_str => {
-                                self.#name.#call
-                            }
-                    }
-                });
-                quote! {
-                    #(#field_matches)*
+fn param_matches_for(call: TokenStream, fields: &FieldsNamed) -> TokenStream {
+    let field_matches = fields.named.iter().map(|f| {
+        let name = &f.ident;
+        let name_str = format!("{}", name.as_ref().expect("named field"));
+        quote_spanned! {
+            f.span() =>
+                #name_str => {
+                    self.#name.#call
                 }
+        }
+    });
+    quote! {
+        #(#field_matches)*
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syn::parse_quote;
+
+    #[test]
+    fn tuple_struct_reports_a_compile_error() {
+        let input: DeriveInput = parse_quote!(
+            struct Invalid(i64);
+        );
+        let err = expand_r2r_params(&input).unwrap_err();
+
+        assert_eq!(err.to_string(), "RosParams can only be derived for structs with named fields");
+    }
+
+    #[test]
+    fn enum_reports_a_compile_error() {
+        let input: DeriveInput = parse_quote!(
+            enum Invalid {
+                Value,
             }
-            _ => unimplemented!(),
-        },
-        Data::Enum(_) | Data::Union(_) => unimplemented!(),
+        );
+        let err = expand_r2r_params(&input).unwrap_err();
+
+        assert_eq!(err.to_string(), "RosParams can only be derived for structs with named fields");
     }
 }
