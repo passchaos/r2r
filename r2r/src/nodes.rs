@@ -1514,32 +1514,50 @@ impl Node {
         }
 
         let mut subs_to_remove = vec![];
+        let mut subscriber_error = None;
         if !ws.subscriptions.is_null() {
             let ws_subs =
                 unsafe { std::slice::from_raw_parts(ws.subscriptions, self.subscribers.len()) };
             for (s, ws_s) in self.subscribers.iter_mut().zip(ws_subs) {
                 if ws_s != &std::ptr::null() {
-                    let dropped = s.handle_incoming()?;
-                    if dropped {
-                        let handle = s.handle() as *const rcl_subscription_t;
-                        s.destroy(&mut self.node_handle);
-                        subs_to_remove.push(handle);
+                    match s.handle_incoming() {
+                        Ok(true) => {
+                            subs_to_remove.push(s.handle() as *const rcl_subscription_t);
+                        }
+                        Ok(false) => {}
+                        Err(err) => {
+                            subscriber_error.get_or_insert(err);
+                        }
                     }
                 }
             }
         }
-        self.subscribers
-            .retain(|s| !subs_to_remove.contains(&(s.handle() as *const rcl_subscription_t)));
+        let node_handle = self.node_handle.as_mut();
+        self.subscribers.retain_mut(|subscriber| {
+            if subs_to_remove.contains(&(subscriber.handle() as *const rcl_subscription_t)) {
+                subscriber.destroy(node_handle);
+                false
+            } else {
+                true
+            }
+        });
+        if let Some(err) = subscriber_error {
+            return Err(err);
+        }
 
         let mut timers_to_remove = vec![];
+        let mut timer_error = None;
         if !ws.timers.is_null() {
             let ws_timers = unsafe { std::slice::from_raw_parts(ws.timers, self.timers.len()) };
             for (s, ws_s) in self.timers.iter_mut().zip(ws_timers) {
                 if ws_s != &std::ptr::null() {
                     // TODO: move this to impl Timer
-                    let dropped = s.handle_incoming()?;
-                    if dropped {
-                        timers_to_remove.push(s.get_handle());
+                    match s.handle_incoming() {
+                        Ok(true) => timers_to_remove.push(s.get_handle()),
+                        Ok(false) => {}
+                        Err(err) => {
+                            timer_error.get_or_insert(err);
+                        }
                     }
                 }
             }
@@ -1547,6 +1565,9 @@ impl Node {
         // drop timers scheduled for deletion
         self.timers
             .retain(|t| !timers_to_remove.contains(&t.get_handle()));
+        if let Some(err) = timer_error {
+            return Err(err);
+        }
 
         if !ws.clients.is_null() {
             let ws_clients = unsafe { std::slice::from_raw_parts(ws.clients, self.clients.len()) };
@@ -1559,25 +1580,38 @@ impl Node {
         }
 
         let mut services_to_remove = vec![];
+        let mut service_error = None;
         if !ws.services.is_null() {
             let ws_services =
                 unsafe { std::slice::from_raw_parts(ws.services, self.services.len()) };
             for (s, ws_s) in self.services.iter_mut().zip(ws_services) {
                 if ws_s != &std::ptr::null() {
                     let mut service = s.lock();
-                    let dropped = service.handle_request(s.clone())?;
-                    if dropped {
-                        let handle = service.handle() as *const rcl_service_t;
-                        service.destroy(&mut self.node_handle);
-                        services_to_remove.push(handle);
+                    match service.handle_request(s.clone()) {
+                        Ok(true) => {
+                            services_to_remove.push(service.handle() as *const rcl_service_t);
+                        }
+                        Ok(false) => {}
+                        Err(err) => {
+                            service_error.get_or_insert(err);
+                        }
                     }
                 }
             }
         }
-        self.services.retain(|s| {
-            let service = s.lock();
-            !services_to_remove.contains(&(service.handle() as *const rcl_service_t))
+        let node_handle = self.node_handle.as_mut();
+        self.services.retain(|service| {
+            let mut handle = service.lock();
+            if services_to_remove.contains(&(handle.handle() as *const rcl_service_t)) {
+                handle.destroy(node_handle);
+                false
+            } else {
+                true
+            }
         });
+        if let Some(err) = service_error {
+            return Err(err);
+        }
 
         for ac in &self.action_clients {
             let mut ac = ac.lock();
