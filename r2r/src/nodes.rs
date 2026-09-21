@@ -1066,7 +1066,7 @@ impl Node {
             p.poll_has_inter_process_subscribers();
         }
 
-        let timeout = timeout.as_nanos() as i64;
+        let timeout = duration_to_rcl_nanos(timeout)?;
 
         // #[doc = "* This function is thread-safe for unique wait sets with unique contents."]
         // #[doc = "* This function cannot operate on the same wait set in multiple threads, and"]
@@ -1497,7 +1497,7 @@ impl Node {
                 &mut timer_handle.as_mut().get_unchecked_mut().handle,
                 clock.clock_handle.as_mut(),
                 ctx.as_mut(),
-                period.as_nanos() as i64,
+                duration_to_rcl_nanos(period)?,
                 None,
                 rcutils_get_default_allocator()
             )
@@ -1789,6 +1789,24 @@ fn check_rcl_ret(ret: rcl_ret_t) -> Result<()> {
         Ok(())
     } else {
         Err(Error::from_rcl_error(ret))
+    }
+}
+
+fn duration_to_rcl_nanos(duration: Duration) -> Result<i64> {
+    i64::try_from(duration.as_nanos()).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn converts_rcl_durations_without_wrapping() {
+        assert_eq!(
+            duration_to_rcl_nanos(Duration::from_nanos(i64::MAX as u64)).unwrap(),
+            i64::MAX
+        );
+        assert!(duration_to_rcl_nanos(Duration::from_nanos(i64::MAX as u64 + 1)).is_err());
     }
 }
 
