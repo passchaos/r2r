@@ -1,14 +1,54 @@
-use futures::{channel::mpsc, task::noop_waker_ref};
+use futures::{channel::mpsc, task::noop_waker_ref, Stream};
 use parking_lot::Mutex;
 use std::{
     ffi::CString,
     mem::MaybeUninit,
+    pin::Pin,
     sync::{Arc, Weak},
     task::{Context, Poll},
 };
 
-use crate::{error::*, msg_types::*, QosProfile};
+use crate::{error::*, msg_types::*, Node, QosProfile};
 use r2r_rcl::*;
+
+/// A ROS service request stream with endpoint QoS inspection helpers.
+pub struct Service<T>
+where
+    T: WrappedServiceTypeSupport,
+{
+    receiver: mpsc::Receiver<ServiceRequest<T>>,
+    id: uuid::Uuid,
+}
+
+impl<T> Service<T>
+where
+    T: WrappedServiceTypeSupport,
+{
+    pub(crate) fn new(receiver: mpsc::Receiver<ServiceRequest<T>>, id: uuid::Uuid) -> Self {
+        Self { receiver, id }
+    }
+
+    /// Returns the actual QoS used by this service's request subscription.
+    pub fn get_request_subscription_actual_qos(&self, node: &Node) -> Result<QosProfile> {
+        node.get_service_request_subscription_actual_qos(self.id)
+    }
+
+    /// Returns the actual QoS used by this service's response publisher.
+    pub fn get_response_publisher_actual_qos(&self, node: &Node) -> Result<QosProfile> {
+        node.get_service_response_publisher_actual_qos(self.id)
+    }
+}
+
+impl<T> Stream for Service<T>
+where
+    T: WrappedServiceTypeSupport,
+{
+    type Item = ServiceRequest<T>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.receiver).poll_next(cx)
+    }
+}
 
 /// Encapsulates a service request.
 ///
@@ -47,6 +87,19 @@ where
 
 pub trait Service_ {
     fn handle(&self) -> &rcl_service_t;
+    fn id(&self) -> Option<uuid::Uuid> {
+        None
+    }
+    fn request_subscription_actual_qos(&self) -> Result<QosProfile> {
+        let qos = unsafe { rcl_service_request_subscription_get_actual_qos(self.handle()) };
+        let qos = unsafe { qos.as_ref() }.ok_or(Error::RCL_RET_SERVICE_INVALID)?;
+        QosProfile::try_from(qos)
+    }
+    fn response_publisher_actual_qos(&self) -> Result<QosProfile> {
+        let qos = unsafe { rcl_service_response_publisher_get_actual_qos(self.handle()) };
+        let qos = unsafe { qos.as_ref() }.ok_or(Error::RCL_RET_SERVICE_INVALID)?;
+        QosProfile::try_from(qos)
+    }
     fn send_response(&mut self, request_id: rmw_request_id_t, msg: Box<dyn VoidPtr>) -> Result<()>;
     /// Returns true when the service should be destroyed before entering the next wait.
     fn should_remove(&self) -> bool {
@@ -63,6 +116,7 @@ where
 {
     pub rcl_handle: rcl_service_t,
     pub sender: mpsc::Sender<ServiceRequest<T>>,
+    pub(crate) id: uuid::Uuid,
 }
 
 impl<T: 'static> Service_ for TypedService<T>
@@ -71,6 +125,10 @@ where
 {
     fn handle(&self) -> &rcl_service_t {
         &self.rcl_handle
+    }
+
+    fn id(&self) -> Option<uuid::Uuid> {
+        Some(self.id)
     }
 
     fn send_response(

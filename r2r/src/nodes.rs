@@ -958,7 +958,7 @@ impl Node {
     /// `respond` on the Service Request to send the reply.
     pub fn create_service<T>(
         &mut self, service_name: &str, qos_profile: QosProfile,
-    ) -> Result<impl Stream<Item = ServiceRequest<T>> + Unpin>
+    ) -> Result<Service<T>>
     where
         T: 'static + WrappedServiceTypeSupport,
     {
@@ -969,14 +969,40 @@ impl Node {
             qos_profile,
         )?;
         let (sender, receiver) = mpsc::channel::<ServiceRequest<T>>(10);
+        let id = uuid::Uuid::new_v4();
 
         let ws = TypedService::<T> {
             rcl_handle: service_handle,
             sender,
+            id,
         };
 
         self.services.push(Arc::new(Mutex::new(ws)));
-        Ok(receiver)
+        Ok(Service::new(receiver, id))
+    }
+
+    pub(crate) fn get_service_request_subscription_actual_qos(
+        &self, id: uuid::Uuid,
+    ) -> Result<QosProfile> {
+        let service = self
+            .services
+            .iter()
+            .find(|service| service.lock().id() == Some(id))
+            .ok_or(Error::RCL_RET_SERVICE_INVALID)?
+            .lock();
+        service.request_subscription_actual_qos()
+    }
+
+    pub(crate) fn get_service_response_publisher_actual_qos(
+        &self, id: uuid::Uuid,
+    ) -> Result<QosProfile> {
+        let service = self
+            .services
+            .iter()
+            .find(|service| service.lock().id() == Some(id))
+            .ok_or(Error::RCL_RET_SERVICE_INVALID)?
+            .lock();
+        service.response_publisher_actual_qos()
     }
 
     /// Create a ROS service client.
@@ -2822,6 +2848,39 @@ mod tests {
                 .depth,
             7
         );
+    }
+
+    #[test]
+    fn reports_actual_service_qos() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "actual_service_qos_test", "").unwrap();
+        let service = node
+            .create_service::<AddTwoInts::Service>(
+                "/actual_service_qos",
+                QosProfile::default().keep_last(7),
+            )
+            .unwrap();
+
+        assert_eq!(
+            service
+                .get_request_subscription_actual_qos(&node)
+                .unwrap()
+                .depth,
+            7
+        );
+        assert_eq!(
+            service
+                .get_response_publisher_actual_qos(&node)
+                .unwrap()
+                .depth,
+            7
+        );
+
+        drop(service);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.services.is_empty());
     }
 
     #[test]
