@@ -5,6 +5,57 @@ use crate::msg_types::generated_msgs::rcl_interfaces;
 use indexmap::IndexMap;
 use r2r_rcl::*;
 
+/// The kind of change represented by a ROS parameter event.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ParameterEventKind {
+    New,
+    Changed,
+    Deleted,
+}
+
+/// A single parameter change flattened from `rcl_interfaces/msg/ParameterEvent`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParameterEventChange {
+    pub stamp: crate::builtin_interfaces::msg::Time,
+    pub node: String,
+    pub kind: ParameterEventKind,
+    pub name: String,
+    pub value: ParameterValue,
+}
+
+pub(crate) fn flatten_parameter_event(
+    event: rcl_interfaces::msg::ParameterEvent, node: Option<&str>, parameter: Option<&str>,
+) -> Vec<ParameterEventChange> {
+    if node.is_some_and(|expected| event.node != expected) {
+        return Vec::new();
+    }
+    let stamp = event.stamp;
+    let node = event.node;
+    [
+        (ParameterEventKind::New, event.new_parameters),
+        (ParameterEventKind::Changed, event.changed_parameters),
+        (ParameterEventKind::Deleted, event.deleted_parameters),
+    ]
+    .into_iter()
+    .flat_map(|(kind, parameters)| {
+        let stamp = stamp.clone();
+        let node = node.clone();
+        parameters.into_iter().filter_map(move |parameter_msg| {
+            if parameter.is_some_and(|expected| parameter_msg.name != expected) {
+                return None;
+            }
+            Some(ParameterEventChange {
+                stamp: stamp.clone(),
+                node: node.clone(),
+                kind,
+                name: parameter_msg.name,
+                value: ParameterValue::from_parameter_value_msg(parameter_msg.value),
+            })
+        })
+    })
+    .collect()
+}
+
 /// ROS parameter value.
 #[derive(Debug, PartialEq, Clone)]
 pub enum ParameterValue {

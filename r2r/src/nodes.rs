@@ -804,6 +804,22 @@ impl Node {
         Ok(receiver)
     }
 
+    /// Subscribe to standard ROS parameter events, optionally filtering by node and parameter.
+    ///
+    /// Each parameter in a ROS event is emitted as an individual [`ParameterEventChange`].
+    pub fn subscribe_parameter_events(
+        &mut self, node: Option<String>, parameter: Option<String>,
+    ) -> Result<impl Stream<Item = ParameterEventChange> + Unpin> {
+        let events = self.subscribe::<rcl_interfaces::msg::ParameterEvent>(
+            "/parameter_events",
+            QosProfile::parameter_events(),
+        )?;
+        Ok(events
+            .map(move |event| flatten_parameter_event(event, node.as_deref(), parameter.as_deref()))
+            .map(futures::stream::iter)
+            .flatten())
+    }
+
     /// Subscribe to a ROS topic.
     ///
     /// This function returns a `Stream` of ros messages without the rust convenience types.
@@ -2474,7 +2490,10 @@ mod tests {
         let context = Context::create().unwrap();
         let mut node = Node::create(context, "parameter_event_test", "").unwrap();
         let mut events = node
-            .subscribe::<msg::ParameterEvent>("/parameter_events", QosProfile::parameter_events())
+            .subscribe_parameter_events(
+                Some("/parameter_event_test".into()),
+                Some("dynamic_value".into()),
+            )
             .unwrap();
         let (handler, _local_events) = node.make_parameter_handler().unwrap();
         let client = node
@@ -2523,27 +2542,20 @@ mod tests {
             let event = loop {
                 node.try_spin_once(Duration::from_millis(10)).unwrap();
                 if let Some(event) = events.next().now_or_never().flatten() {
-                    let belongs_to_test = event.node == "/parameter_event_test"
-                        && event
-                            .new_parameters
-                            .iter()
-                            .chain(&event.changed_parameters)
-                            .chain(&event.deleted_parameters)
-                            .any(|parameter| parameter.name == "dynamic_value");
-                    if belongs_to_test {
-                        break event;
-                    }
+                    break event;
                 }
             };
             assert_eq!(event.node, "/parameter_event_test");
             assert!(event.stamp.sec > 0 || event.stamp.nanosec > 0);
-            let recorded = match index {
-                0 => &event.new_parameters,
-                1 => &event.changed_parameters,
-                _ => &event.deleted_parameters,
-            };
-            assert_eq!(recorded.len(), 1);
-            assert_eq!(recorded[0].name, "dynamic_value");
+            assert_eq!(event.name, "dynamic_value");
+            assert_eq!(
+                event.kind,
+                match index {
+                    0 => ParameterEventKind::New,
+                    1 => ParameterEventKind::Changed,
+                    _ => ParameterEventKind::Deleted,
+                }
+            );
         }
     }
 

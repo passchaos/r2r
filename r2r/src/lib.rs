@@ -116,7 +116,10 @@ mod context;
 pub use context::Context;
 
 mod parameters;
-pub use parameters::{Parameter, ParameterValue, RosParams, WrongParameterType};
+pub use parameters::{
+    Parameter, ParameterEventChange, ParameterEventKind, ParameterValue, RosParams,
+    WrongParameterType,
+};
 
 pub use r2r_macros::RosParams;
 
