@@ -71,8 +71,16 @@ thread_local! {
     };
 }
 
-pub trait WrappedTypesupport:
-    Serialize + for<'de> Deserialize<'de> + Default + Debug + Clone
+/// Connects a Rust message type to its generated ROS C representation.
+///
+/// # Safety
+///
+/// Implementations must return the matching, process-lifetime type support, create and
+/// destroy compatible native allocations, and only access valid `CStruct` values. Native
+/// allocations owned by [`WrappedNativeMsg`] must also be safe to move to another thread,
+/// and all static operations must be safe to call concurrently.
+pub unsafe trait WrappedTypesupport:
+    Serialize + for<'de> Deserialize<'de> + Default + Debug + Clone + Send + Sync
 {
     type CStruct;
 
@@ -161,14 +169,25 @@ pub trait WrappedTypesupport:
     }
 }
 
-pub trait WrappedServiceTypeSupport: Debug + Clone {
+/// Connects a Rust service marker to its generated ROS C type support.
+///
+/// # Safety
+///
+/// `get_ts` must return the process-lifetime type support matching `Request` and `Response`.
+pub unsafe trait WrappedServiceTypeSupport: Debug + Clone + Send + Sync {
     type Request: WrappedTypesupport;
     type Response: WrappedTypesupport;
 
     fn get_ts() -> &'static rosidl_service_type_support_t;
 }
 
-pub trait WrappedActionTypeSupport: Debug + Clone {
+/// Connects a Rust action marker to its generated ROS C type support.
+///
+/// # Safety
+///
+/// `get_ts` and every associated service/message type must describe the same action, and
+/// the construction/destructuring methods must preserve their generated wire layouts.
+pub unsafe trait WrappedActionTypeSupport: Debug + Clone + Send + Sync {
     type Goal: WrappedTypesupport;
     type Result: WrappedTypesupport;
     type Feedback: WrappedTypesupport;
@@ -221,7 +240,7 @@ where
 {
     pub(crate) msg: *mut T::CStruct,
     pub(crate) is_loaned: bool,
-    deallocator: Option<Box<dyn FnOnce(*mut T::CStruct)>>,
+    deallocator: Option<Box<dyn FnOnce(*mut T::CStruct) + Send>>,
 }
 
 pub trait VoidPtr {
@@ -267,32 +286,39 @@ impl UntypedServiceSupport {
 }
 
 // For now only the client side is implemented.
+// SAFETY: generated type support has process lifetime and the erased operations below are
+// explicitly thread-safe. The native RCL type support metadata is immutable after generation.
 unsafe impl Send for UntypedActionSupport {}
 pub struct UntypedActionSupport {
     pub(crate) ts: &'static rosidl_action_type_support_t,
 
     pub(crate) make_goal_request_msg: Box<
         dyn Fn(
-            unique_identifier_msgs::msg::UUID,
-            serde_json::Value,
-        ) -> Result<WrappedNativeMsgUntyped>,
+                unique_identifier_msgs::msg::UUID,
+                serde_json::Value,
+            ) -> Result<WrappedNativeMsgUntyped>
+            + Send
+            + Sync,
     >,
-    pub(crate) make_goal_response_msg: Box<dyn Fn() -> WrappedNativeMsgUntyped>,
+    pub(crate) make_goal_response_msg: Box<dyn Fn() -> WrappedNativeMsgUntyped + Send + Sync>,
     pub(crate) destructure_goal_response_msg:
-        Box<dyn Fn(WrappedNativeMsgUntyped) -> (bool, builtin_interfaces::msg::Time)>,
+        Box<dyn Fn(WrappedNativeMsgUntyped) -> (bool, builtin_interfaces::msg::Time) + Send + Sync>,
 
     pub(crate) make_feedback_msg: fn() -> WrappedNativeMsgUntyped,
     pub(crate) destructure_feedback_msg: Box<
         dyn Fn(
-            WrappedNativeMsgUntyped,
-        ) -> (unique_identifier_msgs::msg::UUID, Result<serde_json::Value>),
+                WrappedNativeMsgUntyped,
+            ) -> (unique_identifier_msgs::msg::UUID, Result<serde_json::Value>)
+            + Send
+            + Sync,
     >,
 
-    pub(crate) make_result_request_msg:
-        Box<dyn Fn(unique_identifier_msgs::msg::UUID) -> Result<WrappedNativeMsgUntyped>>,
-    pub(crate) make_result_response_msg: Box<dyn Fn() -> WrappedNativeMsgUntyped>,
+    pub(crate) make_result_request_msg: Box<
+        dyn Fn(unique_identifier_msgs::msg::UUID) -> Result<WrappedNativeMsgUntyped> + Send + Sync,
+    >,
+    pub(crate) make_result_response_msg: Box<dyn Fn() -> WrappedNativeMsgUntyped + Send + Sync>,
     pub(crate) destructure_result_response_msg:
-        Box<dyn Fn(WrappedNativeMsgUntyped) -> (i8, Result<serde_json::Value>)>,
+        Box<dyn Fn(WrappedNativeMsgUntyped) -> (i8, Result<serde_json::Value>) + Send + Sync>,
 }
 
 impl UntypedActionSupport {
@@ -519,7 +545,8 @@ where
     /// `deallocator` is invoked or ownership is released. The deallocator must accept
     /// exactly this allocation and may be called at most once.
     pub unsafe fn from_loaned(
-        msg: *mut T::CStruct, deallocator: Box<dyn FnOnce(*mut <T as WrappedTypesupport>::CStruct)>,
+        msg: *mut T::CStruct,
+        deallocator: Box<dyn FnOnce(*mut <T as WrappedTypesupport>::CStruct) + Send>,
     ) -> Self {
         assert!(!msg.is_null(), "cannot wrap a null loaned ROS message");
         WrappedNativeMsg {
@@ -533,6 +560,10 @@ where
         self.deallocator.take();
     }
 }
+
+// SAFETY: the trait contract requires owned native allocations to be transferable between
+// threads, and the stored deallocator is itself `Send`. The wrapper maintains unique ownership.
+unsafe impl<T> Send for WrappedNativeMsg<T> where T: WrappedTypesupport {}
 
 impl<T> Default for WrappedNativeMsg<T>
 where

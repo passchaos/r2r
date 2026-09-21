@@ -165,7 +165,7 @@ pub fn generate_rust_service(
     quote!(
         #[derive(Clone,Debug,PartialEq,Serialize,Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
 
@@ -192,7 +192,7 @@ pub fn generate_rust_action(module_: &str, prefix_: &str, name_: &str) -> proc_m
     quote! {
         #[derive(Clone,Debug,PartialEq,Serialize,Deserialize)]
         pub struct Action();
-        impl WrappedActionTypeSupport for Action {
+        unsafe impl WrappedActionTypeSupport for Action {
             type Goal = Goal;
             type Result = Result;
             type Feedback = Feedback;
@@ -654,7 +654,7 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
         let destroy_func = format_ident!("{c_struct}__destroy");
 
         quote! {
-            impl WrappedTypesupport for #name {
+            unsafe impl WrappedTypesupport for #name {
                 type CStruct = #c_struct;
 
                 fn get_ts() -> &'static rosidl_message_type_support_t {

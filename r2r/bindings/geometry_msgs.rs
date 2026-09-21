@@ -6,7 +6,7 @@ pub mod msg {
         pub linear: geometry_msgs::msg::Vector3,
         pub angular: geometry_msgs::msg::Vector3,
     }
-    impl WrappedTypesupport for Accel {
+    unsafe impl WrappedTypesupport for Accel {
         type CStruct = geometry_msgs__msg__Accel;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -46,7 +46,7 @@ pub mod msg {
         pub header: std_msgs::msg::Header,
         pub accel: geometry_msgs::msg::Accel,
     }
-    impl WrappedTypesupport for AccelStamped {
+    unsafe impl WrappedTypesupport for AccelStamped {
         type CStruct = geometry_msgs__msg__AccelStamped;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -86,7 +86,7 @@ pub mod msg {
         pub accel: geometry_msgs::msg::Accel,
         pub covariance: Vec<f64>,
     }
-    impl WrappedTypesupport for AccelWithCovariance {
+    unsafe impl WrappedTypesupport for AccelWithCovariance {
         type CStruct = geometry_msgs__msg__AccelWithCovariance;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -132,7 +132,7 @@ pub mod msg {
         pub header: std_msgs::msg::Header,
         pub accel: geometry_msgs::msg::AccelWithCovariance,
     }
-    impl WrappedTypesupport for AccelWithCovarianceStamped {
+    unsafe impl WrappedTypesupport for AccelWithCovarianceStamped {
         type CStruct = geometry_msgs__msg__AccelWithCovarianceStamped;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -183,7 +183,7 @@ pub mod msg {
         pub iyz: f64,
         pub izz: f64,
     }
-    impl WrappedTypesupport for Inertia {
+    unsafe impl WrappedTypesupport for Inertia {
         type CStruct = geometry_msgs__msg__Inertia;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -235,7 +235,7 @@ pub mod msg {
         pub header: std_msgs::msg::Header,
         pub inertia: geometry_msgs::msg::Inertia,
     }
-    impl WrappedTypesupport for InertiaStamped {
+    unsafe impl WrappedTypesupport for InertiaStamped {
         type CStruct = geometry_msgs__msg__InertiaStamped;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -276,7 +276,7 @@ pub mod msg {
         pub y: f64,
         pub z: f64,
     }
-    impl WrappedTypesupport for Point {
+    unsafe impl WrappedTypesupport for Point {
         type CStruct = geometry_msgs__msg__Point;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -319,7 +319,7 @@ pub mod msg {
         pub y: f32,
         pub z: f32,
     }
-    impl WrappedTypesupport for Point32 {
+    unsafe impl WrappedTypesupport for Point32 {
         type CStruct = geometry_msgs__msg__Point32;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -361,7 +361,7 @@ pub mod msg {
         pub header: std_msgs::msg::Header,
         pub point: geometry_msgs::msg::Point,
     }
-    impl WrappedTypesupport for PointStamped {
+    unsafe impl WrappedTypesupport for PointStamped {
         type CStruct = geometry_msgs__msg__PointStamped;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -400,7 +400,7 @@ pub mod msg {
     pub struct Polygon {
         pub points: Vec<geometry_msgs::msg::Point32>,
     }
-    impl WrappedTypesupport for Polygon {
+    unsafe impl WrappedTypesupport for Polygon {
         type CStruct = geometry_msgs__msg__Polygon;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -460,7 +460,7 @@ pub mod msg {
         pub header: std_msgs::msg::Header,
         pub polygon: geometry_msgs::msg::Polygon,
     }
-    impl WrappedTypesupport for PolygonStamped {
+    unsafe impl WrappedTypesupport for PolygonStamped {
         type CStruct = geometry_msgs__msg__PolygonStamped;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -500,7 +500,7 @@ pub mod msg {
         pub position: geometry_msgs::msg::Point,
         pub orientation: geometry_msgs::msg::Quaternion,
     }
-    impl WrappedTypesupport for Pose {
+    unsafe impl WrappedTypesupport for Pose {
         type CStruct = geometry_msgs__msg__Pose;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -543,7 +543,7 @@ pub mod msg {
         pub y: f64,
         pub theta: f64,
     }
-    impl WrappedTypesupport for Pose2D {
+    unsafe impl WrappedTypesupport for Pose2D {
         type CStruct = geometry_msgs__msg__Pose2D;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -585,7 +585,7 @@ pub mod msg {
         pub header: std_msgs::msg::Header,
         pub poses: Vec<geometry_msgs::msg::Pose>,
     }
-    impl WrappedTypesupport for PoseArray {
+    unsafe impl WrappedTypesupport for PoseArray {
         type CStruct = geometry_msgs__msg__PoseArray;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -647,7 +647,7 @@ pub mod msg {
         pub header: std_msgs::msg::Header,
         pub pose: geometry_msgs::msg::Pose,
     }
-    impl WrappedTypesupport for PoseStamped {
+    unsafe impl WrappedTypesupport for PoseStamped {
         type CStruct = geometry_msgs__msg__PoseStamped;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -687,7 +687,7 @@ pub mod msg {
         pub pose: geometry_msgs::msg::Pose,
         pub covariance: Vec<f64>,
     }
-    impl WrappedTypesupport for PoseWithCovariance {
+    unsafe impl WrappedTypesupport for PoseWithCovariance {
         type CStruct = geometry_msgs__msg__PoseWithCovariance;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -732,7 +732,7 @@ pub mod msg {
         pub header: std_msgs::msg::Header,
         pub pose: geometry_msgs::msg::PoseWithCovariance,
     }
-    impl WrappedTypesupport for PoseWithCovarianceStamped {
+    unsafe impl WrappedTypesupport for PoseWithCovarianceStamped {
         type CStruct = geometry_msgs__msg__PoseWithCovarianceStamped;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -779,7 +779,7 @@ pub mod msg {
         pub z: f64,
         pub w: f64,
     }
-    impl WrappedTypesupport for Quaternion {
+    unsafe impl WrappedTypesupport for Quaternion {
         type CStruct = geometry_msgs__msg__Quaternion;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -823,7 +823,7 @@ pub mod msg {
         pub header: std_msgs::msg::Header,
         pub quaternion: geometry_msgs::msg::Quaternion,
     }
-    impl WrappedTypesupport for QuaternionStamped {
+    unsafe impl WrappedTypesupport for QuaternionStamped {
         type CStruct = geometry_msgs__msg__QuaternionStamped;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -864,7 +864,7 @@ pub mod msg {
         pub translation: geometry_msgs::msg::Vector3,
         pub rotation: geometry_msgs::msg::Quaternion,
     }
-    impl WrappedTypesupport for Transform {
+    unsafe impl WrappedTypesupport for Transform {
         type CStruct = geometry_msgs__msg__Transform;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -905,7 +905,7 @@ pub mod msg {
         pub child_frame_id: std::string::String,
         pub transform: geometry_msgs::msg::Transform,
     }
-    impl WrappedTypesupport for TransformStamped {
+    unsafe impl WrappedTypesupport for TransformStamped {
         type CStruct = geometry_msgs__msg__TransformStamped;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -948,7 +948,7 @@ pub mod msg {
         pub linear: geometry_msgs::msg::Vector3,
         pub angular: geometry_msgs::msg::Vector3,
     }
-    impl WrappedTypesupport for Twist {
+    unsafe impl WrappedTypesupport for Twist {
         type CStruct = geometry_msgs__msg__Twist;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -988,7 +988,7 @@ pub mod msg {
         pub header: std_msgs::msg::Header,
         pub twist: geometry_msgs::msg::Twist,
     }
-    impl WrappedTypesupport for TwistStamped {
+    unsafe impl WrappedTypesupport for TwistStamped {
         type CStruct = geometry_msgs__msg__TwistStamped;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1028,7 +1028,7 @@ pub mod msg {
         pub twist: geometry_msgs::msg::Twist,
         pub covariance: Vec<f64>,
     }
-    impl WrappedTypesupport for TwistWithCovariance {
+    unsafe impl WrappedTypesupport for TwistWithCovariance {
         type CStruct = geometry_msgs__msg__TwistWithCovariance;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1074,7 +1074,7 @@ pub mod msg {
         pub header: std_msgs::msg::Header,
         pub twist: geometry_msgs::msg::TwistWithCovariance,
     }
-    impl WrappedTypesupport for TwistWithCovarianceStamped {
+    unsafe impl WrappedTypesupport for TwistWithCovarianceStamped {
         type CStruct = geometry_msgs__msg__TwistWithCovarianceStamped;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1120,7 +1120,7 @@ pub mod msg {
         pub y: f64,
         pub z: f64,
     }
-    impl WrappedTypesupport for Vector3 {
+    unsafe impl WrappedTypesupport for Vector3 {
         type CStruct = geometry_msgs__msg__Vector3;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1162,7 +1162,7 @@ pub mod msg {
         pub header: std_msgs::msg::Header,
         pub vector: geometry_msgs::msg::Vector3,
     }
-    impl WrappedTypesupport for Vector3Stamped {
+    unsafe impl WrappedTypesupport for Vector3Stamped {
         type CStruct = geometry_msgs__msg__Vector3Stamped;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1202,7 +1202,7 @@ pub mod msg {
         pub force: geometry_msgs::msg::Vector3,
         pub torque: geometry_msgs::msg::Vector3,
     }
-    impl WrappedTypesupport for Wrench {
+    unsafe impl WrappedTypesupport for Wrench {
         type CStruct = geometry_msgs__msg__Wrench;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1242,7 +1242,7 @@ pub mod msg {
         pub header: std_msgs::msg::Header,
         pub wrench: geometry_msgs::msg::Wrench,
     }
-    impl WrappedTypesupport for WrenchStamped {
+    unsafe impl WrappedTypesupport for WrenchStamped {
         type CStruct = geometry_msgs__msg__WrenchStamped;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {

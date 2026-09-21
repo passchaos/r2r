@@ -4,7 +4,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -16,7 +16,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Request {}
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = nav_msgs__srv__GetMap_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -49,7 +49,7 @@ pub mod srv {
         pub struct Response {
             pub map: nav_msgs::msg::OccupancyGrid,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = nav_msgs__srv__GetMap_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -87,7 +87,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -103,7 +103,7 @@ pub mod srv {
             pub goal: geometry_msgs::msg::PoseStamped,
             pub tolerance: f32,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = nav_msgs__srv__GetPlan_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -144,7 +144,7 @@ pub mod srv {
         pub struct Response {
             pub plan: nav_msgs::msg::Path,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = nav_msgs__srv__GetPlan_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -183,7 +183,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -197,7 +197,7 @@ pub mod srv {
         pub struct Request {
             pub map_url: std::string::String,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = nav_msgs__srv__LoadMap_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -235,7 +235,7 @@ pub mod srv {
             pub map: nav_msgs::msg::OccupancyGrid,
             pub result: u8,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = nav_msgs__srv__LoadMap_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -284,7 +284,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -299,7 +299,7 @@ pub mod srv {
             pub map: nav_msgs::msg::OccupancyGrid,
             pub initial_pose: geometry_msgs::msg::PoseWithCovarianceStamped,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = nav_msgs__srv__SetMap_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -340,7 +340,7 @@ pub mod srv {
         pub struct Response {
             pub success: bool,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = nav_msgs__srv__SetMap_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -382,7 +382,7 @@ pub mod msg {
         pub cell_height: f32,
         pub cells: Vec<geometry_msgs::msg::Point>,
     }
-    impl WrappedTypesupport for GridCells {
+    unsafe impl WrappedTypesupport for GridCells {
         type CStruct = nav_msgs__msg__GridCells;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -451,7 +451,7 @@ pub mod msg {
         pub height: u32,
         pub origin: geometry_msgs::msg::Pose,
     }
-    impl WrappedTypesupport for MapMetaData {
+    unsafe impl WrappedTypesupport for MapMetaData {
         type CStruct = nav_msgs__msg__MapMetaData;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -500,7 +500,7 @@ pub mod msg {
         pub info: nav_msgs::msg::MapMetaData,
         pub data: Vec<i8>,
     }
-    impl WrappedTypesupport for OccupancyGrid {
+    unsafe impl WrappedTypesupport for OccupancyGrid {
         type CStruct = nav_msgs__msg__OccupancyGrid;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -544,7 +544,7 @@ pub mod msg {
         pub pose: geometry_msgs::msg::PoseWithCovariance,
         pub twist: geometry_msgs::msg::TwistWithCovariance,
     }
-    impl WrappedTypesupport for Odometry {
+    unsafe impl WrappedTypesupport for Odometry {
         type CStruct = nav_msgs__msg__Odometry;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -588,7 +588,7 @@ pub mod msg {
         pub header: std_msgs::msg::Header,
         pub poses: Vec<geometry_msgs::msg::PoseStamped>,
     }
-    impl WrappedTypesupport for Path {
+    unsafe impl WrappedTypesupport for Path {
         type CStruct = nav_msgs__msg__Path;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {

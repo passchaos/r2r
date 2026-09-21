@@ -4,7 +4,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -21,7 +21,7 @@ pub mod srv {
             pub l_x: f64,
             pub l_y: f64,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = map_msgs__srv__GetMapROI_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -65,7 +65,7 @@ pub mod srv {
         pub struct Response {
             pub sub_map: nav_msgs::msg::OccupancyGrid,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = map_msgs__srv__GetMapROI_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -104,7 +104,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -116,7 +116,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Request {}
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = map_msgs__srv__GetPointMap_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -150,7 +150,7 @@ pub mod srv {
         pub struct Response {
             pub map: sensor_msgs::msg::PointCloud2,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = map_msgs__srv__GetPointMap_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -190,7 +190,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -210,7 +210,7 @@ pub mod srv {
             pub l_y: f64,
             pub l_z: f64,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = map_msgs__srv__GetPointMapROI_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -261,7 +261,7 @@ pub mod srv {
         pub struct Response {
             pub sub_map: sensor_msgs::msg::PointCloud2,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = map_msgs__srv__GetPointMapROI_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -301,7 +301,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -315,7 +315,7 @@ pub mod srv {
         pub struct Request {
             pub projected_maps_info: Vec<map_msgs::msg::ProjectedMapInfo>,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = map_msgs__srv__ProjectedMapsInfo_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -379,7 +379,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Response {}
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = map_msgs__srv__ProjectedMapsInfo_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -415,7 +415,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -429,7 +429,7 @@ pub mod srv {
         pub struct Request {
             pub filename: std_msgs::msg::String,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = map_msgs__srv__SaveMap_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -464,7 +464,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Response {}
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = map_msgs__srv__SaveMap_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -499,7 +499,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -511,7 +511,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Request {}
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = map_msgs__srv__SetMapProjections_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -546,7 +546,7 @@ pub mod srv {
         pub struct Response {
             pub projected_maps_info: Vec<map_msgs::msg::ProjectedMapInfo>,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = map_msgs__srv__SetMapProjections_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -621,7 +621,7 @@ pub mod msg {
         pub height: u32,
         pub data: Vec<i8>,
     }
-    impl WrappedTypesupport for OccupancyGridUpdate {
+    unsafe impl WrappedTypesupport for OccupancyGridUpdate {
         type CStruct = map_msgs__msg__OccupancyGridUpdate;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -671,7 +671,7 @@ pub mod msg {
         pub type_: u32,
         pub points: sensor_msgs::msg::PointCloud2,
     }
-    impl WrappedTypesupport for PointCloud2Update {
+    unsafe impl WrappedTypesupport for PointCloud2Update {
         type CStruct = map_msgs__msg__PointCloud2Update;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -719,7 +719,7 @@ pub mod msg {
         pub min_z: f64,
         pub max_z: f64,
     }
-    impl WrappedTypesupport for ProjectedMap {
+    unsafe impl WrappedTypesupport for ProjectedMap {
         type CStruct = map_msgs__msg__ProjectedMap;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -766,7 +766,7 @@ pub mod msg {
         pub min_z: f64,
         pub max_z: f64,
     }
-    impl WrappedTypesupport for ProjectedMapInfo {
+    unsafe impl WrappedTypesupport for ProjectedMapInfo {
         type CStruct = map_msgs__msg__ProjectedMapInfo;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {

@@ -7,7 +7,7 @@ pub mod msg {
         pub to_value: f64,
         pub step: f64,
     }
-    impl WrappedTypesupport for FloatingPointRange {
+    unsafe impl WrappedTypesupport for FloatingPointRange {
         type CStruct = rcl_interfaces__msg__FloatingPointRange;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -52,7 +52,7 @@ pub mod msg {
         pub to_value: i64,
         pub step: u64,
     }
-    impl WrappedTypesupport for IntegerRange {
+    unsafe impl WrappedTypesupport for IntegerRange {
         type CStruct = rcl_interfaces__msg__IntegerRange;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -94,7 +94,7 @@ pub mod msg {
         pub names: Vec<std::string::String>,
         pub prefixes: Vec<std::string::String>,
     }
-    impl WrappedTypesupport for ListParametersResult {
+    unsafe impl WrappedTypesupport for ListParametersResult {
         type CStruct = rcl_interfaces__msg__ListParametersResult;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -141,7 +141,7 @@ pub mod msg {
         pub function: std::string::String,
         pub line: u32,
     }
-    impl WrappedTypesupport for Log {
+    unsafe impl WrappedTypesupport for Log {
         type CStruct = rcl_interfaces__msg__Log;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -199,7 +199,7 @@ pub mod msg {
         pub name: std::string::String,
         pub value: rcl_interfaces::msg::ParameterValue,
     }
-    impl WrappedTypesupport for Parameter {
+    unsafe impl WrappedTypesupport for Parameter {
         type CStruct = rcl_interfaces__msg__Parameter;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -246,7 +246,7 @@ pub mod msg {
         pub floating_point_range: Vec<rcl_interfaces::msg::FloatingPointRange>,
         pub integer_range: Vec<rcl_interfaces::msg::IntegerRange>,
     }
-    impl WrappedTypesupport for ParameterDescriptor {
+    unsafe impl WrappedTypesupport for ParameterDescriptor {
         type CStruct = rcl_interfaces__msg__ParameterDescriptor;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -359,7 +359,7 @@ pub mod msg {
         pub changed_parameters: Vec<rcl_interfaces::msg::Parameter>,
         pub deleted_parameters: Vec<rcl_interfaces::msg::Parameter>,
     }
-    impl WrappedTypesupport for ParameterEvent {
+    unsafe impl WrappedTypesupport for ParameterEvent {
         type CStruct = rcl_interfaces__msg__ParameterEvent;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -486,7 +486,7 @@ pub mod msg {
         pub changed_parameters: Vec<rcl_interfaces::msg::ParameterDescriptor>,
         pub deleted_parameters: Vec<rcl_interfaces::msg::ParameterDescriptor>,
     }
-    impl WrappedTypesupport for ParameterEventDescriptors {
+    unsafe impl WrappedTypesupport for ParameterEventDescriptors {
         type CStruct = rcl_interfaces__msg__ParameterEventDescriptors;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -617,7 +617,7 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct ParameterType {}
-    impl WrappedTypesupport for ParameterType {
+    unsafe impl WrappedTypesupport for ParameterType {
         type CStruct = rcl_interfaces__msg__ParameterType;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -673,7 +673,7 @@ pub mod msg {
         pub double_array_value: Vec<f64>,
         pub string_array_value: Vec<std::string::String>,
     }
-    impl WrappedTypesupport for ParameterValue {
+    unsafe impl WrappedTypesupport for ParameterValue {
         type CStruct = rcl_interfaces__msg__ParameterValue;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -730,7 +730,7 @@ pub mod msg {
         pub successful: bool,
         pub reason: std::string::String,
     }
-    impl WrappedTypesupport for SetParametersResult {
+    unsafe impl WrappedTypesupport for SetParametersResult {
         type CStruct = rcl_interfaces__msg__SetParametersResult;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -773,7 +773,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -787,7 +787,7 @@ pub mod srv {
         pub struct Request {
             pub names: Vec<std::string::String>,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = rcl_interfaces__srv__DescribeParameters_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -828,7 +828,7 @@ pub mod srv {
         pub struct Response {
             pub descriptors: Vec<rcl_interfaces::msg::ParameterDescriptor>,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = rcl_interfaces__srv__DescribeParameters_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -901,7 +901,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -915,7 +915,7 @@ pub mod srv {
         pub struct Request {
             pub names: Vec<std::string::String>,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = rcl_interfaces__srv__GetParameterTypes_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -956,7 +956,7 @@ pub mod srv {
         pub struct Response {
             pub types: Vec<u8>,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = rcl_interfaces__srv__GetParameterTypes_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -998,7 +998,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -1012,7 +1012,7 @@ pub mod srv {
         pub struct Request {
             pub names: Vec<std::string::String>,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = rcl_interfaces__srv__GetParameters_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -1051,7 +1051,7 @@ pub mod srv {
         pub struct Response {
             pub values: Vec<rcl_interfaces::msg::ParameterValue>,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = rcl_interfaces__srv__GetParameters_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -1115,7 +1115,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -1130,7 +1130,7 @@ pub mod srv {
             pub prefixes: Vec<std::string::String>,
             pub depth: u64,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = rcl_interfaces__srv__ListParameters_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -1175,7 +1175,7 @@ pub mod srv {
         pub struct Response {
             pub result: rcl_interfaces::msg::ListParametersResult,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = rcl_interfaces__srv__ListParameters_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -1219,7 +1219,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -1233,7 +1233,7 @@ pub mod srv {
         pub struct Request {
             pub parameters: Vec<rcl_interfaces::msg::Parameter>,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = rcl_interfaces__srv__SetParameters_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -1297,7 +1297,7 @@ pub mod srv {
         pub struct Response {
             pub results: Vec<rcl_interfaces::msg::SetParametersResult>,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = rcl_interfaces__srv__SetParameters_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -1366,7 +1366,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -1380,7 +1380,7 @@ pub mod srv {
         pub struct Request {
             pub parameters: Vec<rcl_interfaces::msg::Parameter>,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = rcl_interfaces__srv__SetParametersAtomically_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -1448,7 +1448,7 @@ pub mod srv {
         pub struct Response {
             pub result: rcl_interfaces::msg::SetParametersResult,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = rcl_interfaces__srv__SetParametersAtomically_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {

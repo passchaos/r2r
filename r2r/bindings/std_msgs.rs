@@ -5,7 +5,7 @@ pub mod msg {
     pub struct Bool {
         pub data: bool,
     }
-    impl WrappedTypesupport for Bool {
+    unsafe impl WrappedTypesupport for Bool {
         type CStruct = std_msgs__msg__Bool;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -39,7 +39,7 @@ pub mod msg {
     pub struct Byte {
         pub data: u8,
     }
-    impl WrappedTypesupport for Byte {
+    unsafe impl WrappedTypesupport for Byte {
         type CStruct = std_msgs__msg__Byte;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -74,7 +74,7 @@ pub mod msg {
         pub layout: std_msgs::msg::MultiArrayLayout,
         pub data: Vec<u8>,
     }
-    impl WrappedTypesupport for ByteMultiArray {
+    unsafe impl WrappedTypesupport for ByteMultiArray {
         type CStruct = std_msgs__msg__ByteMultiArray;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -113,7 +113,7 @@ pub mod msg {
     pub struct Char {
         pub data: u8,
     }
-    impl WrappedTypesupport for Char {
+    unsafe impl WrappedTypesupport for Char {
         type CStruct = std_msgs__msg__Char;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -150,7 +150,7 @@ pub mod msg {
         pub b: f32,
         pub a: f32,
     }
-    impl WrappedTypesupport for ColorRGBA {
+    unsafe impl WrappedTypesupport for ColorRGBA {
         type CStruct = std_msgs__msg__ColorRGBA;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -191,7 +191,7 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct Empty {}
-    impl WrappedTypesupport for Empty {
+    unsafe impl WrappedTypesupport for Empty {
         type CStruct = std_msgs__msg__Empty;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -223,7 +223,7 @@ pub mod msg {
     pub struct Float32 {
         pub data: f32,
     }
-    impl WrappedTypesupport for Float32 {
+    unsafe impl WrappedTypesupport for Float32 {
         type CStruct = std_msgs__msg__Float32;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -258,7 +258,7 @@ pub mod msg {
         pub layout: std_msgs::msg::MultiArrayLayout,
         pub data: Vec<f32>,
     }
-    impl WrappedTypesupport for Float32MultiArray {
+    unsafe impl WrappedTypesupport for Float32MultiArray {
         type CStruct = std_msgs__msg__Float32MultiArray;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -297,7 +297,7 @@ pub mod msg {
     pub struct Float64 {
         pub data: f64,
     }
-    impl WrappedTypesupport for Float64 {
+    unsafe impl WrappedTypesupport for Float64 {
         type CStruct = std_msgs__msg__Float64;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -332,7 +332,7 @@ pub mod msg {
         pub layout: std_msgs::msg::MultiArrayLayout,
         pub data: Vec<f64>,
     }
-    impl WrappedTypesupport for Float64MultiArray {
+    unsafe impl WrappedTypesupport for Float64MultiArray {
         type CStruct = std_msgs__msg__Float64MultiArray;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -372,7 +372,7 @@ pub mod msg {
         pub stamp: builtin_interfaces::msg::Time,
         pub frame_id: std::string::String,
     }
-    impl WrappedTypesupport for Header {
+    unsafe impl WrappedTypesupport for Header {
         type CStruct = std_msgs__msg__Header;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -410,7 +410,7 @@ pub mod msg {
     pub struct Int16 {
         pub data: i16,
     }
-    impl WrappedTypesupport for Int16 {
+    unsafe impl WrappedTypesupport for Int16 {
         type CStruct = std_msgs__msg__Int16;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -445,7 +445,7 @@ pub mod msg {
         pub layout: std_msgs::msg::MultiArrayLayout,
         pub data: Vec<i16>,
     }
-    impl WrappedTypesupport for Int16MultiArray {
+    unsafe impl WrappedTypesupport for Int16MultiArray {
         type CStruct = std_msgs__msg__Int16MultiArray;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -484,7 +484,7 @@ pub mod msg {
     pub struct Int32 {
         pub data: i32,
     }
-    impl WrappedTypesupport for Int32 {
+    unsafe impl WrappedTypesupport for Int32 {
         type CStruct = std_msgs__msg__Int32;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -519,7 +519,7 @@ pub mod msg {
         pub layout: std_msgs::msg::MultiArrayLayout,
         pub data: Vec<i32>,
     }
-    impl WrappedTypesupport for Int32MultiArray {
+    unsafe impl WrappedTypesupport for Int32MultiArray {
         type CStruct = std_msgs__msg__Int32MultiArray;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -558,7 +558,7 @@ pub mod msg {
     pub struct Int64 {
         pub data: i64,
     }
-    impl WrappedTypesupport for Int64 {
+    unsafe impl WrappedTypesupport for Int64 {
         type CStruct = std_msgs__msg__Int64;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -593,7 +593,7 @@ pub mod msg {
         pub layout: std_msgs::msg::MultiArrayLayout,
         pub data: Vec<i64>,
     }
-    impl WrappedTypesupport for Int64MultiArray {
+    unsafe impl WrappedTypesupport for Int64MultiArray {
         type CStruct = std_msgs__msg__Int64MultiArray;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -632,7 +632,7 @@ pub mod msg {
     pub struct Int8 {
         pub data: i8,
     }
-    impl WrappedTypesupport for Int8 {
+    unsafe impl WrappedTypesupport for Int8 {
         type CStruct = std_msgs__msg__Int8;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -667,7 +667,7 @@ pub mod msg {
         pub layout: std_msgs::msg::MultiArrayLayout,
         pub data: Vec<i8>,
     }
-    impl WrappedTypesupport for Int8MultiArray {
+    unsafe impl WrappedTypesupport for Int8MultiArray {
         type CStruct = std_msgs__msg__Int8MultiArray;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -708,7 +708,7 @@ pub mod msg {
         pub size: u32,
         pub stride: u32,
     }
-    impl WrappedTypesupport for MultiArrayDimension {
+    unsafe impl WrappedTypesupport for MultiArrayDimension {
         type CStruct = std_msgs__msg__MultiArrayDimension;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -750,7 +750,7 @@ pub mod msg {
         pub dim: Vec<std_msgs::msg::MultiArrayDimension>,
         pub data_offset: u32,
     }
-    impl WrappedTypesupport for MultiArrayLayout {
+    unsafe impl WrappedTypesupport for MultiArrayLayout {
         type CStruct = std_msgs__msg__MultiArrayLayout;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -808,7 +808,7 @@ pub mod msg {
     pub struct String {
         pub data: std::string::String,
     }
-    impl WrappedTypesupport for String {
+    unsafe impl WrappedTypesupport for String {
         type CStruct = std_msgs__msg__String;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -844,7 +844,7 @@ pub mod msg {
     pub struct UInt16 {
         pub data: u16,
     }
-    impl WrappedTypesupport for UInt16 {
+    unsafe impl WrappedTypesupport for UInt16 {
         type CStruct = std_msgs__msg__UInt16;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -879,7 +879,7 @@ pub mod msg {
         pub layout: std_msgs::msg::MultiArrayLayout,
         pub data: Vec<u16>,
     }
-    impl WrappedTypesupport for UInt16MultiArray {
+    unsafe impl WrappedTypesupport for UInt16MultiArray {
         type CStruct = std_msgs__msg__UInt16MultiArray;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -918,7 +918,7 @@ pub mod msg {
     pub struct UInt32 {
         pub data: u32,
     }
-    impl WrappedTypesupport for UInt32 {
+    unsafe impl WrappedTypesupport for UInt32 {
         type CStruct = std_msgs__msg__UInt32;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -953,7 +953,7 @@ pub mod msg {
         pub layout: std_msgs::msg::MultiArrayLayout,
         pub data: Vec<u32>,
     }
-    impl WrappedTypesupport for UInt32MultiArray {
+    unsafe impl WrappedTypesupport for UInt32MultiArray {
         type CStruct = std_msgs__msg__UInt32MultiArray;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -992,7 +992,7 @@ pub mod msg {
     pub struct UInt64 {
         pub data: u64,
     }
-    impl WrappedTypesupport for UInt64 {
+    unsafe impl WrappedTypesupport for UInt64 {
         type CStruct = std_msgs__msg__UInt64;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1027,7 +1027,7 @@ pub mod msg {
         pub layout: std_msgs::msg::MultiArrayLayout,
         pub data: Vec<u64>,
     }
-    impl WrappedTypesupport for UInt64MultiArray {
+    unsafe impl WrappedTypesupport for UInt64MultiArray {
         type CStruct = std_msgs__msg__UInt64MultiArray;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1066,7 +1066,7 @@ pub mod msg {
     pub struct UInt8 {
         pub data: u8,
     }
-    impl WrappedTypesupport for UInt8 {
+    unsafe impl WrappedTypesupport for UInt8 {
         type CStruct = std_msgs__msg__UInt8;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1101,7 +1101,7 @@ pub mod msg {
         pub layout: std_msgs::msg::MultiArrayLayout,
         pub data: Vec<u8>,
     }
-    impl WrappedTypesupport for UInt8MultiArray {
+    unsafe impl WrappedTypesupport for UInt8MultiArray {
         type CStruct = std_msgs__msg__UInt8MultiArray;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {

@@ -6,7 +6,7 @@ pub mod msg {
         pub sec: i32,
         pub nanosec: u32,
     }
-    impl WrappedTypesupport for Duration {
+    unsafe impl WrappedTypesupport for Duration {
         type CStruct = builtin_interfaces__msg__Duration;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -46,7 +46,7 @@ pub mod msg {
         pub sec: i32,
         pub nanosec: u32,
     }
-    impl WrappedTypesupport for Time {
+    unsafe impl WrappedTypesupport for Time {
         type CStruct = builtin_interfaces__msg__Time;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {

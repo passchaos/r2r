@@ -5,7 +5,7 @@ pub mod msg {
     pub struct UUID {
         pub uuid: Vec<u8>,
     }
-    impl WrappedTypesupport for UUID {
+    unsafe impl WrappedTypesupport for UUID {
         type CStruct = unique_identifier_msgs__msg__UUID;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {

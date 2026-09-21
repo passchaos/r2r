@@ -7,7 +7,7 @@ pub mod msg {
         pub joint_names: Vec<std::string::String>,
         pub points: Vec<trajectory_msgs::msg::JointTrajectoryPoint>,
     }
-    impl WrappedTypesupport for JointTrajectory {
+    unsafe impl WrappedTypesupport for JointTrajectory {
         type CStruct = trajectory_msgs__msg__JointTrajectory;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -79,7 +79,7 @@ pub mod msg {
         pub effort: Vec<f64>,
         pub time_from_start: builtin_interfaces::msg::Duration,
     }
-    impl WrappedTypesupport for JointTrajectoryPoint {
+    unsafe impl WrappedTypesupport for JointTrajectoryPoint {
         type CStruct = trajectory_msgs__msg__JointTrajectoryPoint;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -130,7 +130,7 @@ pub mod msg {
         pub joint_names: Vec<std::string::String>,
         pub points: Vec<trajectory_msgs::msg::MultiDOFJointTrajectoryPoint>,
     }
-    impl WrappedTypesupport for MultiDOFJointTrajectory {
+    unsafe impl WrappedTypesupport for MultiDOFJointTrajectory {
         type CStruct = trajectory_msgs__msg__MultiDOFJointTrajectory;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -204,7 +204,7 @@ pub mod msg {
         pub accelerations: Vec<geometry_msgs::msg::Twist>,
         pub time_from_start: builtin_interfaces::msg::Duration,
     }
-    impl WrappedTypesupport for MultiDOFJointTrajectoryPoint {
+    unsafe impl WrappedTypesupport for MultiDOFJointTrajectoryPoint {
         type CStruct = trajectory_msgs__msg__MultiDOFJointTrajectoryPoint;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {

@@ -4,7 +4,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -18,7 +18,7 @@ pub mod srv {
         pub struct Request {
             pub load_namespace: std::string::String,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = diagnostic_msgs__srv__AddDiagnostics_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -60,7 +60,7 @@ pub mod srv {
             pub success: bool,
             pub message: std::string::String,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = diagnostic_msgs__srv__AddDiagnostics_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -104,7 +104,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -116,7 +116,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Request {}
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = diagnostic_msgs__srv__SelfTest_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -153,7 +153,7 @@ pub mod srv {
             pub passed: u8,
             pub status: Vec<diagnostic_msgs::msg::DiagnosticStatus>,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = diagnostic_msgs__srv__SelfTest_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -227,7 +227,7 @@ pub mod msg {
         pub header: std_msgs::msg::Header,
         pub status: Vec<diagnostic_msgs::msg::DiagnosticStatus>,
     }
-    impl WrappedTypesupport for DiagnosticArray {
+    unsafe impl WrappedTypesupport for DiagnosticArray {
         type CStruct = diagnostic_msgs__msg__DiagnosticArray;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -295,7 +295,7 @@ pub mod msg {
         pub hardware_id: std::string::String,
         pub values: Vec<diagnostic_msgs::msg::KeyValue>,
     }
-    impl WrappedTypesupport for DiagnosticStatus {
+    unsafe impl WrappedTypesupport for DiagnosticStatus {
         type CStruct = diagnostic_msgs__msg__DiagnosticStatus;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -371,7 +371,7 @@ pub mod msg {
         pub key: std::string::String,
         pub value: std::string::String,
     }
-    impl WrappedTypesupport for KeyValue {
+    unsafe impl WrappedTypesupport for KeyValue {
         type CStruct = diagnostic_msgs__msg__KeyValue;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {

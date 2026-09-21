@@ -4,7 +4,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -18,7 +18,7 @@ pub mod srv {
         pub struct Request {
             pub goal_info: action_msgs::msg::GoalInfo,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = action_msgs__srv__CancelGoal_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -58,7 +58,7 @@ pub mod srv {
             pub return_code: i8,
             pub goals_canceling: Vec<action_msgs::msg::GoalInfo>,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = action_msgs__srv__CancelGoal_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -136,7 +136,7 @@ pub mod msg {
         pub goal_id: unique_identifier_msgs::msg::UUID,
         pub stamp: builtin_interfaces::msg::Time,
     }
-    impl WrappedTypesupport for GoalInfo {
+    unsafe impl WrappedTypesupport for GoalInfo {
         type CStruct = action_msgs__msg__GoalInfo;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -176,7 +176,7 @@ pub mod msg {
         pub goal_info: action_msgs::msg::GoalInfo,
         pub status: i8,
     }
-    impl WrappedTypesupport for GoalStatus {
+    unsafe impl WrappedTypesupport for GoalStatus {
         type CStruct = action_msgs__msg__GoalStatus;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -225,7 +225,7 @@ pub mod msg {
     pub struct GoalStatusArray {
         pub status_list: Vec<action_msgs::msg::GoalStatus>,
     }
-    impl WrappedTypesupport for GoalStatusArray {
+    unsafe impl WrappedTypesupport for GoalStatusArray {
         type CStruct = action_msgs__msg__GoalStatusArray;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {

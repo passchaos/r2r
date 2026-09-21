@@ -4,7 +4,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -18,7 +18,7 @@ pub mod srv {
         pub struct Request {
             pub transition: lifecycle_msgs::msg::Transition,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = lifecycle_msgs__srv__ChangeState_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -59,7 +59,7 @@ pub mod srv {
         pub struct Response {
             pub success: bool,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = lifecycle_msgs__srv__ChangeState_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -97,7 +97,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -109,7 +109,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Request {}
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = lifecycle_msgs__srv__GetAvailableStates_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -146,7 +146,7 @@ pub mod srv {
         pub struct Response {
             pub available_states: Vec<lifecycle_msgs::msg::State>,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = lifecycle_msgs__srv__GetAvailableStates_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -217,7 +217,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -229,7 +229,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Request {}
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = lifecycle_msgs__srv__GetAvailableTransitions_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -268,7 +268,7 @@ pub mod srv {
         pub struct Response {
             pub available_transitions: Vec<lifecycle_msgs::msg::TransitionDescription>,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = lifecycle_msgs__srv__GetAvailableTransitions_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -345,7 +345,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -357,7 +357,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Request {}
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = lifecycle_msgs__srv__GetState_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -392,7 +392,7 @@ pub mod srv {
         pub struct Response {
             pub current_state: lifecycle_msgs::msg::State,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = lifecycle_msgs__srv__GetState_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -438,7 +438,7 @@ pub mod msg {
         pub id: u8,
         pub label: std::string::String,
     }
-    impl WrappedTypesupport for State {
+    unsafe impl WrappedTypesupport for State {
         type CStruct = lifecycle_msgs__msg__State;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -492,7 +492,7 @@ pub mod msg {
         pub id: u8,
         pub label: std::string::String,
     }
-    impl WrappedTypesupport for Transition {
+    unsafe impl WrappedTypesupport for Transition {
         type CStruct = lifecycle_msgs__msg__Transition;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -566,7 +566,7 @@ pub mod msg {
         pub start_state: lifecycle_msgs::msg::State,
         pub goal_state: lifecycle_msgs::msg::State,
     }
-    impl WrappedTypesupport for TransitionDescription {
+    unsafe impl WrappedTypesupport for TransitionDescription {
         type CStruct = lifecycle_msgs__msg__TransitionDescription;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -614,7 +614,7 @@ pub mod msg {
         pub start_state: lifecycle_msgs::msg::State,
         pub goal_state: lifecycle_msgs::msg::State,
     }
-    impl WrappedTypesupport for TransitionEvent {
+    unsafe impl WrappedTypesupport for TransitionEvent {
         type CStruct = lifecycle_msgs__msg__TransitionEvent;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {

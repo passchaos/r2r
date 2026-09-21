@@ -20,7 +20,7 @@ pub mod msg {
         pub location: std::string::String,
         pub serial_number: std::string::String,
     }
-    impl WrappedTypesupport for BatteryState {
+    unsafe impl WrappedTypesupport for BatteryState {
         type CStruct = sensor_msgs__msg__BatteryState;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -121,7 +121,7 @@ pub mod msg {
         pub binning_y: u32,
         pub roi: sensor_msgs::msg::RegionOfInterest,
     }
-    impl WrappedTypesupport for CameraInfo {
+    unsafe impl WrappedTypesupport for CameraInfo {
         type CStruct = sensor_msgs__msg__CameraInfo;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -188,7 +188,7 @@ pub mod msg {
         pub name: std::string::String,
         pub values: Vec<f32>,
     }
-    impl WrappedTypesupport for ChannelFloat32 {
+    unsafe impl WrappedTypesupport for ChannelFloat32 {
         type CStruct = sensor_msgs__msg__ChannelFloat32;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -229,7 +229,7 @@ pub mod msg {
         pub format: std::string::String,
         pub data: Vec<u8>,
     }
-    impl WrappedTypesupport for CompressedImage {
+    unsafe impl WrappedTypesupport for CompressedImage {
         type CStruct = sensor_msgs__msg__CompressedImage;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -272,7 +272,7 @@ pub mod msg {
         pub fluid_pressure: f64,
         pub variance: f64,
     }
-    impl WrappedTypesupport for FluidPressure {
+    unsafe impl WrappedTypesupport for FluidPressure {
         type CStruct = sensor_msgs__msg__FluidPressure;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -315,7 +315,7 @@ pub mod msg {
         pub illuminance: f64,
         pub variance: f64,
     }
-    impl WrappedTypesupport for Illuminance {
+    unsafe impl WrappedTypesupport for Illuminance {
         type CStruct = sensor_msgs__msg__Illuminance;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -362,7 +362,7 @@ pub mod msg {
         pub step: u32,
         pub data: Vec<u8>,
     }
-    impl WrappedTypesupport for Image {
+    unsafe impl WrappedTypesupport for Image {
         type CStruct = sensor_msgs__msg__Image;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -417,7 +417,7 @@ pub mod msg {
         pub linear_acceleration: geometry_msgs::msg::Vector3,
         pub linear_acceleration_covariance: Vec<f64>,
     }
-    impl WrappedTypesupport for Imu {
+    unsafe impl WrappedTypesupport for Imu {
         type CStruct = sensor_msgs__msg__Imu;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -492,7 +492,7 @@ pub mod msg {
         pub velocity: Vec<f64>,
         pub effort: Vec<f64>,
     }
-    impl WrappedTypesupport for JointState {
+    unsafe impl WrappedTypesupport for JointState {
         type CStruct = sensor_msgs__msg__JointState;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -539,7 +539,7 @@ pub mod msg {
         pub axes: Vec<f32>,
         pub buttons: Vec<i32>,
     }
-    impl WrappedTypesupport for Joy {
+    unsafe impl WrappedTypesupport for Joy {
         type CStruct = sensor_msgs__msg__Joy;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -582,7 +582,7 @@ pub mod msg {
         pub id: u8,
         pub intensity: f32,
     }
-    impl WrappedTypesupport for JoyFeedback {
+    unsafe impl WrappedTypesupport for JoyFeedback {
         type CStruct = sensor_msgs__msg__JoyFeedback;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -629,7 +629,7 @@ pub mod msg {
     pub struct JoyFeedbackArray {
         pub array: Vec<sensor_msgs::msg::JoyFeedback>,
     }
-    impl WrappedTypesupport for JoyFeedbackArray {
+    unsafe impl WrappedTypesupport for JoyFeedbackArray {
         type CStruct = sensor_msgs__msg__JoyFeedbackArray;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -688,7 +688,7 @@ pub mod msg {
     pub struct LaserEcho {
         pub echoes: Vec<f32>,
     }
-    impl WrappedTypesupport for LaserEcho {
+    unsafe impl WrappedTypesupport for LaserEcho {
         type CStruct = sensor_msgs__msg__LaserEcho;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -734,7 +734,7 @@ pub mod msg {
         pub ranges: Vec<f32>,
         pub intensities: Vec<f32>,
     }
-    impl WrappedTypesupport for LaserScan {
+    unsafe impl WrappedTypesupport for LaserScan {
         type CStruct = sensor_msgs__msg__LaserScan;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -791,7 +791,7 @@ pub mod msg {
         pub magnetic_field: geometry_msgs::msg::Vector3,
         pub magnetic_field_covariance: Vec<f64>,
     }
-    impl WrappedTypesupport for MagneticField {
+    unsafe impl WrappedTypesupport for MagneticField {
         type CStruct = sensor_msgs__msg__MagneticField;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -843,7 +843,7 @@ pub mod msg {
         pub twist: Vec<geometry_msgs::msg::Twist>,
         pub wrench: Vec<geometry_msgs::msg::Wrench>,
     }
-    impl WrappedTypesupport for MultiDOFJointState {
+    unsafe impl WrappedTypesupport for MultiDOFJointState {
         type CStruct = sensor_msgs__msg__MultiDOFJointState;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -967,7 +967,7 @@ pub mod msg {
         pub ranges: Vec<sensor_msgs::msg::LaserEcho>,
         pub intensities: Vec<sensor_msgs::msg::LaserEcho>,
     }
-    impl WrappedTypesupport for MultiEchoLaserScan {
+    unsafe impl WrappedTypesupport for MultiEchoLaserScan {
         type CStruct = sensor_msgs__msg__MultiEchoLaserScan;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1076,7 +1076,7 @@ pub mod msg {
         pub position_covariance: Vec<f64>,
         pub position_covariance_type: u8,
     }
-    impl WrappedTypesupport for NavSatFix {
+    unsafe impl WrappedTypesupport for NavSatFix {
         type CStruct = sensor_msgs__msg__NavSatFix;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1137,7 +1137,7 @@ pub mod msg {
         pub status: i8,
         pub service: u16,
     }
-    impl WrappedTypesupport for NavSatStatus {
+    unsafe impl WrappedTypesupport for NavSatStatus {
         type CStruct = sensor_msgs__msg__NavSatStatus;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1189,7 +1189,7 @@ pub mod msg {
         pub points: Vec<geometry_msgs::msg::Point32>,
         pub channels: Vec<sensor_msgs::msg::ChannelFloat32>,
     }
-    impl WrappedTypesupport for PointCloud {
+    unsafe impl WrappedTypesupport for PointCloud {
         type CStruct = sensor_msgs__msg__PointCloud;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1282,7 +1282,7 @@ pub mod msg {
         pub data: Vec<u8>,
         pub is_dense: bool,
     }
-    impl WrappedTypesupport for PointCloud2 {
+    unsafe impl WrappedTypesupport for PointCloud2 {
         type CStruct = sensor_msgs__msg__PointCloud2;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1360,7 +1360,7 @@ pub mod msg {
         pub datatype: u8,
         pub count: u32,
     }
-    impl WrappedTypesupport for PointField {
+    unsafe impl WrappedTypesupport for PointField {
         type CStruct = sensor_msgs__msg__PointField;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1419,7 +1419,7 @@ pub mod msg {
         pub max_range: f32,
         pub range: f32,
     }
-    impl WrappedTypesupport for Range {
+    unsafe impl WrappedTypesupport for Range {
         type CStruct = sensor_msgs__msg__Range;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1475,7 +1475,7 @@ pub mod msg {
         pub width: u32,
         pub do_rectify: bool,
     }
-    impl WrappedTypesupport for RegionOfInterest {
+    unsafe impl WrappedTypesupport for RegionOfInterest {
         type CStruct = sensor_msgs__msg__RegionOfInterest;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1522,7 +1522,7 @@ pub mod msg {
         pub relative_humidity: f64,
         pub variance: f64,
     }
-    impl WrappedTypesupport for RelativeHumidity {
+    unsafe impl WrappedTypesupport for RelativeHumidity {
         type CStruct = sensor_msgs__msg__RelativeHumidity;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1565,7 +1565,7 @@ pub mod msg {
         pub temperature: f64,
         pub variance: f64,
     }
-    impl WrappedTypesupport for Temperature {
+    unsafe impl WrappedTypesupport for Temperature {
         type CStruct = sensor_msgs__msg__Temperature;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1608,7 +1608,7 @@ pub mod msg {
         pub time_ref: builtin_interfaces::msg::Time,
         pub source: std::string::String,
     }
-    impl WrappedTypesupport for TimeReference {
+    unsafe impl WrappedTypesupport for TimeReference {
         type CStruct = sensor_msgs__msg__TimeReference;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1651,7 +1651,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -1665,7 +1665,7 @@ pub mod srv {
         pub struct Request {
             pub camera_info: sensor_msgs::msg::CameraInfo,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = sensor_msgs__srv__SetCameraInfo_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -1707,7 +1707,7 @@ pub mod srv {
             pub success: bool,
             pub status_message: std::string::String,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = sensor_msgs__srv__SetCameraInfo_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {

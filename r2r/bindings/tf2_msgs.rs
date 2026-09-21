@@ -4,7 +4,7 @@ pub mod action {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Action();
-        impl WrappedActionTypeSupport for Action {
+        unsafe impl WrappedActionTypeSupport for Action {
             type Goal = Goal;
             type Result = Result;
             type Feedback = Feedback;
@@ -91,7 +91,7 @@ pub mod action {
             pub fixed_frame: std::string::String,
             pub advanced: bool,
         }
-        impl WrappedTypesupport for Goal {
+        unsafe impl WrappedTypesupport for Goal {
             type CStruct = tf2_msgs__action__LookupTransform_Goal;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -149,7 +149,7 @@ pub mod action {
             pub transform: geometry_msgs::msg::TransformStamped,
             pub error: tf2_msgs::msg::TF2Error,
         }
-        impl WrappedTypesupport for Result {
+        unsafe impl WrappedTypesupport for Result {
             type CStruct = tf2_msgs__action__LookupTransform_Result;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -190,7 +190,7 @@ pub mod action {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Feedback {}
-        impl WrappedTypesupport for Feedback {
+        unsafe impl WrappedTypesupport for Feedback {
             type CStruct = tf2_msgs__action__LookupTransform_Feedback;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -225,7 +225,7 @@ pub mod action {
             use super::super::super::super::*;
             #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
             pub struct Service();
-            impl WrappedServiceTypeSupport for Service {
+            unsafe impl WrappedServiceTypeSupport for Service {
                 type Request = Request;
                 type Response = Response;
                 fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -240,7 +240,7 @@ pub mod action {
                 pub goal_id: unique_identifier_msgs::msg::UUID,
                 pub goal: tf2_msgs::action::LookupTransform::Goal,
             }
-            impl WrappedTypesupport for Request {
+            unsafe impl WrappedTypesupport for Request {
                 type CStruct = tf2_msgs__action__LookupTransform_SendGoal_Request;
                 fn get_ts() -> &'static rosidl_message_type_support_t {
                     unsafe {
@@ -292,7 +292,7 @@ pub mod action {
                 pub accepted: bool,
                 pub stamp: builtin_interfaces::msg::Time,
             }
-            impl WrappedTypesupport for Response {
+            unsafe impl WrappedTypesupport for Response {
                 type CStruct = tf2_msgs__action__LookupTransform_SendGoal_Response;
                 fn get_ts() -> &'static rosidl_message_type_support_t {
                     unsafe {
@@ -340,7 +340,7 @@ pub mod action {
             use super::super::super::super::*;
             #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
             pub struct Service();
-            impl WrappedServiceTypeSupport for Service {
+            unsafe impl WrappedServiceTypeSupport for Service {
                 type Request = Request;
                 type Response = Response;
                 fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -354,7 +354,7 @@ pub mod action {
             pub struct Request {
                 pub goal_id: unique_identifier_msgs::msg::UUID,
             }
-            impl WrappedTypesupport for Request {
+            unsafe impl WrappedTypesupport for Request {
                 type CStruct = tf2_msgs__action__LookupTransform_GetResult_Request;
                 fn get_ts() -> &'static rosidl_message_type_support_t {
                     unsafe {
@@ -402,7 +402,7 @@ pub mod action {
                 pub status: i8,
                 pub result: tf2_msgs::action::LookupTransform::Result,
             }
-            impl WrappedTypesupport for Response {
+            unsafe impl WrappedTypesupport for Response {
                 type CStruct = tf2_msgs__action__LookupTransform_GetResult_Response;
                 fn get_ts() -> &'static rosidl_message_type_support_t {
                     unsafe {
@@ -455,7 +455,7 @@ pub mod action {
             pub goal_id: unique_identifier_msgs::msg::UUID,
             pub feedback: tf2_msgs::action::LookupTransform::Feedback,
         }
-        impl WrappedTypesupport for FeedbackMessage {
+        unsafe impl WrappedTypesupport for FeedbackMessage {
             type CStruct = tf2_msgs__action__LookupTransform_FeedbackMessage;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -507,7 +507,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -519,7 +519,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Request {}
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = tf2_msgs__srv__FrameGraph_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -553,7 +553,7 @@ pub mod srv {
         pub struct Response {
             pub frame_yaml: std::string::String,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = tf2_msgs__srv__FrameGraph_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -596,7 +596,7 @@ pub mod msg {
         pub error: u8,
         pub error_string: std::string::String,
     }
-    impl WrappedTypesupport for TF2Error {
+    unsafe impl WrappedTypesupport for TF2Error {
         type CStruct = tf2_msgs__msg__TF2Error;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -645,7 +645,7 @@ pub mod msg {
     pub struct TFMessage {
         pub transforms: Vec<geometry_msgs::msg::TransformStamped>,
     }
-    impl WrappedTypesupport for TFMessage {
+    unsafe impl WrappedTypesupport for TFMessage {
         type CStruct = tf2_msgs__msg__TFMessage;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {

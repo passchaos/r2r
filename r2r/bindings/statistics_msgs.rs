@@ -10,7 +10,7 @@ pub mod msg {
         pub window_stop: builtin_interfaces::msg::Time,
         pub statistics: Vec<statistics_msgs::msg::StatisticDataPoint>,
     }
-    impl WrappedTypesupport for MetricsMessage {
+    unsafe impl WrappedTypesupport for MetricsMessage {
         type CStruct = statistics_msgs__msg__MetricsMessage;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -92,7 +92,7 @@ pub mod msg {
         pub data_type: u8,
         pub data: f64,
     }
-    impl WrappedTypesupport for StatisticDataPoint {
+    unsafe impl WrappedTypesupport for StatisticDataPoint {
         type CStruct = statistics_msgs__msg__StatisticDataPoint;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -131,7 +131,7 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct StatisticDataType {}
-    impl WrappedTypesupport for StatisticDataType {
+    unsafe impl WrappedTypesupport for StatisticDataType {
         type CStruct = statistics_msgs__msg__StatisticDataType;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {

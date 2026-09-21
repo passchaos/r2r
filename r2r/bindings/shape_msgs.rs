@@ -6,7 +6,7 @@ pub mod msg {
         pub triangles: Vec<shape_msgs::msg::MeshTriangle>,
         pub vertices: Vec<geometry_msgs::msg::Point>,
     }
-    impl WrappedTypesupport for Mesh {
+    unsafe impl WrappedTypesupport for Mesh {
         type CStruct = shape_msgs__msg__Mesh;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -91,7 +91,7 @@ pub mod msg {
     pub struct MeshTriangle {
         pub vertex_indices: Vec<u32>,
     }
-    impl WrappedTypesupport for MeshTriangle {
+    unsafe impl WrappedTypesupport for MeshTriangle {
         type CStruct = shape_msgs__msg__MeshTriangle;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -132,7 +132,7 @@ pub mod msg {
     pub struct Plane {
         pub coef: Vec<f64>,
     }
-    impl WrappedTypesupport for Plane {
+    unsafe impl WrappedTypesupport for Plane {
         type CStruct = shape_msgs__msg__Plane;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -172,7 +172,7 @@ pub mod msg {
         pub dimensions: Vec<f64>,
         pub polygon: geometry_msgs::msg::Polygon,
     }
-    impl WrappedTypesupport for SolidPrimitive {
+    unsafe impl WrappedTypesupport for SolidPrimitive {
         type CStruct = shape_msgs__msg__SolidPrimitive;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {

@@ -12,7 +12,7 @@ pub mod msg {
         pub max_disparity: f32,
         pub delta_d: f32,
     }
-    impl WrappedTypesupport for DisparityImage {
+    unsafe impl WrappedTypesupport for DisparityImage {
         type CStruct = stereo_msgs__msg__DisparityImage;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {

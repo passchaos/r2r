@@ -5,7 +5,7 @@ pub mod msg {
     pub struct Clock {
         pub clock: builtin_interfaces::msg::Time,
     }
-    impl WrappedTypesupport for Clock {
+    unsafe impl WrappedTypesupport for Clock {
         type CStruct = rosgraph_msgs__msg__Clock;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {

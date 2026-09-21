@@ -4,7 +4,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -48,7 +48,7 @@ pub mod srv {
             pub uint64_values_default: Vec<u64>,
             pub string_values_default: Vec<std::string::String>,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = test_msgs__srv__Arrays_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -360,7 +360,7 @@ pub mod srv {
             pub uint64_values_default: Vec<u64>,
             pub string_values_default: Vec<std::string::String>,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = test_msgs__srv__Arrays_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -644,7 +644,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -671,7 +671,7 @@ pub mod srv {
             pub uint64_value: u64,
             pub string_value: std::string::String,
         }
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = test_msgs__srv__BasicTypes_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -748,7 +748,7 @@ pub mod srv {
             pub uint64_value: u64,
             pub string_value: std::string::String,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = test_msgs__srv__BasicTypes_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -814,7 +814,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -826,7 +826,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Request {}
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = test_msgs__srv__Empty_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -857,7 +857,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Response {}
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = test_msgs__srv__Empty_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -893,7 +893,7 @@ pub mod action {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Action();
-        impl WrappedActionTypeSupport for Action {
+        unsafe impl WrappedActionTypeSupport for Action {
             type Goal = Goal;
             type Result = Result;
             type Feedback = Feedback;
@@ -974,7 +974,7 @@ pub mod action {
         pub struct Goal {
             pub order: i32,
         }
-        impl WrappedTypesupport for Goal {
+        unsafe impl WrappedTypesupport for Goal {
             type CStruct = test_msgs__action__Fibonacci_Goal;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -1010,7 +1010,7 @@ pub mod action {
         pub struct Result {
             pub sequence: Vec<i32>,
         }
-        impl WrappedTypesupport for Result {
+        unsafe impl WrappedTypesupport for Result {
             type CStruct = test_msgs__action__Fibonacci_Result;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -1049,7 +1049,7 @@ pub mod action {
         pub struct Feedback {
             pub sequence: Vec<i32>,
         }
-        impl WrappedTypesupport for Feedback {
+        unsafe impl WrappedTypesupport for Feedback {
             type CStruct = test_msgs__action__Fibonacci_Feedback;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -1088,7 +1088,7 @@ pub mod action {
             use super::super::super::super::*;
             #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
             pub struct Service();
-            impl WrappedServiceTypeSupport for Service {
+            unsafe impl WrappedServiceTypeSupport for Service {
                 type Request = Request;
                 type Response = Response;
                 fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -1103,7 +1103,7 @@ pub mod action {
                 pub goal_id: unique_identifier_msgs::msg::UUID,
                 pub goal: test_msgs::action::Fibonacci::Goal,
             }
-            impl WrappedTypesupport for Request {
+            unsafe impl WrappedTypesupport for Request {
                 type CStruct = test_msgs__action__Fibonacci_SendGoal_Request;
                 fn get_ts() -> &'static rosidl_message_type_support_t {
                     unsafe {
@@ -1151,7 +1151,7 @@ pub mod action {
                 pub accepted: bool,
                 pub stamp: builtin_interfaces::msg::Time,
             }
-            impl WrappedTypesupport for Response {
+            unsafe impl WrappedTypesupport for Response {
                 type CStruct = test_msgs__action__Fibonacci_SendGoal_Response;
                 fn get_ts() -> &'static rosidl_message_type_support_t {
                     unsafe {
@@ -1197,7 +1197,7 @@ pub mod action {
             use super::super::super::super::*;
             #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
             pub struct Service();
-            impl WrappedServiceTypeSupport for Service {
+            unsafe impl WrappedServiceTypeSupport for Service {
                 type Request = Request;
                 type Response = Response;
                 fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -1211,7 +1211,7 @@ pub mod action {
             pub struct Request {
                 pub goal_id: unique_identifier_msgs::msg::UUID,
             }
-            impl WrappedTypesupport for Request {
+            unsafe impl WrappedTypesupport for Request {
                 type CStruct = test_msgs__action__Fibonacci_GetResult_Request;
                 fn get_ts() -> &'static rosidl_message_type_support_t {
                     unsafe {
@@ -1257,7 +1257,7 @@ pub mod action {
                 pub status: i8,
                 pub result: test_msgs::action::Fibonacci::Result,
             }
-            impl WrappedTypesupport for Response {
+            unsafe impl WrappedTypesupport for Response {
                 type CStruct = test_msgs__action__Fibonacci_GetResult_Response;
                 fn get_ts() -> &'static rosidl_message_type_support_t {
                     unsafe {
@@ -1306,7 +1306,7 @@ pub mod action {
             pub goal_id: unique_identifier_msgs::msg::UUID,
             pub feedback: test_msgs::action::Fibonacci::Feedback,
         }
-        impl WrappedTypesupport for FeedbackMessage {
+        unsafe impl WrappedTypesupport for FeedbackMessage {
             type CStruct = test_msgs__action__Fibonacci_FeedbackMessage;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -1354,7 +1354,7 @@ pub mod action {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Action();
-        impl WrappedActionTypeSupport for Action {
+        unsafe impl WrappedActionTypeSupport for Action {
             type Goal = Goal;
             type Result = Result;
             type Feedback = Feedback;
@@ -1437,7 +1437,7 @@ pub mod action {
             pub nested_field: test_msgs::msg::BasicTypes,
             pub nested_different_pkg: builtin_interfaces::msg::Time,
         }
-        impl WrappedTypesupport for Goal {
+        unsafe impl WrappedTypesupport for Goal {
             type CStruct = test_msgs__action__NestedMessage_Goal;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -1488,7 +1488,7 @@ pub mod action {
             pub nested_field: test_msgs::msg::BasicTypes,
             pub nested_different_pkg: builtin_interfaces::msg::Time,
         }
-        impl WrappedTypesupport for Result {
+        unsafe impl WrappedTypesupport for Result {
             type CStruct = test_msgs__action__NestedMessage_Result;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -1539,7 +1539,7 @@ pub mod action {
             pub nested_field: test_msgs::msg::BasicTypes,
             pub nested_different_pkg: builtin_interfaces::msg::Time,
         }
-        impl WrappedTypesupport for Feedback {
+        unsafe impl WrappedTypesupport for Feedback {
             type CStruct = test_msgs__action__NestedMessage_Feedback;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -1588,7 +1588,7 @@ pub mod action {
             use super::super::super::super::*;
             #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
             pub struct Service();
-            impl WrappedServiceTypeSupport for Service {
+            unsafe impl WrappedServiceTypeSupport for Service {
                 type Request = Request;
                 type Response = Response;
                 fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -1603,7 +1603,7 @@ pub mod action {
                 pub goal_id: unique_identifier_msgs::msg::UUID,
                 pub goal: test_msgs::action::NestedMessage::Goal,
             }
-            impl WrappedTypesupport for Request {
+            unsafe impl WrappedTypesupport for Request {
                 type CStruct = test_msgs__action__NestedMessage_SendGoal_Request;
                 fn get_ts() -> &'static rosidl_message_type_support_t {
                     unsafe {
@@ -1655,7 +1655,7 @@ pub mod action {
                 pub accepted: bool,
                 pub stamp: builtin_interfaces::msg::Time,
             }
-            impl WrappedTypesupport for Response {
+            unsafe impl WrappedTypesupport for Response {
                 type CStruct = test_msgs__action__NestedMessage_SendGoal_Response;
                 fn get_ts() -> &'static rosidl_message_type_support_t {
                     unsafe {
@@ -1703,7 +1703,7 @@ pub mod action {
             use super::super::super::super::*;
             #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
             pub struct Service();
-            impl WrappedServiceTypeSupport for Service {
+            unsafe impl WrappedServiceTypeSupport for Service {
                 type Request = Request;
                 type Response = Response;
                 fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -1717,7 +1717,7 @@ pub mod action {
             pub struct Request {
                 pub goal_id: unique_identifier_msgs::msg::UUID,
             }
-            impl WrappedTypesupport for Request {
+            unsafe impl WrappedTypesupport for Request {
                 type CStruct = test_msgs__action__NestedMessage_GetResult_Request;
                 fn get_ts() -> &'static rosidl_message_type_support_t {
                     unsafe {
@@ -1765,7 +1765,7 @@ pub mod action {
                 pub status: i8,
                 pub result: test_msgs::action::NestedMessage::Result,
             }
-            impl WrappedTypesupport for Response {
+            unsafe impl WrappedTypesupport for Response {
                 type CStruct = test_msgs__action__NestedMessage_GetResult_Response;
                 fn get_ts() -> &'static rosidl_message_type_support_t {
                     unsafe {
@@ -1816,7 +1816,7 @@ pub mod action {
             pub goal_id: unique_identifier_msgs::msg::UUID,
             pub feedback: test_msgs::action::NestedMessage::Feedback,
         }
-        impl WrappedTypesupport for FeedbackMessage {
+        unsafe impl WrappedTypesupport for FeedbackMessage {
             type CStruct = test_msgs__action__NestedMessage_FeedbackMessage;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -1900,7 +1900,7 @@ pub mod msg {
         pub string_values_default: Vec<std::string::String>,
         pub alignment_check: i32,
     }
-    impl WrappedTypesupport for Arrays {
+    unsafe impl WrappedTypesupport for Arrays {
         type CStruct = test_msgs__msg__Arrays;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -2187,7 +2187,7 @@ pub mod msg {
         pub int64_value: i64,
         pub uint64_value: u64,
     }
-    impl WrappedTypesupport for BasicTypes {
+    unsafe impl WrappedTypesupport for BasicTypes {
         type CStruct = test_msgs__msg__BasicTypes;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -2277,7 +2277,7 @@ pub mod msg {
         pub uint64_values_default: Vec<u64>,
         pub alignment_check: i32,
     }
-    impl WrappedTypesupport for BoundedPlainSequences {
+    unsafe impl WrappedTypesupport for BoundedPlainSequences {
         type CStruct = test_msgs__msg__BoundedPlainSequences;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -2583,7 +2583,7 @@ pub mod msg {
         pub string_values_default: Vec<std::string::String>,
         pub alignment_check: i32,
     }
-    impl WrappedTypesupport for BoundedSequences {
+    unsafe impl WrappedTypesupport for BoundedSequences {
         type CStruct = test_msgs__msg__BoundedSequences;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -2870,7 +2870,7 @@ pub mod msg {
         pub duration_value: builtin_interfaces::msg::Duration,
         pub time_value: builtin_interfaces::msg::Time,
     }
-    impl WrappedTypesupport for Builtins {
+    unsafe impl WrappedTypesupport for Builtins {
         type CStruct = test_msgs__msg__Builtins;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -2909,7 +2909,7 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct Constants {}
-    impl WrappedTypesupport for Constants {
+    unsafe impl WrappedTypesupport for Constants {
         type CStruct = test_msgs__msg__Constants;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -2970,7 +2970,7 @@ pub mod msg {
         pub int64_value: i64,
         pub uint64_value: u64,
     }
-    impl WrappedTypesupport for Defaults {
+    unsafe impl WrappedTypesupport for Defaults {
         type CStruct = test_msgs__msg__Defaults;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -3029,7 +3029,7 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct Empty {}
-    impl WrappedTypesupport for Empty {
+    unsafe impl WrappedTypesupport for Empty {
         type CStruct = test_msgs__msg__Empty;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -3075,7 +3075,7 @@ pub mod msg {
             test_msgs::msg::UnboundedSequences,
         >,
     }
-    impl WrappedTypesupport for MultiNested {
+    unsafe impl WrappedTypesupport for MultiNested {
         type CStruct = test_msgs__msg__MultiNested;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -3361,7 +3361,7 @@ pub mod msg {
     pub struct Nested {
         pub basic_types_value: test_msgs::msg::BasicTypes,
     }
-    impl WrappedTypesupport for Nested {
+    unsafe impl WrappedTypesupport for Nested {
         type CStruct = test_msgs__msg__Nested;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -3410,7 +3410,7 @@ pub mod msg {
         pub bounded_string_value_default4: std::string::String,
         pub bounded_string_value_default5: std::string::String,
     }
-    impl WrappedTypesupport for Strings {
+    unsafe impl WrappedTypesupport for Strings {
         type CStruct = test_msgs__msg__Strings;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -3524,7 +3524,7 @@ pub mod msg {
         pub string_values_default: Vec<std::string::String>,
         pub alignment_check: i32,
     }
-    impl WrappedTypesupport for UnboundedSequences {
+    unsafe impl WrappedTypesupport for UnboundedSequences {
         type CStruct = test_msgs__msg__UnboundedSequences;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -3704,7 +3704,7 @@ pub mod msg {
         pub bounded_sequence_of_wstrings: Vec<std::string::String>,
         pub unbounded_sequence_of_wstrings: Vec<std::string::String>,
     }
-    impl WrappedTypesupport for WStrings {
+    unsafe impl WrappedTypesupport for WStrings {
         type CStruct = test_msgs__msg__WStrings;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {

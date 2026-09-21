@@ -5,7 +5,7 @@ pub mod msg {
     pub struct JointCommand {
         pub position: f64,
     }
-    impl WrappedTypesupport for JointCommand {
+    unsafe impl WrappedTypesupport for JointCommand {
         type CStruct = pendulum_msgs__msg__JointCommand;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -44,7 +44,7 @@ pub mod msg {
         pub velocity: f64,
         pub effort: f64,
     }
-    impl WrappedTypesupport for JointState {
+    unsafe impl WrappedTypesupport for JointState {
         type CStruct = pendulum_msgs__msg__JointState;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -93,7 +93,7 @@ pub mod msg {
         pub minor_pagefaults: u64,
         pub major_pagefaults: u64,
     }
-    impl WrappedTypesupport for RttestResults {
+    unsafe impl WrappedTypesupport for RttestResults {
         type CStruct = pendulum_msgs__msg__RttestResults;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {

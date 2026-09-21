@@ -18,7 +18,7 @@ pub mod msg {
         pub points: Vec<geometry_msgs::msg::Point>,
         pub outline_colors: Vec<std_msgs::msg::ColorRGBA>,
     }
-    impl WrappedTypesupport for ImageMarker {
+    unsafe impl WrappedTypesupport for ImageMarker {
         type CStruct = visualization_msgs__msg__ImageMarker;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -143,7 +143,7 @@ pub mod msg {
         pub menu_entries: Vec<visualization_msgs::msg::MenuEntry>,
         pub controls: Vec<visualization_msgs::msg::InteractiveMarkerControl>,
     }
-    impl WrappedTypesupport for InteractiveMarker {
+    unsafe impl WrappedTypesupport for InteractiveMarker {
         type CStruct = visualization_msgs__msg__InteractiveMarker;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -256,7 +256,7 @@ pub mod msg {
         pub independent_marker_orientation: bool,
         pub description: std::string::String,
     }
-    impl WrappedTypesupport for InteractiveMarkerControl {
+    unsafe impl WrappedTypesupport for InteractiveMarkerControl {
         type CStruct = visualization_msgs__msg__InteractiveMarkerControl;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -362,7 +362,7 @@ pub mod msg {
         pub mouse_point: geometry_msgs::msg::Point,
         pub mouse_point_valid: bool,
     }
-    impl WrappedTypesupport for InteractiveMarkerFeedback {
+    unsafe impl WrappedTypesupport for InteractiveMarkerFeedback {
         type CStruct = visualization_msgs__msg__InteractiveMarkerFeedback;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -433,7 +433,7 @@ pub mod msg {
         pub seq_num: u64,
         pub markers: Vec<visualization_msgs::msg::InteractiveMarker>,
     }
-    impl WrappedTypesupport for InteractiveMarkerInit {
+    unsafe impl WrappedTypesupport for InteractiveMarkerInit {
         type CStruct = visualization_msgs__msg__InteractiveMarkerInit;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -504,7 +504,7 @@ pub mod msg {
         pub pose: geometry_msgs::msg::Pose,
         pub name: std::string::String,
     }
-    impl WrappedTypesupport for InteractiveMarkerPose {
+    unsafe impl WrappedTypesupport for InteractiveMarkerPose {
         type CStruct = visualization_msgs__msg__InteractiveMarkerPose;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -553,7 +553,7 @@ pub mod msg {
         pub poses: Vec<visualization_msgs::msg::InteractiveMarkerPose>,
         pub erases: Vec<std::string::String>,
     }
-    impl WrappedTypesupport for InteractiveMarkerUpdate {
+    unsafe impl WrappedTypesupport for InteractiveMarkerUpdate {
         type CStruct = visualization_msgs__msg__InteractiveMarkerUpdate;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -682,7 +682,7 @@ pub mod msg {
         pub mesh_file: visualization_msgs::msg::MeshFile,
         pub mesh_use_embedded_materials: bool,
     }
-    impl WrappedTypesupport for Marker {
+    unsafe impl WrappedTypesupport for Marker {
         type CStruct = visualization_msgs__msg__Marker;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -847,7 +847,7 @@ pub mod msg {
     pub struct MarkerArray {
         pub markers: Vec<visualization_msgs::msg::Marker>,
     }
-    impl WrappedTypesupport for MarkerArray {
+    unsafe impl WrappedTypesupport for MarkerArray {
         type CStruct = visualization_msgs__msg__MarkerArray;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -911,7 +911,7 @@ pub mod msg {
         pub command: std::string::String,
         pub command_type: u8,
     }
-    impl WrappedTypesupport for MenuEntry {
+    unsafe impl WrappedTypesupport for MenuEntry {
         type CStruct = visualization_msgs__msg__MenuEntry;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -963,7 +963,7 @@ pub mod msg {
         pub filename: std::string::String,
         pub data: Vec<u8>,
     }
-    impl WrappedTypesupport for MeshFile {
+    unsafe impl WrappedTypesupport for MeshFile {
         type CStruct = visualization_msgs__msg__MeshFile;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1003,7 +1003,7 @@ pub mod msg {
         pub u: f32,
         pub v: f32,
     }
-    impl WrappedTypesupport for UVCoordinate {
+    unsafe impl WrappedTypesupport for UVCoordinate {
         type CStruct = visualization_msgs__msg__UVCoordinate;
         fn get_ts() -> &'static rosidl_message_type_support_t {
             unsafe {
@@ -1042,7 +1042,7 @@ pub mod srv {
         use super::super::super::*;
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         pub struct Service();
-        impl WrappedServiceTypeSupport for Service {
+        unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
             fn get_ts() -> &'static rosidl_service_type_support_t {
@@ -1054,7 +1054,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Request {}
-        impl WrappedTypesupport for Request {
+        unsafe impl WrappedTypesupport for Request {
             type CStruct = visualization_msgs__srv__GetInteractiveMarkers_Request;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
@@ -1096,7 +1096,7 @@ pub mod srv {
             pub sequence_number: u64,
             pub markers: Vec<visualization_msgs::msg::InteractiveMarker>,
         }
-        impl WrappedTypesupport for Response {
+        unsafe impl WrappedTypesupport for Response {
             type CStruct = visualization_msgs__srv__GetInteractiveMarkers_Response;
             fn get_ts() -> &'static rosidl_message_type_support_t {
                 unsafe {
