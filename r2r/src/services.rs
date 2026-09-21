@@ -56,7 +56,7 @@ where
     T: WrappedServiceTypeSupport,
 {
     pub rcl_handle: rcl_service_t,
-    pub sender: mpsc::Sender<ServiceRequest<T>>,
+    pub sender: mpsc::UnboundedSender<ServiceRequest<T>>,
 }
 
 impl<T: 'static> Service_ for TypedService<T>
@@ -94,11 +94,9 @@ where
                 request_id,
                 service: Arc::downgrade(&service),
             };
-            if let Err(e) = self.sender.try_send(request) {
-                if e.is_disconnected() {
-                    return true;
-                }
-                log::error!("warning: could not send service request ({})", e)
+            if let Err(e) = self.sender.unbounded_send(request) {
+                log::debug!("service request stream was dropped ({})", e);
+                return true;
             }
         } // TODO handle failure.
         false

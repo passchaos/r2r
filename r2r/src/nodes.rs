@@ -782,7 +782,7 @@ impl Node {
             T::get_ts(),
             qos_profile,
         )?;
-        let (sender, receiver) = mpsc::channel::<ServiceRequest<T>>(10);
+        let (sender, receiver) = mpsc::unbounded::<ServiceRequest<T>>();
 
         let ws = TypedService::<T> {
             rcl_handle: service_handle,
