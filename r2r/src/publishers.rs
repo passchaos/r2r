@@ -10,6 +10,87 @@ use std::{
 use crate::{error::*, msg_types::*, nodes::Node, qos::QosProfile};
 use r2r_rcl::*;
 
+/// Whether an endpoint should use a unique middleware network flow.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UniqueNetworkFlowRequirement {
+    NotRequired,
+    StrictlyRequired,
+    OptionallyRequired,
+    SystemDefault,
+}
+
+impl From<UniqueNetworkFlowRequirement> for rmw_unique_network_flow_endpoints_requirement_t {
+    fn from(requirement: UniqueNetworkFlowRequirement) -> Self {
+        match requirement {
+            UniqueNetworkFlowRequirement::NotRequired => {
+                Self::RMW_UNIQUE_NETWORK_FLOW_ENDPOINTS_NOT_REQUIRED
+            }
+            UniqueNetworkFlowRequirement::StrictlyRequired => {
+                Self::RMW_UNIQUE_NETWORK_FLOW_ENDPOINTS_STRICTLY_REQUIRED
+            }
+            UniqueNetworkFlowRequirement::OptionallyRequired => {
+                Self::RMW_UNIQUE_NETWORK_FLOW_ENDPOINTS_OPTIONALLY_REQUIRED
+            }
+            UniqueNetworkFlowRequirement::SystemDefault => {
+                Self::RMW_UNIQUE_NETWORK_FLOW_ENDPOINTS_SYSTEM_DEFAULT
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PublisherOptions {
+    pub unique_network_flow: UniqueNetworkFlowRequirement,
+}
+
+impl Default for PublisherOptions {
+    fn default() -> Self {
+        Self {
+            unique_network_flow: UniqueNetworkFlowRequirement::NotRequired,
+        }
+    }
+}
+
+impl PublisherOptions {
+    pub const fn unique_network_flow(mut self, requirement: UniqueNetworkFlowRequirement) -> Self {
+        self.unique_network_flow = requirement;
+        self
+    }
+}
+
+#[cfg(test)]
+mod option_tests {
+    use super::*;
+
+    #[test]
+    fn maps_unique_network_flow_requirements() {
+        assert_eq!(
+            rmw_unique_network_flow_endpoints_requirement_t::from(
+                UniqueNetworkFlowRequirement::NotRequired
+            ),
+            rmw_unique_network_flow_endpoints_requirement_t::RMW_UNIQUE_NETWORK_FLOW_ENDPOINTS_NOT_REQUIRED
+        );
+        assert_eq!(
+            rmw_unique_network_flow_endpoints_requirement_t::from(
+                UniqueNetworkFlowRequirement::StrictlyRequired
+            ),
+            rmw_unique_network_flow_endpoints_requirement_t::RMW_UNIQUE_NETWORK_FLOW_ENDPOINTS_STRICTLY_REQUIRED
+        );
+        assert_eq!(
+            rmw_unique_network_flow_endpoints_requirement_t::from(
+                UniqueNetworkFlowRequirement::OptionallyRequired
+            ),
+            rmw_unique_network_flow_endpoints_requirement_t::RMW_UNIQUE_NETWORK_FLOW_ENDPOINTS_OPTIONALLY_REQUIRED
+        );
+        assert_eq!(
+            rmw_unique_network_flow_endpoints_requirement_t::from(
+                UniqueNetworkFlowRequirement::SystemDefault
+            ),
+            rmw_unique_network_flow_endpoints_requirement_t::RMW_UNIQUE_NETWORK_FLOW_ENDPOINTS_SYSTEM_DEFAULT
+        );
+    }
+}
+
 // The publish function is thread safe. ROS2 docs state:
 // =============
 //
@@ -235,7 +316,7 @@ pub fn make_publisher_untyped(handle: Weak<Publisher_>, type_: String) -> Publis
 
 pub fn create_publisher_helper(
     node: &mut rcl_node_t, topic: &str, typesupport: *const rosidl_message_type_support_t,
-    qos_profile: QosProfile,
+    qos_profile: QosProfile, options: PublisherOptions,
 ) -> Result<Publisher_> {
     let mut publisher_handle = unsafe { rcl_get_zero_initialized_publisher() };
     let topic_c_string = CString::new(topic).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
@@ -243,6 +324,9 @@ pub fn create_publisher_helper(
     let result = unsafe {
         let mut publisher_options = rcl_publisher_get_default_options();
         publisher_options.qos = qos_profile.into();
+        publisher_options
+            .rmw_publisher_options
+            .require_unique_network_flow_endpoints = options.unique_network_flow.into();
         rcl_publisher_init(
             &mut publisher_handle,
             node,

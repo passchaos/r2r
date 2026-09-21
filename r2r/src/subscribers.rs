@@ -9,7 +9,9 @@ use std::{
     time::Duration,
 };
 
-use crate::{error::*, msg_types::*, nodes::Node, qos::QosProfile};
+use crate::{
+    error::*, msg_types::*, nodes::Node, publishers::UniqueNetworkFlowRequirement, qos::QosProfile,
+};
 use r2r_rcl::*;
 
 /// Rust-side buffering options for a ROS subscription stream.
@@ -21,6 +23,7 @@ pub struct SubscriptionOptions {
     pub channel_capacity: usize,
     /// Ignore messages published by this process.
     pub ignore_local_publications: bool,
+    pub unique_network_flow: UniqueNetworkFlowRequirement,
 }
 
 impl Default for SubscriptionOptions {
@@ -28,6 +31,7 @@ impl Default for SubscriptionOptions {
         Self {
             channel_capacity: 10,
             ignore_local_publications: false,
+            unique_network_flow: UniqueNetworkFlowRequirement::NotRequired,
         }
     }
 }
@@ -43,6 +47,11 @@ impl SubscriptionOptions {
 
     pub const fn ignore_local_publications(mut self, ignore: bool) -> Self {
         self.ignore_local_publications = ignore;
+        self
+    }
+
+    pub const fn unique_network_flow(mut self, requirement: UniqueNetworkFlowRequirement) -> Self {
+        self.unique_network_flow = requirement;
         self
     }
 
@@ -479,6 +488,7 @@ impl<O: 'static> Subscriber_ for RawSubscriber<O> {
 pub(crate) fn create_subscription_helper(
     node: &mut rcl_node_t, topic: &str, ts: *const rosidl_message_type_support_t,
     qos_profile: QosProfile, ignore_local_publications: bool,
+    unique_network_flow: UniqueNetworkFlowRequirement,
 ) -> Result<rcl_subscription_t> {
     let mut subscription_handle = unsafe { rcl_get_zero_initialized_subscription() };
     let topic_c_string = CString::new(topic).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
@@ -489,6 +499,9 @@ pub(crate) fn create_subscription_helper(
         subscription_options
             .rmw_subscription_options
             .ignore_local_publications = ignore_local_publications;
+        subscription_options
+            .rmw_subscription_options
+            .require_unique_network_flow_endpoints = unique_network_flow.into();
         rcl_subscription_init(
             &mut subscription_handle,
             node,

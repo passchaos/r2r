@@ -93,7 +93,9 @@ mod subscribers;
 pub use subscribers::{MessageInfo, ReceivedMessage, Subscription, SubscriptionOptions};
 
 mod publishers;
-pub use publishers::{LoanedMessage, Publisher, PublisherUntyped};
+pub use publishers::{
+    LoanedMessage, Publisher, PublisherOptions, PublisherUntyped, UniqueNetworkFlowRequirement,
+};
 
 mod services;
 pub use services::{Service, ServiceOptions, ServiceRequest};

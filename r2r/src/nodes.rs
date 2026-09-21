@@ -838,6 +838,7 @@ impl Node {
             T::get_ts(),
             qos_profile,
             options.ignore_local_publications,
+            options.unique_network_flow,
         )?;
         let (sender, receiver) = mpsc::channel::<O>(options.channel_capacity);
         let id = uuid::Uuid::new_v4();
@@ -939,6 +940,7 @@ impl Node {
             T::get_ts(),
             qos_profile,
             options.ignore_local_publications,
+            options.unique_network_flow,
         )?;
         let (sender, receiver) = mpsc::channel::<O>(options.channel_capacity);
         let id = uuid::Uuid::new_v4();
@@ -1023,6 +1025,7 @@ impl Node {
             msg.ts,
             qos_profile,
             options.ignore_local_publications,
+            options.unique_network_flow,
         )?;
         let (sender, receiver) = mpsc::channel::<O>(options.channel_capacity);
         let id = uuid::Uuid::new_v4();
@@ -1132,6 +1135,7 @@ impl Node {
             msg.ts,
             qos_profile,
             options.ignore_local_publications,
+            options.unique_network_flow,
         ) {
             Ok(handle) => handle,
             Err(err) => {
@@ -1521,8 +1525,23 @@ impl Node {
     where
         T: WrappedTypesupport,
     {
-        let publisher_handle =
-            create_publisher_helper(self.node_handle.as_mut(), topic, T::get_ts(), qos_profile)?;
+        self.create_publisher_with_options(topic, qos_profile, PublisherOptions::default())
+    }
+
+    /// Create a ROS publisher with endpoint creation options.
+    pub fn create_publisher_with_options<T>(
+        &mut self, topic: &str, qos_profile: QosProfile, options: PublisherOptions,
+    ) -> Result<Publisher<T>>
+    where
+        T: WrappedTypesupport,
+    {
+        let publisher_handle = create_publisher_helper(
+            self.node_handle.as_mut(),
+            topic,
+            T::get_ts(),
+            qos_profile,
+            options,
+        )?;
         let arc = Arc::new(publisher_handle);
         let p = make_publisher(Arc::downgrade(&arc));
         self.pubs.push(arc);
@@ -1535,9 +1554,27 @@ impl Node {
     pub fn create_publisher_untyped(
         &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
     ) -> Result<PublisherUntyped> {
+        self.create_publisher_untyped_with_options(
+            topic,
+            topic_type,
+            qos_profile,
+            PublisherOptions::default(),
+        )
+    }
+
+    /// Create an untyped ROS publisher with endpoint creation options.
+    pub fn create_publisher_untyped_with_options(
+        &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
+        options: PublisherOptions,
+    ) -> Result<PublisherUntyped> {
         let dummy = WrappedNativeMsgUntyped::new_from(topic_type)?;
-        let publisher_handle =
-            create_publisher_helper(self.node_handle.as_mut(), topic, dummy.ts, qos_profile)?;
+        let publisher_handle = create_publisher_helper(
+            self.node_handle.as_mut(),
+            topic,
+            dummy.ts,
+            qos_profile,
+            options,
+        )?;
         let arc = Arc::new(publisher_handle);
         let p = make_publisher_untyped(Arc::downgrade(&arc), topic_type.to_owned());
         self.pubs.push(arc);
@@ -3231,6 +3268,59 @@ mod tests {
             node.try_spin_once(Duration::from_millis(10)).unwrap();
         }
         assert!(ignored.next().now_or_never().is_none());
+    }
+
+    #[test]
+    fn publisher_and_subscription_support_unique_network_flow_options() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "unique_network_flow_test", "").unwrap();
+        let topic = format!("/unique_flow_{}", uuid::Uuid::new_v4().simple());
+        let publisher = node
+            .create_publisher_with_options::<crate::std_msgs::msg::Int32>(
+                &topic,
+                QosProfile::default(),
+                PublisherOptions::default()
+                    .unique_network_flow(UniqueNetworkFlowRequirement::SystemDefault),
+            )
+            .unwrap();
+        let mut subscription = node
+            .subscribe_with_info_and_options::<crate::std_msgs::msg::Int32>(
+                &topic,
+                QosProfile::default(),
+                SubscriptionOptions::default()
+                    .unique_network_flow(UniqueNetworkFlowRequirement::SystemDefault),
+            )
+            .unwrap();
+        let _untyped = node
+            .create_publisher_untyped_with_options(
+                "/unique_flow_untyped",
+                "std_msgs/msg/Int32",
+                QosProfile::default(),
+                PublisherOptions::default()
+                    .unique_network_flow(UniqueNetworkFlowRequirement::SystemDefault),
+            )
+            .unwrap();
+
+        let wait = publisher
+            .wait_for_subscribers_with_timeout(&mut node, Duration::from_secs(1))
+            .unwrap();
+        futures::pin_mut!(wait);
+        loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if wait.as_mut().now_or_never().is_some() {
+                break;
+            }
+        }
+        publisher
+            .publish(&crate::std_msgs::msg::Int32 { data: 42 })
+            .unwrap();
+        let received = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(message) = subscription.next().now_or_never().flatten() {
+                break message;
+            }
+        };
+        assert_eq!(received.message.data, 42);
     }
 
     #[test]
