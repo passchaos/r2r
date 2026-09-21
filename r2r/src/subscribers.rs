@@ -6,6 +6,10 @@ use r2r_rcl::*;
 
 pub trait Subscriber_ {
     fn handle(&self) -> &rcl_subscription_t;
+    /// Returns true when the subscriber should be destroyed before entering the next wait.
+    fn should_remove(&mut self) -> bool {
+        false
+    }
     /// Returns true if the subscriber stream has been dropped.
     fn handle_incoming(&mut self) -> bool;
     fn destroy(&mut self, node: &mut rcl_node_t);

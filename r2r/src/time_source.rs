@@ -127,8 +127,8 @@ impl TimeSource {
 
     /// Disables usage of simulated time
     ///
-    /// This will schedule removal of internal subscriber to the `"/clock"` topic on the next
-    /// receipt of [`rosgraph_msgs::msg::Clock`] message.
+    /// This schedules removal of the internal subscriber to the `"/clock"` topic before the
+    /// node enters its next wait cycle.
     pub fn disable_sim_time(&self) {
         let mut inner = self.inner.lock().unwrap();
         if inner.simulated_time_enabled {
@@ -177,6 +177,15 @@ impl TimeSource_ {
         });
     }
 
+    fn take_subscriber_destruction_request(&mut self) -> bool {
+        if matches!(self.subscriber_state, TimeSourceSubscriberState::ToBeDestroyed) {
+            self.subscriber_state = TimeSourceSubscriberState::None;
+            true
+        } else {
+            false
+        }
+    }
+
     // this is similar to internal rclcpp function `set_all_clocks` in `time_source.cpp`
     fn set_clock_time(&mut self, time_msg: Time) {
         let time = time_msg.into();
@@ -211,6 +220,14 @@ impl TimeSourceSubscriber {
 impl Subscriber_ for TimeSourceSubscriber {
     fn handle(&self) -> &rcl_subscription_t {
         &self.subscriber_handle
+    }
+
+    fn should_remove(&mut self) -> bool {
+        self.time_source
+            .inner
+            .lock()
+            .unwrap()
+            .take_subscriber_destruction_request()
     }
 
     fn handle_incoming(&mut self) -> bool {
@@ -251,5 +268,20 @@ impl Subscriber_ for TimeSourceSubscriber {
         unsafe {
             rcl_subscription_fini(&mut self.subscriber_handle, node);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn subscriber_destruction_request_is_consumed_without_a_clock_message() {
+        let mut inner = TimeSource_::new();
+        inner.subscriber_state = TimeSourceSubscriberState::ToBeDestroyed;
+
+        assert!(inner.take_subscriber_destruction_request());
+        assert!(matches!(inner.subscriber_state, TimeSourceSubscriberState::None));
+        assert!(!inner.take_subscriber_destruction_request());
     }
 }

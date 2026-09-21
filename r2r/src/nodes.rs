@@ -1053,6 +1053,19 @@ impl Node {
 
     /// Spin the ROS node and report errors from the underlying RCL wait set.
     pub fn try_spin_once(&mut self, timeout: Duration) -> Result<()> {
+        // Some internal subscriptions, such as `/clock`, can be disabled without another
+        // message arriving. Remove them before rebuilding the wait set so teardown does not
+        // depend on readiness from the subscription being removed.
+        let mut active_subscribers = Vec::with_capacity(self.subscribers.len());
+        for mut subscriber in self.subscribers.drain(..) {
+            if subscriber.should_remove() {
+                subscriber.destroy(&mut self.node_handle);
+            } else {
+                active_subscribers.push(subscriber);
+            }
+        }
+        self.subscribers = active_subscribers;
+
         // first handle any completed action cancellation responses
         for a in &mut self.action_servers {
             a.lock().unwrap().send_completed_cancel_requests();
