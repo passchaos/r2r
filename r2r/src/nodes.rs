@@ -472,62 +472,51 @@ impl Node {
         let set_params_atomically_future = set_params_atomically_request_stream.for_each(
             move |req: ServiceRequest<rcl_interfaces::srv::SetParametersAtomically::Service>| {
                 let mut result = rcl_interfaces::srv::SetParametersAtomically::Response::default();
-                result.result.successful = true;
-                if let Some(ps) = &params_struct_clone {
-                    for p in &req.message.parameters {
-                        let val = ParameterValue::from_parameter_value_msg(p.value.clone());
-                        if let Err(e) = ps.lock().unwrap().check_parameter(&p.name, &val) {
-                            result.result.successful = false;
-                            result.result.reason = format!("Can't set parameter {}: {}", p.name, e);
-                            break;
-                        }
-                    }
-                }
-                if result.result.successful {
-                    // Since we checked them above now we assume these will be set ok...
-                    for p in &req.message.parameters {
-                        let val = ParameterValue::from_parameter_value_msg(p.value.clone());
-                        let changed = params
-                            .lock()
-                            .unwrap()
-                            .get(&p.name)
-                            .map(|v| v.value != val)
-                            .unwrap_or(true); // changed=true if new
-                        let r = if let Some(ps) = &params_struct_clone {
-                            // Update parameter structure
-                            let result = ps.lock().unwrap().set_parameter(&p.name, &val);
-                            if result.is_ok() {
-                                // Also update Node::params
-                                params
-                                    .lock()
-                                    .unwrap()
-                                    .entry(p.name.clone())
-                                    .and_modify(|p| p.value = val.clone());
-                            }
-                            rcl_interfaces::msg::SetParametersResult {
-                                successful: result.is_ok(),
-                                reason: result.err().map_or("".into(), |e| e.to_string()),
-                            }
-                        } else {
-                            // No parameter structure - update only Node::params
-                            params
-                                .lock()
-                                .unwrap()
-                                .entry(p.name.clone())
-                                .and_modify(|p| p.value = val.clone())
-                                .or_insert(Parameter::new(val.clone()));
-                            rcl_interfaces::msg::SetParametersResult {
-                                successful: true,
-                                reason: "".into(),
-                            }
+                let updates = req
+                    .message
+                    .parameters
+                    .iter()
+                    .map(|parameter| {
+                        (
+                            parameter.name.clone(),
+                            ParameterValue::from_parameter_value_msg(parameter.value.clone()),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+
+                let update_result = params_struct_clone
+                    .as_ref()
+                    .map_or(Ok(()), |ps| ps.lock().unwrap().set_parameters_atomically(&updates));
+
+                match update_result {
+                    Ok(()) => {
+                        result.result.successful = true;
+                        let changed = {
+                            let mut params = params.lock().unwrap();
+                            updates
+                                .iter()
+                                .filter_map(|(name, value)| {
+                                    let changed = params
+                                        .get(name)
+                                        .map(|parameter| parameter.value != *value)
+                                        .unwrap_or(true);
+                                    params
+                                        .entry(name.clone())
+                                        .and_modify(|parameter| parameter.value = value.clone())
+                                        .or_insert_with(|| Parameter::new(value.clone()));
+                                    changed.then(|| (name.clone(), value.clone()))
+                                })
+                                .collect::<Vec<_>>()
                         };
-                        // if the value changed, send out new value on parameter event stream
-                        if changed && r.successful {
-                            if let Err(e) = set_atomically_event_tx.try_send((p.name.clone(), val))
-                            {
+                        for event in changed {
+                            if let Err(e) = set_atomically_event_tx.try_send(event) {
                                 log::debug!("Warning: could not send parameter event ({}).", e);
                             }
                         }
+                    }
+                    Err(err) => {
+                        result.result.successful = false;
+                        result.result.reason = format!("Can't set parameters atomically: {err}");
                     }
                 }
                 req.respond(result)

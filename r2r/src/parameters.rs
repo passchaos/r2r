@@ -309,6 +309,39 @@ pub trait RosParams {
     fn get_parameter(&mut self, param_name: &str) -> Result<ParameterValue>;
     fn set_parameter(&mut self, param_name: &str, param_val: &ParameterValue) -> Result<()>;
     fn check_parameter(&self, param_name: &str, param_val: &ParameterValue) -> Result<()>;
+
+    /// Validate and apply a group of parameter changes as one transaction.
+    ///
+    /// The default implementation restores the previous values if an implementation returns an
+    /// error while applying a change after validation. Implementations with external side effects
+    /// should override this method if restoring through `set_parameter` is insufficient.
+    fn set_parameters_atomically(&mut self, parameters: &[(String, ParameterValue)]) -> Result<()> {
+        for (name, value) in parameters {
+            self.check_parameter(name, value)?;
+        }
+
+        let previous_values = parameters
+            .iter()
+            .map(|(name, _)| self.get_parameter(name).map(|value| (name, value)))
+            .collect::<Result<Vec<_>>>()?;
+
+        for (index, (name, value)) in parameters.iter().enumerate() {
+            if let Err(err) = self.set_parameter(name, value) {
+                for (old_name, old_value) in previous_values[..=index].iter().rev() {
+                    if let Err(rollback_err) = self.set_parameter(old_name, old_value) {
+                        log::error!(
+                            "failed to roll back parameter {} after atomic update failure: {}",
+                            old_name,
+                            rollback_err
+                        );
+                    }
+                }
+                return Err(err);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 // Implementation of RosParams for primitive types, i.e. leaf parameters
@@ -422,4 +455,81 @@ where
 
 fn to_string(x: &str) -> Result<String> {
     Ok(x.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct FailingParams {
+        first: i64,
+        second: i64,
+    }
+
+    impl RosParams for FailingParams {
+        fn register_parameters(
+            &mut self, _prefix: &str, _param: Option<Parameter>,
+            _params: &mut IndexMap<String, Parameter>,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        fn get_parameter(&mut self, name: &str) -> Result<ParameterValue> {
+            match name {
+                "first" => Ok(ParameterValue::Integer(self.first)),
+                "second" => Ok(ParameterValue::Integer(self.second)),
+                _ => Err(Error::InvalidParameterName { name: name.into() }),
+            }
+        }
+
+        fn set_parameter(&mut self, name: &str, value: &ParameterValue) -> Result<()> {
+            let ParameterValue::Integer(value) = value else {
+                return Err(Error::InvalidParameterType {
+                    name: name.into(),
+                    ty: "integer",
+                });
+            };
+            match name {
+                "first" => self.first = *value,
+                "second" if *value == 99 => {
+                    return Err(Error::ParameterValueConv {
+                        name: name.into(),
+                        msg: "simulated setter failure".into(),
+                    });
+                }
+                "second" => self.second = *value,
+                _ => return Err(Error::InvalidParameterName { name: name.into() }),
+            }
+            Ok(())
+        }
+
+        fn check_parameter(&self, name: &str, value: &ParameterValue) -> Result<()> {
+            if !matches!(value, ParameterValue::Integer(_)) {
+                return Err(Error::InvalidParameterType {
+                    name: name.into(),
+                    ty: "integer",
+                });
+            }
+            match name {
+                "first" | "second" => Ok(()),
+                _ => Err(Error::InvalidParameterName { name: name.into() }),
+            }
+        }
+    }
+
+    #[test]
+    fn atomic_parameter_update_rolls_back_prior_changes() {
+        let mut params = FailingParams {
+            first: 1,
+            second: 2,
+        };
+        let updates = vec![
+            ("first".into(), ParameterValue::Integer(10)),
+            ("second".into(), ParameterValue::Integer(99)),
+        ];
+
+        assert!(params.set_parameters_atomically(&updates).is_err());
+        assert_eq!(params.first, 1);
+        assert_eq!(params.second, 2);
+    }
 }
