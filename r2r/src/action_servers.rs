@@ -140,6 +140,10 @@ where
         if goal_handle.is_null() {
             return Err(Error::RCL_RET_ACTION_GOAL_HANDLE_INVALID);
         }
+        // RCL owns the allocation containing `goal_handle`, but not the handle's internal
+        // allocation. Keep the documented value copy so it can be finalized after RCL expires
+        // the goal or destroys the server-side storage.
+        server.add_goal_handle(self.uuid, goal_handle);
 
         if execute {
             let ret = unsafe {
@@ -149,18 +153,37 @@ where
                 )
             };
             if ret != RCL_RET_OK as i32 {
-                unsafe {
-                    rcl_action_goal_handle_fini(goal_handle);
+                if let Err(rollback_err) =
+                    server.set_goal_state(&self.uuid, rcl_action_goal_event_t::GOAL_EVENT_ABORT)
+                {
+                    log::error!(
+                        "could not abort goal after execution setup failed: {rollback_err}"
+                    );
                 }
+                server.forget_cancel_sender(&self.uuid);
                 return Err(Error::from_rcl_error(ret));
             }
         }
 
         // send response
         let response_msg = T::make_goal_response_msg(true, time);
-        let mut response_msg = WrappedNativeMsg::<
+        let mut response_msg = match WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
-        >::try_from(&response_msg)?;
+        >::try_from(&response_msg)
+        {
+            Ok(response) => response,
+            Err(err) => {
+                if let Err(rollback_err) =
+                    server.set_goal_state(&self.uuid, rcl_action_goal_event_t::GOAL_EVENT_ABORT)
+                {
+                    log::error!(
+                        "could not abort goal after response allocation failed: {rollback_err}"
+                    );
+                }
+                server.forget_cancel_sender(&self.uuid);
+                return Err(err);
+            }
+        };
 
         self.response.response_sent = true;
         let ret = unsafe {
@@ -171,8 +194,12 @@ where
             )
         };
         if ret != RCL_RET_OK as i32 {
-            unsafe {
-                rcl_action_goal_handle_fini(goal_handle);
+            if let Err(rollback_err) =
+                server.set_goal_state(&self.uuid, rcl_action_goal_event_t::GOAL_EVENT_ABORT)
+            {
+                log::error!(
+                    "could not abort goal after sending its response failed: {rollback_err}"
+                );
             }
             server.forget_cancel_sender(&self.uuid);
             return Err(Error::from_rcl_error(ret));
@@ -184,7 +211,6 @@ where
             server: self.response.server.clone(),
         };
 
-        server.add_goal_handle(g.uuid, goal_handle);
         server.publish_status();
 
         Ok((g, self.cancel_requests))
@@ -300,10 +326,42 @@ where
     pub cancel_senders: HashMap<uuid::Uuid, mpsc::Sender<ActionServerCancelRequest>>,
     pub(crate) pending_cancel_request: Option<PendingCancelRequest>,
     pub active_cancel_requests: Vec<ActiveCancelRequest>,
-    pub goals: HashMap<uuid::Uuid, *mut rcl_action_goal_handle_t>,
+    pub(crate) goals: HashMap<uuid::Uuid, OwnedGoalHandle>,
     pub result_msgs: HashMap<uuid::Uuid, Box<dyn VoidPtr>>,
     pub result_requests: HashMap<uuid::Uuid, Vec<rmw_request_id_t>>,
     pub cancel_request_channel_capacity: usize,
+}
+
+pub(crate) struct OwnedGoalHandle(Option<rcl_action_goal_handle_t>);
+
+impl OwnedGoalHandle {
+    unsafe fn copy_from(handle: *const rcl_action_goal_handle_t) -> Self {
+        Self(Some(std::ptr::read(handle)))
+    }
+
+    fn as_ptr(&self) -> *const rcl_action_goal_handle_t {
+        self.0.as_ref().expect("owned goal handle was finalized")
+    }
+
+    fn as_mut_ptr(&mut self) -> *mut rcl_action_goal_handle_t {
+        self.0.as_mut().expect("owned goal handle was finalized")
+    }
+
+    fn fini(&mut self) -> rcl_ret_t {
+        let Some(mut handle) = self.0.take() else {
+            return RCL_RET_OK as i32;
+        };
+        unsafe { rcl_action_goal_handle_fini(&mut handle) }
+    }
+}
+
+impl Drop for OwnedGoalHandle {
+    fn drop(&mut self) {
+        let ret = self.fini();
+        if ret != RCL_RET_OK as i32 {
+            log::error!("could not finalize action goal handle: {ret}");
+        }
+    }
 }
 
 impl<T> WrappedActionServer<T>
@@ -381,7 +439,7 @@ where
     fn get_goal_status(&self, uuid: &uuid::Uuid) -> Result<GoalStatus> {
         if let Some(handle) = self.goals.get(uuid) {
             let mut state = action_msgs::msg::GoalStatus::STATUS_UNKNOWN as u8;
-            let ret = unsafe { rcl_action_goal_handle_get_status(*handle, &mut state) };
+            let ret = unsafe { rcl_action_goal_handle_get_status(handle.as_ptr(), &mut state) };
 
             if ret != RCL_RET_OK as i32 {
                 log::debug!("action server: Failed to get goal handle state: {}", ret);
@@ -395,10 +453,13 @@ where
     fn execute_goal(&mut self, uuid: &uuid::Uuid) -> Result<()> {
         let handle = self
             .goals
-            .get(uuid)
+            .get_mut(uuid)
             .ok_or(Error::RCL_RET_ACTION_GOAL_HANDLE_INVALID)?;
         let ret = unsafe {
-            rcl_action_update_goal_state(*handle, rcl_action_goal_event_t::GOAL_EVENT_EXECUTE)
+            rcl_action_update_goal_state(
+                handle.as_mut_ptr(),
+                rcl_action_goal_event_t::GOAL_EVENT_EXECUTE,
+            )
         };
         if ret != RCL_RET_OK as i32 {
             return Err(Error::from_rcl_error(ret));
@@ -408,10 +469,10 @@ where
     }
 
     fn cancel_goal(&mut self, uuid: &uuid::Uuid) -> Result<()> {
-        if let Some(handle) = self.goals.get(uuid) {
+        if let Some(handle) = self.goals.get_mut(uuid) {
             let ret = unsafe {
                 rcl_action_update_goal_state(
-                    *handle,
+                    handle.as_mut_ptr(),
                     rcl_action_goal_event_t::GOAL_EVENT_CANCEL_GOAL,
                 )
             };
@@ -444,8 +505,8 @@ where
             return Err(Error::RCL_RET_ACTION_GOAL_HANDLE_INVALID);
         }
 
-        if let Some(handle) = self.goals.get(uuid) {
-            let ret = unsafe { rcl_action_update_goal_state(*handle, new_state) };
+        if let Some(handle) = self.goals.get_mut(uuid) {
+            let ret = unsafe { rcl_action_update_goal_state(handle.as_mut_ptr(), new_state) };
             if ret != RCL_RET_OK as i32 {
                 return Err(Error::from_rcl_error(ret));
             }
@@ -709,7 +770,8 @@ where
     }
 
     fn add_goal_handle(&mut self, uuid: uuid::Uuid, goal_handle: *mut rcl_action_goal_handle_t) {
-        self.goals.insert(uuid, goal_handle);
+        self.goals
+            .insert(uuid, unsafe { OwnedGoalHandle::copy_from(goal_handle) });
     }
 
     fn forget_cancel_sender(&mut self, uuid: &uuid::Uuid) {
@@ -820,6 +882,9 @@ where
         unsafe {
             rcl_action_server_fini(&mut self.rcl_handle, node);
         }
+        // RCL has now released the storage containing its handle copies. Finalize the internal
+        // allocations through the copies owned by r2r.
+        self.goals.clear();
     }
 }
 
@@ -1107,6 +1172,22 @@ mod tests {
         assert_eq!(receiver.next().now_or_never().flatten().unwrap().uuid, uuid);
         assert!(pending.try_send(&mut cancel_senders).is_none());
         assert_eq!(receiver.next().now_or_never().flatten().unwrap().uuid, uuid);
+    }
+
+    #[test]
+    fn owned_goal_handle_finalizes_its_internal_allocation() {
+        let mut native = unsafe { rcl_action_get_zero_initialized_goal_handle() };
+        let info = unsafe { rcl_action_get_zero_initialized_goal_info() };
+        let ret = unsafe {
+            rcl_action_goal_handle_init(&mut native, &info, rcutils_get_default_allocator())
+        };
+        assert_eq!(ret, RCL_RET_OK as i32);
+
+        let mut owned = unsafe { OwnedGoalHandle::copy_from(&native) };
+        assert!(unsafe { rcl_action_goal_handle_is_valid(owned.as_ptr()) });
+        assert_eq!(owned.fini(), RCL_RET_OK as i32);
+        assert!(owned.0.is_none());
+        assert_eq!(owned.fini(), RCL_RET_OK as i32);
     }
 
     #[test]
