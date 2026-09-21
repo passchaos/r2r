@@ -4,7 +4,7 @@ use crate::{error::*, msg_types::generated_msgs::builtin_interfaces};
 use r2r_rcl::*;
 
 /// Different ROS clock types.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ClockType {
     RosTime,
     SystemTime,
@@ -28,6 +28,10 @@ pub fn clock_type_to_rcl(ct: &ClockType) -> rcl_clock_type_t {
 }
 
 impl Clock {
+    fn handle_ptr(&self) -> *mut rcl_clock_t {
+        self.clock_handle.as_ref() as *const rcl_clock_t as *mut rcl_clock_t
+    }
+
     /// Create a new clock with the specified type.
     pub fn create(ct: ClockType) -> Result<Clock> {
         let mut clock_handle = MaybeUninit::<rcl_clock_t>::uninit();
@@ -73,6 +77,26 @@ impl Clock {
 
     pub fn get_clock_type(&self) -> ClockType {
         self.clock_type
+    }
+
+    /// Returns whether the native clock handle is valid.
+    pub fn is_valid(&self) -> bool {
+        // The RCL API predates const-correctness here but documents this as a read-only query.
+        unsafe { rcl_clock_valid(self.handle_ptr()) }
+    }
+
+    /// Returns whether ROS time override is active for this ROS clock.
+    pub fn ros_time_override_enabled(&self) -> Result<bool> {
+        if self.clock_type != ClockType::RosTime {
+            return Err(Error::ClockTypeNotRosTime);
+        }
+        let mut enabled = false;
+        let ret = unsafe { rcl_is_enabled_ros_time_override(self.handle_ptr(), &mut enabled) };
+        if ret == RCL_RET_OK as i32 {
+            Ok(enabled)
+        } else {
+            Err(Error::from_rcl_error(ret))
+        }
     }
 
     /// TODO: move to builtin helper methods module.
@@ -197,12 +221,25 @@ mod tests {
         );
     }
 
+    #[test]
+    fn reports_clock_validity_and_rejects_override_queries_for_non_ros_clocks() {
+        let clock = Clock::create(ClockType::SteadyTime).unwrap();
+
+        assert!(clock.is_valid());
+        assert_eq!(clock.get_clock_type(), ClockType::SteadyTime);
+        assert!(matches!(clock.ros_time_override_enabled(), Err(Error::ClockTypeNotRosTime)));
+    }
+
     #[cfg(r2r__rosgraph_msgs__msg__Clock)]
     #[test]
     fn rejects_negative_ros_clock_values_instead_of_wrapping() {
         let mut clock = Clock::create(ClockType::RosTime).unwrap();
+        assert!(!clock.ros_time_override_enabled().unwrap());
         clock.enable_ros_time_override(-1).unwrap();
+        assert!(clock.ros_time_override_enabled().unwrap());
 
         assert!(matches!(clock.get_now(), Err(Error::RCL_RET_INVALID_ARGUMENT)));
+        clock.disable_ros_time_override().unwrap();
+        assert!(!clock.ros_time_override_enabled().unwrap());
     }
 }
