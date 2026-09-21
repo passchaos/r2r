@@ -1516,6 +1516,102 @@ impl Node {
         })
     }
 
+    /// Returns publisher topic names and types associated with a remote node.
+    pub fn get_publisher_names_and_types_by_node(
+        &self, node_name: &str, node_namespace: &str, no_demangle: bool,
+    ) -> Result<HashMap<String, Vec<String>>> {
+        self.get_names_and_types_by_node(
+            node_name,
+            node_namespace,
+            |node, allocator, name, namespace, names_and_types| unsafe {
+                rcl_get_publisher_names_and_types_by_node(
+                    node,
+                    allocator,
+                    no_demangle,
+                    name,
+                    namespace,
+                    names_and_types,
+                )
+            },
+        )
+    }
+
+    /// Returns subscription topic names and types associated with a remote node.
+    pub fn get_subscription_names_and_types_by_node(
+        &self, node_name: &str, node_namespace: &str, no_demangle: bool,
+    ) -> Result<HashMap<String, Vec<String>>> {
+        self.get_names_and_types_by_node(
+            node_name,
+            node_namespace,
+            |node, allocator, name, namespace, names_and_types| unsafe {
+                rcl_get_subscriber_names_and_types_by_node(
+                    node,
+                    allocator,
+                    no_demangle,
+                    name,
+                    namespace,
+                    names_and_types,
+                )
+            },
+        )
+    }
+
+    /// Returns service names and types associated with a remote node.
+    pub fn get_service_names_and_types_by_node(
+        &self, node_name: &str, node_namespace: &str,
+    ) -> Result<HashMap<String, Vec<String>>> {
+        self.get_names_and_types_by_node(
+            node_name,
+            node_namespace,
+            |node, allocator, name, namespace, names_and_types| unsafe {
+                rcl_get_service_names_and_types_by_node(
+                    node,
+                    allocator,
+                    name,
+                    namespace,
+                    names_and_types,
+                )
+            },
+        )
+    }
+
+    /// Returns service client names and types associated with a remote node.
+    pub fn get_client_names_and_types_by_node(
+        &self, node_name: &str, node_namespace: &str,
+    ) -> Result<HashMap<String, Vec<String>>> {
+        self.get_names_and_types_by_node(
+            node_name,
+            node_namespace,
+            |node, allocator, name, namespace, names_and_types| unsafe {
+                rcl_get_client_names_and_types_by_node(
+                    node,
+                    allocator,
+                    name,
+                    namespace,
+                    names_and_types,
+                )
+            },
+        )
+    }
+
+    fn get_names_and_types_by_node(
+        &self, node_name: &str, node_namespace: &str,
+        query: impl FnOnce(
+            *const rcl_node_t,
+            *mut rcutils_allocator_t,
+            *const std::os::raw::c_char,
+            *const std::os::raw::c_char,
+            *mut rcl_names_and_types_t,
+        ) -> rcl_ret_t,
+    ) -> Result<HashMap<String, Vec<String>>> {
+        let node_name = CString::new(node_name).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
+        let node_namespace =
+            CString::new(node_namespace).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
+        self.get_names_and_types(|node, allocator, names_and_types| {
+            query(node, allocator, node_name.as_ptr(), node_namespace.as_ptr(), names_and_types)
+        })
+    }
+
     fn get_names_and_types(
         &self,
         query: impl FnOnce(
@@ -2197,6 +2293,61 @@ mod tests {
             services.get(&service_name),
             Some(&vec!["example_interfaces/srv/AddTwoInts".to_owned()])
         );
+    }
+
+    #[test]
+    fn discovers_names_and_types_for_a_specific_node() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut target = Node::create(context.clone(), "graph_target", "/graph_ns").unwrap();
+        let observer = Node::create(context, "graph_observer", "/graph_ns").unwrap();
+        let _publisher = target
+            .create_publisher::<crate::std_msgs::msg::String>(
+                "/graph_target_output",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let _subscriber = target
+            .subscribe::<crate::std_msgs::msg::Int32>("/graph_target_input", QosProfile::default())
+            .unwrap();
+        let _service = target
+            .create_service::<AddTwoInts::Service>("/graph_target_service", QosProfile::default())
+            .unwrap();
+        let _client = target
+            .create_client::<AddTwoInts::Service>("/graph_target_client", QosProfile::default())
+            .unwrap();
+
+        let publishers = observer
+            .get_publisher_names_and_types_by_node("graph_target", "/graph_ns", false)
+            .unwrap();
+        let subscriptions = observer
+            .get_subscription_names_and_types_by_node("graph_target", "/graph_ns", false)
+            .unwrap();
+        let services = observer
+            .get_service_names_and_types_by_node("graph_target", "/graph_ns")
+            .unwrap();
+        let clients = observer
+            .get_client_names_and_types_by_node("graph_target", "/graph_ns")
+            .unwrap();
+
+        assert_eq!(
+            publishers.get("/graph_target_output"),
+            Some(&vec!["std_msgs/msg/String".to_owned()])
+        );
+        assert_eq!(
+            subscriptions.get("/graph_target_input"),
+            Some(&vec!["std_msgs/msg/Int32".to_owned()])
+        );
+        assert_eq!(
+            services.get("/graph_target_service"),
+            Some(&vec!["example_interfaces/srv/AddTwoInts".to_owned()])
+        );
+        assert_eq!(
+            clients.get("/graph_target_client"),
+            Some(&vec!["example_interfaces/srv/AddTwoInts".to_owned()])
+        );
+        assert!(!publishers.contains_key("/graph_target_input"));
     }
 
     #[test]
