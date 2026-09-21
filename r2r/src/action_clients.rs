@@ -256,10 +256,9 @@ where
             .iter()
             .filter_map(|(uuid, sender)| sender.is_canceled().then_some(*uuid))
             .collect();
-        self.result_senders
-            .retain(|(_, sender)| !sender.is_canceled());
-        self.result_requests
-            .retain(|(_, uuid)| !canceled_results.contains(uuid));
+        for uuid in canceled_results {
+            self.forget_goal(&uuid);
+        }
     }
 
     pub fn send_cancel_request(
@@ -483,8 +482,7 @@ where
                     .position(|(suuid, _)| suuid == &uuid)
                 {
                     let (_, sender) = self.result_senders.swap_remove(idx);
-                    self.feedback_senders
-                        .retain(|(feedback_uuid, _)| feedback_uuid != &uuid);
+                    self.forget_goal(&uuid);
                     let response = <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response::from_native(&response_msg);
                     let (status, result) = T::destructure_result_response_msg(response);
                     let status = GoalStatus::from_rcl(status);

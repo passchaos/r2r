@@ -225,10 +225,9 @@ impl WrappedActionClientUntyped {
             .iter()
             .filter_map(|(uuid, sender)| sender.is_canceled().then_some(*uuid))
             .collect();
-        self.result_senders
-            .retain(|(_, sender)| !sender.is_canceled());
-        self.result_requests
-            .retain(|(_, uuid)| !canceled_results.contains(uuid));
+        for uuid in canceled_results {
+            self.forget_goal(&uuid);
+        }
     }
 
     pub fn send_cancel_request(
@@ -441,8 +440,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
                     .position(|(suuid, _)| suuid == &uuid)
                 {
                     let (_, sender) = self.result_senders.swap_remove(idx);
-                    self.feedback_senders
-                        .retain(|(feedback_uuid, _)| feedback_uuid != &uuid);
+                    self.forget_goal(&uuid);
                     let (status, result) =
                         (self.action_type_support.destructure_result_response_msg)(response_msg);
                     let status = GoalStatus::from_rcl(status);
