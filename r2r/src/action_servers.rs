@@ -226,7 +226,7 @@ where
 {
     pub rcl_handle: rcl_action_server_t,
     pub clock_handle: Box<rcl_clock_t>,
-    pub goal_request_sender: mpsc::Sender<ActionServerGoalRequest<T>>,
+    pub goal_request_sender: mpsc::UnboundedSender<ActionServerGoalRequest<T>>,
     pub cancel_senders: HashMap<uuid::Uuid, mpsc::Sender<ActionServerCancelRequest>>,
     pub active_cancel_requests: Vec<ActiveCancelRequest>,
     pub goals: HashMap<uuid::Uuid, *mut rcl_action_goal_handle_t>,
@@ -408,7 +408,7 @@ where
         };
 
         // send out request.
-        if let Err(e) = self.goal_request_sender.try_send(gr) {
+        if let Err(e) = self.goal_request_sender.unbounded_send(gr) {
             log::error!("warning: could not send service request ({})", e)
         }
     }

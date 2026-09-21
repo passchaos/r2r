@@ -945,7 +945,7 @@ impl Node {
         let mut clock_handle = Box::new(unsafe { clock_handle.assume_init() });
 
         let (goal_request_sender, goal_request_receiver) =
-            mpsc::channel::<ActionServerGoalRequest<T>>(10);
+            mpsc::unbounded::<ActionServerGoalRequest<T>>();
 
         let server_handle = match create_action_server_helper(
             self.node_handle.as_mut(),
