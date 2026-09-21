@@ -1437,28 +1437,46 @@ impl Node {
     pub fn get_publishers_info_by_topic(
         &self, topic_name: &str, no_mangle: bool,
     ) -> Result<Vec<TopicEndpointInfo>> {
-        let node = self.node_handle.as_ref();
+        self.get_endpoint_info_by_topic(
+            topic_name,
+            no_mangle,
+            |node, allocator, name, raw| unsafe {
+                rcl_get_publishers_info_by_topic(node, allocator, name, no_mangle, raw)
+            },
+        )
+    }
 
-        let topic_c_string =
-            CString::new(topic_name).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
+    /// Returns information about subscriptions visible on `topic_name`.
+    pub fn get_subscriptions_info_by_topic(
+        &self, topic_name: &str, no_mangle: bool,
+    ) -> Result<Vec<TopicEndpointInfo>> {
+        self.get_endpoint_info_by_topic(
+            topic_name,
+            no_mangle,
+            |node, allocator, name, raw| unsafe {
+                rcl_get_subscriptions_info_by_topic(node, allocator, name, no_mangle, raw)
+            },
+        )
+    }
 
+    fn get_endpoint_info_by_topic(
+        &self, topic_name: &str, _no_mangle: bool,
+        query: impl FnOnce(
+            *const rcl_node_t,
+            *mut rcutils_allocator_t,
+            *const std::os::raw::c_char,
+            *mut rcl_topic_endpoint_info_array_t,
+        ) -> rcl_ret_t,
+    ) -> Result<Vec<TopicEndpointInfo>> {
+        let topic_name = CString::new(topic_name).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
         let mut info_array = TopicEndpointInfoArray::new();
-
-        let result = unsafe {
-            rcl_get_publishers_info_by_topic(
-                node,
-                &mut info_array.allocator,
-                topic_c_string.as_ptr(),
-                no_mangle,
-                &mut info_array.value,
-            )
-        };
-
-        if result != RCL_RET_OK as i32 {
-            return Err(Error::from_rcl_error(result));
-        }
-
-        // Convert info_array to Vec<TopicEndpointInfo>
+        let ret = query(
+            self.node_handle.as_ref(),
+            &mut info_array.allocator,
+            topic_name.as_ptr(),
+            &mut info_array.value,
+        );
+        check_rcl_ret(ret)?;
         convert_info_array_to_vec(&info_array.value)
     }
 
@@ -2016,14 +2034,23 @@ mod tests {
         let _publisher = node
             .create_publisher::<crate::std_msgs::msg::String>(&topic, QosProfile::default())
             .unwrap();
+        let _subscriber = node
+            .subscribe::<crate::std_msgs::msg::String>(&topic, QosProfile::default().best_effort())
+            .unwrap();
 
         let topics = node.get_topic_names_and_types().unwrap();
         let publishers = node.get_publishers_info_by_topic(&topic, false).unwrap();
+        let subscriptions = node.get_subscriptions_info_by_topic(&topic, false).unwrap();
 
         assert_eq!(topics.get(&topic), Some(&vec!["std_msgs/msg/String".to_owned()]));
         assert!(publishers
             .iter()
             .any(|publisher| publisher.topic_type == "std_msgs/msg/String"));
+        assert!(subscriptions.iter().any(|subscription| {
+            subscription.topic_type == "std_msgs/msg/String"
+                && subscription.qos_profile.reliability
+                    == QosProfile::default().best_effort().reliability
+        }));
     }
 
     #[test]
