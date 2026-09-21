@@ -352,8 +352,9 @@ impl Node {
                     }
                     result.results.push(r);
                 }
-                req.respond(result)
-                    .expect("could not send reply to set parameter request");
+                if let Err(err) = req.respond(result) {
+                    log::warn!("could not send reply to set parameter request: {err}");
+                }
                 future::ready(())
             },
         );
@@ -392,8 +393,9 @@ impl Node {
                     .collect::<Vec<rcl_interfaces::msg::ParameterValue>>();
 
                 let result = rcl_interfaces::srv::GetParameters::Response { values };
-                req.respond(result)
-                    .expect("could not send reply to set parameter request");
+                if let Err(err) = req.respond(result) {
+                    log::warn!("could not send reply to get parameter request: {err}");
+                }
                 future::ready(())
             },
         );
@@ -452,8 +454,9 @@ impl Node {
                         None => rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET as u8,
                     })
                     .collect();
-                req.respond(GetParameterTypes::Response { types })
-                    .expect("could not send reply to get parameter types request");
+                if let Err(err) = req.respond(GetParameterTypes::Response { types }) {
+                    log::warn!("could not send reply to get parameter types request: {err}");
+                }
                 future::ready(())
             },
         );
@@ -519,8 +522,9 @@ impl Node {
                         result.result.reason = format!("Can't set parameters atomically: {err}");
                     }
                 }
-                req.respond(result)
-                    .expect("could not send reply to set parameter request");
+                if let Err(err) = req.respond(result) {
+                    log::warn!("could not send reply to atomic set parameter request: {err}");
+                }
                 future::ready(())
             },
         );
@@ -591,8 +595,9 @@ impl Node {
                 }
             }
         }
-        req.respond(ListParameters::Response { result })
-            .expect("could not send reply to list parameter request");
+        if let Err(err) = req.respond(ListParameters::Response { result }) {
+            log::warn!("could not send reply to list parameter request: {err}");
+        }
         future::ready(())
     }
 
@@ -613,8 +618,9 @@ impl Node {
                 ..Default::default()
             });
         }
-        req.respond(DescribeParameters::Response { descriptors })
-            .expect("could not send reply to describe parameters request");
+        if let Err(err) = req.respond(DescribeParameters::Response { descriptors }) {
+            log::warn!("could not send reply to describe parameters request: {err}");
+        }
         future::ready(())
     }
 
