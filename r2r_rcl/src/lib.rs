@@ -7,6 +7,10 @@
 // It could be good to still warn if building with an older rust version.
 #![allow(improper_ctypes)]
 #![allow(improper_ctypes_definitions)]
+#![cfg_attr(
+    feature = "doc-only",
+    allow(unpredictable_function_pointer_comparisons)
+)]
 include!(concat!(env!("OUT_DIR"), "/rcl_bindings.rs"));
 
 use std::ffi::{CStr, CString};
