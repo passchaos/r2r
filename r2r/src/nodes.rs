@@ -1699,26 +1699,22 @@ impl Node {
     /// Destroy a ROS publisher.
     pub fn destroy_publisher<T: WrappedTypesupport>(&mut self, p: Publisher<T>) {
         if let Some(handle) = p.handle.upgrade() {
-            // Remove handle from list of publishers.
-            self.pubs
-                .iter()
-                .position(|p| Arc::ptr_eq(p, &handle))
-                .map(|i| self.pubs.swap_remove(i));
-
-            handle.destroy(self.node_handle.as_mut());
+            // Only the node that created the publisher may pass its native node handle to fini.
+            if let Some(index) = self.pubs.iter().position(|p| Arc::ptr_eq(p, &handle)) {
+                self.pubs.swap_remove(index);
+                handle.destroy(self.node_handle.as_mut());
+            }
         }
     }
 
     /// Destroy a ROS publisher.
     pub fn destroy_publisher_untyped(&mut self, p: PublisherUntyped) {
         if let Some(handle) = p.handle.upgrade() {
-            // Remove handle from list of publishers.
-            self.pubs
-                .iter()
-                .position(|p| Arc::ptr_eq(p, &handle))
-                .map(|i| self.pubs.swap_remove(i));
-
-            handle.destroy(self.node_handle.as_mut());
+            // Only the node that created the publisher may pass its native node handle to fini.
+            if let Some(index) = self.pubs.iter().position(|p| Arc::ptr_eq(p, &handle)) {
+                self.pubs.swap_remove(index);
+                handle.destroy(self.node_handle.as_mut());
+            }
         }
     }
 
@@ -4563,6 +4559,44 @@ mod tests {
         drop(untyped);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.pubs.is_empty());
+    }
+
+    #[test]
+    fn publisher_can_only_be_destroyed_by_its_owning_node() {
+        let context = Context::create().unwrap();
+        let mut owner = Node::create(context.clone(), "publisher_owner_test", "").unwrap();
+        let mut other = Node::create(context, "publisher_non_owner_test", "").unwrap();
+
+        let publisher = owner
+            .create_publisher::<crate::std_msgs::msg::String>(
+                "/owned_typed_publisher",
+                QosProfile::default(),
+            )
+            .unwrap();
+        other.destroy_publisher(publisher.clone());
+        publisher
+            .publish(&crate::std_msgs::msg::String {
+                data: "still valid".into(),
+            })
+            .unwrap();
+        assert_eq!(owner.pubs.len(), 1);
+        owner.destroy_publisher(publisher);
+        assert!(owner.pubs.is_empty());
+
+        let publisher = owner
+            .create_publisher_untyped(
+                "/owned_untyped_publisher",
+                "std_msgs/msg/String",
+                QosProfile::default(),
+            )
+            .unwrap();
+        other.destroy_publisher_untyped(publisher.clone());
+        publisher
+            .publish(serde_json::json!({ "data": "still valid" }))
+            .unwrap();
+        assert_eq!(owner.pubs.len(), 1);
+        owner.destroy_publisher_untyped(publisher);
+        assert!(owner.pubs.is_empty());
     }
 
     #[test]
