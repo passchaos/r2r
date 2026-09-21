@@ -9,7 +9,6 @@ use std::{
     ffi::{CStr, CString},
     future::Future,
     marker::PhantomPinned,
-    mem::MaybeUninit,
     pin::Pin,
     sync::{Arc, Mutex},
     time::Duration,
@@ -931,37 +930,22 @@ impl Node {
     where
         T: 'static + WrappedActionTypeSupport,
     {
-        // for now automatically create a ros clock...
-        let mut clock_handle = MaybeUninit::<rcl_clock_t>::uninit();
-        let ret = unsafe {
-            rcl_ros_clock_init(clock_handle.as_mut_ptr(), &mut rcutils_get_default_allocator())
-        };
-        if ret != RCL_RET_OK as i32 {
-            log::error!("could not create steady clock: {}", ret);
-            return Err(Error::from_rcl_error(ret));
-        }
-        let mut clock_handle = Box::new(unsafe { clock_handle.assume_init() });
-
         let (goal_request_sender, goal_request_receiver) =
             mpsc::channel::<ActionServerGoalRequest<T>>(10);
 
-        let server_handle = match create_action_server_helper(
-            self.node_handle.as_mut(),
-            action_name,
-            clock_handle.as_mut(),
-            T::get_ts(),
-        ) {
-            Ok(handle) => handle,
-            Err(err) => {
-                unsafe {
-                    rcl_ros_clock_fini(clock_handle.as_mut());
-                }
-                return Err(err);
-            }
+        let clock = self.ros_clock.clone();
+        let server_handle = {
+            let mut clock_handle = clock.lock().unwrap();
+            create_action_server_helper(
+                self.node_handle.as_mut(),
+                action_name,
+                clock_handle.clock_handle.as_mut(),
+                T::get_ts(),
+            )?
         };
         let server = WrappedActionServer::<T> {
             rcl_handle: server_handle,
-            clock_handle,
+            clock,
             goal_request_sender,
             active_cancel_requests: Vec::new(),
             cancel_senders: HashMap::new(),

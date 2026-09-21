@@ -13,6 +13,7 @@ use std::{
 };
 
 use crate::{
+    clocks::Clock,
     error::*,
     msg_types::{
         generated_msgs::{action_msgs, builtin_interfaces, unique_identifier_msgs},
@@ -25,6 +26,7 @@ use r2r_rcl::*;
 pub trait ActionServer_ {
     fn handle(&self) -> &rcl_action_server_t;
     fn handle_mut(&mut self) -> &mut rcl_action_server_t;
+    fn now(&mut self) -> Result<builtin_interfaces::msg::Time>;
     fn handle_goal_request(&mut self, server: Arc<Mutex<dyn ActionServer_>>);
     fn send_completed_cancel_requests(&mut self);
     fn handle_cancel_request(&mut self);
@@ -89,18 +91,23 @@ where
         let uuid_msg = unique_identifier_msgs::msg::UUID {
             uuid: self.uuid.as_bytes().to_vec(),
         };
-        let time = builtin_interfaces::msg::Time::default();
-        let goal_info = action_msgs::msg::GoalInfo {
-            goal_id: uuid_msg,
-            stamp: time.clone(),
-        };
-        let native_goal_info = WrappedNativeMsg::<action_msgs::msg::GoalInfo>::from(&goal_info);
-
         let server = self
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
         let mut server = server.lock().unwrap();
+        let time = match server.now() {
+            Ok(time) => time,
+            Err(err) => {
+                server.forget_cancel_sender(&self.uuid);
+                return Err(err);
+            }
+        };
+        let goal_info = action_msgs::msg::GoalInfo {
+            goal_id: uuid_msg,
+            stamp: time.clone(),
+        };
+        let native_goal_info = WrappedNativeMsg::<action_msgs::msg::GoalInfo>::from(&goal_info);
 
         let goal_handle: *mut rcl_action_goal_handle_t =
             unsafe { rcl_action_accept_new_goal(server.handle_mut(), &*native_goal_info) };
@@ -232,7 +239,7 @@ where
     T: WrappedActionTypeSupport,
 {
     pub rcl_handle: rcl_action_server_t,
-    pub clock_handle: Box<rcl_clock_t>,
+    pub clock: Arc<Mutex<Clock>>,
     pub goal_request_sender: mpsc::Sender<ActionServerGoalRequest<T>>,
     pub cancel_senders: HashMap<uuid::Uuid, mpsc::Sender<ActionServerCancelRequest>>,
     pub active_cancel_requests: Vec<ActiveCancelRequest>,
@@ -251,6 +258,16 @@ where
 
     fn handle_mut(&mut self) -> &mut rcl_action_server_t {
         &mut self.rcl_handle
+    }
+
+    fn now(&mut self) -> Result<builtin_interfaces::msg::Time> {
+        let mut clock = self.clock.lock().unwrap();
+        let mut now = 0;
+        let ret = unsafe { rcl_clock_get_now(clock.clock_handle.as_mut(), &mut now) };
+        if ret != RCL_RET_OK as i32 {
+            return Err(Error::from_rcl_error(ret));
+        }
+        time_point_to_builtin(now)
     }
 
     fn is_cancelling(&self, uuid: &uuid::Uuid) -> Result<bool> {
@@ -665,9 +682,17 @@ where
     fn destroy(&mut self, node: &mut rcl_node_t) {
         unsafe {
             rcl_action_server_fini(&mut self.rcl_handle, node);
-            rcl_ros_clock_fini(self.clock_handle.as_mut());
         }
     }
+}
+
+fn time_point_to_builtin(time: rcl_time_point_value_t) -> Result<builtin_interfaces::msg::Time> {
+    let seconds = time.div_euclid(1_000_000_000);
+    let nanoseconds = time.rem_euclid(1_000_000_000);
+    Ok(builtin_interfaces::msg::Time {
+        sec: i32::try_from(seconds).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?,
+        nanosec: nanoseconds as u32,
+    })
 }
 
 /// A handle to an active `Goal`
@@ -877,5 +902,24 @@ mod tests {
         assert_eq!(response.goals_canceling.len(), 2);
         assert_eq!(uuid_msg_to_uuid(&response.goals_canceling[0].goal_id), accepted_a);
         assert_eq!(uuid_msg_to_uuid(&response.goals_canceling[1].goal_id), accepted_b);
+    }
+
+    #[test]
+    fn converts_action_timestamps_without_losing_negative_fraction() {
+        assert_eq!(
+            time_point_to_builtin(-1).unwrap(),
+            builtin_interfaces::msg::Time {
+                sec: -1,
+                nanosec: 999_999_999,
+            }
+        );
+        assert_eq!(
+            time_point_to_builtin(1_500_000_001).unwrap(),
+            builtin_interfaces::msg::Time {
+                sec: 1,
+                nanosec: 500_000_001,
+            }
+        );
+        assert!(time_point_to_builtin((i32::MAX as i64 + 1) * 1_000_000_000).is_err());
     }
 }
