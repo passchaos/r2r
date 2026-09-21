@@ -9,7 +9,7 @@ use crate::{error::*, log_guard};
 use r2r_rcl::*;
 
 /// A ROS context. Needed to create nodes etc.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Context {
     pub(crate) context_handle: Arc<Mutex<ContextHandle>>,
 }
@@ -46,6 +46,15 @@ impl Context {
     pub fn is_valid(&self) -> bool {
         let mut ctx = self.context_handle.lock().unwrap();
         unsafe { rcl_context_is_valid(ctx.as_mut()) }
+    }
+}
+
+impl Clone for Context {
+    fn clone(&self) -> Self {
+        let _shared = CONTEXT.get().unwrap().lock().unwrap();
+        Self {
+            context_handle: Arc::clone(&self.context_handle),
+        }
     }
 }
 
