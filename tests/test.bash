@@ -2,8 +2,8 @@
 
 . "$HOME/.cargo/env"
 
-# run rustup to test with latest rust version
-rustup update
+# Resolve and install the repository-pinned toolchain before sourcing ROS.
+rustup show active-toolchain >/dev/null
 
 if [ -e "/opt/ros/lyrical/setup.bash" ]; then
     source "/opt/ros/lyrical/setup.bash"

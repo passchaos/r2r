@@ -5,6 +5,7 @@ authors = ["Martin Dahl <martin.dahl@gmail.com>"]
 description = "Internal dependency to the r2r crate."
 license = "MIT"
 edition = "2021"
+rust-version = "1.85"
 readme = "README.md"
 homepage = "https://github.com/sequenceplanner/r2r"
 repository = "https://github.com/sequenceplanner/r2r"
