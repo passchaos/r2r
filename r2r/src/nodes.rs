@@ -116,9 +116,8 @@ impl Node {
         let ctx = self.context.context_handle.lock().unwrap();
         let mut params = RclParams(std::ptr::null_mut());
 
-        let ret = unsafe {
-            rcl_arguments_get_param_overrides(&ctx.global_arguments, &mut params.0)
-        };
+        let ret =
+            unsafe { rcl_arguments_get_param_overrides(&ctx.global_arguments, &mut params.0) };
         if ret != RCL_RET_OK as i32 {
             log::error!("could not read parameters: {}", ret);
             return Err(Error::from_rcl_error(ret));
@@ -134,13 +133,11 @@ impl Node {
             }
         }
 
-        let node_names = unsafe {
-            std::slice::from_raw_parts((*params.0).node_names, (*params.0).num_nodes)
-        };
+        let node_names =
+            unsafe { std::slice::from_raw_parts((*params.0).node_names, (*params.0).num_nodes) };
 
-        let node_params = unsafe {
-            std::slice::from_raw_parts((*params.0).params, (*params.0).num_nodes)
-        };
+        let node_params =
+            unsafe { std::slice::from_raw_parts((*params.0).params, (*params.0).num_nodes) };
 
         let qualified_name = self.fully_qualified_name()?;
         let name = self.name()?;
