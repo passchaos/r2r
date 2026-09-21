@@ -930,6 +930,14 @@ impl Node {
             .publisher_count()
     }
 
+    pub(crate) fn get_subscription_actual_qos(&self, id: uuid::Uuid) -> Result<QosProfile> {
+        self.subscribers
+            .iter()
+            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
+            .actual_qos()
+    }
+
     pub(crate) fn register_subscription_publisher_wait(
         &mut self, id: uuid::Uuid,
     ) -> Result<oneshot::Receiver<()>> {
@@ -2758,6 +2766,30 @@ mod tests {
             node.count_publishers("bad\0topic"),
             Err(Error::RCL_RET_INVALID_ARGUMENT)
         ));
+    }
+
+    #[test]
+    fn reports_actual_publisher_and_subscription_qos() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "actual_qos_test", "").unwrap();
+        let topic = format!("/actual_qos_{}", uuid::Uuid::new_v4().simple());
+        let configured = QosProfile::default().best_effort().keep_last(7);
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(&topic, configured.clone())
+            .unwrap();
+        let subscription = node
+            .subscribe::<crate::std_msgs::msg::String>(&topic, configured)
+            .unwrap();
+
+        let publisher_qos = publisher.get_actual_qos().unwrap();
+        let subscription_qos = subscription.get_actual_qos(&node).unwrap();
+
+        assert_eq!(publisher_qos.history, crate::qos::HistoryPolicy::KeepLast);
+        assert_eq!(publisher_qos.depth, 7);
+        assert_eq!(publisher_qos.reliability, crate::qos::ReliabilityPolicy::BestEffort);
+        assert_eq!(subscription_qos.history, crate::qos::HistoryPolicy::KeepLast);
+        assert_eq!(subscription_qos.depth, 7);
+        assert_eq!(subscription_qos.reliability, crate::qos::ReliabilityPolicy::BestEffort);
     }
 
     #[test]

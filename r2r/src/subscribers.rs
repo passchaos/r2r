@@ -28,6 +28,11 @@ impl<T> Subscription<T> {
         node.get_subscription_publisher_count(self.id)
     }
 
+    /// Returns the QoS profile resolved by the RMW implementation.
+    pub fn get_actual_qos(&self, node: &Node) -> Result<QosProfile> {
+        node.get_subscription_actual_qos(self.id)
+    }
+
     /// Waits for at least one publisher to match this subscription.
     pub fn wait_for_publishers(&self, node: &mut Node) -> Result<impl Future<Output = Result<()>>> {
         let receiver = node.register_subscription_publisher_wait(self.id)?;
@@ -81,6 +86,11 @@ pub(crate) trait Subscriber_ {
         } else {
             Err(Error::from_rcl_error(ret))
         }
+    }
+    fn actual_qos(&self) -> Result<QosProfile> {
+        let qos = unsafe { rcl_subscription_get_actual_qos(self.handle()) };
+        let qos = unsafe { qos.as_ref() }.ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
+        QosProfile::try_from(qos)
     }
     fn poll_has_publishers(&mut self) {
         {

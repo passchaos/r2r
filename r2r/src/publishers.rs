@@ -54,6 +54,14 @@ unsafe impl Send for Publisher_ {}
 unsafe impl Sync for Publisher_ {}
 
 impl Publisher_ {
+    fn get_actual_qos(&self) -> Result<QosProfile> {
+        let handle = self.handle.lock();
+        let handle = handle.0.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        let qos = unsafe { rcl_publisher_get_actual_qos(handle) };
+        let qos = unsafe { qos.as_ref() }.ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        QosProfile::try_from(qos)
+    }
+
     fn get_subscription_count(&self) -> Result<usize> {
         // See https://github.com/ros2/rclcpp/issues/623
 
@@ -254,6 +262,14 @@ pub fn create_publisher_helper(
 }
 
 impl PublisherUntyped {
+    /// Returns the QoS profile resolved by the RMW implementation.
+    pub fn get_actual_qos(&self) -> Result<QosProfile> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .get_actual_qos()
+    }
+
     /// Publish an "untyped" ROS message represented by a `serde_json::Value`.
     ///
     /// It is up to the user to make sure the fields are correct.
@@ -371,6 +387,14 @@ impl<T: 'static> Publisher<T>
 where
     T: WrappedTypesupport,
 {
+    /// Returns the QoS profile resolved by the RMW implementation.
+    pub fn get_actual_qos(&self) -> Result<QosProfile> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .get_actual_qos()
+    }
+
     /// Publish a ROS message.
     pub fn publish(&self, msg: &T) -> Result<()>
     where
