@@ -366,7 +366,7 @@ impl PublisherUntyped {
         let handle = publisher.handle.lock();
         let handle = handle.0.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
 
-        let native_msg = WrappedNativeMsgUntyped::new_from(&self.type_)?;
+        let mut native_msg = WrappedNativeMsgUntyped::new_from(&self.type_)?;
         native_msg.from_json(msg)?;
 
         let result = unsafe { rcl_publish(handle, native_msg.void_ptr(), std::ptr::null_mut()) };

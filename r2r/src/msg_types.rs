@@ -345,7 +345,7 @@ impl UntypedActionSupport {
                 serde_json::to_value(request_msg).map_err(|serde_err| Error::SerdeError {
                     err: serde_err.to_string(),
                 })?;
-            let native_untyped = WrappedNativeMsgUntyped::try_new::<
+            let mut native_untyped = WrappedNativeMsgUntyped::try_new::<
                 <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Request,
             >()?;
             native_untyped.from_json(json)?;
@@ -389,7 +389,7 @@ impl UntypedActionSupport {
                     err: serde_err.to_string(),
                 })?;
 
-            let native_untyped = WrappedNativeMsgUntyped::try_new::<
+            let mut native_untyped = WrappedNativeMsgUntyped::try_new::<
                 <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
             >()?;
 
@@ -511,7 +511,7 @@ impl WrappedNativeMsgUntyped {
         })
     }
 
-    pub fn from_json(&self, json: serde_json::Value) -> Result<()> {
+    pub fn from_json(&mut self, json: serde_json::Value) -> Result<()> {
         (self.msg_from_json)(self.msg, json)
     }
 }
@@ -857,7 +857,7 @@ mod tests {
         msg.positions.push(34.0);
         let json = serde_json::to_value(msg.clone()).unwrap();
 
-        let native =
+        let mut native =
             WrappedNativeMsgUntyped::new_from("trajectory_msgs/msg/JointTrajectoryPoint").unwrap();
         native.from_json(json.clone()).unwrap();
         let json2 = native.to_json().unwrap();
@@ -962,7 +962,7 @@ mod tests {
             "float32_value": 3.14
         }"#;
 
-        let native = WrappedNativeMsgUntyped::new_from("test_msgs/msg/Defaults").unwrap();
+        let mut native = WrappedNativeMsgUntyped::new_from("test_msgs/msg/Defaults").unwrap();
         let v: serde_json::Value = serde_json::from_str(json).unwrap();
         native.from_json(v).expect("could make default msg");
         let json2 = native.to_json().unwrap();
