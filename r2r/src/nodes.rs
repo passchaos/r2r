@@ -2495,10 +2495,12 @@ impl Node {
             timer_handle,
             _clock: Some(clock), // The timer owns the clock.
             sender: tx,
+            id: uuid::Uuid::new_v4(),
         };
+        let id = timer.id;
         self.timers.push(timer);
 
-        let out_timer = Timer { receiver: rx };
+        let out_timer = Timer { receiver: rx, id };
 
         Ok(out_timer)
     }
@@ -2518,10 +2520,12 @@ impl Node {
             timer_handle,
             _clock: None, // The timer does not own the clock (the node owns it).
             sender: tx,
+            id: uuid::Uuid::new_v4(),
         };
+        let id = timer.id;
         self.timers.push(timer);
 
-        let out_timer = Timer { receiver: rx };
+        let out_timer = Timer { receiver: rx, id };
 
         Ok(out_timer)
     }
@@ -2580,6 +2584,20 @@ impl Node {
     /// This is the same clock that is used by ROS timers created in [`Node::create_timer`].
     pub fn get_ros_clock(&self) -> Arc<Mutex<Clock>> {
         self.ros_clock.clone()
+    }
+
+    fn timer(&self, id: uuid::Uuid) -> Result<&Timer_> {
+        self.timers
+            .iter()
+            .find(|timer| timer.id == id)
+            .ok_or(Error::RCL_RET_TIMER_INVALID)
+    }
+
+    fn timer_mut(&mut self, id: uuid::Uuid) -> Result<&mut Timer_> {
+        self.timers
+            .iter_mut()
+            .find(|timer| timer.id == id)
+            .ok_or(Error::RCL_RET_TIMER_INVALID)
     }
 }
 
@@ -2729,6 +2747,7 @@ struct Timer_ {
     timer_handle: Pin<Box<RclTimer>>,
     _clock: Option<Clock>, // Some(clock) if the timer owns the clock, just here to be dropped properly later.
     sender: mpsc::Sender<Duration>,
+    id: uuid::Uuid,
 }
 
 impl Timer_ {
@@ -2786,6 +2805,7 @@ impl Drop for Timer_ {
 /// A ROS timer.
 pub struct Timer {
     receiver: mpsc::Receiver<Duration>,
+    id: uuid::Uuid,
 }
 
 impl Timer {
@@ -2799,6 +2819,48 @@ impl Timer {
         } else {
             Err(Error::RCL_RET_TIMER_INVALID)
         }
+    }
+
+    /// Pauses the timer until [`Timer::reset`] is called.
+    pub fn cancel(&self, node: &mut Node) -> Result<()> {
+        let timer = node.timer_mut(self.id)?;
+        let ret = unsafe { rcl_timer_cancel(timer.get_handle_mut()) };
+        check_rcl_ret(ret)
+    }
+
+    /// Restarts the timer from the current clock time, also resuming a canceled timer.
+    pub fn reset(&self, node: &mut Node) -> Result<()> {
+        let timer = node.timer_mut(self.id)?;
+        let ret = unsafe { rcl_timer_reset(timer.get_handle_mut()) };
+        check_rcl_ret(ret)
+    }
+
+    /// Returns whether the timer is currently canceled.
+    pub fn is_canceled(&self, node: &Node) -> Result<bool> {
+        let timer = node.timer(self.id)?;
+        let mut canceled = false;
+        let ret = unsafe { rcl_timer_is_canceled(timer.get_handle(), &mut canceled) };
+        check_rcl_ret(ret)?;
+        Ok(canceled)
+    }
+
+    /// Returns the timer period.
+    pub fn period(&self, node: &Node) -> Result<Duration> {
+        let timer = node.timer(self.id)?;
+        let mut nanos = 0;
+        let ret = unsafe { rcl_timer_get_period(timer.get_handle(), &mut nanos) };
+        check_rcl_ret(ret)?;
+        duration_from_nonnegative_nanos(nanos)
+    }
+
+    /// Changes the timer period and returns its previous value.
+    pub fn set_period(&self, node: &mut Node, period: Duration) -> Result<Duration> {
+        let period = duration_to_rcl_nanos(period)?;
+        let timer = node.timer_mut(self.id)?;
+        let mut previous = 0;
+        let ret = unsafe { rcl_timer_exchange_period(timer.get_handle(), period, &mut previous) };
+        check_rcl_ret(ret)?;
+        duration_from_nonnegative_nanos(previous)
     }
 }
 
@@ -4828,6 +4890,33 @@ mod tests {
         node.try_spin_once(Duration::ZERO).unwrap();
 
         assert!(node.timers.is_empty());
+    }
+
+    #[test]
+    fn timers_support_pause_reset_and_period_changes() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context.clone(), "timer_controls_test", "").unwrap();
+        let other = Node::create(context, "timer_controls_other", "").unwrap();
+        let timer = node.create_wall_timer(Duration::from_millis(100)).unwrap();
+
+        assert_eq!(timer.period(&node).unwrap(), Duration::from_millis(100));
+        assert!(!timer.is_canceled(&node).unwrap());
+        timer.cancel(&mut node).unwrap();
+        assert!(timer.is_canceled(&node).unwrap());
+        assert!(matches!(timer.period(&other), Err(Error::RCL_RET_TIMER_INVALID)));
+
+        let previous = timer
+            .set_period(&mut node, Duration::from_millis(25))
+            .unwrap();
+        assert_eq!(previous, Duration::from_millis(100));
+        assert_eq!(timer.period(&node).unwrap(), Duration::from_millis(25));
+        assert!(matches!(
+            timer.set_period(&mut node, Duration::from_nanos(i64::MAX as u64 + 1)),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+
+        timer.reset(&mut node).unwrap();
+        assert!(!timer.is_canceled(&node).unwrap());
     }
 
     #[test]
