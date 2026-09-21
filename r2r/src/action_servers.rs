@@ -37,7 +37,7 @@ pub trait ActionServer_ {
     fn handle_cancel_request(&mut self) -> Result<()>;
     fn handle_result_request(&mut self) -> Result<()>;
     fn handle_goal_expired(&mut self) -> Result<()>;
-    fn publish_status(&self);
+    fn publish_status(&self) -> Result<()>;
     fn set_goal_state(
         &mut self, uuid: &uuid::Uuid, new_state: rcl_action_goal_event_t,
     ) -> Result<()>;
@@ -211,7 +211,12 @@ where
             server: self.response.server.clone(),
         };
 
-        server.publish_status();
+        if let Err(err) = server.publish_status() {
+            // The accepted response is already on the wire, so returning an error here would
+            // drop the only application handle for a live goal. Keep the goal manageable and
+            // report the notification failure instead.
+            log::error!("could not publish initial action goal status: {err}");
+        }
 
         Ok((g, self.cancel_requests))
     }
@@ -464,8 +469,7 @@ where
         if ret != RCL_RET_OK as i32 {
             return Err(Error::from_rcl_error(ret));
         }
-        self.publish_status();
-        Ok(())
+        self.publish_status()
     }
 
     fn cancel_goal(&mut self, uuid: &uuid::Uuid) -> Result<()> {
@@ -516,9 +520,6 @@ where
                 return Err(Error::from_rcl_error(ret));
             }
 
-            // send out updated statues
-            self.publish_status();
-
             Ok(())
         } else {
             Err(Error::RCL_RET_ACTION_GOAL_HANDLE_INVALID)
@@ -566,7 +567,9 @@ where
         }
         if !canceled.is_empty() {
             // at least one goal state changed, publish a new status message
-            self.publish_status();
+            if let Err(err) = self.publish_status() {
+                first_error.get_or_insert(err);
+            }
         }
 
         // send out responses
@@ -743,30 +746,8 @@ where
         }
     }
 
-    fn publish_status(&self) {
-        unsafe {
-            let mut status = rcl_action_get_zero_initialized_goal_status_array();
-            let ret = rcl_action_get_goal_status_array(&self.rcl_handle, &mut status);
-            if ret != RCL_RET_OK as i32 {
-                log::debug!(
-                    "action server: failed to get goal status array: {}",
-                    Error::from_rcl_error(ret)
-                );
-                rcl_action_goal_status_array_fini(&mut status);
-                return;
-            }
-            let ret = rcl_action_publish_status(
-                &self.rcl_handle,
-                &status as *const _ as *const std::os::raw::c_void,
-            );
-            if ret != RCL_RET_OK as i32 {
-                log::debug!(
-                    "action server: failed to publish status: {}",
-                    Error::from_rcl_error(ret)
-                );
-            }
-            rcl_action_goal_status_array_fini(&mut status);
-        }
+    fn publish_status(&self) -> Result<()> {
+        publish_action_status(&self.rcl_handle)
     }
 
     fn add_goal_handle(&mut self, uuid: uuid::Uuid, goal_handle: *mut rcl_action_goal_handle_t) {
@@ -888,6 +869,42 @@ where
     }
 }
 
+fn publish_action_status(server: &rcl_action_server_t) -> Result<()> {
+    unsafe {
+        let mut status = rcl_action_get_zero_initialized_goal_status_array();
+        let ret = rcl_action_get_goal_status_array(server, &mut status);
+        if ret != RCL_RET_OK as i32 {
+            rcl_action_goal_status_array_fini(&mut status);
+            return Err(Error::from_rcl_error(ret));
+        }
+        let ret =
+            rcl_action_publish_status(server, &status as *const _ as *const std::os::raw::c_void);
+        let result = if ret == RCL_RET_OK as i32 {
+            Ok(())
+        } else {
+            Err(Error::from_rcl_error(ret))
+        };
+        let fini_ret = rcl_action_goal_status_array_fini(&mut status);
+        if fini_ret != RCL_RET_OK as i32 {
+            log::error!("could not finalize action goal status array: {fini_ret}");
+        }
+        result
+    }
+}
+
+fn complete_goal(
+    server: &mut dyn ActionServer_, uuid: uuid::Uuid, event: rcl_action_goal_event_t,
+    result: Box<dyn VoidPtr>,
+) -> Result<()> {
+    server.set_goal_state(&uuid, event)?;
+
+    let mut first_error = server.add_result(uuid, result).err();
+    if let Err(err) = server.publish_status() {
+        first_error.get_or_insert(err);
+    }
+    first_error.map_or(Ok(()), Err)
+}
+
 fn time_point_to_builtin(time: rcl_time_point_value_t) -> Result<builtin_interfaces::msg::Time> {
     let seconds = time.div_euclid(1_000_000_000);
     let nanoseconds = time.rem_euclid(1_000_000_000);
@@ -994,10 +1011,12 @@ where
         let native_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
         >::try_from(&result_msg)?;
-        action_server.set_goal_state(&self.uuid, rcl_action_goal_event_t::GOAL_EVENT_CANCELED)?;
-        action_server.add_result(self.uuid, Box::new(native_msg))?;
-
-        Ok(())
+        complete_goal(
+            &mut *action_server,
+            self.uuid,
+            rcl_action_goal_event_t::GOAL_EVENT_CANCELED,
+            Box::new(native_msg),
+        )
     }
 
     pub fn abort(&mut self, msg: T::Result) -> Result<()> {
@@ -1014,10 +1033,12 @@ where
         let native_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
         >::try_from(&result_msg)?;
-        action_server.set_goal_state(&self.uuid, rcl_action_goal_event_t::GOAL_EVENT_ABORT)?;
-        action_server.add_result(self.uuid, Box::new(native_msg))?;
-
-        Ok(())
+        complete_goal(
+            &mut *action_server,
+            self.uuid,
+            rcl_action_goal_event_t::GOAL_EVENT_ABORT,
+            Box::new(native_msg),
+        )
     }
 
     pub fn succeed(&mut self, msg: T::Result) -> Result<()>
@@ -1037,10 +1058,12 @@ where
         let native_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
         >::try_from(&result_msg)?;
-        action_server.set_goal_state(&self.uuid, rcl_action_goal_event_t::GOAL_EVENT_SUCCEED)?;
-        action_server.add_result(self.uuid, Box::new(native_msg))?;
-
-        Ok(())
+        complete_goal(
+            &mut *action_server,
+            self.uuid,
+            rcl_action_goal_event_t::GOAL_EVENT_SUCCEED,
+            Box::new(native_msg),
+        )
     }
 }
 
@@ -1140,6 +1163,16 @@ mod tests {
         assert!(!action_server_take_succeeded(RCL_RET_ACTION_SERVER_TAKE_FAILED as i32).unwrap());
         assert!(matches!(
             action_server_take_succeeded(RCL_RET_ACTION_SERVER_INVALID as i32),
+            Err(Error::RCL_RET_ACTION_SERVER_INVALID)
+        ));
+    }
+
+    #[test]
+    fn reports_action_status_publication_failures() {
+        let invalid_server = unsafe { rcl_action_get_zero_initialized_server() };
+
+        assert!(matches!(
+            publish_action_status(&invalid_server),
             Err(Error::RCL_RET_ACTION_SERVER_INVALID)
         ));
     }
