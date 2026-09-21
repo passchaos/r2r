@@ -93,11 +93,17 @@ where
         };
         let native_goal_info = WrappedNativeMsg::<action_msgs::msg::GoalInfo>::from(&goal_info);
 
-        let server = self.server.upgrade().unwrap(); // todo fixme
+        let server = self
+            .server
+            .upgrade()
+            .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
         let mut server = server.lock().unwrap();
 
         let goal_handle: *mut rcl_action_goal_handle_t =
             unsafe { rcl_action_accept_new_goal(server.handle_mut(), &*native_goal_info) };
+        if goal_handle.is_null() {
+            return Err(Error::RCL_RET_ACTION_GOAL_HANDLE_INVALID);
+        }
 
         // send response
         let response_msg = T::make_goal_response_msg(true, time);
@@ -113,11 +119,20 @@ where
             )
         };
         if ret != RCL_RET_OK as i32 {
+            unsafe {
+                rcl_action_goal_handle_fini(goal_handle);
+            }
             return Err(Error::from_rcl_error(ret));
         }
 
-        unsafe {
-            rcl_action_update_goal_state(goal_handle, rcl_action_goal_event_t::GOAL_EVENT_EXECUTE);
+        let ret = unsafe {
+            rcl_action_update_goal_state(goal_handle, rcl_action_goal_event_t::GOAL_EVENT_EXECUTE)
+        };
+        if ret != RCL_RET_OK as i32 {
+            unsafe {
+                rcl_action_goal_handle_fini(goal_handle);
+            }
+            return Err(Error::from_rcl_error(ret));
         }
 
         server.publish_status();
@@ -137,7 +152,10 @@ where
     /// reject the goal request and be consumed in the process
     pub fn reject(mut self) -> Result<()> {
         let time = builtin_interfaces::msg::Time::default();
-        let server = self.server.upgrade().unwrap(); // todo fixme
+        let server = self
+            .server
+            .upgrade()
+            .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
         let mut server = server.lock().unwrap();
 
         let response_msg = T::make_goal_response_msg(false, time);
@@ -226,10 +244,10 @@ where
     }
 
     fn cancel_goal(&mut self, uuid: &uuid::Uuid) {
-        if let Some(handle) = self.goals.remove(uuid) {
+        if let Some(handle) = self.goals.get(uuid) {
             let ret = unsafe {
                 rcl_action_update_goal_state(
-                    handle,
+                    *handle,
                     rcl_action_goal_event_t::GOAL_EVENT_CANCEL_GOAL,
                 )
             };
@@ -261,14 +279,14 @@ where
         }
 
         if let Some(handle) = self.goals.get(uuid) {
-            // todo: error handling
-            unsafe {
-                rcl_action_update_goal_state(*handle, new_state);
+            let ret = unsafe { rcl_action_update_goal_state(*handle, new_state) };
+            if ret != RCL_RET_OK as i32 {
+                return Err(Error::from_rcl_error(ret));
             }
 
-            // todo: error handling
-            unsafe {
-                rcl_action_notify_goal_done(self.handle());
+            let ret = unsafe { rcl_action_notify_goal_done(self.handle()) };
+            if ret != RCL_RET_OK as i32 {
+                return Err(Error::from_rcl_error(ret));
             }
 
             // send out updated statues
@@ -643,8 +661,9 @@ where
 
         if ret != RCL_RET_OK as i32 {
             log::error!("could not publish {}", Error::from_rcl_error(ret));
+            return Err(Error::from_rcl_error(ret));
         }
-        Ok(()) // todo: error codes
+        Ok(())
     }
 
     pub fn cancel(&mut self, msg: T::Result) -> Result<()> {
@@ -655,31 +674,10 @@ where
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
         let mut action_server = action_server.lock().unwrap();
 
-        // todo: check that the goal exists
-        let goal_info = action_msgs::msg::GoalInfo {
-            goal_id: unique_identifier_msgs::msg::UUID {
-                uuid: self.uuid.as_bytes().to_vec(),
-            },
-            ..action_msgs::msg::GoalInfo::default()
-        };
-        let goal_info_native = WrappedNativeMsg::<action_msgs::msg::GoalInfo>::from(&goal_info);
-
-        // does this goal exist?
-        let goal_exists =
-            unsafe { rcl_action_server_goal_exists(action_server.handle(), &*goal_info_native) };
-
-        if !goal_exists {
-            log::debug!("tried to publish result without a goal");
-            return Err(Error::RCL_RET_ACTION_GOAL_HANDLE_INVALID);
-        }
-
-        // todo: error handling
-        unsafe {
-            rcl_action_notify_goal_done(action_server.handle());
-        }
-
-        // send out updated statues
-        action_server.publish_status();
+        action_server.set_goal_state(
+            &self.uuid,
+            rcl_action_goal_event_t::GOAL_EVENT_CANCELED,
+        )?;
 
         // create result message
         let result_msg =
