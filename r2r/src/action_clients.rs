@@ -8,7 +8,7 @@ use std::{
     ffi::CString,
     future::Future,
     mem::MaybeUninit,
-    sync::{Mutex, Weak},
+    sync::{Arc, Mutex, Weak},
 };
 
 use crate::{
@@ -40,13 +40,39 @@ unsafe impl<T> Send for ActionClientGoal<T> where T: WrappedActionTypeSupport {}
 /// Action client goal handle
 ///
 /// This can be used to cancel goals and query the status of goals.
-#[derive(Clone)]
 pub struct ActionClientGoal<T>
 where
     T: WrappedActionTypeSupport,
 {
     client: Weak<Mutex<WrappedActionClient<T>>>,
     pub uuid: uuid::Uuid,
+    lifetime: Arc<()>,
+}
+
+impl<T> Clone for ActionClientGoal<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+            uuid: self.uuid,
+            lifetime: self.lifetime.clone(),
+        }
+    }
+}
+
+impl<T> Drop for ActionClientGoal<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    fn drop(&mut self) {
+        if Arc::strong_count(&self.lifetime) == 1 {
+            if let Some(client) = self.client.upgrade() {
+                client.lock().unwrap().goal_status.remove(&self.uuid);
+            }
+        }
+    }
 }
 
 impl<T: 'static> ActionClientGoal<T>
@@ -158,6 +184,7 @@ where
                                 ActionClientGoal {
                                     client: fut_client,
                                     uuid,
+                                    lifetime: Arc::new(()),
                                 },
                                 result_receiver.map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID),
                                 feedback_receiver,
@@ -236,6 +263,11 @@ where
         self.goal_status.remove(uuid);
     }
 
+    fn forget_result(&mut self, uuid: &uuid::Uuid) {
+        self.result_senders.retain(|(id, _)| id != uuid);
+        self.result_requests.retain(|(_, id)| id != uuid);
+    }
+
     fn prune_canceled_requests(&mut self) {
         let canceled_goals: Vec<_> = self
             .goal_response_channels
@@ -257,7 +289,7 @@ where
             .filter_map(|(uuid, sender)| sender.is_canceled().then_some(*uuid))
             .collect();
         for uuid in canceled_results {
-            self.forget_goal(&uuid);
+            self.forget_result(&uuid);
         }
     }
 
@@ -486,6 +518,7 @@ where
                     let response = <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response::from_native(&response_msg);
                     let (status, result) = T::destructure_result_response_msg(response);
                     let status = GoalStatus::from_rcl(status);
+                    self.goal_status.insert(uuid, status);
                     match sender.send((status, result)) {
                         Ok(()) => {}
                         Err(e) => {
