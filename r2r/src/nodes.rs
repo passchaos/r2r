@@ -1363,6 +1363,10 @@ impl Node {
         }
         self.pubs = active_publishers;
 
+        // Do not wait for a long-period timer to become ready before noticing that its public
+        // handle has gone away. Dropping Timer closes the receiver immediately.
+        self.timers.retain(|timer| !timer.sender.is_closed());
+
         // first handle any completed action cancellation responses
         for a in &mut self.action_servers {
             a.lock().send_completed_cancel_requests();
@@ -2984,5 +2988,18 @@ mod tests {
         drop(untyped);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.pubs.is_empty());
+    }
+
+    #[test]
+    fn dropped_timer_is_removed_before_its_deadline() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "timer_drop_cleanup_test", "").unwrap();
+        let timer = node.create_wall_timer(Duration::from_secs(60)).unwrap();
+        assert_eq!(node.timers.len(), 1);
+
+        drop(timer);
+        node.try_spin_once(Duration::ZERO).unwrap();
+
+        assert!(node.timers.is_empty());
     }
 }
