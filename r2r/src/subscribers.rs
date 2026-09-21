@@ -9,12 +9,7 @@ use std::{
     time::Duration,
 };
 
-use crate::{
-    error::*,
-    msg_types::*,
-    nodes::{future_with_timeout, Node},
-    qos::QosProfile,
-};
+use crate::{error::*, msg_types::*, nodes::Node, qos::QosProfile};
 use r2r_rcl::*;
 
 /// A ROS subscription stream with graph matching helpers.
@@ -44,8 +39,7 @@ impl<T> Subscription<T> {
         &self, node: &mut Node, timeout: Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
         let available = self.wait_for_publishers(node)?;
-        let timer = node.create_wall_timer(timeout)?;
-        Ok(future_with_timeout(available, timer))
+        node.with_timeout(available, timeout)
     }
 }
 

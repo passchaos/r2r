@@ -5,12 +5,7 @@ use std::{
     time::Duration,
 };
 
-use crate::{
-    error::*,
-    msg_types::*,
-    nodes::{future_with_timeout, Node},
-    QosProfile,
-};
+use crate::{error::*, msg_types::*, nodes::Node, QosProfile};
 use r2r_rcl::*;
 
 /// ROS service client.
@@ -48,8 +43,7 @@ where
         &self, node: &mut Node, msg: &T::Request, timeout: Duration,
     ) -> Result<impl Future<Output = Result<T::Response>>> {
         let response = self.request(msg)?;
-        let timer = node.create_wall_timer(timeout)?;
-        Ok(future_with_timeout(response, timer))
+        node.with_timeout(response, timeout)
     }
 }
 
@@ -87,8 +81,7 @@ impl ClientUntyped {
         &self, node: &mut Node, msg: serde_json::Value, timeout: Duration,
     ) -> Result<impl Future<Output = Result<Result<serde_json::Value>>>> {
         let response = self.request(msg)?;
-        let timer = node.create_wall_timer(timeout)?;
-        Ok(future_with_timeout(response, timer))
+        node.with_timeout(response, timeout)
     }
 }
 

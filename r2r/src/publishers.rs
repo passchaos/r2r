@@ -7,12 +7,7 @@ use std::{
     sync::{Arc, Weak},
 };
 
-use crate::{
-    error::*,
-    msg_types::*,
-    nodes::{future_with_timeout, Node},
-    qos::QosProfile,
-};
+use crate::{error::*, msg_types::*, nodes::Node, qos::QosProfile};
 use r2r_rcl::*;
 
 // The publish function is thread safe. ROS2 docs state:
@@ -351,8 +346,7 @@ impl PublisherUntyped {
         &self, node: &mut Node, timeout: std::time::Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
         let available = self.wait_for_subscribers()?;
-        let timer = node.create_wall_timer(timeout)?;
-        Ok(future_with_timeout(available, timer))
+        node.with_timeout(available, timeout)
     }
 
     #[deprecated(note = "use get_subscription_count; the RCL count includes local matches")]
@@ -486,8 +480,7 @@ where
         &self, node: &mut Node, timeout: std::time::Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
         let available = self.wait_for_subscribers()?;
-        let timer = node.create_wall_timer(timeout)?;
-        Ok(future_with_timeout(available, timer))
+        node.with_timeout(available, timeout)
     }
 
     #[deprecated(note = "use get_subscription_count; the RCL count includes local matches")]

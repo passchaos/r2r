@@ -19,6 +19,7 @@ use crate::{
         generated_msgs::{action_msgs, builtin_interfaces, unique_identifier_msgs},
         *,
     },
+    Node,
 };
 use r2r_actions::*;
 use r2r_rcl::*;
@@ -99,6 +100,14 @@ impl ActionClientGoalUntyped {
         let mut client = client.lock();
 
         client.send_cancel_request(&self.uuid)
+    }
+
+    /// Send a cancel request and wait up to `timeout` for the server response.
+    pub fn cancel_with_timeout(
+        &self, node: &mut Node, timeout: std::time::Duration,
+    ) -> Result<impl Future<Output = Result<()>>> {
+        let response = self.cancel()?;
+        node.with_timeout(response, timeout)
     }
 }
 
@@ -196,6 +205,26 @@ impl ActionClientUntyped {
             log::error!("could not send goal request {}", result);
             Err(Error::from_rcl_error(result))
         }
+    }
+
+    /// Make an untyped goal request and wait up to `timeout` for acceptance.
+    ///
+    /// The timeout only covers the goal response. Wrap the returned result future with
+    /// [`Node::with_timeout`] when a separate execution deadline is required.
+    #[allow(clippy::type_complexity)]
+    pub fn send_goal_request_with_timeout(
+        &self, node: &mut Node, goal: serde_json::Value, timeout: std::time::Duration,
+    ) -> Result<
+        impl Future<
+            Output = Result<(
+                ActionClientGoalUntyped,
+                impl Future<Output = Result<(GoalStatus, Result<serde_json::Value>)>>,
+                impl Stream<Item = Result<serde_json::Value>> + Unpin,
+            )>,
+        >,
+    > {
+        let response = self.send_goal_request(goal)?;
+        node.with_timeout(response, timeout)
     }
 }
 

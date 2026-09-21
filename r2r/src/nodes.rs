@@ -1049,8 +1049,17 @@ impl Node {
         &mut self, client: &dyn IsAvailablePollable, timeout: Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
         let available = Self::is_available(client)?;
+        self.with_timeout(available, timeout)
+    }
+
+    /// Wraps an r2r future with a runtime-agnostic wall-clock timeout.
+    ///
+    /// The returned future advances while this node is spun.
+    pub fn with_timeout<T>(
+        &mut self, future: impl Future<Output = Result<T>>, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<T>>> {
         let timer = self.create_wall_timer(timeout)?;
-        Ok(future_with_timeout(available, timer))
+        Ok(future_with_timeout(future, timer))
     }
 
     /// Create a ROS action client.
@@ -3176,6 +3185,97 @@ mod tests {
             )
             .unwrap();
         assert!(matches!(drive(&mut node, timeout), Err(Error::RCL_RET_TIMEOUT)));
+    }
+
+    #[test]
+    fn action_requests_support_runtime_agnostic_timeouts() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        fn drive<T>(node: &mut Node, future: impl Future<Output = Result<T>>) -> Result<T> {
+            futures::pin_mut!(future);
+            loop {
+                node.try_spin_once(Duration::from_millis(10))?;
+                if let Some(result) = future.as_mut().now_or_never() {
+                    return result;
+                }
+            }
+        }
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "action_request_timeout_test", "").unwrap();
+        let missing = node
+            .create_action_client::<Fibonacci::Action>("/missing_action_request_timeout")
+            .unwrap();
+        let timeout = missing
+            .send_goal_request_with_timeout(
+                &mut node,
+                Fibonacci::Goal { order: 1 },
+                Duration::from_millis(1),
+            )
+            .unwrap();
+        assert!(matches!(drive(&mut node, timeout), Err(Error::RCL_RET_TIMEOUT)));
+        drop(missing);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.action_clients.is_empty());
+
+        let missing_untyped = node
+            .create_action_client_untyped(
+                "/missing_untyped_action_request_timeout",
+                "example_interfaces/action/Fibonacci",
+            )
+            .unwrap();
+        let timeout = missing_untyped
+            .send_goal_request_with_timeout(
+                &mut node,
+                serde_json::json!({ "order": 1 }),
+                Duration::from_millis(1),
+            )
+            .unwrap();
+        assert!(matches!(drive(&mut node, timeout), Err(Error::RCL_RET_TIMEOUT)));
+
+        let action_name = "/cancel_request_timeout";
+        let mut requests = node
+            .create_action_server::<Fibonacci::Action>(action_name)
+            .unwrap();
+        let client = node
+            .create_action_client::<Fibonacci::Action>(action_name)
+            .unwrap();
+        let goal_response = client
+            .send_goal_request_with_timeout(
+                &mut node,
+                Fibonacci::Goal { order: 2 },
+                Duration::from_secs(1),
+            )
+            .unwrap();
+        let mut goal_response = Box::pin(goal_response);
+        let mut cancel_requests = None;
+        let mut server_goal = None;
+        let (client_goal, result_future) = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if cancel_requests.is_none() {
+                if let Some(request) = requests.next().now_or_never().flatten() {
+                    let (goal, requests) = request.accept().unwrap();
+                    server_goal = Some(goal);
+                    cancel_requests = Some(requests);
+                }
+            }
+            if let Some(response) = goal_response.as_mut().now_or_never() {
+                let (goal, result, _feedback) = response.unwrap();
+                break (goal, result);
+            }
+        };
+
+        let cancel = client_goal
+            .cancel_with_timeout(&mut node, Duration::from_millis(1))
+            .unwrap();
+        assert!(matches!(drive(&mut node, cancel), Err(Error::RCL_RET_TIMEOUT)));
+
+        let result = node
+            .with_timeout(result_future, Duration::from_millis(1))
+            .unwrap();
+        assert!(matches!(drive(&mut node, result), Err(Error::RCL_RET_TIMEOUT)));
+        drop(server_goal);
+        drop(cancel_requests);
     }
 
     #[test]
