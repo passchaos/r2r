@@ -45,6 +45,20 @@ where
         let response = self.request(msg)?;
         node.with_timeout(response, timeout)
     }
+
+    /// Returns the actual QoS used by this client's request publisher.
+    pub fn get_request_publisher_actual_qos(&self) -> Result<QosProfile> {
+        let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
+        let client = client.lock();
+        client_request_publisher_actual_qos(client.handle())
+    }
+
+    /// Returns the actual QoS used by this client's response subscription.
+    pub fn get_response_subscription_actual_qos(&self) -> Result<QosProfile> {
+        let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
+        let client = client.lock();
+        client_response_subscription_actual_qos(client.handle())
+    }
 }
 
 /// ROS "untyped" service client.
@@ -83,6 +97,32 @@ impl ClientUntyped {
         let response = self.request(msg)?;
         node.with_timeout(response, timeout)
     }
+
+    /// Returns the actual QoS used by this client's request publisher.
+    pub fn get_request_publisher_actual_qos(&self) -> Result<QosProfile> {
+        let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
+        let client = client.lock();
+        client_request_publisher_actual_qos(client.handle())
+    }
+
+    /// Returns the actual QoS used by this client's response subscription.
+    pub fn get_response_subscription_actual_qos(&self) -> Result<QosProfile> {
+        let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
+        let client = client.lock();
+        client_response_subscription_actual_qos(client.handle())
+    }
+}
+
+fn client_request_publisher_actual_qos(handle: &rcl_client_t) -> Result<QosProfile> {
+    let qos = unsafe { rcl_client_request_publisher_get_actual_qos(handle) };
+    let qos = unsafe { qos.as_ref() }.ok_or(Error::RCL_RET_CLIENT_INVALID)?;
+    QosProfile::try_from(qos)
+}
+
+fn client_response_subscription_actual_qos(handle: &rcl_client_t) -> Result<QosProfile> {
+    let qos = unsafe { rcl_client_response_subscription_get_actual_qos(handle) };
+    let qos = unsafe { qos.as_ref() }.ok_or(Error::RCL_RET_CLIENT_INVALID)?;
+    QosProfile::try_from(qos)
 }
 
 pub fn make_client<T>(client: Weak<Mutex<TypedClient<T>>>) -> Client<T>

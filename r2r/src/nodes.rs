@@ -2793,6 +2793,38 @@ mod tests {
     }
 
     #[test]
+    fn reports_actual_client_qos() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "actual_client_qos_test", "").unwrap();
+        let configured = QosProfile::default().keep_last(7);
+        let client = node
+            .create_client::<AddTwoInts::Service>("/actual_client_qos", configured.clone())
+            .unwrap();
+        let untyped = node
+            .create_client_untyped(
+                "/actual_untyped_client_qos",
+                "example_interfaces/srv/AddTwoInts",
+                configured,
+            )
+            .unwrap();
+
+        let request_qos = client.get_request_publisher_actual_qos().unwrap();
+        let response_qos = client.get_response_subscription_actual_qos().unwrap();
+        assert_eq!(request_qos.depth, 7);
+        assert_eq!(response_qos.depth, 7);
+        assert_eq!(untyped.get_request_publisher_actual_qos().unwrap().depth, 7);
+        assert_eq!(
+            untyped
+                .get_response_subscription_actual_qos()
+                .unwrap()
+                .depth,
+            7
+        );
+    }
+
+    #[test]
     fn discovers_names_and_types_for_a_specific_node() {
         use crate::example_interfaces::srv::AddTwoInts;
 
