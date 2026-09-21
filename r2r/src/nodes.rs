@@ -1672,6 +1672,61 @@ impl Node {
         })
     }
 
+    /// Returns fully qualified names of nodes visible in the ROS graph.
+    pub fn get_node_names(&self) -> Result<Vec<String>> {
+        self.get_node_names_and_namespaces().map(|nodes| {
+            nodes
+                .into_iter()
+                .map(|(name, namespace)| qualify_node_name(&name, &namespace))
+                .collect()
+        })
+    }
+
+    /// Returns node names and namespaces visible in the ROS graph.
+    pub fn get_node_names_and_namespaces(&self) -> Result<Vec<(String, String)>> {
+        let mut names = StringArray::new();
+        let mut namespaces = StringArray::new();
+        let ret = unsafe {
+            rcl_get_node_names(
+                self.node_handle.as_ref(),
+                rcutils_get_default_allocator(),
+                &mut names.0,
+                &mut namespaces.0,
+            )
+        };
+        check_rcl_ret(ret)?;
+        zip_graph_strings(names.to_vec()?, namespaces.to_vec()?)
+    }
+
+    /// Returns node names, namespaces, and security enclaves visible in the ROS graph.
+    pub fn get_node_names_with_enclaves(&self) -> Result<Vec<(String, String, String)>> {
+        let mut names = StringArray::new();
+        let mut namespaces = StringArray::new();
+        let mut enclaves = StringArray::new();
+        let ret = unsafe {
+            rcl_get_node_names_with_enclaves(
+                self.node_handle.as_ref(),
+                rcutils_get_default_allocator(),
+                &mut names.0,
+                &mut namespaces.0,
+                &mut enclaves.0,
+            )
+        };
+        check_rcl_ret(ret)?;
+        let names = names.to_vec()?;
+        let namespaces = namespaces.to_vec()?;
+        let enclaves = enclaves.to_vec()?;
+        if names.len() != namespaces.len() || names.len() != enclaves.len() {
+            return Err(Error::RCL_RET_ERROR);
+        }
+        Ok(names
+            .into_iter()
+            .zip(namespaces)
+            .zip(enclaves)
+            .map(|((name, namespace), enclave)| (name, namespace, enclave))
+            .collect())
+    }
+
     /// Returns publisher topic names and types associated with a remote node.
     pub fn get_publisher_names_and_types_by_node(
         &self, node_name: &str, node_namespace: &str, no_demangle: bool,
@@ -1977,6 +2032,36 @@ struct TopicEndpointInfoArray {
     allocator: rcutils_allocator_t,
 }
 
+struct StringArray(rcutils_string_array_t);
+
+impl StringArray {
+    fn new() -> Self {
+        Self(unsafe { rcutils_get_zero_initialized_string_array() })
+    }
+
+    fn to_vec(&self) -> Result<Vec<String>> {
+        if self.0.size == 0 {
+            return Ok(Vec::new());
+        }
+        if self.0.data.is_null() {
+            return Err(Error::RCL_RET_ERROR);
+        }
+        unsafe { std::slice::from_raw_parts(self.0.data, self.0.size) }
+            .iter()
+            .map(|value| c_string_from_ptr(*value))
+            .collect()
+    }
+}
+
+impl Drop for StringArray {
+    fn drop(&mut self) {
+        let ret = unsafe { rcutils_string_array_fini(&mut self.0) };
+        if ret != RCL_RET_OK as i32 {
+            log::error!("could not finalize ROS graph string array: {ret}");
+        }
+    }
+}
+
 impl TopicEndpointInfoArray {
     fn new() -> Self {
         Self {
@@ -2012,6 +2097,21 @@ fn c_str_to_str<'a>(value: &'a CStr, context: &'static str) -> Result<&'a str> {
 
 fn c_str_to_owned(value: &CStr, context: &'static str) -> Result<String> {
     c_str_to_str(value, context).map(str::to_owned)
+}
+
+fn zip_graph_strings(names: Vec<String>, namespaces: Vec<String>) -> Result<Vec<(String, String)>> {
+    if names.len() != namespaces.len() {
+        return Err(Error::RCL_RET_ERROR);
+    }
+    Ok(names.into_iter().zip(namespaces).collect())
+}
+
+fn qualify_node_name(name: &str, namespace: &str) -> String {
+    match namespace {
+        "" | "/" => format!("/{name}"),
+        namespace if namespace.ends_with('/') => format!("{namespace}{name}"),
+        namespace => format!("{namespace}/{name}"),
+    }
 }
 
 #[cfg(any(
@@ -2565,6 +2665,26 @@ mod tests {
             Some(&vec!["example_interfaces/srv/AddTwoInts".to_owned()])
         );
         assert!(!publishers.contains_key("/graph_target_input"));
+    }
+
+    #[test]
+    fn discovers_node_names_namespaces_and_enclaves() {
+        let context = Context::create().unwrap();
+        let target = Node::create(context.clone(), "node_graph_target", "/graph_ns").unwrap();
+        let observer = Node::create(context, "node_graph_observer", "").unwrap();
+
+        let names = observer.get_node_names().unwrap();
+        let names_and_namespaces = observer.get_node_names_and_namespaces().unwrap();
+        let with_enclaves = observer.get_node_names_with_enclaves().unwrap();
+
+        assert!(names.contains(&"/graph_ns/node_graph_target".to_owned()));
+        assert!(names.contains(&"/node_graph_observer".to_owned()));
+        assert!(names_and_namespaces
+            .contains(&("node_graph_target".to_owned(), "/graph_ns".to_owned())));
+        assert!(with_enclaves.iter().any(|(name, namespace, _)| {
+            name == "node_graph_target" && namespace == "/graph_ns"
+        }));
+        drop(target);
     }
 
     #[test]
