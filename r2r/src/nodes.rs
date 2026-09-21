@@ -1310,6 +1310,26 @@ impl Node {
         }
         self.subscribers = active_subscribers;
 
+        // A dropped service stream cannot receive another request to trigger its old reactive
+        // cleanup path. Remove it before rebuilding the wait set so it leaves the ROS graph even
+        // when the service is idle.
+        let mut active_services = Vec::with_capacity(self.services.len());
+        for service in self.services.drain(..) {
+            let removed = {
+                let mut handle = service.lock();
+                if handle.should_remove() {
+                    handle.destroy(&mut self.node_handle);
+                    true
+                } else {
+                    false
+                }
+            };
+            if !removed {
+                active_services.push(service);
+            }
+        }
+        self.services = active_services;
+
         // first handle any completed action cancellation responses
         for a in &mut self.action_servers {
             a.lock().send_completed_cancel_requests();
@@ -2772,5 +2792,28 @@ mod tests {
         drop(subscription);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert_eq!(node.subscribers.len(), subscriptions_before_drop - 1);
+    }
+
+    #[test]
+    fn dropped_service_stream_is_removed_without_a_request() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "service_drop_cleanup_test", "").unwrap();
+        // Keep an unrelated waitable alive so this test only exercises service cleanup. Empty
+        // wait-set behavior is a separate Node concern.
+        let _timer = node.create_wall_timer(Duration::from_secs(1)).unwrap();
+        let requests = node
+            .create_service::<AddTwoInts::Service>(
+                "/idle_service_drop_cleanup",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let services_before_drop = node.services.len();
+
+        drop(requests);
+        node.try_spin_once(Duration::ZERO).unwrap();
+
+        assert_eq!(node.services.len(), services_before_drop - 1);
     }
 }

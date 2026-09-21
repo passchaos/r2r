@@ -48,6 +48,10 @@ where
 pub trait Service_ {
     fn handle(&self) -> &rcl_service_t;
     fn send_response(&mut self, request_id: rmw_request_id_t, msg: Box<dyn VoidPtr>) -> Result<()>;
+    /// Returns true when the service should be destroyed before entering the next wait.
+    fn should_remove(&self) -> bool {
+        false
+    }
     /// Returns true if the service stream has been dropped.
     fn handle_request(&mut self, service: Arc<Mutex<dyn Service_>>) -> bool;
     fn destroy(&mut self, node: &mut rcl_node_t);
@@ -79,6 +83,10 @@ where
         } else {
             Err(Error::from_rcl_error(res))
         }
+    }
+
+    fn should_remove(&self) -> bool {
+        self.sender.is_closed()
     }
 
     fn handle_request(&mut self, service: Arc<Mutex<dyn Service_>>) -> bool {
