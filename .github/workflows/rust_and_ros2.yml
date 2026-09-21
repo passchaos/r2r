@@ -17,6 +17,16 @@ jobs:
     - run: docker build . --file ./tests/Dockerfile_no_ros --tag r2r_no_ros
     - run: docker run r2r_no_ros cargo build --features doc-only
 
+  quality_jazzy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - run: docker build . --file ./tests/Dockerfile_jazzy --tag r2r_jazzy
+    - name: Check formatting
+      run: docker run r2r_jazzy cargo fmt --all -- --check
+    - name: Run Clippy
+      run: docker run r2r_jazzy cargo clippy --workspace --all-targets -- -D warnings
+
   minimal_workspace_jazzy:
     runs-on: ubuntu-latest
     steps:
