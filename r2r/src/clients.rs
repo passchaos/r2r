@@ -74,6 +74,9 @@ where
     /// Checks whether the service is currently available without registering a waiter.
     pub fn is_available(&self, node: &Node) -> Result<bool> {
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
+        if !node.owns_client(&client) {
+            return Err(Error::RCL_RET_INVALID_ARGUMENT);
+        }
         let client = client.lock();
         service_available_helper(node.node_handle.as_ref(), client.handle())
     }
@@ -140,6 +143,9 @@ impl ClientUntyped {
     /// Checks whether the service is currently available without registering a waiter.
     pub fn is_available(&self, node: &Node) -> Result<bool> {
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
+        if !node.owns_client(&client) {
+            return Err(Error::RCL_RET_INVALID_ARGUMENT);
+        }
         let client = client.lock();
         service_available_helper(node.node_handle.as_ref(), client.handle())
     }

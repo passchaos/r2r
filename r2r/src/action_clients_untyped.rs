@@ -233,6 +233,9 @@ impl ActionClientUntyped {
             .client
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+        if !node.owns_action_client(&client) {
+            return Err(Error::RCL_RET_INVALID_ARGUMENT);
+        }
         let client = client.lock();
         action_server_available_helper(node.node_handle.as_ref(), client.handle())
     }

@@ -227,6 +227,26 @@ impl Node {
             .any(|candidate| Arc::ptr_eq(candidate, publisher))
     }
 
+    pub(crate) fn owns_client<T>(&self, client: &Arc<Mutex<T>>) -> bool
+    where
+        T: Client_ + ?Sized,
+    {
+        let client = Arc::as_ptr(client).cast::<()>();
+        self.clients
+            .iter()
+            .any(|candidate| Arc::as_ptr(candidate).cast::<()>() == client)
+    }
+
+    pub(crate) fn owns_action_client<T>(&self, client: &Arc<Mutex<T>>) -> bool
+    where
+        T: ActionClient_ + ?Sized,
+    {
+        let client = Arc::as_ptr(client).cast::<()>();
+        self.action_clients
+            .iter()
+            .any(|candidate| Arc::as_ptr(candidate).cast::<()>() == client)
+    }
+
     /// Returns the name of the node.
     pub fn name(&self) -> Result<String> {
         let cstr = unsafe { rcl_node_get_name(self.node_handle.as_ref()) };
@@ -4344,7 +4364,8 @@ mod tests {
         use crate::example_interfaces::{action::Fibonacci, srv::AddTwoInts};
 
         let context = Context::create().unwrap();
-        let mut node = Node::create(context, "immediate_availability_test", "").unwrap();
+        let mut node = Node::create(context.clone(), "immediate_availability_test", "").unwrap();
+        let other = Node::create(context, "immediate_availability_other", "").unwrap();
 
         let service_name = "/immediate_availability_service";
         let client = node
@@ -4359,6 +4380,11 @@ mod tests {
             .unwrap();
         assert!(!client.is_available(&node).unwrap());
         assert!(!untyped_client.is_available(&node).unwrap());
+        assert!(matches!(client.is_available(&other), Err(Error::RCL_RET_INVALID_ARGUMENT)));
+        assert!(matches!(
+            untyped_client.is_available(&other),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
         let _service = node
             .create_service::<AddTwoInts::Service>(service_name, QosProfile::default())
             .unwrap();
@@ -4380,6 +4406,14 @@ mod tests {
             .unwrap();
         assert!(!action_client.is_available(&node).unwrap());
         assert!(!untyped_action_client.is_available(&node).unwrap());
+        assert!(matches!(
+            action_client.is_available(&other),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            untyped_action_client.is_available(&other),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
         let _action_server = node
             .create_action_server::<Fibonacci::Action>(action_name)
             .unwrap();
