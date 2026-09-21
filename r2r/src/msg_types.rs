@@ -36,9 +36,20 @@ pub(crate) fn uuid_msg_to_uuid(msg: &unique_identifier_msgs::msg::UUID) -> uuid:
     uuid::Uuid::from_bytes(bytes)
 }
 
-// TODO where is the best place for this?
+struct SerializedMessageBuffer(rcl_serialized_message_t);
+
+impl Drop for SerializedMessageBuffer {
+    fn drop(&mut self) {
+        let ret = unsafe { r2r_rcl::rcutils_uint8_array_fini(&mut self.0) };
+        if ret != r2r_rcl::RCL_RET_OK as i32 {
+            log::error!("could not finalize serialized message buffer: {}", ret);
+        }
+    }
+}
+
+// Keep one reusable serialization buffer per thread.
 thread_local! {
-    pub static SERIALIZED_MESSAGE_CACHE: std::result::Result<RefCell<rcl_serialized_message_t>, i32> = {
+    static SERIALIZED_MESSAGE_CACHE: std::result::Result<RefCell<SerializedMessageBuffer>, i32> = {
         use r2r_rcl::*;
 
         let mut msg_buf: rcl_serialized_message_t  = unsafe { rcutils_get_zero_initialized_uint8_array() };
@@ -54,7 +65,7 @@ thread_local! {
         if ret != RCL_RET_OK as i32 {
             Err(ret)
         } else {
-            Ok(RefCell::new(msg_buf))
+            Ok(RefCell::new(SerializedMessageBuffer(msg_buf)))
         }
 
     };
@@ -80,10 +91,11 @@ pub trait WrappedTypesupport:
 
             self.copy_to_native(unsafe { msg.as_mut().expect("not null") });
 
-            let msg_buf: &mut rcl_serialized_message_t = &mut msg_buf
+            let mut msg_buf = msg_buf
                 .as_ref()
                 .map_err(|err| Error::from_rcl_error(*err))?
                 .borrow_mut();
+            let msg_buf = &mut msg_buf.0;
 
             let result = unsafe {
                 rmw_serialize(
