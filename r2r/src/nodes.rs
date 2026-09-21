@@ -1014,6 +1014,17 @@ impl Node {
         Ok(receiver.map_err(|_| Error::RCL_RET_CLIENT_INVALID))
     }
 
+    /// Wait for a service or action server to become available, up to `timeout`.
+    ///
+    /// This future is runtime-agnostic and advances while the node is spun.
+    pub fn is_available_with_timeout(
+        &mut self, client: &dyn IsAvailablePollable, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<()>>> {
+        let available = Self::is_available(client)?;
+        let timer = self.create_wall_timer(timeout)?;
+        Ok(future_with_timeout(available, timer))
+    }
+
     /// Create a ROS action client.
     ///
     /// An action client is used to make requests to a ROS action server.
@@ -1994,6 +2005,21 @@ impl Timer {
     }
 }
 
+pub(crate) async fn future_with_timeout<T>(
+    future: impl Future<Output = Result<T>>, mut timer: Timer,
+) -> Result<T> {
+    futures::pin_mut!(future);
+    let timeout = timer.tick();
+    futures::pin_mut!(timeout);
+    match future::select(future, timeout).await {
+        future::Either::Left((result, _)) => result,
+        future::Either::Right((timer_result, _)) => {
+            timer_result?;
+            Err(Error::RCL_RET_TIMEOUT)
+        }
+    }
+}
+
 impl Drop for Node {
     fn drop(&mut self) {
         // fini functions are not thread safe so lock the context.
@@ -2600,5 +2626,60 @@ mod tests {
         assert!(subscriptions.iter().all(|endpoint| {
             endpoint.qos_profile.reliability == QosProfile::sensor_data().reliability
         }));
+    }
+
+    #[test]
+    fn availability_waits_support_runtime_agnostic_timeouts() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        fn drive<T>(node: &mut Node, future: impl Future<Output = Result<T>>) -> Result<T> {
+            futures::pin_mut!(future);
+            loop {
+                node.try_spin_once(Duration::from_millis(10))?;
+                if let Some(result) = future.as_mut().now_or_never() {
+                    return result;
+                }
+            }
+        }
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "availability_timeout_test", "").unwrap();
+        let missing = node
+            .create_client::<AddTwoInts::Service>("/missing_timeout_service", QosProfile::default())
+            .unwrap();
+        let timeout = node
+            .is_available_with_timeout(&missing, Duration::from_millis(1))
+            .unwrap();
+        assert!(matches!(drive(&mut node, timeout), Err(Error::RCL_RET_TIMEOUT)));
+        node.try_spin_once(Duration::ZERO).unwrap();
+
+        let _service = node
+            .create_service::<AddTwoInts::Service>(
+                "/available_timeout_service",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let available = node
+            .create_client::<AddTwoInts::Service>(
+                "/available_timeout_service",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let wait = node
+            .is_available_with_timeout(&available, Duration::from_secs(1))
+            .unwrap();
+        drive(&mut node, wait).unwrap();
+
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(
+                "/missing_subscription_timeout",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let wait = publisher
+            .wait_for_inter_process_subscribers_with_timeout(&mut node, Duration::from_millis(1))
+            .unwrap();
+        assert!(matches!(drive(&mut node, wait), Err(Error::RCL_RET_TIMEOUT)));
+        node.try_spin_once(Duration::ZERO).unwrap();
     }
 }

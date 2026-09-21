@@ -7,7 +7,12 @@ use std::{
     sync::{Arc, Weak},
 };
 
-use crate::{error::*, msg_types::*, nodes::Node, qos::QosProfile};
+use crate::{
+    error::*,
+    msg_types::*,
+    nodes::{future_with_timeout, Node},
+    qos::QosProfile,
+};
 use r2r_rcl::*;
 
 // The publish function is thread safe. ROS2 docs state:
@@ -341,6 +346,15 @@ impl PublisherUntyped {
 
         Ok(receiver.map_err(|_| Error::RCL_RET_CLIENT_INVALID))
     }
+
+    /// Wait for a subscriber up to `timeout`. The node must be spun while awaiting.
+    pub fn wait_for_inter_process_subscribers_with_timeout(
+        &self, node: &mut Node, timeout: std::time::Duration,
+    ) -> Result<impl Future<Output = Result<()>>> {
+        let available = self.wait_for_inter_process_subscribers()?;
+        let timer = node.create_wall_timer(timeout)?;
+        Ok(future_with_timeout(available, timer))
+    }
 }
 
 impl<T: 'static> Publisher<T>
@@ -451,5 +465,14 @@ where
             .push(sender);
 
         Ok(receiver.map_err(|_| Error::RCL_RET_CLIENT_INVALID))
+    }
+
+    /// Wait for a subscriber up to `timeout`. The node must be spun while awaiting.
+    pub fn wait_for_inter_process_subscribers_with_timeout(
+        &self, node: &mut Node, timeout: std::time::Duration,
+    ) -> Result<impl Future<Output = Result<()>>> {
+        let available = self.wait_for_inter_process_subscribers()?;
+        let timer = node.create_wall_timer(timeout)?;
+        Ok(future_with_timeout(available, timer))
     }
 }
