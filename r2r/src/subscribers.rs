@@ -4,7 +4,7 @@ use futures::{
     Future, Stream, TryFutureExt,
 };
 use std::{
-    ffi::CString,
+    ffi::{CStr, CString},
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
@@ -146,6 +146,11 @@ impl<T> Subscription<T> {
         node.get_subscription_actual_qos(self.id)
     }
 
+    /// Returns the fully resolved topic name used by the native subscription.
+    pub fn topic_name(&self, node: &Node) -> Result<String> {
+        node.get_subscription_topic_name(self.id)
+    }
+
     /// Waits for at least one publisher to match this subscription.
     pub fn wait_for_publishers(&self, node: &mut Node) -> Result<impl Future<Output = Result<()>>> {
         let receiver = node.register_subscription_publisher_wait(self.id)?;
@@ -204,6 +209,19 @@ pub(crate) trait Subscriber_ {
         let qos = unsafe { rcl_subscription_get_actual_qos(self.handle()) };
         let qos = unsafe { qos.as_ref() }.ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
         QosProfile::try_from(qos)
+    }
+    fn topic_name(&self) -> Result<String> {
+        let name = unsafe { rcl_subscription_get_topic_name(self.handle()) };
+        if name.is_null() {
+            return Err(Error::RCL_RET_SUBSCRIPTION_INVALID);
+        }
+        unsafe { CStr::from_ptr(name) }
+            .to_str()
+            .map(str::to_owned)
+            .map_err(|err| Error::InvalidUtf8 {
+                context: "subscription topic name",
+                err: err.to_string(),
+            })
     }
     fn poll_has_publishers(&mut self) {
         {

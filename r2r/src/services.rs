@@ -1,7 +1,7 @@
 use futures::{channel::mpsc, task::noop_waker_ref, Stream};
 use parking_lot::Mutex;
 use std::{
-    ffi::CString,
+    ffi::{CStr, CString},
     mem::MaybeUninit,
     pin::Pin,
     sync::{Arc, Weak},
@@ -65,6 +65,11 @@ where
     pub fn get_response_publisher_actual_qos(&self, node: &Node) -> Result<QosProfile> {
         node.get_service_response_publisher_actual_qos(self.id)
     }
+
+    /// Returns the fully resolved service name used by the native server.
+    pub fn service_name(&self, node: &Node) -> Result<String> {
+        node.get_service_name(self.id)
+    }
 }
 
 impl<T> Stream for Service<T>
@@ -127,6 +132,19 @@ pub trait Service_ {
         let qos = unsafe { rcl_service_response_publisher_get_actual_qos(self.handle()) };
         let qos = unsafe { qos.as_ref() }.ok_or(Error::RCL_RET_SERVICE_INVALID)?;
         QosProfile::try_from(qos)
+    }
+    fn service_name(&self) -> Result<String> {
+        let name = unsafe { rcl_service_get_service_name(self.handle()) };
+        if name.is_null() {
+            return Err(Error::RCL_RET_SERVICE_INVALID);
+        }
+        unsafe { CStr::from_ptr(name) }
+            .to_str()
+            .map(str::to_owned)
+            .map_err(|err| Error::InvalidUtf8 {
+                context: "service name",
+                err: err.to_string(),
+            })
     }
     fn send_response(&mut self, request_id: rmw_request_id_t, msg: Box<dyn VoidPtr>) -> Result<()>;
     /// Returns true when the service should be destroyed before entering the next wait.

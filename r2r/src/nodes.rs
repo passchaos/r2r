@@ -1287,6 +1287,14 @@ impl Node {
             .actual_qos()
     }
 
+    pub(crate) fn get_subscription_topic_name(&self, id: uuid::Uuid) -> Result<String> {
+        self.subscribers
+            .iter()
+            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
+            .topic_name()
+    }
+
     pub(crate) fn register_subscription_publisher_wait(
         &mut self, id: uuid::Uuid,
     ) -> Result<oneshot::Receiver<()>> {
@@ -1364,6 +1372,16 @@ impl Node {
             .ok_or(Error::RCL_RET_SERVICE_INVALID)?
             .lock();
         service.response_publisher_actual_qos()
+    }
+
+    pub(crate) fn get_service_name(&self, id: uuid::Uuid) -> Result<String> {
+        let service = self
+            .services
+            .iter()
+            .find(|service| service.lock().id() == Some(id))
+            .ok_or(Error::RCL_RET_SERVICE_INVALID)?
+            .lock();
+        service.service_name()
     }
 
     /// Create a ROS service client.
@@ -3639,6 +3657,42 @@ mod tests {
                 .depth,
             7
         );
+    }
+
+    #[test]
+    fn endpoints_report_resolved_topic_and_service_names() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node =
+            Node::create(context.clone(), "resolved_endpoint_names_test", "/scope").unwrap();
+        let other = Node::create(context, "resolved_endpoint_names_other", "").unwrap();
+        let subscription = node
+            .subscribe::<crate::std_msgs::msg::String>("relative_topic", QosProfile::default())
+            .unwrap();
+        assert_eq!(subscription.topic_name(&node).unwrap(), "/scope/relative_topic");
+        assert!(matches!(
+            subscription.topic_name(&other),
+            Err(Error::RCL_RET_SUBSCRIPTION_INVALID)
+        ));
+
+        let service = node
+            .create_service::<AddTwoInts::Service>("relative_service", QosProfile::default())
+            .unwrap();
+        let client = node
+            .create_client::<AddTwoInts::Service>("relative_service", QosProfile::default())
+            .unwrap();
+        let untyped = node
+            .create_client_untyped(
+                "relative_service",
+                "example_interfaces/srv/AddTwoInts",
+                QosProfile::default(),
+            )
+            .unwrap();
+        assert_eq!(service.service_name(&node).unwrap(), "/scope/relative_service");
+        assert!(matches!(service.service_name(&other), Err(Error::RCL_RET_SERVICE_INVALID)));
+        assert_eq!(client.service_name().unwrap(), "/scope/relative_service");
+        assert_eq!(untyped.service_name().unwrap(), "/scope/relative_service");
     }
 
     #[test]

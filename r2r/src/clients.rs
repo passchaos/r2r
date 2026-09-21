@@ -1,7 +1,11 @@
 use futures::{channel::oneshot, TryFutureExt};
 use parking_lot::Mutex;
 use std::{
-    collections::HashMap, ffi::CString, future::Future, mem::MaybeUninit, sync::Weak,
+    collections::HashMap,
+    ffi::{CStr, CString},
+    future::Future,
+    mem::MaybeUninit,
+    sync::Weak,
     time::Duration,
 };
 
@@ -59,6 +63,13 @@ where
         let client = client.lock();
         client_response_subscription_actual_qos(client.handle())
     }
+
+    /// Returns the fully resolved service name used by the native client.
+    pub fn service_name(&self) -> Result<String> {
+        let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
+        let client = client.lock();
+        client_service_name(client.handle())
+    }
 }
 
 /// ROS "untyped" service client.
@@ -111,6 +122,27 @@ impl ClientUntyped {
         let client = client.lock();
         client_response_subscription_actual_qos(client.handle())
     }
+
+    /// Returns the fully resolved service name used by the native client.
+    pub fn service_name(&self) -> Result<String> {
+        let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
+        let client = client.lock();
+        client_service_name(client.handle())
+    }
+}
+
+fn client_service_name(handle: &rcl_client_t) -> Result<String> {
+    let name = unsafe { rcl_client_get_service_name(handle) };
+    if name.is_null() {
+        return Err(Error::RCL_RET_CLIENT_INVALID);
+    }
+    unsafe { CStr::from_ptr(name) }
+        .to_str()
+        .map(str::to_owned)
+        .map_err(|err| Error::InvalidUtf8 {
+            context: "client service name",
+            err: err.to_string(),
+        })
 }
 
 fn client_request_publisher_actual_qos(handle: &rcl_client_t) -> Result<QosProfile> {
