@@ -135,7 +135,7 @@ impl ActionClientUntyped {
             uuid: uuid.as_bytes().to_vec(),
         };
 
-        let native_msg = (client.action_type_support.make_goal_request_msg)(uuid_msg, goal);
+        let native_msg = (client.action_type_support.make_goal_request_msg)(uuid_msg, goal)?;
 
         let mut seq_no = 0i64;
         let result = unsafe {
@@ -507,7 +507,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
         let uuid_msg = unique_identifier_msgs::msg::UUID {
             uuid: uuid.as_bytes().to_vec(),
         };
-        let native_msg = (self.action_type_support.make_result_request_msg)(uuid_msg);
+        let native_msg = (self.action_type_support.make_result_request_msg)(uuid_msg)?;
         let mut seq_no = 0i64;
         let result = unsafe {
             rcl_action_send_result_request(&self.rcl_handle, native_msg.void_ptr(), &mut seq_no)

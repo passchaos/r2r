@@ -272,7 +272,10 @@ pub struct UntypedActionSupport {
     pub(crate) ts: &'static rosidl_action_type_support_t,
 
     pub(crate) make_goal_request_msg: Box<
-        dyn Fn(unique_identifier_msgs::msg::UUID, serde_json::Value) -> WrappedNativeMsgUntyped,
+        dyn Fn(
+            unique_identifier_msgs::msg::UUID,
+            serde_json::Value,
+        ) -> Result<WrappedNativeMsgUntyped>,
     >,
     pub(crate) make_goal_response_msg: Box<dyn Fn() -> WrappedNativeMsgUntyped>,
     pub(crate) destructure_goal_response_msg:
@@ -286,7 +289,7 @@ pub struct UntypedActionSupport {
     >,
 
     pub(crate) make_result_request_msg:
-        Box<dyn Fn(unique_identifier_msgs::msg::UUID) -> WrappedNativeMsgUntyped>,
+        Box<dyn Fn(unique_identifier_msgs::msg::UUID) -> Result<WrappedNativeMsgUntyped>>,
     pub(crate) make_result_response_msg: Box<dyn Fn() -> WrappedNativeMsgUntyped>,
     pub(crate) destructure_result_response_msg:
         Box<dyn Fn(WrappedNativeMsgUntyped) -> (i8, Result<serde_json::Value>)>,
@@ -302,16 +305,19 @@ impl UntypedActionSupport {
 
         let make_goal_request_msg = Box::new(|goal_id, goal| {
             let goal_msg: T::Goal =
-                serde_json::from_value(goal).expect("TODO: move this error handling");
+                serde_json::from_value(goal).map_err(|serde_err| Error::SerdeError {
+                    err: serde_err.to_string(),
+                })?;
             let request_msg = T::make_goal_request_msg(goal_id, goal_msg);
-            let json = serde_json::to_value(request_msg).expect("TODO: move this error handling");
+            let json =
+                serde_json::to_value(request_msg).map_err(|serde_err| Error::SerdeError {
+                    err: serde_err.to_string(),
+                })?;
             let native_untyped = WrappedNativeMsgUntyped::new::<
                 <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Request,
             >();
-            native_untyped
-                .from_json(json)
-                .expect("TODO: move this error handling");
-            native_untyped
+            native_untyped.from_json(json)?;
+            Ok(native_untyped)
         });
 
         let make_goal_response_msg = Box::new(|| {
@@ -346,16 +352,17 @@ impl UntypedActionSupport {
 
         let make_result_request_msg = Box::new(|uuid_msg: unique_identifier_msgs::msg::UUID| {
             let request_msg = T::make_result_request_msg(uuid_msg);
-            let json = serde_json::to_value(request_msg).expect("TODO: move this error handling");
+            let json =
+                serde_json::to_value(request_msg).map_err(|serde_err| Error::SerdeError {
+                    err: serde_err.to_string(),
+                })?;
 
             let native_untyped = WrappedNativeMsgUntyped::new::<
                 <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
             >();
 
-            native_untyped
-                .from_json(json)
-                .expect("TODO: move this error handling");
-            native_untyped
+            native_untyped.from_json(json)?;
+            Ok(native_untyped)
         });
 
         let make_result_response_msg = Box::new(|| {
@@ -946,10 +953,23 @@ mod tests {
         let goal = Fibonacci::Goal { order: 5 };
         let json_goal = serde_json::to_value(&goal).unwrap();
         let json_request = (ts.make_goal_request_msg)(uuid, json_goal)
+            .unwrap()
             .to_json()
             .unwrap();
         // the message should contain something (default msg)
         assert!(!json_request.to_string().is_empty());
+    }
+
+    #[cfg(r2r__example_interfaces__action__Fibonacci)]
+    #[test]
+    fn untyped_action_rejects_invalid_goal_json() {
+        let ts = UntypedActionSupport::new_from("example_interfaces/action/Fibonacci").unwrap();
+        let uuid = unique_identifier_msgs::msg::UUID::default();
+        let invalid_goal = serde_json::json!({ "order": "not an integer" });
+
+        let err = (ts.make_goal_request_msg)(uuid, invalid_goal).unwrap_err();
+
+        assert!(matches!(err, Error::SerdeError { .. }));
     }
 
     #[cfg(r2r__action_msgs__msg__GoalStatus)]
