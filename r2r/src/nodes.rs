@@ -1396,7 +1396,7 @@ impl Node {
 
         // first handle any completed action cancellation responses
         for a in &mut self.action_servers {
-            a.lock().send_completed_cancel_requests();
+            a.lock().send_completed_cancel_requests()?;
         }
 
         let mut active_action_servers = Vec::with_capacity(self.action_servers.len());
@@ -1658,19 +1658,19 @@ impl Node {
             }
 
             if is_goal_request_ready {
-                server.handle_goal_request(s.clone());
+                server.handle_goal_request(s.clone())?;
             }
 
             if is_cancel_request_ready {
-                server.handle_cancel_request();
+                server.handle_cancel_request()?;
             }
 
             if is_result_request_ready {
-                server.handle_result_request();
+                server.handle_result_request()?;
             }
 
             if is_goal_expired {
-                server.handle_goal_expired();
+                server.handle_goal_expired()?;
             }
         }
 
