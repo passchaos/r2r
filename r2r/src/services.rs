@@ -1,8 +1,9 @@
-use futures::channel::mpsc;
+use futures::{channel::mpsc, task::noop_waker_ref};
 use std::{
     ffi::CString,
     mem::MaybeUninit,
     sync::{Arc, Mutex, Weak},
+    task::{Context, Poll},
 };
 
 use crate::{error::*, msg_types::*, QosProfile};
@@ -56,7 +57,7 @@ where
     T: WrappedServiceTypeSupport,
 {
     pub rcl_handle: rcl_service_t,
-    pub sender: mpsc::UnboundedSender<ServiceRequest<T>>,
+    pub sender: mpsc::Sender<ServiceRequest<T>>,
 }
 
 impl<T: 'static> Service_ for TypedService<T>
@@ -83,6 +84,10 @@ where
         if self.sender.is_closed() {
             return true;
         }
+        let mut cx = Context::from_waker(noop_waker_ref());
+        if self.sender.poll_ready(&mut cx) == Poll::Pending {
+            return false;
+        }
 
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut request_msg = WrappedNativeMsg::<T::Request>::new();
@@ -98,7 +103,7 @@ where
                 request_id,
                 service: Arc::downgrade(&service),
             };
-            if let Err(e) = self.sender.unbounded_send(request) {
+            if let Err(e) = self.sender.try_send(request) {
                 log::debug!("service request stream was dropped ({})", e);
                 return true;
             }

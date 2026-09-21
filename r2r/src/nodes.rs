@@ -785,7 +785,7 @@ impl Node {
             T::get_ts(),
             qos_profile,
         )?;
-        let (sender, receiver) = mpsc::unbounded::<ServiceRequest<T>>();
+        let (sender, receiver) = mpsc::channel::<ServiceRequest<T>>(10);
 
         let ws = TypedService::<T> {
             rcl_handle: service_handle,
@@ -948,7 +948,7 @@ impl Node {
         let mut clock_handle = Box::new(unsafe { clock_handle.assume_init() });
 
         let (goal_request_sender, goal_request_receiver) =
-            mpsc::unbounded::<ActionServerGoalRequest<T>>();
+            mpsc::channel::<ActionServerGoalRequest<T>>(10);
 
         let server_handle = match create_action_server_helper(
             self.node_handle.as_mut(),

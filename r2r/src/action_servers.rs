@@ -2,12 +2,14 @@ use futures::{
     channel::{mpsc, oneshot},
     future::{join_all, FutureExt, JoinAll},
     stream::Stream,
+    task::noop_waker_ref,
 };
 use std::{
     collections::{HashMap, HashSet},
     ffi::CString,
     mem::MaybeUninit,
     sync::{Arc, Mutex, Weak},
+    task::{Context, Poll},
 };
 
 use crate::{
@@ -231,7 +233,7 @@ where
 {
     pub rcl_handle: rcl_action_server_t,
     pub clock_handle: Box<rcl_clock_t>,
-    pub goal_request_sender: mpsc::UnboundedSender<ActionServerGoalRequest<T>>,
+    pub goal_request_sender: mpsc::Sender<ActionServerGoalRequest<T>>,
     pub cancel_senders: HashMap<uuid::Uuid, mpsc::Sender<ActionServerCancelRequest>>,
     pub active_cancel_requests: Vec<ActiveCancelRequest>,
     pub goals: HashMap<uuid::Uuid, *mut rcl_action_goal_handle_t>,
@@ -378,6 +380,14 @@ where
     }
 
     fn handle_goal_request(&mut self, server: Arc<Mutex<dyn ActionServer_>>) {
+        let request_stream_closed = self.goal_request_sender.is_closed();
+        if !request_stream_closed {
+            let mut cx = Context::from_waker(noop_waker_ref());
+            if self.goal_request_sender.poll_ready(&mut cx) == Poll::Pending {
+                return;
+            }
+        }
+
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut request_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Request,
@@ -410,7 +420,7 @@ where
         };
 
         // send out request.
-        if let Err(e) = self.goal_request_sender.unbounded_send(gr) {
+        if let Err(e) = self.goal_request_sender.try_send(gr) {
             let mut request = e.into_inner();
             self.cancel_senders.remove(&request.uuid);
             let response =
