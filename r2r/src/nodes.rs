@@ -47,6 +47,58 @@ impl Drop for RclParams {
     }
 }
 
+#[derive(Default)]
+struct ParameterEventChanges {
+    new_parameters: Vec<rcl_interfaces::msg::Parameter>,
+    changed_parameters: Vec<rcl_interfaces::msg::Parameter>,
+    deleted_parameters: Vec<rcl_interfaces::msg::Parameter>,
+}
+
+impl ParameterEventChanges {
+    fn record(&mut self, name: &str, previous: Option<&ParameterValue>, value: &ParameterValue) {
+        let parameter = rcl_interfaces::msg::Parameter {
+            name: name.to_owned(),
+            value: value.clone().into_parameter_value_msg(),
+        };
+        match (previous, value) {
+            (Some(ParameterValue::NotSet) | None, ParameterValue::NotSet) => {}
+            (Some(_), ParameterValue::NotSet) => self.deleted_parameters.push(parameter),
+            (Some(ParameterValue::NotSet) | None, _) => self.new_parameters.push(parameter),
+            (Some(_), _) => self.changed_parameters.push(parameter),
+        }
+    }
+
+    fn publish(
+        self, publisher: &Publisher<rcl_interfaces::msg::ParameterEvent>,
+        clock: &Arc<Mutex<Clock>>, node_name: &str,
+    ) {
+        if self.new_parameters.is_empty()
+            && self.changed_parameters.is_empty()
+            && self.deleted_parameters.is_empty()
+        {
+            return;
+        }
+        let stamp = clock
+            .lock()
+            .get_now()
+            .and_then(|now| Clock::try_to_builtin_time(&now));
+        let Ok(stamp) = stamp else {
+            log::error!("could not timestamp parameter event");
+            return;
+        };
+        let event = rcl_interfaces::msg::ParameterEvent {
+            stamp,
+            node: node_name.to_owned(),
+            new_parameters: self.new_parameters,
+            changed_parameters: self.changed_parameters,
+            deleted_parameters: self.deleted_parameters,
+        };
+        if let Err(err) = publisher.publish(&event) {
+            log::warn!("could not publish parameter event: {err}");
+        }
+    }
+}
+
 /// A ROS Node.
 ///
 /// This struct owns all subscribes, publishers, etc.  To get events
@@ -303,6 +355,13 @@ impl Node {
         let mut set_atomically_event_tx = set_event_tx.clone();
 
         let node_name = self.name()?;
+        let fully_qualified_node_name = self.fully_qualified_name()?;
+        let parameter_event_publisher = self
+            .create_publisher::<rcl_interfaces::msg::ParameterEvent>(
+                "/parameter_events",
+                QosProfile::parameter_events(),
+            )?;
+        let parameter_event_clock = self.ros_clock.clone();
 
         // rcl_interfaces/srv/SetParameters
         let set_params_request_stream = self
@@ -313,18 +372,19 @@ impl Node {
 
         let params = self.params.clone();
         let params_struct_clone = params_struct.clone();
+        let set_parameter_event_publisher = parameter_event_publisher.clone();
+        let set_parameter_event_clock = parameter_event_clock.clone();
+        let set_parameter_event_node = fully_qualified_node_name.clone();
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
         let set_params_time_source = self.time_source.clone();
         let set_params_future = set_params_request_stream.for_each(
             move |req: ServiceRequest<rcl_interfaces::srv::SetParameters::Service>| {
                 let mut result = rcl_interfaces::srv::SetParameters::Response::default();
+                let mut ros_events = ParameterEventChanges::default();
                 for p in &req.message.parameters {
                     let val = ParameterValue::from_parameter_value_msg(p.value.clone());
-                    let changed = params
-                        .lock()
-                        .get(&p.name)
-                        .map(|v| v.value != val)
-                        .unwrap_or(true); // changed=true if new
+                    let previous = params.lock().get(&p.name).map(|v| v.value.clone());
+                    let changed = previous.as_ref() != Some(&val);
                     let r = if p.name == "use_sim_time" {
                         match val {
                             ParameterValue::Bool(enabled) => {
@@ -374,12 +434,18 @@ impl Node {
                     };
                     // if the value changed, send out new value on parameter event stream
                     if changed && r.successful {
+                        ros_events.record(&p.name, previous.as_ref(), &val);
                         if let Err(e) = set_event_tx.try_send((p.name.clone(), val)) {
                             log::debug!("Warning: could not send parameter event ({}).", e);
                         }
                     }
                     result.results.push(r);
                 }
+                ros_events.publish(
+                    &set_parameter_event_publisher,
+                    &set_parameter_event_clock,
+                    &set_parameter_event_node,
+                );
                 if let Err(err) = req.respond(result) {
                     log::warn!("could not send reply to set parameter request: {err}");
                 }
@@ -397,6 +463,9 @@ impl Node {
 
         let params = self.params.clone();
         let params_struct_clone = params_struct.clone();
+        let atomic_parameter_event_publisher = parameter_event_publisher;
+        let atomic_parameter_event_clock = parameter_event_clock;
+        let atomic_parameter_event_node = fully_qualified_node_name;
         let get_params_future = get_params_request_stream.for_each(
             move |req: ServiceRequest<rcl_interfaces::srv::GetParameters::Service>| {
                 let params = params.lock();
@@ -543,22 +612,22 @@ impl Node {
                 match update_result {
                     Ok(()) => {
                         result.result.successful = true;
-                        let changed = {
+                        let (changed, ros_events) = {
                             let mut params = params.lock();
-                            updates
-                                .iter()
-                                .filter_map(|(name, value)| {
-                                    let changed = params
-                                        .get(name)
-                                        .map(|parameter| parameter.value != *value)
-                                        .unwrap_or(true);
+                            let mut local_events = Vec::new();
+                            let mut ros_events = ParameterEventChanges::default();
+                            for (name, value) in &updates {
+                                let previous = params.get(name).map(|parameter| &parameter.value);
+                                if previous != Some(value) {
+                                    local_events.push((name.clone(), value.clone()));
+                                    ros_events.record(name, previous, value);
                                     params
                                         .entry(name.clone())
                                         .and_modify(|parameter| parameter.value = value.clone())
                                         .or_insert_with(|| Parameter::new(value.clone()));
-                                    changed.then(|| (name.clone(), value.clone()))
-                                })
-                                .collect::<Vec<_>>()
+                                }
+                            }
+                            (local_events, ros_events)
                         };
                         for event in changed {
                             if let Err(e) = set_atomically_event_tx.try_send(event) {
@@ -570,6 +639,11 @@ impl Node {
                             #[cfg(r2r__rosgraph_msgs__msg__Clock)]
                             atomic_time_source.request_sim_time(*enabled);
                         }
+                        ros_events.publish(
+                            &atomic_parameter_event_publisher,
+                            &atomic_parameter_event_clock,
+                            &atomic_parameter_event_node,
+                        );
                     }
                     Err(err) => {
                         result.result.successful = false;
@@ -2240,6 +2314,86 @@ mod tests {
         assert!(atomic.result.successful);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.time_source.is_sim_time_enabled());
+    }
+
+    #[test]
+    fn parameter_service_publishes_standard_parameter_events() {
+        use rcl_interfaces::{msg, srv::SetParameters};
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "parameter_event_test", "").unwrap();
+        let mut events = node
+            .subscribe::<msg::ParameterEvent>("/parameter_events", QosProfile::parameter_events())
+            .unwrap();
+        let (handler, _local_events) = node.make_parameter_handler().unwrap();
+        let client = node
+            .create_client::<SetParameters::Service>(
+                "parameter_event_test/set_parameters",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let mut pool = LocalPool::new();
+        pool.spawner().spawn_local(handler).unwrap();
+
+        for _ in 0..100 {
+            if node
+                .get_subscriptions_info_by_topic("/parameter_events", false)
+                .unwrap()
+                .iter()
+                .any(|endpoint| endpoint.node_name == "parameter_event_test")
+            {
+                break;
+            }
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+        }
+
+        let values = [
+            ParameterValue::Integer(1),
+            ParameterValue::Integer(2),
+            ParameterValue::NotSet,
+        ];
+        for (index, value) in values.into_iter().enumerate() {
+            let request = SetParameters::Request {
+                parameters: vec![msg::Parameter {
+                    name: "dynamic_value".into(),
+                    value: value.into_parameter_value_msg(),
+                }],
+            };
+            let mut response = Box::pin(client.request(&request).unwrap());
+            let response = loop {
+                node.try_spin_once(Duration::from_millis(10)).unwrap();
+                pool.run_until_stalled();
+                if let Some(response) = response.as_mut().now_or_never() {
+                    break response.unwrap();
+                }
+            };
+            assert!(response.results[0].successful);
+
+            let event = loop {
+                node.try_spin_once(Duration::from_millis(10)).unwrap();
+                if let Some(event) = events.next().now_or_never().flatten() {
+                    let belongs_to_test = event.node == "/parameter_event_test"
+                        && event
+                            .new_parameters
+                            .iter()
+                            .chain(&event.changed_parameters)
+                            .chain(&event.deleted_parameters)
+                            .any(|parameter| parameter.name == "dynamic_value");
+                    if belongs_to_test {
+                        break event;
+                    }
+                }
+            };
+            assert_eq!(event.node, "/parameter_event_test");
+            assert!(event.stamp.sec > 0 || event.stamp.nanosec > 0);
+            let recorded = match index {
+                0 => &event.new_parameters,
+                1 => &event.changed_parameters,
+                _ => &event.deleted_parameters,
+            };
+            assert_eq!(recorded.len(), 1);
+            assert_eq!(recorded[0].name, "dynamic_value");
+        }
     }
 
     #[test]
