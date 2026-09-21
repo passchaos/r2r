@@ -36,7 +36,7 @@ where
         let service = self
             .service
             .upgrade()
-            .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
+            .ok_or(Error::RCL_RET_SERVICE_INVALID)?;
         let mut service = service.lock().unwrap();
         let native_msg = WrappedNativeMsg::<T::Response>::from(&msg);
         service.send_response(self.request_id, Box::new(native_msg))
