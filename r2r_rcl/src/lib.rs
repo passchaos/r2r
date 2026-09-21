@@ -31,12 +31,16 @@ impl rosidl_runtime_c__String {
     }
 
     pub fn assign(&mut self, other: &str) {
+        let _ = self.try_assign(other);
+    }
+
+    pub fn try_assign(&mut self, other: &str) -> bool {
         unsafe {
             rosidl_runtime_c__String__assignn(
                 self as *mut _,
                 other.as_ptr().cast::<std::os::raw::c_char>(),
                 other.len(),
-            );
+            )
         }
     }
 }
@@ -49,28 +53,38 @@ impl rosidl_runtime_c__U16String {
     }
 
     pub fn assign(&mut self, other: &str) {
+        let _ = self.try_assign(other);
+    }
+
+    pub fn try_assign(&mut self, other: &str) -> bool {
         let wstr = U16String::from_str(other);
         let to_send_ptr = wstr.as_ptr() as *const uint_least16_t;
-        unsafe {
-            rosidl_runtime_c__U16String__assignn(self as *mut _, to_send_ptr, wstr.len());
-        }
+        unsafe { rosidl_runtime_c__U16String__assignn(self as *mut _, to_send_ptr, wstr.len()) }
     }
 }
 
 impl rosidl_runtime_c__U16String__Sequence {
     pub fn update(&mut self, values: &[String]) {
+        let _ = self.try_update(values);
+    }
+
+    pub fn try_update(&mut self, values: &[String]) -> bool {
         unsafe {
             rosidl_runtime_c__U16String__Sequence__fini(self as *mut _);
         }
-        unsafe {
-            rosidl_runtime_c__U16String__Sequence__init(self as *mut _, values.len());
+        if !unsafe { rosidl_runtime_c__U16String__Sequence__init(self as *mut _, values.len()) } {
+            return false;
         }
-        if !self.data.is_null() {
-            let strs = unsafe { std::slice::from_raw_parts_mut(self.data, values.len()) };
-            for (target, source) in strs.iter_mut().zip(values) {
-                target.assign(source);
+        if values.is_empty() {
+            return true;
+        }
+        let strs = unsafe { std::slice::from_raw_parts_mut(self.data, values.len()) };
+        for (target, source) in strs.iter_mut().zip(values) {
+            if !target.try_assign(source) {
+                return false;
             }
         }
+        true
     }
 
     pub fn to_vec(&self) -> Vec<String> {
@@ -88,18 +102,26 @@ impl rosidl_runtime_c__U16String__Sequence {
 
 impl rosidl_runtime_c__String__Sequence {
     pub fn update(&mut self, values: &[String]) {
+        let _ = self.try_update(values);
+    }
+
+    pub fn try_update(&mut self, values: &[String]) -> bool {
         unsafe {
             rosidl_runtime_c__String__Sequence__fini(self as *mut _);
         }
-        unsafe {
-            rosidl_runtime_c__String__Sequence__init(self as *mut _, values.len());
+        if !unsafe { rosidl_runtime_c__String__Sequence__init(self as *mut _, values.len()) } {
+            return false;
         }
-        if !self.data.is_null() {
-            let strs = unsafe { std::slice::from_raw_parts_mut(self.data, values.len()) };
-            for (target, source) in strs.iter_mut().zip(values) {
-                target.assign(source);
+        if values.is_empty() {
+            return true;
+        }
+        let strs = unsafe { std::slice::from_raw_parts_mut(self.data, values.len()) };
+        for (target, source) in strs.iter_mut().zip(values) {
+            if !target.try_assign(source) {
+                return false;
             }
         }
+        true
     }
 
     pub fn to_vec(&self) -> Vec<String> {
@@ -122,11 +144,19 @@ macro_rules! primitive_sequence {
         paste::item! {
             impl [<$ctype __Sequence>] {
                 pub fn update(&mut self, values: &[$element_type]) {
+                    let _ = self.try_update(values);
+                }
+
+                pub fn try_update(&mut self, values: &[$element_type]) -> bool {
                     unsafe { [<$ctype __Sequence__fini>] (self as *mut _); }
-                    unsafe { [<$ctype __Sequence__init>] (self as *mut _, values.len()); }
-                    if !self.data.is_null() {
-                        unsafe { std::ptr::copy_nonoverlapping(values.as_ptr(), self.data, values.len()); }
+                    if !unsafe { [<$ctype __Sequence__init>] (self as *mut _, values.len()) } {
+                        return false;
                     }
+                    if values.is_empty() {
+                        return true;
+                    }
+                    unsafe { std::ptr::copy_nonoverlapping(values.as_ptr(), self.data, values.len()); }
+                    true
                 }
 
                 pub fn to_vec(&self) -> Vec<$element_type> {

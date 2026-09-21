@@ -80,7 +80,7 @@ thread_local! {
 /// allocations owned by [`WrappedNativeMsg`] must also be safe to move to another thread,
 /// and all static operations must be safe to call concurrently.
 pub unsafe trait WrappedTypesupport:
-    Serialize + for<'de> Deserialize<'de> + Default + Debug + Clone + Send + Sync
+    Serialize + for<'de> Deserialize<'de> + Default + Debug + Clone + Send + Sync + 'static
 {
     type CStruct;
 
@@ -90,14 +90,17 @@ pub unsafe trait WrappedTypesupport:
     fn from_native(msg: &Self::CStruct) -> Self;
     fn copy_to_native(&self, msg: &mut Self::CStruct);
 
+    fn try_copy_to_native(&self, msg: &mut Self::CStruct) -> Result<()> {
+        self.copy_to_native(msg);
+        Ok(())
+    }
+
     /// This serializes the message using ROS2 methods.
     fn to_serialized_bytes(&self) -> Result<Vec<u8>> {
         use r2r_rcl::*;
 
         SERIALIZED_MESSAGE_CACHE.with(|msg_buf| {
-            let msg = Self::create_msg();
-
-            self.copy_to_native(unsafe { msg.as_mut().expect("not null") });
+            let native_msg = WrappedNativeMsg::<Self>::try_from(self)?;
 
             let mut msg_buf = msg_buf
                 .as_ref()
@@ -107,7 +110,7 @@ pub unsafe trait WrappedTypesupport:
 
             let result = unsafe {
                 rmw_serialize(
-                    msg as *const ::std::os::raw::c_void,
+                    native_msg.msg as *const ::std::os::raw::c_void,
                     Self::get_ts(),
                     msg_buf as *mut rcl_serialized_message_t,
                 )
@@ -121,8 +124,6 @@ pub unsafe trait WrappedTypesupport:
                 }
             };
 
-            Self::destroy_msg(msg);
-
             if result == RCL_RET_OK as i32 {
                 Ok(data_bytes)
             } else {
@@ -135,7 +136,7 @@ pub unsafe trait WrappedTypesupport:
     fn from_serialized_bytes(data: &[u8]) -> Result<Self> {
         use r2r_rcl::*;
 
-        let msg = Self::create_msg();
+        let mut native_msg = WrappedNativeMsg::<Self>::try_new()?;
 
         let msg_buf = rcl_serialized_message_t {
             buffer: data.as_ptr() as *mut u8,
@@ -153,19 +154,24 @@ pub unsafe trait WrappedTypesupport:
             rmw_deserialize(
                 &msg_buf as *const rcl_serialized_message_t,
                 Self::get_ts(),
-                msg as *mut std::os::raw::c_void,
+                native_msg.void_ptr_mut(),
             )
         };
 
-        let ret_val = if result == RCL_RET_OK as i32 {
-            Ok(Self::from_native(unsafe { msg.as_ref().expect("not null") }))
+        if result == RCL_RET_OK as i32 {
+            Ok(Self::from_native(&native_msg))
         } else {
             Err(Error::from_rcl_error(result))
-        };
+        }
+    }
+}
 
-        Self::destroy_msg(msg);
-
-        ret_val
+#[allow(dead_code)] // Used by freshly generated bindings; old doc-only snapshots do not call it.
+pub(crate) fn check_rosidl_runtime_ret(success: bool) -> Result<()> {
+    if success {
+        Ok(())
+    } else {
+        Err(Error::RCL_RET_BAD_ALLOC)
     }
 }
 
@@ -256,17 +262,14 @@ pub struct WrappedNativeMsgUntyped {
     msg_to_json: fn(
         native: *const std::os::raw::c_void,
     ) -> std::result::Result<serde_json::Value, serde_json::error::Error>,
-    msg_from_json: fn(
-        native: *mut std::os::raw::c_void,
-        json: serde_json::Value,
-    ) -> std::result::Result<(), serde_json::error::Error>,
+    msg_from_json: fn(native: *mut std::os::raw::c_void, json: serde_json::Value) -> Result<()>,
 }
 
 unsafe impl Send for UntypedServiceSupport {}
 pub struct UntypedServiceSupport {
     pub ts: &'static rosidl_service_type_support_t,
-    pub make_request_msg: fn() -> WrappedNativeMsgUntyped,
-    pub make_response_msg: fn() -> WrappedNativeMsgUntyped,
+    pub make_request_msg: fn() -> Result<WrappedNativeMsgUntyped>,
+    pub make_response_msg: fn() -> Result<WrappedNativeMsgUntyped>,
 }
 
 impl UntypedServiceSupport {
@@ -274,8 +277,8 @@ impl UntypedServiceSupport {
     where
         T: WrappedServiceTypeSupport,
     {
-        let make_request_msg = WrappedNativeMsgUntyped::new::<T::Request>;
-        let make_response_msg = WrappedNativeMsgUntyped::new::<T::Response>;
+        let make_request_msg = WrappedNativeMsgUntyped::try_new::<T::Request>;
+        let make_response_msg = WrappedNativeMsgUntyped::try_new::<T::Response>;
 
         UntypedServiceSupport {
             ts: T::get_ts(),
@@ -300,11 +303,12 @@ pub struct UntypedActionSupport {
             + Send
             + Sync,
     >,
-    pub(crate) make_goal_response_msg: Box<dyn Fn() -> WrappedNativeMsgUntyped + Send + Sync>,
+    pub(crate) make_goal_response_msg:
+        Box<dyn Fn() -> Result<WrappedNativeMsgUntyped> + Send + Sync>,
     pub(crate) destructure_goal_response_msg:
         Box<dyn Fn(WrappedNativeMsgUntyped) -> (bool, builtin_interfaces::msg::Time) + Send + Sync>,
 
-    pub(crate) make_feedback_msg: fn() -> WrappedNativeMsgUntyped,
+    pub(crate) make_feedback_msg: fn() -> Result<WrappedNativeMsgUntyped>,
     pub(crate) destructure_feedback_msg: Box<
         dyn Fn(
                 WrappedNativeMsgUntyped,
@@ -316,7 +320,8 @@ pub struct UntypedActionSupport {
     pub(crate) make_result_request_msg: Box<
         dyn Fn(unique_identifier_msgs::msg::UUID) -> Result<WrappedNativeMsgUntyped> + Send + Sync,
     >,
-    pub(crate) make_result_response_msg: Box<dyn Fn() -> WrappedNativeMsgUntyped + Send + Sync>,
+    pub(crate) make_result_response_msg:
+        Box<dyn Fn() -> Result<WrappedNativeMsgUntyped> + Send + Sync>,
     pub(crate) destructure_result_response_msg:
         Box<dyn Fn(WrappedNativeMsgUntyped) -> (i8, Result<serde_json::Value>) + Send + Sync>,
 }
@@ -339,15 +344,15 @@ impl UntypedActionSupport {
                 serde_json::to_value(request_msg).map_err(|serde_err| Error::SerdeError {
                     err: serde_err.to_string(),
                 })?;
-            let native_untyped = WrappedNativeMsgUntyped::new::<
+            let native_untyped = WrappedNativeMsgUntyped::try_new::<
                 <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Request,
-            >();
+            >()?;
             native_untyped.from_json(json)?;
             Ok(native_untyped)
         });
 
         let make_goal_response_msg = Box::new(|| {
-            WrappedNativeMsgUntyped::new::<
+            WrappedNativeMsgUntyped::try_new::<
                 <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
             >()
         });
@@ -361,7 +366,7 @@ impl UntypedActionSupport {
             T::destructure_goal_response_msg(msg)
         });
 
-        let make_feedback_msg = WrappedNativeMsgUntyped::new::<T::FeedbackMessage>;
+        let make_feedback_msg = WrappedNativeMsgUntyped::try_new::<T::FeedbackMessage>;
 
         let destructure_feedback_msg = Box::new(|msg: WrappedNativeMsgUntyped| {
             let msg = unsafe {
@@ -383,16 +388,16 @@ impl UntypedActionSupport {
                     err: serde_err.to_string(),
                 })?;
 
-            let native_untyped = WrappedNativeMsgUntyped::new::<
+            let native_untyped = WrappedNativeMsgUntyped::try_new::<
                 <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
-            >();
+            >()?;
 
             native_untyped.from_json(json)?;
             Ok(native_untyped)
         });
 
         let make_result_response_msg = Box::new(|| {
-            WrappedNativeMsgUntyped::new::<
+            WrappedNativeMsgUntyped::try_new::<
                 <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
             >()
         });
@@ -428,7 +433,15 @@ impl UntypedActionSupport {
 }
 
 impl WrappedNativeMsgUntyped {
+    #[allow(dead_code)] // Used by checked-in doc-only bindings generated by older releases.
     fn new<T>() -> Self
+    where
+        T: WrappedTypesupport,
+    {
+        Self::try_new::<T>().expect("failed to allocate native ROS message")
+    }
+
+    fn try_new<T>() -> Result<Self>
     where
         T: WrappedTypesupport,
     {
@@ -443,21 +456,24 @@ impl WrappedNativeMsgUntyped {
         };
 
         let msg_from_json = |native: *mut std::os::raw::c_void, json: serde_json::Value| {
-            serde_json::from_value(json).map(|msg: T| unsafe {
-                msg.copy_to_native(&mut *(native as *mut T::CStruct));
-            })
+            let msg: T = serde_json::from_value(json).map_err(|serde_err| Error::SerdeError {
+                err: serde_err.to_string(),
+            })?;
+            unsafe { msg.try_copy_to_native(&mut *(native as *mut T::CStruct)) }
         };
 
         let msg = T::create_msg() as *mut std::os::raw::c_void;
-        assert!(!msg.is_null(), "failed to allocate native ROS message");
+        if msg.is_null() {
+            return Err(Error::RCL_RET_BAD_ALLOC);
+        }
 
-        WrappedNativeMsgUntyped {
+        Ok(WrappedNativeMsgUntyped {
             ts: T::get_ts(),
             msg,
             destroy,
             msg_to_json,
             msg_from_json,
-        }
+        })
     }
 
     pub fn from_serialized_bytes(&mut self, data: &[u8]) -> Result<()> {
@@ -495,9 +511,7 @@ impl WrappedNativeMsgUntyped {
     }
 
     pub fn from_json(&self, json: serde_json::Value) -> Result<()> {
-        (self.msg_from_json)(self.msg, json).map_err(|serde_err| Error::SerdeError {
-            err: serde_err.to_string(),
-        })
+        (self.msg_from_json)(self.msg, json)
     }
 }
 
@@ -522,19 +536,29 @@ where
     T: WrappedTypesupport + 'static,
 {
     pub fn new() -> Self {
+        Self::try_new().expect("failed to allocate native ROS message")
+    }
+
+    pub fn try_new() -> Result<Self> {
         let msg = T::create_msg();
-        assert!(!msg.is_null(), "failed to allocate native ROS message");
-        WrappedNativeMsg {
+        if msg.is_null() {
+            return Err(Error::RCL_RET_BAD_ALLOC);
+        }
+        Ok(WrappedNativeMsg {
             msg,
             deallocator: Some(Box::new(T::destroy_msg)),
             is_loaned: false,
-        }
+        })
     }
 
     pub fn from(msg: &T) -> Self {
-        let mut native_msg = Self::new();
-        msg.copy_to_native(&mut native_msg);
-        native_msg
+        Self::try_from(msg).expect("failed to copy Rust message into native ROS storage")
+    }
+
+    pub fn try_from(msg: &T) -> Result<Self> {
+        let mut native_msg = Self::try_new()?;
+        msg.try_copy_to_native(&mut native_msg)?;
+        Ok(native_msg)
     }
 
     /// Wrap a native message loan whose ownership is returned by `deallocator`.
@@ -622,6 +646,43 @@ where
 mod tests {
     use super::{generated_msgs::*, *};
     use r2r_rcl::*;
+
+    #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+    struct CopyFailure;
+
+    unsafe impl WrappedTypesupport for CopyFailure {
+        type CStruct = u8;
+
+        fn get_ts() -> &'static rosidl_message_type_support_t {
+            unreachable!("the copy failure test does not access type support")
+        }
+
+        fn create_msg() -> *mut Self::CStruct {
+            Box::into_raw(Box::new(0))
+        }
+
+        fn destroy_msg(msg: *mut Self::CStruct) {
+            drop(unsafe { Box::from_raw(msg) });
+        }
+
+        fn from_native(_msg: &Self::CStruct) -> Self {
+            Self
+        }
+
+        fn copy_to_native(&self, _msg: &mut Self::CStruct) {}
+
+        fn try_copy_to_native(&self, _msg: &mut Self::CStruct) -> Result<()> {
+            Err(Error::RCL_RET_BAD_ALLOC)
+        }
+    }
+
+    #[test]
+    fn native_message_copy_propagates_allocation_failure() {
+        assert!(matches!(
+            WrappedNativeMsg::<CopyFailure>::try_from(&CopyFailure),
+            Err(Error::RCL_RET_BAD_ALLOC)
+        ));
+    }
 
     #[test]
     fn test_ros_str() {
@@ -980,7 +1041,7 @@ mod tests {
     #[test]
     fn test_untyped_service_support() {
         let ts = UntypedServiceSupport::new_from("example_interfaces/srv/AddTwoInts").unwrap();
-        let msg = (ts.make_request_msg)();
+        let msg = (ts.make_request_msg)().unwrap();
         let json = msg.to_json();
         // the message should contain something (default msg)
         assert!(!json.unwrap().to_string().is_empty());

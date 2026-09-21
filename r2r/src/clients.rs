@@ -88,7 +88,7 @@ where
     where
         T: WrappedServiceTypeSupport,
     {
-        let native_msg: WrappedNativeMsg<T::Request> = WrappedNativeMsg::<T::Request>::from(msg);
+        let native_msg = WrappedNativeMsg::<T::Request>::try_from(msg)?;
         let mut seq_no = 0i64;
         let result =
             unsafe { rcl_send_request(&self.rcl_handle, native_msg.void_ptr(), &mut seq_no) };
@@ -112,7 +112,7 @@ impl UntypedClient_ {
     pub fn request(
         &mut self, msg: serde_json::Value,
     ) -> Result<impl Future<Output = Result<Result<serde_json::Value>>>> {
-        let native_msg = (self.service_type.make_request_msg)();
+        let native_msg = (self.service_type.make_request_msg)()?;
         native_msg.from_json(msg)?;
 
         let mut seq_no = 0i64;
@@ -159,7 +159,10 @@ where
 
     fn handle_response(&mut self) {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let mut response_msg = WrappedNativeMsg::<T::Response>::new();
+        let Ok(mut response_msg) = WrappedNativeMsg::<T::Response>::try_new() else {
+            log::error!("failed to allocate service response buffer");
+            return;
+        };
 
         let ret = unsafe {
             rcl_take_response(
@@ -245,7 +248,10 @@ impl Client_ for UntypedClient_ {
 
     fn handle_response(&mut self) {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let mut response_msg = (self.service_type.make_response_msg)();
+        let Ok(mut response_msg) = (self.service_type.make_response_msg)() else {
+            log::error!("could not allocate untyped service response buffer");
+            return;
+        };
 
         let ret = unsafe {
             rcl_take_response(

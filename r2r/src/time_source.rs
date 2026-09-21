@@ -254,7 +254,10 @@ impl Subscriber_ for TimeSourceSubscriber {
     fn handle_incoming(&mut self) -> bool {
         // update clock
         let mut msg_info = rmw_message_info_t::default(); // we dont care for now
-        let mut clock_msg = WrappedNativeMsg::<rosgraph_msgs::msg::Clock>::new();
+        let Ok(mut clock_msg) = WrappedNativeMsg::<rosgraph_msgs::msg::Clock>::try_new() else {
+            log::error!("failed to allocate simulated clock message buffer");
+            return false;
+        };
         let ret = unsafe {
             rcl_take(
                 &self.subscriber_handle,

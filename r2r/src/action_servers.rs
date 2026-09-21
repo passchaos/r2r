@@ -111,7 +111,8 @@ where
             goal_id: uuid_msg,
             stamp: time.clone(),
         };
-        let native_goal_info = WrappedNativeMsg::<action_msgs::msg::GoalInfo>::from(&goal_info);
+        let native_goal_info =
+            WrappedNativeMsg::<action_msgs::msg::GoalInfo>::try_from(&goal_info)?;
 
         let goal_handle: *mut rcl_action_goal_handle_t =
             unsafe { rcl_action_accept_new_goal(server.handle_mut(), &*native_goal_info) };
@@ -133,7 +134,7 @@ where
         let response_msg = T::make_goal_response_msg(true, time);
         let mut response_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
-        >::from(&response_msg);
+        >::try_from(&response_msg)?;
 
         self.response.response_sent = true;
         let ret = unsafe {
@@ -278,14 +279,14 @@ where
     fn reject_goal_request(
         &mut self, uuid: &uuid::Uuid, request_id: &mut rmw_request_id_t,
     ) -> Result<()> {
+        self.forget_cancel_sender(uuid);
         let response = T::make_goal_response_msg(false, builtin_interfaces::msg::Time::default());
         let mut response = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
-        >::from(&response);
+        >::try_from(&response)?;
         let ret = unsafe {
             rcl_action_send_goal_response(&self.rcl_handle, request_id, response.void_ptr_mut())
         };
-        self.forget_cancel_sender(uuid);
         if ret == RCL_RET_OK as i32 {
             Ok(())
         } else {
@@ -331,7 +332,8 @@ where
             },
             ..action_msgs::msg::GoalInfo::default()
         };
-        let goal_info_native = WrappedNativeMsg::<action_msgs::msg::GoalInfo>::from(&goal_info);
+        let goal_info_native =
+            WrappedNativeMsg::<action_msgs::msg::GoalInfo>::try_from(&goal_info)?;
 
         // does this goal exist?
         let goal_exists =
@@ -403,8 +405,12 @@ where
         // send out responses
         for (mut request_id, response_msg) in responses {
             // send out response msg.
-            let mut native_msg =
-                WrappedNativeMsg::<action_msgs::srv::CancelGoal::Response>::from(&response_msg);
+            let Ok(mut native_msg) =
+                WrappedNativeMsg::<action_msgs::srv::CancelGoal::Response>::try_from(&response_msg)
+            else {
+                log::error!("could not allocate native action cancel response");
+                continue;
+            };
             let ret = unsafe {
                 rcl_action_send_cancel_response(
                     &self.rcl_handle,
@@ -479,7 +485,12 @@ where
 
     fn handle_cancel_request(&mut self) {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let mut request_msg = WrappedNativeMsg::<action_msgs::srv::CancelGoal::Request>::new();
+        let Ok(mut request_msg) =
+            WrappedNativeMsg::<action_msgs::srv::CancelGoal::Request>::try_new()
+        else {
+            log::error!("failed to allocate action cancel request buffer");
+            return;
+        };
         let ret = unsafe {
             rcl_action_take_cancel_request(
                 &self.rcl_handle,
@@ -544,7 +555,10 @@ where
     }
 
     fn handle_goal_expired(&mut self) {
-        let mut goal_info = WrappedNativeMsg::<action_msgs::msg::GoalInfo>::new();
+        let Ok(mut goal_info) = WrappedNativeMsg::<action_msgs::msg::GoalInfo>::try_new() else {
+            log::error!("failed to allocate expired goal buffer");
+            return;
+        };
 
         loop {
             let mut num_expired = 0;
@@ -645,7 +659,14 @@ where
             goal_id: T::destructure_result_request_msg(msg),
             ..action_msgs::msg::GoalInfo::default()
         };
-        let goal_info_native = WrappedNativeMsg::<action_msgs::msg::GoalInfo>::from(&goal_info);
+        let goal_info_native =
+            match WrappedNativeMsg::<action_msgs::msg::GoalInfo>::try_from(&goal_info) {
+                Ok(message) => message,
+                Err(err) => {
+                    log::error!("could not allocate native goal info: {err}");
+                    return;
+                }
+            };
 
         // does this goal exist?
         let goal_exists =
@@ -659,9 +680,13 @@ where
                 action_msgs::msg::GoalStatus::STATUS_UNKNOWN as i8,
                 T::Result::default(),
             );
-            let mut response_msg = WrappedNativeMsg::<
+            let response_msg = WrappedNativeMsg::<
                 <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
-            >::from(&msg);
+            >::try_from(&msg);
+            let Ok(mut response_msg) = response_msg else {
+                log::error!("could not allocate unknown-goal result response");
+                return;
+            };
             let ret = unsafe {
                 rcl_action_send_result_response(
                     &self.rcl_handle,
@@ -755,7 +780,7 @@ where
             uuid: self.uuid.as_bytes().to_vec(),
         };
         let feedback_msg = T::make_feedback_msg(uuid_msg, msg);
-        let mut native_msg = WrappedNativeMsg::<T::FeedbackMessage>::from(&feedback_msg);
+        let mut native_msg = WrappedNativeMsg::<T::FeedbackMessage>::try_from(&feedback_msg)?;
         let ret = unsafe {
             rcl_action_publish_feedback(
                 action_server.lock().unwrap().handle(),
@@ -778,14 +803,13 @@ where
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
         let mut action_server = action_server.lock().unwrap();
 
-        action_server.set_goal_state(&self.uuid, rcl_action_goal_event_t::GOAL_EVENT_CANCELED)?;
-
         // create result message
         let result_msg =
             T::make_result_response_msg(action_msgs::msg::GoalStatus::STATUS_CANCELED as i8, msg);
         let native_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
-        >::from(&result_msg);
+        >::try_from(&result_msg)?;
+        action_server.set_goal_state(&self.uuid, rcl_action_goal_event_t::GOAL_EVENT_CANCELED)?;
         action_server.add_result(self.uuid, Box::new(native_msg));
 
         Ok(())
@@ -799,14 +823,13 @@ where
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
         let mut action_server = action_server.lock().unwrap();
 
-        action_server.set_goal_state(&self.uuid, rcl_action_goal_event_t::GOAL_EVENT_ABORT)?;
-
         // create result message
         let result_msg =
             T::make_result_response_msg(action_msgs::msg::GoalStatus::STATUS_ABORTED as i8, msg);
         let native_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
-        >::from(&result_msg);
+        >::try_from(&result_msg)?;
+        action_server.set_goal_state(&self.uuid, rcl_action_goal_event_t::GOAL_EVENT_ABORT)?;
         action_server.add_result(self.uuid, Box::new(native_msg));
 
         Ok(())
@@ -823,14 +846,13 @@ where
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
         let mut action_server = action_server.lock().unwrap();
 
-        action_server.set_goal_state(&self.uuid, rcl_action_goal_event_t::GOAL_EVENT_SUCCEED)?;
-
         // create result message
         let result_msg =
             T::make_result_response_msg(action_msgs::msg::GoalStatus::STATUS_SUCCEEDED as i8, msg);
         let native_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
-        >::from(&result_msg);
+        >::try_from(&result_msg)?;
+        action_server.set_goal_state(&self.uuid, rcl_action_goal_event_t::GOAL_EVENT_SUCCEED)?;
         action_server.add_result(self.uuid, Box::new(native_msg));
 
         Ok(())

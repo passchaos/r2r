@@ -276,7 +276,7 @@ impl WrappedActionClientUntyped {
                 ..action_msgs::msg::GoalInfo::default()
             },
         };
-        let native_msg = WrappedNativeMsg::<action_msgs::srv::CancelGoal::Request>::from(&msg);
+        let native_msg = WrappedNativeMsg::<action_msgs::srv::CancelGoal::Request>::try_from(&msg)?;
         let mut seq_no = 0i64;
         let result = unsafe {
             rcl_action_send_cancel_request(&self.rcl_handle, native_msg.void_ptr(), &mut seq_no)
@@ -330,7 +330,10 @@ impl ActionClient_ for WrappedActionClientUntyped {
 
     fn handle_goal_response(&mut self) {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let mut response_msg = (self.action_type_support.make_goal_response_msg)();
+        let Ok(mut response_msg) = (self.action_type_support.make_goal_response_msg)() else {
+            log::error!("could not allocate untyped action goal response buffer");
+            return;
+        };
 
         let ret = unsafe {
             rcl_action_take_goal_response(
@@ -377,7 +380,12 @@ impl ActionClient_ for WrappedActionClientUntyped {
 
     fn handle_cancel_response(&mut self) {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let mut response_msg = WrappedNativeMsg::<action_msgs::srv::CancelGoal::Response>::new();
+        let Ok(mut response_msg) =
+            WrappedNativeMsg::<action_msgs::srv::CancelGoal::Response>::try_new()
+        else {
+            log::error!("failed to allocate action cancel response buffer");
+            return;
+        };
 
         let ret = unsafe {
             rcl_action_take_cancel_response(
@@ -415,7 +423,10 @@ impl ActionClient_ for WrappedActionClientUntyped {
     }
 
     fn handle_feedback_msg(&mut self) {
-        let mut feedback_msg = (self.action_type_support.make_feedback_msg)();
+        let Ok(mut feedback_msg) = (self.action_type_support.make_feedback_msg)() else {
+            log::error!("could not allocate untyped action feedback buffer");
+            return;
+        };
         let ret =
             unsafe { rcl_action_take_feedback(&self.rcl_handle, feedback_msg.void_ptr_mut()) };
         if ret == RCL_RET_OK as i32 {
@@ -435,7 +446,11 @@ impl ActionClient_ for WrappedActionClientUntyped {
     }
 
     fn handle_status_msg(&mut self) {
-        let mut status_array = WrappedNativeMsg::<action_msgs::msg::GoalStatusArray>::new();
+        let Ok(mut status_array) = WrappedNativeMsg::<action_msgs::msg::GoalStatusArray>::try_new()
+        else {
+            log::error!("failed to allocate action status buffer");
+            return;
+        };
         let ret = unsafe { rcl_action_take_status(&self.rcl_handle, status_array.void_ptr_mut()) };
         if ret == RCL_RET_OK as i32 {
             let arr = action_msgs::msg::GoalStatusArray::from_native(&status_array);
@@ -452,7 +467,10 @@ impl ActionClient_ for WrappedActionClientUntyped {
 
     fn handle_result_response(&mut self) {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let mut response_msg = (self.action_type_support.make_result_response_msg)();
+        let Ok(mut response_msg) = (self.action_type_support.make_result_response_msg)() else {
+            log::error!("could not allocate untyped action result response buffer");
+            return;
+        };
         let ret = unsafe {
             rcl_action_take_result_response(
                 &self.rcl_handle,

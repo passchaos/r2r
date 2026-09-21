@@ -280,7 +280,7 @@ where
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
         let handle = publisher.handle.lock().unwrap();
         let handle = handle.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
-        let native_msg: WrappedNativeMsg<T> = WrappedNativeMsg::<T>::from(msg);
+        let native_msg = WrappedNativeMsg::<T>::try_from(msg)?;
         let result = unsafe { rcl_publish(handle, native_msg.void_ptr(), std::ptr::null_mut()) };
 
         if result == RCL_RET_OK as i32 {

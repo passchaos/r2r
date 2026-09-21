@@ -156,7 +156,7 @@ where
         let request_msg = T::make_goal_request_msg(uuid_msg, goal);
         let native_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Request,
-        >::from(&request_msg);
+        >::try_from(&request_msg)?;
         let mut seq_no = 0i64;
         let result = unsafe {
             rcl_action_send_goal_request(&client.rcl_handle, native_msg.void_ptr(), &mut seq_no)
@@ -319,7 +319,7 @@ where
                 ..action_msgs::msg::GoalInfo::default()
             },
         };
-        let native_msg = WrappedNativeMsg::<action_msgs::srv::CancelGoal::Request>::from(&msg);
+        let native_msg = WrappedNativeMsg::<action_msgs::srv::CancelGoal::Request>::try_from(&msg)?;
         let mut seq_no = 0i64;
         let result = unsafe {
             rcl_action_send_cancel_request(&self.rcl_handle, native_msg.void_ptr(), &mut seq_no)
@@ -425,7 +425,12 @@ where
 
     fn handle_cancel_response(&mut self) {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let mut response_msg = WrappedNativeMsg::<action_msgs::srv::CancelGoal::Response>::new();
+        let Ok(mut response_msg) =
+            WrappedNativeMsg::<action_msgs::srv::CancelGoal::Response>::try_new()
+        else {
+            log::error!("failed to allocate action cancel response buffer");
+            return;
+        };
 
         let ret = unsafe {
             rcl_action_take_cancel_response(
@@ -463,7 +468,10 @@ where
     }
 
     fn handle_feedback_msg(&mut self) {
-        let mut feedback_msg = WrappedNativeMsg::<T::FeedbackMessage>::new();
+        let Ok(mut feedback_msg) = WrappedNativeMsg::<T::FeedbackMessage>::try_new() else {
+            log::error!("failed to allocate action feedback buffer");
+            return;
+        };
         let ret =
             unsafe { rcl_action_take_feedback(&self.rcl_handle, feedback_msg.void_ptr_mut()) };
         if ret == RCL_RET_OK as i32 {
@@ -483,7 +491,11 @@ where
     }
 
     fn handle_status_msg(&mut self) {
-        let mut status_array = WrappedNativeMsg::<action_msgs::msg::GoalStatusArray>::new();
+        let Ok(mut status_array) = WrappedNativeMsg::<action_msgs::msg::GoalStatusArray>::try_new()
+        else {
+            log::error!("failed to allocate action status buffer");
+            return;
+        };
         let ret = unsafe { rcl_action_take_status(&self.rcl_handle, status_array.void_ptr_mut()) };
         if ret == RCL_RET_OK as i32 {
             let arr = action_msgs::msg::GoalStatusArray::from_native(&status_array);
@@ -561,7 +573,7 @@ where
         let request_msg = T::make_result_request_msg(uuid_msg);
         let native_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
-        >::from(&request_msg);
+        >::try_from(&request_msg)?;
         let mut seq_no = 0i64;
         let result = unsafe {
             rcl_action_send_result_request(&self.rcl_handle, native_msg.void_ptr(), &mut seq_no)

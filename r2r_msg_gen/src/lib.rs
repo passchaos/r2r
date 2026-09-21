@@ -551,14 +551,14 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                         MemberType::Message => {
                             quote! {
                                 for (t, s) in msg. #field_name .iter_mut().zip(&self. #field_name ) {
-                                    s.copy_to_native(t);
+                                    s.try_copy_to_native(t)?;
                                 }
                             }
                         }
                         MemberType::String | MemberType::WString => {
                             quote! {
                                 for (t, s) in msg. #field_name .iter_mut().zip(&self. #field_name ) {
-                                    t.assign(&s);
+                                    check_rosidl_runtime_ret(t.try_assign(&s))?;
                                 }
                             }
                         }
@@ -570,11 +570,9 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                     };
 
                     quote! {
-                        assert_eq!(
-                            self. #field_name .len(),
-                            #array_size ,
-                            "Field {} is fixed size of {}!", #field_name_str, #array_size
-                        );
+                        if self. #field_name .len() != #array_size {
+                            return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                        }
                         #content
                     }
                 } else {
@@ -589,12 +587,14 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                         quote! {
                             unsafe {
                                 #fini_func (&mut msg. #field_name);
-                                #init_func (&mut msg. #field_name , self. #field_name .len());
+                                if !#init_func (&mut msg. #field_name , self. #field_name .len()) {
+                                    return Err(Error::RCL_RET_BAD_ALLOC);
+                                }
 
                                 if msg. #field_name .data != std::ptr::null_mut() {
                                     let slice = std::slice::from_raw_parts_mut(msg. #field_name .data, msg. #field_name .size);
                                     for (t, s) in slice.iter_mut().zip(&self. #field_name ) {
-                                        s.copy_to_native(t);
+                                        s.try_copy_to_native(t)?;
                                     }
                                 }
                             }
@@ -603,17 +603,17 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                         // extra assertion
                         let assert_stmt = array_info.is_upper_bound.then(|| {
                             quote! {
-                                assert!(
-                                    self. #field_name .len() <= #array_size,
-                                    "Field {} is upper bounded by {}!",
-                                    #field_name_str, #array_size
-                                );
+                                if self. #field_name .len() > #array_size {
+                                    return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                                }
                             }
                         });
 
                         quote! {
                             #assert_stmt
-                            msg. #field_name .update(&self. #field_name );
+                            check_rosidl_runtime_ret(
+                                msg. #field_name .try_update(&self. #field_name )
+                            )?;
                         }
                     }
                 }
@@ -621,12 +621,14 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                 match rust_field_type {
                     MemberType::String | MemberType::WString => {
                         quote! {
-                            msg. #field_name .assign(&self. #field_name );
+                            check_rosidl_runtime_ret(
+                                msg. #field_name .try_assign(&self. #field_name )
+                            )?;
                         }
                     }
                     MemberType::Message => {
                         quote! {
-                            self. #field_name .copy_to_native(&mut msg. #field_name );
+                            self. #field_name .try_copy_to_native(&mut msg. #field_name )?;
                         }
                     }
                     _ => {
@@ -641,8 +643,16 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
         });
 
         quote! {
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+
+            fn try_copy_to_native(
+                &self, #[allow(unused)] msg: &mut Self::CStruct
+            ) -> crate::Result<()> {
                 #(#stmts)*
+                Ok(())
             }
         }
     };
@@ -766,8 +776,8 @@ pub fn generate_untyped_helper(msgs: &[RosMsg]) -> proc_macro2::TokenStream {
                 format_ident!("new_wrapped_native_msg_untyped_{module}_{prefix}_{name}");
             let func = quote! {
                 #[allow(non_snake_case)]
-                fn #func_ident() -> WrappedNativeMsgUntyped {
-                    WrappedNativeMsgUntyped::new::< #rustname >()
+                fn #func_ident() -> Result<WrappedNativeMsgUntyped> {
+                    WrappedNativeMsgUntyped::try_new::< #rustname >()
                 }
             };
             let entry = quote! { #typename => #func_ident };
@@ -783,11 +793,11 @@ pub fn generate_untyped_helper(msgs: &[RosMsg]) -> proc_macro2::TokenStream {
             pub fn new_from(typename: &str) -> Result<Self> {
                 #(#funcs)*
 
-                static MAP: phf::Map<&'static str, fn() -> WrappedNativeMsgUntyped> = phf::phf_map! { #(#entries),* };
+                static MAP: phf::Map<&'static str, fn() -> Result<WrappedNativeMsgUntyped>> = phf::phf_map! { #(#entries),* };
 
                 let func = MAP.get(typename)
                     .ok_or_else(|| Error::InvalidMessageType{ msgtype: typename.into() })?;
-                Ok(func())
+                func()
             }
         }
     }

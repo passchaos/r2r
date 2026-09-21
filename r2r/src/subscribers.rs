@@ -53,7 +53,10 @@ where
 
     fn handle_incoming(&mut self) -> bool {
         let mut msg_info = rmw_message_info_t::default(); // we dont care for now
-        let mut msg = WrappedNativeMsg::<T>::new();
+        let Ok(mut msg) = WrappedNativeMsg::<T>::try_new() else {
+            log::error!("failed to allocate subscription message buffer");
+            return false;
+        };
         let ret = unsafe {
             rcl_take(&self.rcl_handle, msg.void_ptr_mut(), &mut msg_info, std::ptr::null_mut())
         };
@@ -89,7 +92,10 @@ where
         // The returned stream may outlive the Node. Use caller-owned message storage so
         // dropping an item never has to access an already-finalized subscription handle.
         let mut msg_info = rmw_message_info_t::default();
-        let mut msg = WrappedNativeMsg::<T>::new();
+        let Ok(mut msg) = WrappedNativeMsg::<T>::try_new() else {
+            log::error!("failed to allocate native subscription message buffer");
+            return false;
+        };
         let ret = unsafe {
             rcl_take(&self.rcl_handle, msg.void_ptr_mut(), &mut msg_info, std::ptr::null_mut())
         };
@@ -120,8 +126,10 @@ impl Subscriber_ for UntypedSubscriber {
 
     fn handle_incoming(&mut self) -> bool {
         let mut msg_info = rmw_message_info_t::default(); // we dont care for now
-        let mut msg = WrappedNativeMsgUntyped::new_from(&self.topic_type)
-            .unwrap_or_else(|_| panic!("no typesupport for {}", self.topic_type));
+        let Ok(mut msg) = WrappedNativeMsgUntyped::new_from(&self.topic_type) else {
+            log::error!("failed to allocate untyped subscription message buffer");
+            return false;
+        };
         let ret = unsafe {
             rcl_take(&self.rcl_handle, msg.void_ptr_mut(), &mut msg_info, std::ptr::null_mut())
         };

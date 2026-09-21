@@ -39,7 +39,7 @@ where
             .upgrade()
             .ok_or(Error::RCL_RET_SERVICE_INVALID)?;
         let mut service = service.lock().unwrap();
-        let native_msg = WrappedNativeMsg::<T::Response>::from(&msg);
+        let native_msg = WrappedNativeMsg::<T::Response>::try_from(&msg)?;
         service.send_response(self.request_id, Box::new(native_msg))
     }
 }
@@ -90,7 +90,10 @@ where
         }
 
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let mut request_msg = WrappedNativeMsg::<T::Request>::new();
+        let Ok(mut request_msg) = WrappedNativeMsg::<T::Request>::try_new() else {
+            log::error!("failed to allocate service request buffer");
+            return false;
+        };
 
         let ret = unsafe {
             rcl_take_request(&self.rcl_handle, request_id.as_mut_ptr(), request_msg.void_ptr_mut())
