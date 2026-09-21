@@ -37,15 +37,13 @@ use r2r_rcl::*;
 unsafe impl<T> Send for Publisher<T> where T: WrappedTypesupport {}
 
 pub(crate) struct Publisher_ {
-    handle: rcl_publisher_t,
+    handle: Mutex<Option<rcl_publisher_t>>,
 
     // TODO use a mpsc to avoid the mutex?
     poll_inter_process_subscriber_channels: Mutex<Vec<oneshot::Sender<()>>>,
 }
 
-// SAFETY: The only shared operations exposed for this handle are RCL's thread-safe
-// publish and subscription-count calls. Destruction requires ownership of the final Arc,
-// so it cannot run concurrently with either operation.
+// SAFETY: all access to the RCL publisher handle is serialized by its mutex.
 unsafe impl Send for Publisher_ {}
 unsafe impl Sync for Publisher_ {}
 
@@ -54,10 +52,12 @@ impl Publisher_ {
         // See https://github.com/ros2/rclcpp/issues/623
 
         let mut inter_process_subscription_count = 0;
+        let handle = self.handle.lock().unwrap();
+        let handle = handle.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
 
         let result = unsafe {
             rcl_publisher_get_subscription_count(
-                &self.handle as *const rcl_publisher_t,
+                handle,
                 &mut inter_process_subscription_count as *mut usize,
             )
         };
@@ -94,10 +94,13 @@ impl Publisher_ {
         }
     }
 
-    pub(crate) fn destroy(mut self, node: &mut rcl_node_t) {
-        let _ret = unsafe { rcl_publisher_fini(&mut self.handle as *mut _, node) };
-
-        // TODO: check ret
+    pub(crate) fn destroy(&self, node: &mut rcl_node_t) {
+        if let Some(mut handle) = self.handle.lock().unwrap().take() {
+            let ret = unsafe { rcl_publisher_fini(&mut handle, node) };
+            if ret != RCL_RET_OK as i32 {
+                log::error!("could not finalize publisher: {}", ret);
+            }
+        }
     }
 }
 
@@ -160,7 +163,7 @@ pub fn create_publisher_helper(
     };
     if result == RCL_RET_OK as i32 {
         Ok(Publisher_ {
-            handle: publisher_handle,
+            handle: Mutex::new(Some(publisher_handle)),
             poll_inter_process_subscriber_channels: Mutex::new(Vec::new()),
         })
     } else {
@@ -178,17 +181,13 @@ impl PublisherUntyped {
             .handle
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        let handle = publisher.handle.lock().unwrap();
+        let handle = handle.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
 
         let native_msg = WrappedNativeMsgUntyped::new_from(&self.type_)?;
         native_msg.from_json(msg)?;
 
-        let result = unsafe {
-            rcl_publish(
-                &publisher.handle as *const rcl_publisher_t,
-                native_msg.void_ptr(),
-                std::ptr::null_mut(),
-            )
-        };
+        let result = unsafe { rcl_publish(handle, native_msg.void_ptr(), std::ptr::null_mut()) };
 
         if result == RCL_RET_OK as i32 {
             Ok(())
@@ -209,6 +208,8 @@ impl PublisherUntyped {
             .handle
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        let handle = publisher.handle.lock().unwrap();
+        let handle = handle.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
 
         // Safety: Not retained beyond this function
         let msg_buf = rcl_serialized_message_t {
@@ -222,7 +223,7 @@ impl PublisherUntyped {
 
         let result = unsafe {
             rcl_publish_serialized_message(
-                &publisher.handle,
+                handle,
                 &msg_buf as *const rcl_serialized_message_t,
                 std::ptr::null_mut(),
             )
@@ -276,14 +277,10 @@ where
             .handle
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        let handle = publisher.handle.lock().unwrap();
+        let handle = handle.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
         let native_msg: WrappedNativeMsg<T> = WrappedNativeMsg::<T>::from(msg);
-        let result = unsafe {
-            rcl_publish(
-                &publisher.handle as *const rcl_publisher_t,
-                native_msg.void_ptr(),
-                std::ptr::null_mut(),
-            )
-        };
+        let result = unsafe { rcl_publish(handle, native_msg.void_ptr(), std::ptr::null_mut()) };
 
         if result == RCL_RET_OK as i32 {
             Ok(())
@@ -320,6 +317,8 @@ where
             .handle
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        let handle = publisher.handle.lock().unwrap();
+        let handle = handle.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
 
         let result = if msg.is_loaned {
             unsafe {
@@ -327,20 +326,10 @@ where
                 msg.release();
 
                 // publish and return loaned message to middleware
-                rcl_publish_loaned_message(
-                    &publisher.handle as *const rcl_publisher_t,
-                    msg.void_ptr_mut(),
-                    std::ptr::null_mut(),
-                )
+                rcl_publish_loaned_message(handle, msg.void_ptr_mut(), std::ptr::null_mut())
             }
         } else {
-            unsafe {
-                rcl_publish(
-                    &publisher.handle as *const rcl_publisher_t,
-                    msg.void_ptr(),
-                    std::ptr::null_mut(),
-                )
-            }
+            unsafe { rcl_publish(handle, msg.void_ptr(), std::ptr::null_mut()) }
         };
 
         if result == RCL_RET_OK as i32 {

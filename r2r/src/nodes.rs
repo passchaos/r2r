@@ -1020,7 +1020,6 @@ impl Node {
                 .position(|p| Arc::ptr_eq(p, &handle))
                 .map(|i| self.pubs.swap_remove(i));
 
-            let handle = wait_until_unwrapped(handle);
             handle.destroy(self.node_handle.as_mut());
         }
     }
@@ -1034,7 +1033,6 @@ impl Node {
                 .position(|p| Arc::ptr_eq(p, &handle))
                 .map(|i| self.pubs.swap_remove(i));
 
-            let handle = wait_until_unwrapped(handle);
             handle.destroy(self.node_handle.as_mut());
         }
     }
@@ -1669,23 +1667,6 @@ impl Timer {
     }
 }
 
-// Since publishers are temporarily upgraded to owners during the
-// actual publish but are not the ones that handle cleanup, we simply
-// wait until there are no other owners in the cleanup procedure. The
-// next time a publisher wants to publish they will fail because the
-// value in the Arc has been dropped. Hacky but works.
-fn wait_until_unwrapped<T>(mut a: Arc<T>) -> T {
-    loop {
-        match Arc::try_unwrap(a) {
-            Ok(b) => return b,
-            Err(t) => {
-                a = t;
-                std::thread::yield_now();
-            }
-        }
-    }
-}
-
 impl Drop for Node {
     fn drop(&mut self) {
         // fini functions are not thread safe so lock the context.
@@ -1709,8 +1690,6 @@ impl Drop for Node {
         }
         self.timers.clear();
         while let Some(p) = self.pubs.pop() {
-            let p = wait_until_unwrapped(p);
-
             p.destroy(self.node_handle.as_mut());
         }
         unsafe {
