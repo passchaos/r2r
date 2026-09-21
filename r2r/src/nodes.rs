@@ -1367,6 +1367,33 @@ impl Node {
         // handle has gone away. Dropping Timer closes the receiver immediately.
         self.timers.retain(|timer| !timer.sender.is_closed());
 
+        let mut active_action_clients = Vec::with_capacity(self.action_clients.len());
+        for client in self.action_clients.drain(..) {
+            let removed_capacities = {
+                let mut handle = client.lock();
+                if Arc::weak_count(&client) == 0 && !handle.has_pending_work() {
+                    match action_client_wait_set_capacities(handle.handle()) {
+                        Ok(capacities) => {
+                            handle.destroy(&mut self.node_handle);
+                            Some(capacities)
+                        }
+                        Err(err) => {
+                            log::warn!("could not inspect dropped action client: {err}");
+                            None
+                        }
+                    }
+                } else {
+                    None
+                }
+            };
+            if let Some(capacities) = removed_capacities {
+                self.action_wait_set_capacities.subtract(capacities);
+            } else {
+                active_action_clients.push(client);
+            }
+        }
+        self.action_clients = active_action_clients;
+
         // first handle any completed action cancellation responses
         for a in &mut self.action_servers {
             a.lock().send_completed_cancel_requests();
@@ -2163,6 +2190,14 @@ impl WaitSetCapacities {
         self.clients += other.clients;
         self.services += other.services;
     }
+
+    fn subtract(&mut self, other: Self) {
+        self.subscriptions -= other.subscriptions;
+        self.guard_conditions -= other.guard_conditions;
+        self.timers -= other.timers;
+        self.clients -= other.clients;
+        self.services -= other.services;
+    }
 }
 
 fn action_client_wait_set_capacities(handle: &rcl_action_client_t) -> Result<WaitSetCapacities> {
@@ -2380,6 +2415,24 @@ mod tests {
                 timers: 6,
                 clients: 6,
                 services: 6,
+            }
+        );
+
+        total.subtract(WaitSetCapacities {
+            subscriptions: 5,
+            guard_conditions: 4,
+            timers: 3,
+            clients: 2,
+            services: 1,
+        });
+        assert_eq!(
+            total,
+            WaitSetCapacities {
+                subscriptions: 1,
+                guard_conditions: 2,
+                timers: 3,
+                clients: 4,
+                services: 5,
             }
         );
     }
@@ -3001,5 +3054,52 @@ mod tests {
         node.try_spin_once(Duration::ZERO).unwrap();
 
         assert!(node.timers.is_empty());
+    }
+
+    #[test]
+    fn dropped_action_clients_are_removed_after_pending_waits_finish() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "action_client_drop_cleanup_test", "").unwrap();
+        let client = node
+            .create_action_client::<Fibonacci::Action>("/missing_action_drop_cleanup")
+            .unwrap();
+        let availability = Node::is_available(&client).unwrap();
+
+        drop(client);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(node.action_clients.len(), 1);
+
+        drop(availability);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.action_clients.is_empty());
+        assert_eq!(node.action_wait_set_capacities, WaitSetCapacities::default());
+
+        let client = node
+            .create_action_client::<Fibonacci::Action>("/pending_goal_drop_cleanup")
+            .unwrap();
+        let goal = client
+            .send_goal_request(Fibonacci::Goal { order: 5 })
+            .unwrap();
+        drop(client);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(node.action_clients.len(), 1);
+
+        drop(goal);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.action_clients.is_empty());
+        assert_eq!(node.action_wait_set_capacities, WaitSetCapacities::default());
+
+        let untyped = node
+            .create_action_client_untyped(
+                "/missing_untyped_action_drop_cleanup",
+                "example_interfaces/action/Fibonacci",
+            )
+            .unwrap();
+        drop(untyped);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.action_clients.is_empty());
+        assert_eq!(node.action_wait_set_capacities, WaitSetCapacities::default());
     }
 }

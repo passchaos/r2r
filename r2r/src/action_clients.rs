@@ -246,6 +246,7 @@ where
 pub trait ActionClient_ {
     fn handle(&self) -> &rcl_action_client_t;
     fn destroy(&mut self, node: &mut rcl_node_t);
+    fn has_pending_work(&mut self) -> bool;
 
     fn handle_goal_response(&mut self);
     fn handle_cancel_response(&mut self);
@@ -615,6 +616,19 @@ where
                 self.poll_available_channels.clear();
             }
         }
+    }
+
+    fn has_pending_work(&mut self) -> bool {
+        self.prune_canceled_requests();
+        self.poll_available_channels
+            .retain(|sender| !sender.is_canceled());
+        !self.goal_response_channels.is_empty()
+            || !self.cancel_response_channels.is_empty()
+            || !self.feedback_senders.is_empty()
+            || !self.result_requests.is_empty()
+            || !self.result_senders.is_empty()
+            || !self.goal_status.is_empty()
+            || !self.poll_available_channels.is_empty()
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
