@@ -11,6 +11,34 @@ use std::{
 use crate::{error::*, msg_types::*, Node, QosProfile};
 use r2r_rcl::*;
 
+/// Rust-side buffering options for a ROS service request stream.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServiceOptions {
+    pub request_channel_capacity: usize,
+}
+
+impl Default for ServiceOptions {
+    fn default() -> Self {
+        Self {
+            request_channel_capacity: 10,
+        }
+    }
+}
+
+impl ServiceOptions {
+    pub const fn request_channel_capacity(mut self, request_channel_capacity: usize) -> Self {
+        self.request_channel_capacity = request_channel_capacity;
+        self
+    }
+
+    pub(crate) fn validate(self) -> Result<Self> {
+        if self.request_channel_capacity >= usize::MAX >> 2 {
+            return Err(Error::RCL_RET_INVALID_ARGUMENT);
+        }
+        Ok(self)
+    }
+}
+
 /// A ROS service request stream with endpoint QoS inspection helpers.
 pub struct Service<T>
 where

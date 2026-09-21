@@ -1176,13 +1176,25 @@ impl Node {
     where
         T: 'static + WrappedServiceTypeSupport,
     {
+        self.create_service_with_options(service_name, qos_profile, ServiceOptions::default())
+    }
+
+    /// Create a ROS service with explicit Rust-side request stream buffering options.
+    pub fn create_service_with_options<T>(
+        &mut self, service_name: &str, qos_profile: QosProfile, options: ServiceOptions,
+    ) -> Result<Service<T>>
+    where
+        T: 'static + WrappedServiceTypeSupport,
+    {
+        let options = options.validate()?;
         let service_handle = create_service_helper(
             self.node_handle.as_mut(),
             service_name,
             T::get_ts(),
             qos_profile,
         )?;
-        let (sender, receiver) = mpsc::channel::<ServiceRequest<T>>(10);
+        let (sender, receiver) =
+            mpsc::channel::<ServiceRequest<T>>(options.request_channel_capacity);
         let id = uuid::Uuid::new_v4();
 
         let ws = TypedService::<T> {
@@ -3211,6 +3223,54 @@ mod tests {
         drop(service);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.services.is_empty());
+    }
+
+    #[test]
+    fn service_options_control_request_stream_buffering() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "service_options_test", "").unwrap();
+        let service_name = "/service_options";
+        let mut requests = node
+            .create_service_with_options::<AddTwoInts::Service>(
+                service_name,
+                QosProfile::default(),
+                ServiceOptions::default().request_channel_capacity(0),
+            )
+            .unwrap();
+        let client = node
+            .create_client::<AddTwoInts::Service>(service_name, QosProfile::default())
+            .unwrap();
+
+        let wait = node
+            .is_available_with_timeout(&client, Duration::from_secs(1))
+            .unwrap();
+        futures::pin_mut!(wait);
+        loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if wait.as_mut().now_or_never().is_some() {
+                break;
+            }
+        }
+
+        let _first_response = client.request(&AddTwoInts::Request { a: 1, b: 1 }).unwrap();
+        let _second_response = client.request(&AddTwoInts::Request { a: 2, b: 2 }).unwrap();
+        for _ in 0..2 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+        }
+
+        assert_eq!(requests.next().now_or_never().flatten().unwrap().message.a, 1);
+        assert!(requests.next().now_or_never().is_none());
+        node.try_spin_once(Duration::from_millis(10)).unwrap();
+        assert_eq!(requests.next().now_or_never().flatten().unwrap().message.a, 2);
+
+        let invalid = node.create_service_with_options::<AddTwoInts::Service>(
+            "/invalid_service_capacity",
+            QosProfile::default(),
+            ServiceOptions::default().request_channel_capacity(usize::MAX),
+        );
+        assert!(matches!(invalid, Err(Error::RCL_RET_INVALID_ARGUMENT)));
     }
 
     #[test]

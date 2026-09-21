@@ -96,7 +96,7 @@ mod publishers;
 pub use publishers::{LoanedMessage, Publisher, PublisherUntyped};
 
 mod services;
-pub use services::{Service, ServiceRequest};
+pub use services::{Service, ServiceOptions, ServiceRequest};
 
 mod clients;
 pub use clients::{Client, ClientUntyped};
