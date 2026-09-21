@@ -118,6 +118,9 @@ pub enum Error {
     #[error("Goal already in a terminal state.")]
     GoalCancelAlreadyTerminated,
 
+    #[error("Unknown action cancel response code: {0}")]
+    UnknownActionCancelResponse(i8),
+
     #[error("Invalid parameter name: {name}")]
     InvalidParameterName { name: String },
 

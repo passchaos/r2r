@@ -311,7 +311,7 @@ where
                         {
                             Err(Error::GoalCancelAlreadyTerminated)
                         }
-                        x => panic!("unknown error code return from action server: {}", x),
+                        code => Err(Error::UnknownActionCancelResponse(code)),
                     },
                     Err(e) => Err(e),
                 });

@@ -47,7 +47,7 @@ impl GoalStatus {
             s if s == crate::action_msgs::msg::GoalStatus::STATUS_ABORTED as i8 => {
                 GoalStatus::Aborted
             }
-            _ => panic!("unknown action status: {}", s),
+            _ => GoalStatus::Unknown,
         }
     }
 }
@@ -65,5 +65,15 @@ impl std::fmt::Display for GoalStatus {
         };
 
         write!(fmtr, "{}", s)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unknown_wire_status_maps_to_unknown() {
+        assert_eq!(GoalStatus::from_rcl(i8::MAX), GoalStatus::Unknown);
     }
 }
