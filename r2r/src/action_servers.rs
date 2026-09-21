@@ -225,6 +225,34 @@ pub type ActiveCancelRequest = (
     JoinAll<oneshot::Receiver<(uuid::Uuid, bool)>>,
 );
 
+pub(crate) struct PendingCancelDelivery {
+    uuid: uuid::Uuid,
+    request: ActionServerCancelRequest,
+}
+
+impl PendingCancelDelivery {
+    fn try_send(
+        self, cancel_senders: &mut HashMap<uuid::Uuid, mpsc::Sender<ActionServerCancelRequest>>,
+    ) -> Option<Self> {
+        let sender = cancel_senders.get_mut(&self.uuid)?;
+        match sender.try_send(self.request) {
+            Ok(()) => None,
+            Err(err) if err.is_full() => Some(Self {
+                uuid: self.uuid,
+                request: err.into_inner(),
+            }),
+            Err(_) => None,
+        }
+    }
+}
+
+pub(crate) struct PendingCancelRequest {
+    request_id: rmw_request_id_t,
+    response: action_msgs::srv::CancelGoal::Response,
+    deliveries: Vec<PendingCancelDelivery>,
+    decisions: Vec<oneshot::Receiver<(uuid::Uuid, bool)>>,
+}
+
 struct CancelResponse(rcl_action_cancel_response_t);
 
 impl CancelResponse {
@@ -270,11 +298,40 @@ where
     pub clock: Arc<Mutex<Clock>>,
     pub goal_request_sender: mpsc::Sender<ActionServerGoalRequest<T>>,
     pub cancel_senders: HashMap<uuid::Uuid, mpsc::Sender<ActionServerCancelRequest>>,
+    pub(crate) pending_cancel_request: Option<PendingCancelRequest>,
     pub active_cancel_requests: Vec<ActiveCancelRequest>,
     pub goals: HashMap<uuid::Uuid, *mut rcl_action_goal_handle_t>,
     pub result_msgs: HashMap<uuid::Uuid, Box<dyn VoidPtr>>,
     pub result_requests: HashMap<uuid::Uuid, Vec<rmw_request_id_t>>,
     pub cancel_request_channel_capacity: usize,
+}
+
+impl<T> WrappedActionServer<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    fn flush_pending_cancel_request(&mut self) -> bool {
+        let Some(mut pending) = self.pending_cancel_request.take() else {
+            return true;
+        };
+
+        pending.deliveries = pending
+            .deliveries
+            .into_iter()
+            .filter_map(|delivery| delivery.try_send(&mut self.cancel_senders))
+            .collect();
+        if pending.deliveries.is_empty() {
+            self.active_cancel_requests.push((
+                pending.request_id,
+                pending.response,
+                join_all(pending.decisions),
+            ));
+            true
+        } else {
+            self.pending_cancel_request = Some(pending);
+            false
+        }
+    }
 }
 
 impl<T: 'static> ActionServer_ for WrappedActionServer<T>
@@ -408,6 +465,7 @@ where
     }
 
     fn send_completed_cancel_requests(&mut self) -> Result<()> {
+        self.flush_pending_cancel_request();
         let mut canceled = vec![];
         let mut responses = vec![];
         let mut first_error = None;
@@ -534,6 +592,9 @@ where
     }
 
     fn handle_cancel_request(&mut self) -> Result<()> {
+        if !self.flush_pending_cancel_request() {
+            return Ok(());
+        }
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut request_msg = WrappedNativeMsg::<action_msgs::srv::CancelGoal::Request>::try_new()?;
         let ret = unsafe {
@@ -567,34 +628,32 @@ where
         let response_msg =
             action_msgs::srv::CancelGoal::Response::from_native(&cancel_response.0.msg);
 
-        let return_channels = response_msg
+        let (deliveries, decisions): (Vec<_>, Vec<_>) = response_msg
             .goals_canceling
             .iter()
-            .flat_map(|goal_info| {
+            .map(|goal_info| {
                 let uuid = uuid_msg_to_uuid(&goal_info.goal_id);
-                self.cancel_senders
-                    .get_mut(&uuid)
-                    .and_then(|cancel_sender| {
-                        let (s, r) = oneshot::channel::<(uuid::Uuid, bool)>();
-                        let cr = ActionServerCancelRequest {
+                let (response_sender, response_receiver) = oneshot::channel::<(uuid::Uuid, bool)>();
+                (
+                    PendingCancelDelivery {
+                        uuid,
+                        request: ActionServerCancelRequest {
                             uuid,
-                            response_sender: s,
-                        };
-                        match cancel_sender.try_send(cr) {
-                            Err(_) => {
-                                log::error!("warning: could not send goal cancellation request");
-                                None
-                            }
-                            _ => Some(r),
-                        }
-                    })
+                            response_sender,
+                        },
+                    },
+                    response_receiver,
+                )
             })
-            .collect::<Vec<_>>();
+            .unzip();
 
-        // because we want to reply to the caller when all goals have been either accepted or rejected,
-        // join the channels into one future that we can poll during spin.
-        self.active_cancel_requests
-            .push((request_id, response_msg, join_all(return_channels)));
+        self.pending_cancel_request = Some(PendingCancelRequest {
+            request_id,
+            response: response_msg,
+            deliveries,
+            decisions,
+        });
+        self.flush_pending_cancel_request();
         Ok(())
     }
 
@@ -659,6 +718,7 @@ where
 
     fn should_remove(&self) -> bool {
         self.goal_request_sender.is_closed()
+            && self.pending_cancel_request.is_none()
             && self.active_cancel_requests.is_empty()
             && self.cancel_senders.is_empty()
             && self.goals.is_empty()
@@ -1020,24 +1080,33 @@ mod tests {
     }
 
     #[test]
-    fn zero_capacity_cancel_channel_applies_backpressure() {
-        let (mut sender, mut receiver) = mpsc::channel::<ActionServerCancelRequest>(0);
-        let (response_sender, _response_receiver) = oneshot::channel();
-        sender
-            .try_send(ActionServerCancelRequest {
-                uuid: uuid::Uuid::nil(),
-                response_sender,
-            })
-            .unwrap();
-        let (response_sender, _response_receiver) = oneshot::channel();
-        assert!(sender
-            .try_send(ActionServerCancelRequest {
-                uuid: uuid::Uuid::nil(),
-                response_sender,
-            })
-            .unwrap_err()
-            .is_full());
-        assert!(receiver.next().now_or_never().flatten().is_some());
+    fn full_cancel_channel_preserves_the_pending_request() {
+        let uuid = uuid::Uuid::nil();
+        let (sender, mut receiver) = mpsc::channel::<ActionServerCancelRequest>(0);
+        let mut cancel_senders = HashMap::from([(uuid, sender)]);
+        let (first_response_sender, _first_response_receiver) = oneshot::channel();
+        let first = PendingCancelDelivery {
+            uuid,
+            request: ActionServerCancelRequest {
+                uuid,
+                response_sender: first_response_sender,
+            },
+        };
+        assert!(first.try_send(&mut cancel_senders).is_none());
+
+        let (second_response_sender, _second_response_receiver) = oneshot::channel();
+        let second = PendingCancelDelivery {
+            uuid,
+            request: ActionServerCancelRequest {
+                uuid,
+                response_sender: second_response_sender,
+            },
+        };
+        let pending = second.try_send(&mut cancel_senders).unwrap();
+
+        assert_eq!(receiver.next().now_or_never().flatten().unwrap().uuid, uuid);
+        assert!(pending.try_send(&mut cancel_senders).is_none());
+        assert_eq!(receiver.next().now_or_never().flatten().unwrap().uuid, uuid);
     }
 
     #[test]

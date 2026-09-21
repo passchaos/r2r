@@ -1606,6 +1606,7 @@ impl Node {
             rcl_handle: server_handle,
             clock,
             goal_request_sender,
+            pending_cancel_request: None,
             active_cancel_requests: Vec::new(),
             cancel_senders: HashMap::new(),
             goals: HashMap::new(),
