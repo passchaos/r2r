@@ -49,8 +49,28 @@ impl Context {
     }
 }
 
+impl Drop for Context {
+    fn drop(&mut self) {
+        if Arc::strong_count(&self.context_handle) != 1 {
+            return;
+        }
+
+        let mut shared = CONTEXT.get().unwrap().lock().unwrap();
+        // A concurrent clone may have been made before the global lock was acquired.
+        if Arc::strong_count(&self.context_handle) != 1 {
+            return;
+        }
+
+        *shared = WeakContextHandle::new();
+        self.context_handle.lock().unwrap().shutdown();
+    }
+}
+
 #[derive(Debug)]
-pub struct ContextHandle(Box<rcl_context_t>);
+pub struct ContextHandle {
+    handle: Box<rcl_context_t>,
+    initialized: bool,
+}
 
 // SAFETY: all access to a shared ContextHandle is serialized by Context's mutex.
 unsafe impl Send for ContextHandle {}
@@ -112,7 +132,22 @@ impl ContextHandle {
             return Err(Error::from_rcl_error(logging_ret));
         }
 
-        Ok(Self(context))
+        Ok(Self {
+            handle: context,
+            initialized: true,
+        })
+    }
+
+    fn shutdown(&mut self) {
+        if !self.initialized {
+            return;
+        }
+
+        unsafe {
+            rcl_shutdown(self.handle.as_mut());
+            rcl_context_fini(self.handle.as_mut());
+        }
+        self.initialized = false;
     }
 }
 
@@ -120,25 +155,19 @@ impl Deref for ContextHandle {
     type Target = Box<rcl_context_t>;
 
     fn deref(&self) -> &Box<rcl_context_t> {
-        &self.0
+        &self.handle
     }
 }
 
 impl DerefMut for ContextHandle {
     fn deref_mut(&mut self) -> &mut Box<rcl_context_t> {
-        &mut self.0
+        &mut self.handle
     }
 }
 
 impl Drop for ContextHandle {
     fn drop(&mut self) {
-        // Serialize finalization with Context::create so a replacement context cannot
-        // be initialized while the previous process-wide context is shutting down.
-        let _shared = CONTEXT.get().unwrap().lock().unwrap();
-        unsafe {
-            rcl_shutdown(self.0.as_mut());
-            rcl_context_fini(self.0.as_mut());
-        }
+        self.shutdown();
     }
 }
 
