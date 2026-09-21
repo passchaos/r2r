@@ -427,7 +427,11 @@ impl_ros_params!(u32, ParameterValue::Integer, try_conv, try_conv);
 impl_ros_params!(f64, ParameterValue::Double, noop, noop);
 impl_ros_params!(f32, ParameterValue::Double, to_f64, to_f32);
 impl_ros_params!(String, ParameterValue::String, to_string, to_string);
-// TODO: Implement array parameters
+impl_ros_params!(Vec<bool>, ParameterValue::BoolArray, clone_value, clone_value);
+impl_ros_params!(Vec<u8>, ParameterValue::ByteArray, clone_value, clone_value);
+impl_ros_params!(Vec<i64>, ParameterValue::IntegerArray, clone_value, clone_value);
+impl_ros_params!(Vec<f64>, ParameterValue::DoubleArray, clone_value, clone_value);
+impl_ros_params!(Vec<String>, ParameterValue::StringArray, clone_value, clone_value);
 
 // Helper conversion functions
 fn noop<T: Copy>(x: &T) -> Result<T> {
@@ -455,6 +459,10 @@ where
 
 fn to_string(x: &str) -> Result<String> {
     Ok(x.to_string())
+}
+
+fn clone_value<T: Clone>(value: &T) -> Result<T> {
+    Ok(value.clone())
 }
 
 #[cfg(test)]
@@ -531,5 +539,30 @@ mod tests {
         assert!(params.set_parameters_atomically(&updates).is_err());
         assert_eq!(params.first, 1);
         assert_eq!(params.second, 2);
+    }
+
+    #[test]
+    fn array_parameters_roundtrip_and_reject_wrong_types() {
+        let mut strings = vec!["first".to_owned(), "second".to_owned()];
+        let mut registered = IndexMap::new();
+        strings
+            .register_parameters(
+                "names",
+                Some(Parameter::new(ParameterValue::NotSet)),
+                &mut registered,
+            )
+            .unwrap();
+
+        assert_eq!(
+            registered.get("names").map(|parameter| &parameter.value),
+            Some(&ParameterValue::StringArray(strings.clone()))
+        );
+        strings
+            .set_parameter("", &ParameterValue::StringArray(vec!["replacement".to_owned()]))
+            .unwrap();
+        assert_eq!(strings, vec!["replacement"]);
+        assert!(strings
+            .check_parameter("", &ParameterValue::IntegerArray(vec![1]))
+            .is_err());
     }
 }
