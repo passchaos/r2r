@@ -377,12 +377,13 @@ where
             )
         };
 
-        let request_id = unsafe { request_id.assume_init() };
-
         if ret != RCL_RET_OK as i32 {
             // this seems normal if client dies.
             return;
         }
+
+        // `rcl_action_take_cancel_request` only initializes the request id on success.
+        let request_id = unsafe { request_id.assume_init() };
 
         let mut cancel_response = unsafe { rcl_action_get_zero_initialized_cancel_response() };
         let ret = unsafe {
