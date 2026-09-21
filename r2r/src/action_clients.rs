@@ -266,6 +266,7 @@ where
     pub cancel_response_channels:
         Vec<(i64, oneshot::Sender<action_msgs::srv::CancelGoal::Response>)>,
     pub feedback_senders: Vec<(uuid::Uuid, mpsc::Sender<T::Feedback>)>,
+    pub pending_feedback: Option<(uuid::Uuid, T::Feedback)>,
     pub result_requests: Vec<(i64, uuid::Uuid)>,
     pub result_senders: Vec<ResultSender<T::Result>>,
     pub goal_status: HashMap<uuid::Uuid, GoalStatus>,
@@ -333,6 +334,30 @@ where
             .collect();
         for uuid in canceled_results {
             self.forget_result(&uuid);
+        }
+        if self
+            .pending_feedback
+            .as_ref()
+            .is_some_and(|(uuid, _)| !self.feedback_senders.iter().any(|(id, _)| id == uuid))
+        {
+            self.pending_feedback = None;
+        }
+    }
+
+    fn flush_pending_feedback(&mut self) -> bool {
+        let Some((uuid, feedback)) = self.pending_feedback.take() else {
+            return true;
+        };
+        let Some((_, sender)) = self.feedback_senders.iter_mut().find(|(id, _)| id == &uuid) else {
+            return true;
+        };
+        match sender.try_send(feedback) {
+            Ok(()) => true,
+            Err(err) if err.is_full() => {
+                self.pending_feedback = Some((uuid, err.into_inner()));
+                false
+            }
+            Err(_) => true,
         }
     }
 
@@ -470,6 +495,9 @@ where
     }
 
     fn handle_feedback_msg(&mut self) -> Result<()> {
+        if !self.flush_pending_feedback() {
+            return Ok(());
+        }
         let mut feedback_msg = WrappedNativeMsg::<T::FeedbackMessage>::try_new()?;
         let ret =
             unsafe { rcl_action_take_feedback(&self.rcl_handle, feedback_msg.void_ptr_mut()) };
@@ -482,8 +510,10 @@ where
                 .iter_mut()
                 .find(|(uuid, _)| uuid == &msg_uuid)
             {
-                if let Err(e) = sender.try_send(feedback) {
-                    log::error!("warning: could not send feedback msg ({})", e)
+                if let Err(err) = sender.try_send(feedback) {
+                    if err.is_full() {
+                        self.pending_feedback = Some((msg_uuid, err.into_inner()));
+                    }
                 }
             }
         }
@@ -593,6 +623,7 @@ where
 
     fn poll_available(&mut self, node: &mut rcl_node_t) {
         self.prune_canceled_requests();
+        self.flush_pending_feedback();
         self.poll_available_channels
             .retain(|sender| !sender.is_canceled());
         if self.poll_available_channels.is_empty() {
@@ -623,6 +654,7 @@ where
         !self.goal_response_channels.is_empty()
             || !self.cancel_response_channels.is_empty()
             || !self.feedback_senders.is_empty()
+            || self.pending_feedback.is_some()
             || !self.result_requests.is_empty()
             || !self.result_senders.is_empty()
             || !self.goal_status.is_empty()

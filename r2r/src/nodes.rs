@@ -1483,6 +1483,7 @@ impl Node {
             goal_response_channels: Vec::new(),
             cancel_response_channels: Vec::new(),
             feedback_senders: Vec::new(),
+            pending_feedback: None,
             result_senders: Vec::new(),
             result_requests: Vec::new(),
             goal_status: HashMap::new(),
@@ -1540,6 +1541,7 @@ impl Node {
             goal_response_channels: Vec::new(),
             cancel_response_channels: Vec::new(),
             feedback_senders: Vec::new(),
+            pending_feedback: None,
             result_senders: Vec::new(),
             result_requests: Vec::new(),
             goal_status: HashMap::new(),
@@ -4058,6 +4060,12 @@ mod tests {
         }
         assert_eq!(feedback.next().now_or_never().flatten().unwrap().sequence, vec![1]);
         assert!(feedback.next().now_or_never().is_none());
+        node.try_spin_once(Duration::from_millis(10)).unwrap();
+        assert_eq!(feedback.next().now_or_never().flatten().unwrap().sequence, vec![2]);
+        assert!(feedback.next().now_or_never().is_none());
+        node.try_spin_once(Duration::from_millis(10)).unwrap();
+        assert_eq!(feedback.next().now_or_never().flatten().unwrap().sequence, vec![3]);
+        assert!(feedback.next().now_or_never().is_none());
 
         let first_cancel = client_goal.cancel().unwrap();
         for _ in 0..3 {
@@ -4068,6 +4076,57 @@ mod tests {
         first_request.reject();
         assert!(cancel_stream.next().now_or_never().is_none());
         drop(first_cancel);
+
+        let untyped_name = "/untyped_action_stream_flow";
+        let mut untyped_requests = node
+            .create_action_server::<Fibonacci::Action>(untyped_name)
+            .unwrap();
+        let untyped_client = node
+            .create_action_client_untyped_with_options(
+                untyped_name,
+                "example_interfaces/action/Fibonacci",
+                ActionClientOptions::default().feedback_channel_capacity(0),
+            )
+            .unwrap();
+        let response = untyped_client
+            .send_goal_request(serde_json::json!({ "order": 4 }))
+            .unwrap();
+        let mut response = Box::pin(response);
+        let mut untyped_server_goal = None;
+        let mut untyped_feedback = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if untyped_server_goal.is_none() {
+                if let Some(request) = untyped_requests.next().now_or_never().flatten() {
+                    let (goal, _cancels) = request.accept().unwrap();
+                    untyped_server_goal = Some(goal);
+                }
+            }
+            if let Some(response) = response.as_mut().now_or_never() {
+                let (_goal, _result, feedback) = response.unwrap();
+                break feedback;
+            }
+        };
+        let goal = untyped_server_goal.as_ref().unwrap();
+        for value in 1..=3 {
+            goal.publish_feedback(Fibonacci::Feedback {
+                sequence: vec![value],
+            })
+            .unwrap();
+        }
+        for _ in 0..3 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+        }
+        for value in 1..=3 {
+            let item = untyped_feedback
+                .next()
+                .now_or_never()
+                .flatten()
+                .unwrap()
+                .unwrap();
+            assert_eq!(item, serde_json::json!({ "sequence": [value] }));
+            assert!(untyped_feedback.next().now_or_never().is_none());
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+        }
     }
 
     #[test]
