@@ -102,18 +102,23 @@ impl TimeSource {
         })? {
             node.subscribers.push(Box::new(subscriber));
         }
-        // Do not publish the enabled state until subscription setup has succeeded. Otherwise a
-        // transient creation failure makes later calls return early without ever subscribing.
-        inner.simulated_time_enabled = true;
-
         let initial_time = inner.last_time_msg;
-        // enable ros time override on all attached clocks
-        inner.for_each_managed_clock(|clock| {
-            // This should never panic:
-            // This could only fail if the clock is invalid or not RosTime, but the clock is
-            // attached only if it is valid clock with type RosTime.
-            clock.enable_ros_time_override(initial_time).unwrap();
-        });
+        if let Err(err) =
+            inner.try_for_each_managed_clock(|clock| clock.enable_ros_time_override(initial_time))
+        {
+            // Some clocks may already have been enabled. Restore every live clock and schedule
+            // the subscription for removal so callers can retry from a consistent state.
+            if let Err(rollback_err) =
+                inner.try_for_each_managed_clock(Clock::disable_ros_time_override)
+            {
+                log::error!("failed to roll back simulated time activation: {rollback_err}");
+            }
+            inner.subscriber_state = TimeSourceSubscriberState::ToBeDestroyed;
+            return Err(err);
+        }
+
+        // Do not publish the enabled state until subscription and clock setup have succeeded.
+        inner.simulated_time_enabled = true;
 
         Ok(())
     }
@@ -128,12 +133,9 @@ impl TimeSource {
             inner.simulated_time_enabled = false;
 
             // disable ros time override on all attached clocks
-            inner.for_each_managed_clock(|clock| {
-                // This should never panic:
-                // This could only fail if the clock is invalid or not RosTime, but the clock is
-                // attached only if it is valid clock with type RosTime.
-                clock.disable_ros_time_override().unwrap();
-            });
+            if let Err(err) = inner.try_for_each_managed_clock(Clock::disable_ros_time_override) {
+                log::error!("failed to disable simulated time on an attached clock: {err}");
+            }
         }
 
         if matches!(inner.subscriber_state, TimeSourceSubscriberState::Active) {
@@ -170,6 +172,19 @@ impl TimeSource_ {
         });
     }
 
+    fn try_for_each_managed_clock<F>(&mut self, mut f: F) -> Result<()>
+    where
+        F: FnMut(&mut Clock) -> Result<()>,
+    {
+        let mut first_error = None;
+        self.for_each_managed_clock(|clock| {
+            if let Err(err) = f(clock) {
+                first_error.get_or_insert(err);
+            }
+        });
+        first_error.map_or(Ok(()), Err)
+    }
+
     fn activate_subscriber<T>(&mut self, create: impl FnOnce() -> Result<T>) -> Result<Option<T>> {
         match self.subscriber_state {
             TimeSourceSubscriberState::None => {
@@ -198,12 +213,10 @@ impl TimeSource_ {
     fn set_clock_time(&mut self, time_msg: Time) {
         let time = time_msg.into();
         self.last_time_msg = time;
-        self.for_each_managed_clock(|clock| {
-            // This should never panic:
-            // This could only fail if the clock is invalid or not RosTime, but the clock is
-            // attached only if it is valid RosTime clock.
-            clock.set_ros_time_override(time).unwrap()
-        });
+        if let Err(err) = self.try_for_each_managed_clock(|clock| clock.set_ros_time_override(time))
+        {
+            log::error!("failed to update simulated time on an attached clock: {err}");
+        }
     }
 }
 
