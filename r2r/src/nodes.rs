@@ -96,7 +96,7 @@ impl Node {
             return Err(Error::RCL_RET_NODE_INVALID);
         }
         let s = unsafe { CStr::from_ptr(cstr) };
-        Ok(s.to_str().unwrap_or("").to_owned())
+        c_str_to_owned(s, "node name")
     }
 
     /// Returns the fully qualified name of the node.
@@ -106,7 +106,7 @@ impl Node {
             return Err(Error::RCL_RET_NODE_INVALID);
         }
         let s = unsafe { CStr::from_ptr(cstr) };
-        Ok(s.to_str().unwrap_or("").to_owned())
+        c_str_to_owned(s, "fully qualified node name")
     }
 
     /// Returns the namespace of the node.
@@ -116,7 +116,7 @@ impl Node {
             return Err(Error::RCL_RET_NODE_INVALID);
         }
         let s = unsafe { CStr::from_ptr(cstr) };
-        Ok(s.to_str().unwrap_or("").to_owned())
+        c_str_to_owned(s, "node namespace")
     }
 
     fn load_params(&mut self) -> Result<()> {
@@ -151,7 +151,7 @@ impl Node {
 
         for (nn, np) in node_names.iter().zip(node_params) {
             let node_name_cstr = unsafe { CStr::from_ptr(*nn) };
-            let node_name = node_name_cstr.to_str().unwrap_or("");
+            let node_name = c_str_to_str(node_name_cstr, "parameter override node name")?;
 
             // This is copied from rclcpp, but there is a comment there suggesting
             // that more wildcards will be added in the future. Take note and mimic
@@ -175,8 +175,8 @@ impl Node {
 
                 for (s, v) in param_names.iter().zip(param_values) {
                     let s = unsafe { CStr::from_ptr(*s) };
-                    let key = s.to_str().unwrap_or("");
-                    let val = ParameterValue::from_rcl(v);
+                    let key = c_str_to_str(s, "parameter override name")?;
+                    let val = ParameterValue::from_rcl(v)?;
                     params.insert(key.to_owned(), Parameter::new(val));
                 }
             }
@@ -1473,12 +1473,17 @@ impl Node {
 
     /// Get the ros logger name for this node.
     pub fn logger(&self) -> &str {
+        self.try_logger().unwrap_or("")
+    }
+
+    /// Get the ROS logger name and report invalid UTF-8 from the RCL implementation.
+    pub fn try_logger(&self) -> Result<&str> {
         let ptr = unsafe { rcl_node_get_logger_name(self.node_handle.as_ref()) };
         if ptr.is_null() {
-            return "";
+            return Err(Error::RCL_RET_NODE_INVALID);
         }
         let s = unsafe { CStr::from_ptr(ptr) };
-        s.to_str().unwrap_or("")
+        c_str_to_str(s, "node logger name")
     }
 
     /// Get TimeSource of the node
@@ -1536,9 +1541,18 @@ fn c_string_from_ptr(ptr: *const std::os::raw::c_char) -> Result<String> {
     if ptr.is_null() {
         return Err(Error::RCL_RET_ERROR);
     }
-    Ok(unsafe { CStr::from_ptr(ptr) }
-        .to_string_lossy()
-        .into_owned())
+    c_str_to_owned(unsafe { CStr::from_ptr(ptr) }, "ROS graph string")
+}
+
+fn c_str_to_str<'a>(value: &'a CStr, context: &'static str) -> Result<&'a str> {
+    value.to_str().map_err(|err| Error::InvalidUtf8 {
+        context,
+        err: err.to_string(),
+    })
+}
+
+fn c_str_to_owned(value: &CStr, context: &'static str) -> Result<String> {
+    c_str_to_str(value, context).map(str::to_owned)
 }
 
 #[cfg(any(
@@ -1848,6 +1862,18 @@ impl From<rmw_topic_endpoint_info_t> for TopicEndpointInfo {
     }
 }
 
+impl TopicEndpointInfo {
+    fn try_from_native(info: rmw_topic_endpoint_info_t) -> Result<Self> {
+        Ok(Self {
+            node_name: c_string_from_ptr(info.node_name)?,
+            node_namespace: c_string_from_ptr(info.node_namespace)?,
+            topic_type: c_string_from_ptr(info.topic_type)?,
+            endpoint_gid: info.endpoint_gid,
+            qos_profile: QosProfile::from(info.qos_profile),
+        })
+    }
+}
+
 fn convert_info_array_to_vec(
     info_array: &rcl_topic_endpoint_info_array_t,
 ) -> Result<Vec<TopicEndpointInfo>> {
@@ -1859,7 +1885,7 @@ fn convert_info_array_to_vec(
         }
         let infos = unsafe { std::slice::from_raw_parts(info_array.info_array, info_array.size) };
         for &info in infos {
-            topic_info_list.push(TopicEndpointInfo::from(info));
+            topic_info_list.push(TopicEndpointInfo::try_from_native(info)?);
         }
     }
 
@@ -1903,6 +1929,19 @@ mod tests {
                 services: 6,
             }
         );
+    }
+
+    #[test]
+    fn strict_c_string_conversion_rejects_invalid_utf8() {
+        let value = CStr::from_bytes_with_nul(&[0xff, 0]).unwrap();
+
+        assert!(matches!(
+            c_str_to_owned(value, "test string"),
+            Err(Error::InvalidUtf8 {
+                context: "test string",
+                ..
+            })
+        ));
     }
 
     #[test]

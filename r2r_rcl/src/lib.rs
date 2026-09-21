@@ -22,12 +22,16 @@ impl Default for rmw_message_info_t {
 // special treatment to convert to/from rust strings.
 // ros strings are owned by ros, assignment is a copy
 impl rosidl_runtime_c__String {
-    pub fn to_str(&self) -> &str {
+    pub fn try_to_str(&self) -> Result<&str, std::str::Utf8Error> {
         if self.data.is_null() {
-            return "";
+            return Ok("");
         }
         let bytes = unsafe { std::slice::from_raw_parts(self.data.cast::<u8>(), self.size) };
-        std::str::from_utf8(bytes).unwrap_or("")
+        std::str::from_utf8(bytes)
+    }
+
+    pub fn to_str(&self) -> &str {
+        self.try_to_str().unwrap_or("")
     }
 
     pub fn assign(&mut self, other: &str) {
@@ -47,9 +51,16 @@ impl rosidl_runtime_c__String {
 
 use widestring::U16String;
 impl rosidl_runtime_c__U16String {
-    pub fn to_str(&self) -> String {
+    pub fn try_to_string(&self) -> Result<String, widestring::error::Utf16Error> {
+        if self.data.is_null() {
+            return Ok(String::new());
+        }
         let s = unsafe { U16String::from_ptr(self.data, self.size) };
-        s.to_string_lossy()
+        s.to_string()
+    }
+
+    pub fn to_str(&self) -> String {
+        self.try_to_string().unwrap_or_default()
     }
 
     pub fn assign(&mut self, other: &str) {

@@ -686,6 +686,22 @@ mod tests {
     }
 
     #[test]
+    fn ros_string_strict_conversion_rejects_invalid_utf8() {
+        let mut native = WrappedNativeMsg::<std_msgs::msg::String>::new();
+        let invalid = [0xff_u8];
+        assert!(unsafe {
+            rosidl_runtime_c__String__assignn(
+                &mut native.data,
+                invalid.as_ptr().cast::<std::os::raw::c_char>(),
+                invalid.len(),
+            )
+        });
+
+        assert!(native.data.try_to_str().is_err());
+        assert_eq!(native.data.to_str(), "");
+    }
+
+    #[test]
     fn test_copy_fields() {
         let msg_orig = std_msgs::msg::String { data: "hej".into() };
         let rosmsg = WrappedNativeMsg::<std_msgs::msg::String>::from(&msg_orig);

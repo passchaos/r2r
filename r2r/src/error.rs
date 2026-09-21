@@ -88,6 +88,8 @@ pub enum Error {
     InvalidMessageType { msgtype: String },
     #[error("Serde error: {}", err)]
     SerdeError { err: String },
+    #[error("Invalid UTF-8 in {context}: {err}")]
+    InvalidUtf8 { context: &'static str, err: String },
 
     // action errors.
     #[error("RCL_RET_ACTION_NAME_INVALID")]

@@ -108,8 +108,8 @@ impl ParameterValue {
         }
     }
 
-    pub(crate) fn from_rcl(v: &rcl_variant_t) -> Self {
-        if !v.bool_value.is_null() {
+    pub(crate) fn from_rcl(v: &rcl_variant_t) -> Result<Self> {
+        let value = if !v.bool_value.is_null() {
             ParameterValue::Bool(unsafe { *v.bool_value })
         } else if !v.integer_value.is_null() {
             ParameterValue::Integer(unsafe { *v.integer_value })
@@ -117,7 +117,11 @@ impl ParameterValue {
             ParameterValue::Double(unsafe { *v.double_value })
         } else if !v.string_value.is_null() {
             let s = unsafe { CStr::from_ptr(v.string_value) };
-            let string = s.to_str().unwrap_or("").to_owned();
+            let string = s.to_str().map_err(|err| Error::InvalidUtf8 {
+                context: "parameter override value",
+                err: err.to_string(),
+            })?;
+            let string = string.to_owned();
             ParameterValue::String(string)
         } else if !v.byte_array_value.is_null() {
             let vals = unsafe {
@@ -181,14 +185,23 @@ impl ParameterValue {
             let s = vals
                 .iter()
                 .map(|cs| {
+                    if cs.is_null() {
+                        return Err(Error::RCL_RET_ERROR);
+                    }
                     let s = unsafe { CStr::from_ptr(*cs) };
-                    s.to_str().unwrap_or("").to_owned()
+                    s.to_str()
+                        .map(str::to_owned)
+                        .map_err(|err| Error::InvalidUtf8 {
+                            context: "parameter override string array",
+                            err: err.to_string(),
+                        })
                 })
-                .collect();
+                .collect::<Result<Vec<_>>>()?;
             ParameterValue::StringArray(s)
         } else {
             ParameterValue::NotSet
-        }
+        };
+        Ok(value)
     }
 
     pub(crate) fn from_parameter_value_msg(msg: rcl_interfaces::msg::ParameterValue) -> Self {
