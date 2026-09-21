@@ -1564,7 +1564,7 @@ impl Node {
             for (s, ws_s) in self.clients.iter_mut().zip(ws_clients) {
                 if ws_s != &std::ptr::null() {
                     let mut s = s.lock();
-                    s.handle_response();
+                    s.handle_response()?;
                 }
             }
         }
@@ -1576,7 +1576,7 @@ impl Node {
             for (s, ws_s) in self.services.iter_mut().zip(ws_services) {
                 if ws_s != &std::ptr::null() {
                     let mut service = s.lock();
-                    let dropped = service.handle_request(s.clone());
+                    let dropped = service.handle_request(s.clone())?;
                     if dropped {
                         let handle = service.handle() as *const rcl_service_t;
                         service.destroy(&mut self.node_handle);

@@ -53,7 +53,7 @@ pub trait Service_ {
         false
     }
     /// Returns true if the service stream has been dropped.
-    fn handle_request(&mut self, service: Arc<Mutex<dyn Service_>>) -> bool;
+    fn handle_request(&mut self, service: Arc<Mutex<dyn Service_>>) -> Result<bool>;
     fn destroy(&mut self, node: &mut rcl_node_t);
 }
 
@@ -89,38 +89,42 @@ where
         self.sender.is_closed()
     }
 
-    fn handle_request(&mut self, service: Arc<Mutex<dyn Service_>>) -> bool {
+    fn handle_request(&mut self, service: Arc<Mutex<dyn Service_>>) -> Result<bool> {
         if self.sender.is_closed() {
-            return true;
+            return Ok(true);
         }
         let mut cx = Context::from_waker(noop_waker_ref());
         if self.sender.poll_ready(&mut cx) == Poll::Pending {
-            return false;
+            return Ok(false);
         }
 
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let Ok(mut request_msg) = WrappedNativeMsg::<T::Request>::try_new() else {
-            log::error!("failed to allocate service request buffer");
-            return false;
-        };
+        let mut request_msg = WrappedNativeMsg::<T::Request>::try_new()?;
 
         let ret = unsafe {
             rcl_take_request(&self.rcl_handle, request_id.as_mut_ptr(), request_msg.void_ptr_mut())
         };
-        if ret == RCL_RET_OK as i32 {
-            let request_id = unsafe { request_id.assume_init() };
-            let request_msg = T::Request::from_native(&request_msg);
-            let request = ServiceRequest::<T> {
-                message: request_msg,
-                request_id,
-                service: Arc::downgrade(&service),
-            };
-            if let Err(e) = self.sender.try_send(request) {
-                log::debug!("service request stream was dropped ({})", e);
-                return true;
+        if ret == RCL_RET_SERVICE_TAKE_FAILED as i32 {
+            return Ok(false);
+        }
+        if ret != RCL_RET_OK as i32 {
+            return Err(Error::from_rcl_error(ret));
+        }
+
+        let request_id = unsafe { request_id.assume_init() };
+        let request_msg = T::Request::from_native(&request_msg);
+        let request = ServiceRequest::<T> {
+            message: request_msg,
+            request_id,
+            service: Arc::downgrade(&service),
+        };
+        if let Err(e) = self.sender.try_send(request) {
+            if e.is_disconnected() {
+                return Ok(true);
             }
-        } // TODO handle failure.
-        false
+            log::debug!("service request channel was unexpectedly full ({e})");
+        }
+        Ok(false)
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {

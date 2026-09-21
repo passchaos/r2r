@@ -129,7 +129,7 @@ impl UntypedClient_ {
 
 pub trait Client_ {
     fn handle(&self) -> &rcl_client_t;
-    fn handle_response(&mut self);
+    fn handle_response(&mut self) -> Result<()>;
     fn register_poll_available(&mut self, s: oneshot::Sender<()>);
     fn poll_available(&mut self, node: &mut rcl_node_t);
     fn has_pending_work(&mut self) -> bool;
@@ -153,12 +153,9 @@ where
         &self.rcl_handle
     }
 
-    fn handle_response(&mut self) {
+    fn handle_response(&mut self) -> Result<()> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let Ok(mut response_msg) = WrappedNativeMsg::<T::Response>::try_new() else {
-            log::error!("failed to allocate service response buffer");
-            return;
-        };
+        let mut response_msg = WrappedNativeMsg::<T::Response>::try_new()?;
 
         let ret = unsafe {
             rcl_take_response(
@@ -167,7 +164,14 @@ where
                 response_msg.void_ptr_mut(),
             )
         };
-        if ret == RCL_RET_OK as i32 {
+        if ret == RCL_RET_CLIENT_TAKE_FAILED as i32 {
+            return Ok(());
+        }
+        if ret != RCL_RET_OK as i32 {
+            return Err(Error::from_rcl_error(ret));
+        }
+
+        {
             let request_id = unsafe { request_id.assume_init() };
             if let Some(sender) = self.response_channels.remove(&request_id.sequence_number) {
                 let response = T::Response::from_native(&response_msg);
@@ -190,7 +194,8 @@ where
                     we_have
                 );
             }
-        } // TODO handle failure.
+        }
+        Ok(())
     }
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>) {
@@ -250,12 +255,9 @@ impl Client_ for UntypedClient_ {
         &self.rcl_handle
     }
 
-    fn handle_response(&mut self) {
+    fn handle_response(&mut self) -> Result<()> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let Ok(mut response_msg) = (self.service_type.make_response_msg)() else {
-            log::error!("could not allocate untyped service response buffer");
-            return;
-        };
+        let mut response_msg = (self.service_type.make_response_msg)()?;
 
         let ret = unsafe {
             rcl_take_response(
@@ -264,7 +266,14 @@ impl Client_ for UntypedClient_ {
                 response_msg.void_ptr_mut(),
             )
         };
-        if ret == RCL_RET_OK as i32 {
+        if ret == RCL_RET_CLIENT_TAKE_FAILED as i32 {
+            return Ok(());
+        }
+        if ret != RCL_RET_OK as i32 {
+            return Err(Error::from_rcl_error(ret));
+        }
+
+        {
             let request_id = unsafe { request_id.assume_init() };
             if let Some(sender) = self.response_channels.remove(&request_id.sequence_number) {
                 let response = response_msg.to_json();
@@ -287,7 +296,8 @@ impl Client_ for UntypedClient_ {
                     we_have
                 );
             }
-        } // TODO handle failure.
+        }
+        Ok(())
     }
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>) {
