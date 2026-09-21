@@ -65,6 +65,7 @@ pub struct Node {
     // time source that provides simulated time
     #[cfg(r2r__rosgraph_msgs__msg__Clock)]
     time_source: TimeSource,
+    wait_set: WaitSet,
 }
 
 unsafe impl Send for Node {}
@@ -225,6 +226,7 @@ impl Node {
                 ros_clock,
                 #[cfg(r2r__rosgraph_msgs__msg__Clock)]
                 time_source,
+                wait_set: WaitSet::new(),
             };
             node.load_params()?;
             Ok(node)
@@ -1039,6 +1041,13 @@ impl Node {
     /// `timeout` is a duration specifying how long the spin should
     /// block for if there are no pending events.
     pub fn spin_once(&mut self, timeout: Duration) {
+        if let Err(err) = self.try_spin_once(timeout) {
+            log::error!("failed to spin node: {}", err);
+        }
+    }
+
+    /// Spin the ROS node and report errors from the underlying RCL wait set.
+    pub fn try_spin_once(&mut self, timeout: Duration) -> Result<()> {
         // first handle any completed action cancellation responses
         for a in &mut self.action_servers {
             a.lock().unwrap().send_completed_cancel_requests();
@@ -1058,7 +1067,6 @@ impl Node {
         }
 
         let timeout = timeout.as_nanos() as i64;
-        let mut ws = unsafe { rcl_get_zero_initialized_wait_set() };
 
         // #[doc = "* This function is thread-safe for unique wait sets with unique contents."]
         // #[doc = "* This function cannot operate on the same wait set in multiple threads, and"]
@@ -1068,7 +1076,10 @@ impl Node {
 
         // count action client wait set needs
         let mut total_action_subs = 0;
+        let mut total_action_guard_conditions = 0;
+        let mut total_action_timers = 0;
         let mut total_action_clients = 0;
+        let mut total_action_services = 0;
         for c in &self.action_clients {
             let mut num_subs = 0;
             let mut num_gc = 0;
@@ -1083,22 +1094,16 @@ impl Node {
                 &mut num_timers,
                 &mut num_clients,
                 &mut num_services,
-            )
-            .expect("could not get action client wait sets");
-            // sanity check
-            assert_eq!(num_subs, 2);
-            assert_eq!(num_clients, 3);
-            assert_eq!(num_gc, 0);
-            assert_eq!(num_timers, 0);
-            assert_eq!(num_services, 0);
+            )?;
 
             total_action_subs += num_subs;
+            total_action_guard_conditions += num_gc;
+            total_action_timers += num_timers;
             total_action_clients += num_clients;
+            total_action_services += num_services;
         }
 
         // count action server wait set needs
-        let mut total_action_timers = 0;
-        let mut total_action_services = 0;
         for s in &self.action_servers {
             let mut num_subs = 0;
             let mut num_gc = 0;
@@ -1113,62 +1118,50 @@ impl Node {
                 &mut num_timers,
                 &mut num_clients,
                 &mut num_services,
-            )
-            .expect("could not get action client wait sets");
-            // sanity check
-            assert_eq!(num_subs, 0);
-            assert_eq!(num_clients, 0);
-            assert_eq!(num_gc, 0);
-            assert_eq!(num_timers, 1);
-            assert_eq!(num_services, 3);
+            )?;
 
+            total_action_subs += num_subs;
+            total_action_guard_conditions += num_gc;
             total_action_timers += num_timers;
+            total_action_clients += num_clients;
             total_action_services += num_services;
         }
 
+        let capacities = WaitSetCapacities {
+            subscriptions: self.subscribers.len() + total_action_subs,
+            guard_conditions: total_action_guard_conditions,
+            timers: self.timers.len() + total_action_timers,
+            clients: self.clients.len() + total_action_clients,
+            services: self.services.len() + total_action_services,
+        };
         {
             let mut ctx = self.context.context_handle.lock().unwrap();
-
-            unsafe {
-                rcl_wait_set_init(
-                    &mut ws,
-                    self.subscribers.len() + total_action_subs,
-                    0,
-                    self.timers.len() + total_action_timers,
-                    self.clients.len() + total_action_clients,
-                    self.services.len() + total_action_services,
-                    0,
-                    ctx.as_mut(),
-                    rcutils_get_default_allocator(),
-                );
-            }
+            self.wait_set.prepare(capacities, ctx.as_mut())?;
         }
-        unsafe {
-            rcl_wait_set_clear(&mut ws);
-        }
+        let ws = &mut self.wait_set.handle;
 
         for s in &self.subscribers {
-            unsafe {
-                rcl_wait_set_add_subscription(&mut ws, s.handle(), std::ptr::null_mut());
-            }
+            check_rcl_ret(unsafe {
+                rcl_wait_set_add_subscription(ws, s.handle(), std::ptr::null_mut())
+            })?;
         }
 
         for s in &self.timers {
-            unsafe {
-                rcl_wait_set_add_timer(&mut ws, s.get_handle(), std::ptr::null_mut());
-            }
+            check_rcl_ret(unsafe {
+                rcl_wait_set_add_timer(ws, s.get_handle(), std::ptr::null_mut())
+            })?;
         }
 
         for s in &self.clients {
-            unsafe {
-                rcl_wait_set_add_client(&mut ws, s.lock().unwrap().handle(), std::ptr::null_mut());
-            }
+            check_rcl_ret(unsafe {
+                rcl_wait_set_add_client(ws, s.lock().unwrap().handle(), std::ptr::null_mut())
+            })?;
         }
 
         for s in &self.services {
-            unsafe {
-                rcl_wait_set_add_service(&mut ws, s.lock().unwrap().handle(), std::ptr::null_mut());
-            }
+            check_rcl_ret(unsafe {
+                rcl_wait_set_add_service(ws, s.lock().unwrap().handle(), std::ptr::null_mut())
+            })?;
         }
 
         // code (further) below assumes that actions are added last... perhaps a
@@ -1177,32 +1170,32 @@ impl Node {
         // then assume that we can count on the waitables created by
         // the actions are added at the end of the wait set arrays
         for ac in &self.action_clients {
-            unsafe {
+            check_rcl_ret(unsafe {
                 rcl_action_wait_set_add_action_client(
-                    &mut ws,
+                    ws,
                     ac.lock().unwrap().handle(),
                     std::ptr::null_mut(),
                     std::ptr::null_mut(),
-                );
-            }
+                )
+            })?;
         }
         for acs in &self.action_servers {
-            unsafe {
+            check_rcl_ret(unsafe {
                 rcl_action_wait_set_add_action_server(
-                    &mut ws,
+                    ws,
                     acs.lock().unwrap().handle(),
                     std::ptr::null_mut(),
-                );
-            }
+                )
+            })?;
         }
 
-        let ret = unsafe { rcl_wait(&mut ws, timeout) };
+        let ret = unsafe { rcl_wait(ws, timeout) };
 
         if ret == RCL_RET_TIMEOUT as i32 {
-            unsafe {
-                rcl_wait_set_fini(&mut ws);
-            }
-            return;
+            return Ok(());
+        }
+        if ret != RCL_RET_OK as i32 {
+            return Err(Error::from_rcl_error(ret));
         }
 
         let mut subs_to_remove = vec![];
@@ -1276,7 +1269,7 @@ impl Node {
 
             let ret = unsafe {
                 rcl_action_client_wait_set_get_entities_ready(
-                    &ws,
+                    ws,
                     ac.lock().unwrap().handle(),
                     &mut is_feedback_ready,
                     &mut is_status_ready,
@@ -1287,7 +1280,7 @@ impl Node {
             };
 
             if ret != RCL_RET_OK as i32 {
-                continue;
+                return Err(Error::from_rcl_error(ret));
             }
 
             if is_feedback_ready {
@@ -1324,7 +1317,7 @@ impl Node {
 
             let ret = unsafe {
                 rcl_action_server_wait_set_get_entities_ready(
-                    &ws,
+                    ws,
                     s.lock().unwrap().handle(),
                     &mut is_goal_request_ready,
                     &mut is_cancel_request_ready,
@@ -1334,7 +1327,7 @@ impl Node {
             };
 
             if ret != RCL_RET_OK as i32 {
-                continue;
+                return Err(Error::from_rcl_error(ret));
             }
 
             if is_goal_request_ready {
@@ -1358,9 +1351,7 @@ impl Node {
             }
         }
 
-        unsafe {
-            rcl_wait_set_fini(&mut ws);
-        }
+        Ok(())
     }
 
     /// Returns a map of topic names and type names of the publishers
@@ -1692,6 +1683,7 @@ impl Drop for Node {
     fn drop(&mut self) {
         // fini functions are not thread safe so lock the context.
         let _ctx_handle = self.context.context_handle.lock().unwrap();
+        self.wait_set.fini();
 
         for s in &mut self.subscribers {
             s.destroy(&mut self.node_handle);
@@ -1716,6 +1708,87 @@ impl Drop for Node {
         unsafe {
             rcl_node_fini(self.node_handle.as_mut());
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct WaitSetCapacities {
+    subscriptions: usize,
+    guard_conditions: usize,
+    timers: usize,
+    clients: usize,
+    services: usize,
+}
+
+struct WaitSet {
+    handle: rcl_wait_set_t,
+    capacities: Option<WaitSetCapacities>,
+}
+
+impl WaitSet {
+    fn new() -> Self {
+        Self {
+            handle: unsafe { rcl_get_zero_initialized_wait_set() },
+            capacities: None,
+        }
+    }
+
+    fn prepare(
+        &mut self, capacities: WaitSetCapacities, context: &mut rcl_context_t,
+    ) -> Result<()> {
+        let ret = match self.capacities {
+            None => unsafe {
+                rcl_wait_set_init(
+                    &mut self.handle,
+                    capacities.subscriptions,
+                    capacities.guard_conditions,
+                    capacities.timers,
+                    capacities.clients,
+                    capacities.services,
+                    0,
+                    context,
+                    rcutils_get_default_allocator(),
+                )
+            },
+            Some(previous) if previous != capacities => unsafe {
+                rcl_wait_set_resize(
+                    &mut self.handle,
+                    capacities.subscriptions,
+                    capacities.guard_conditions,
+                    capacities.timers,
+                    capacities.clients,
+                    capacities.services,
+                    0,
+                )
+            },
+            Some(_) => unsafe { rcl_wait_set_clear(&mut self.handle) },
+        };
+        check_rcl_ret(ret)?;
+        self.capacities = Some(capacities);
+        Ok(())
+    }
+
+    fn fini(&mut self) {
+        if self.capacities.take().is_some() {
+            let ret = unsafe { rcl_wait_set_fini(&mut self.handle) };
+            if ret != RCL_RET_OK as i32 {
+                log::error!("could not finalize wait set: {}", ret);
+            }
+        }
+    }
+}
+
+impl Drop for WaitSet {
+    fn drop(&mut self) {
+        self.fini();
+    }
+}
+
+fn check_rcl_ret(ret: rcl_ret_t) -> Result<()> {
+    if ret == RCL_RET_OK as i32 {
+        Ok(())
+    } else {
+        Err(Error::from_rcl_error(ret))
     }
 }
 
