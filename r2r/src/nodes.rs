@@ -50,10 +50,14 @@ impl Drop for RclParams {
 struct NodeOptionsNative(rcl_node_options_t);
 
 impl NodeOptionsNative {
-    fn new(use_global_arguments: bool) -> Result<Self> {
+    fn new(config: &NodeOptions) -> Result<Self> {
         let mut options = unsafe { rcl_node_get_default_options() };
-        options.use_global_arguments = use_global_arguments;
-        if !use_global_arguments {
+        options.use_global_arguments = config.use_global_arguments;
+        options.enable_rosout = config.enable_rosout;
+        if let Some(qos) = &config.rosout_qos {
+            options.rosout_qos = qos.clone().into();
+        }
+        if !config.use_global_arguments {
             let ret = unsafe {
                 rcl_parse_arguments(0, std::ptr::null(), options.allocator, &mut options.arguments)
             };
@@ -168,6 +172,10 @@ pub struct NodeOptions {
     pub use_global_arguments: bool,
     /// Programmatic parameter overrides. These take precedence over global CLI/YAML overrides.
     pub parameter_overrides: IndexMap<String, ParameterValue>,
+    /// Whether the node publishes logs on `/rosout`.
+    pub enable_rosout: bool,
+    /// Optional override for the `/rosout` publisher QoS.
+    pub rosout_qos: Option<QosProfile>,
 }
 
 impl Default for NodeOptions {
@@ -175,6 +183,8 @@ impl Default for NodeOptions {
         Self {
             use_global_arguments: true,
             parameter_overrides: IndexMap::new(),
+            enable_rosout: true,
+            rosout_qos: None,
         }
     }
 }
@@ -194,6 +204,16 @@ impl NodeOptions {
         mut self, overrides: impl IntoIterator<Item = (String, ParameterValue)>,
     ) -> Self {
         self.parameter_overrides.extend(overrides);
+        self
+    }
+
+    pub fn enable_rosout(mut self, enabled: bool) -> Self {
+        self.enable_rosout = enabled;
+        self
+    }
+
+    pub fn rosout_qos(mut self, qos: QosProfile) -> Self {
+        self.rosout_qos = Some(qos);
         self
     }
 }
@@ -314,7 +334,7 @@ impl Node {
     ) -> Result<Node> {
         let c_node_name = CString::new(name).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
         let c_node_ns = CString::new(namespace).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
-        let node_options = NodeOptionsNative::new(options.use_global_arguments)?;
+        let node_options = NodeOptionsNative::new(&options)?;
         let (res, node_handle) = {
             let mut ctx_handle = ctx.context_handle.lock();
 
@@ -3127,6 +3147,37 @@ mod tests {
                 .unwrap();
             assert!(status.success(), "child mode {mode} failed");
         }
+    }
+
+    #[test]
+    fn node_options_control_rosout_and_its_qos() {
+        let context = Context::create().unwrap();
+        let disabled = Node::create_with_options(
+            context.clone(),
+            "rosout_disabled",
+            "",
+            NodeOptions::default().enable_rosout(false),
+        )
+        .unwrap();
+        let configured = Node::create_with_options(
+            context,
+            "rosout_configured",
+            "",
+            NodeOptions::default().rosout_qos(QosProfile::sensor_data()),
+        )
+        .unwrap();
+
+        let disabled_options = unsafe { rcl_node_get_options(disabled.node_handle.as_ref()) };
+        let configured_options = unsafe { rcl_node_get_options(configured.node_handle.as_ref()) };
+        assert!(!disabled_options.is_null());
+        assert!(!configured_options.is_null());
+        assert!(!unsafe { (*disabled_options).enable_rosout });
+        assert!(unsafe { (*configured_options).enable_rosout });
+        let configured_qos =
+            QosProfile::try_from(unsafe { &(*configured_options).rosout_qos }).unwrap();
+        assert_eq!(configured_qos.reliability, QosProfile::sensor_data().reliability);
+        assert_eq!(configured_qos.depth, 5);
+        drop(disabled);
     }
 
     #[test]
