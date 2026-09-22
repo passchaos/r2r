@@ -5,6 +5,7 @@ use futures::{
 };
 use parking_lot::Mutex;
 use std::{
+    any::Any,
     collections::HashMap,
     future::Future,
     mem::MaybeUninit,
@@ -556,6 +557,19 @@ impl WrappedActionClientUntyped {
         completions
     }
 
+    fn route_feedback(
+        &mut self, uuid: &uuid::Uuid, feedback: Box<dyn Any>,
+    ) -> Result<Option<ActionClientCompletion>> {
+        let feedback = feedback
+            .downcast::<Result<serde_json::Value>>()
+            .map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+        Ok(self
+            .feedback_senders
+            .iter()
+            .find(|(id, _)| id == uuid)
+            .and_then(|(_, channel)| feedback_completion(Arc::clone(channel), *feedback)))
+    }
+
     fn prune_canceled_requests(&mut self) -> Vec<ActionClientCompletion> {
         let mut completions = Vec::new();
         let canceled_goals: Vec<_> = self
@@ -669,6 +683,12 @@ impl ActionClient_ for WrappedActionClientUntyped {
         WrappedActionClientUntyped::apply_status_updates(self, updates)
     }
 
+    fn route_feedback(
+        &mut self, uuid: &uuid::Uuid, feedback: Box<dyn Any>,
+    ) -> Result<Option<ActionClientCompletion>> {
+        WrappedActionClientUntyped::route_feedback(self, uuid, feedback)
+    }
+
     fn handle_goal_response(
         &mut self, client: Arc<Mutex<dyn ActionClient_>>,
         completions: &mut Vec<ActionClientCompletion>,
@@ -773,7 +793,8 @@ impl ActionClient_ for WrappedActionClientUntyped {
     }
 
     fn handle_feedback_msg(
-        &mut self, completions: &mut Vec<ActionClientCompletion>,
+        &mut self, client: Arc<Mutex<dyn ActionClient_>>,
+        completions: &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult> {
         if let Some(completion) = self.pending_feedback_completion() {
             completions.push(completion);
@@ -783,16 +804,15 @@ impl ActionClient_ for WrappedActionClientUntyped {
         let ret =
             unsafe { rcl_action_take_feedback(&self.rcl_handle, feedback_msg.void_ptr_mut()) };
         if action_client_take_succeeded(ret)? {
-            let (uuid, feedback) =
-                (self.action_type_support.destructure_feedback_msg)(feedback_msg);
-            let msg_uuid = uuid_msg_to_uuid(&uuid)?;
-            if let Some((_, channel)) = self
-                .feedback_senders
-                .iter()
-                .find(|(uuid, _)| uuid == &msg_uuid)
-            {
-                completions.extend(feedback_completion(Arc::clone(channel), feedback));
-            }
+            let destructure = self.action_type_support.destructure_feedback_msg;
+            completions.push(action_feedback_decode_completion(
+                client,
+                feedback_msg,
+                move |feedback_msg| {
+                    let (uuid, feedback) = destructure(feedback_msg);
+                    Ok((uuid_msg_to_uuid(&uuid)?, Box::new(feedback)))
+                },
+            ));
             Ok(ActionClientTakeResult::Taken)
         } else {
             Ok(ActionClientTakeResult::Idle)

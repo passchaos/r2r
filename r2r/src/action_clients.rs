@@ -5,6 +5,7 @@ use futures::{
 };
 use parking_lot::Mutex;
 use std::{
+    any::Any,
     collections::{HashMap, VecDeque},
     ffi::{CStr, CString},
     future::Future,
@@ -178,6 +179,27 @@ pub(crate) fn action_status_completion(
             let cleanup = { client.lock().apply_status_updates(&updates) };
             run_detached_action_client_completions(cleanup);
             Ok(true)
+        }),
+        cleanup_goal_on_failure: None,
+    }
+}
+
+pub(crate) fn action_feedback_decode_completion<N>(
+    client: Arc<Mutex<dyn ActionClient_>>, native: N,
+    decode: impl FnOnce(N) -> Result<(uuid::Uuid, Box<dyn Any>)> + 'static,
+) -> ActionClientCompletion
+where
+    N: 'static,
+{
+    ActionClientCompletion {
+        notify: Box::new(move || {
+            let (uuid, feedback) = decode(native)?;
+            let completion = { client.lock().route_feedback(&uuid, feedback)? };
+            if let Some(completion) = completion {
+                (completion.notify)()
+            } else {
+                Ok(true)
+            }
         }),
         cleanup_goal_on_failure: None,
     }
@@ -805,6 +827,9 @@ pub trait ActionClient_ {
     fn apply_status_updates(
         &mut self, updates: &[(uuid::Uuid, GoalStatus)],
     ) -> Vec<ActionClientCompletion>;
+    fn route_feedback(
+        &mut self, uuid: &uuid::Uuid, feedback: Box<dyn Any>,
+    ) -> Result<Option<ActionClientCompletion>>;
 
     fn handle_goal_response(
         &mut self, client: Arc<Mutex<dyn ActionClient_>>,
@@ -814,7 +839,8 @@ pub trait ActionClient_ {
         &mut self, completions: &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult>;
     fn handle_feedback_msg(
-        &mut self, completions: &mut Vec<ActionClientCompletion>,
+        &mut self, client: Arc<Mutex<dyn ActionClient_>>,
+        completions: &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult>;
     fn handle_status_msg(
         &mut self, client: Arc<Mutex<dyn ActionClient_>>,
@@ -923,6 +949,19 @@ where
             }
         }
         completions
+    }
+
+    fn route_feedback(
+        &mut self, uuid: &uuid::Uuid, feedback: Box<dyn Any>,
+    ) -> Result<Option<ActionClientCompletion>> {
+        let feedback = feedback
+            .downcast::<T::Feedback>()
+            .map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+        Ok(self
+            .feedback_senders
+            .iter()
+            .find(|(id, _)| id == uuid)
+            .and_then(|(_, channel)| feedback_completion(Arc::clone(channel), *feedback)))
     }
 
     fn prune_canceled_requests(&mut self) -> Vec<ActionClientCompletion> {
@@ -1044,6 +1083,12 @@ where
         WrappedActionClient::apply_status_updates(self, updates)
     }
 
+    fn route_feedback(
+        &mut self, uuid: &uuid::Uuid, feedback: Box<dyn Any>,
+    ) -> Result<Option<ActionClientCompletion>> {
+        WrappedActionClient::route_feedback(self, uuid, feedback)
+    }
+
     fn handle_goal_response(
         &mut self, client: Arc<Mutex<dyn ActionClient_>>,
         completions: &mut Vec<ActionClientCompletion>,
@@ -1150,7 +1195,8 @@ where
     }
 
     fn handle_feedback_msg(
-        &mut self, completions: &mut Vec<ActionClientCompletion>,
+        &mut self, client: Arc<Mutex<dyn ActionClient_>>,
+        completions: &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult> {
         if let Some(completion) = self.pending_feedback_completion() {
             completions.push(completion);
@@ -1160,16 +1206,15 @@ where
         let ret =
             unsafe { rcl_action_take_feedback(&self.rcl_handle, feedback_msg.void_ptr_mut()) };
         if action_client_take_succeeded(ret)? {
-            let msg = T::FeedbackMessage::from_native(&feedback_msg);
-            let (uuid, feedback) = T::destructure_feedback_msg(msg);
-            let msg_uuid = uuid_msg_to_uuid(&uuid)?;
-            if let Some((_, channel)) = self
-                .feedback_senders
-                .iter()
-                .find(|(uuid, _)| uuid == &msg_uuid)
-            {
-                completions.extend(feedback_completion(Arc::clone(channel), feedback));
-            }
+            completions.push(action_feedback_decode_completion(
+                client,
+                feedback_msg,
+                |feedback_msg| {
+                    let message = T::FeedbackMessage::from_native(&feedback_msg);
+                    let (uuid, feedback) = T::destructure_feedback_msg(message);
+                    Ok((uuid_msg_to_uuid(&uuid)?, Box::new(feedback)))
+                },
+            ));
             Ok(ActionClientTakeResult::Taken)
         } else {
             Ok(ActionClientTakeResult::Idle)
@@ -1610,6 +1655,87 @@ mod tests {
 
         assert!(wake.woke.load(Ordering::SeqCst));
         assert!(matches!(Pin::new(&mut receiver).poll(&mut context), Poll::Ready(Ok(42))));
+    }
+
+    #[test]
+    fn feedback_decode_completions_run_outside_the_client_lock() {
+        struct FeedbackRouteTestClient {
+            routed: Arc<Mutex<Option<i32>>>,
+        }
+
+        impl ActionClient_ for FeedbackRouteTestClient {
+            fn handle(&self) -> &rcl_action_client_t {
+                unreachable!()
+            }
+            fn destroy(&mut self, _node: &mut rcl_node_t) {}
+            fn has_pending_work(&mut self) -> bool {
+                false
+            }
+            fn forget_goal(&mut self, _uuid: &uuid::Uuid) -> Vec<ActionClientCompletion> {
+                Vec::new()
+            }
+            fn finish_goal(
+                &mut self, _uuid: &uuid::Uuid, _status: GoalStatus,
+            ) -> Vec<ActionClientCompletion> {
+                Vec::new()
+            }
+            fn apply_status_updates(
+                &mut self, _updates: &[(uuid::Uuid, GoalStatus)],
+            ) -> Vec<ActionClientCompletion> {
+                Vec::new()
+            }
+            fn route_feedback(
+                &mut self, _uuid: &uuid::Uuid, feedback: Box<dyn Any>,
+            ) -> Result<Option<ActionClientCompletion>> {
+                *self.routed.lock() = Some(*feedback.downcast::<i32>().unwrap());
+                Ok(None)
+            }
+            fn handle_goal_response(
+                &mut self, _client: Arc<Mutex<dyn ActionClient_>>,
+                _completions: &mut Vec<ActionClientCompletion>,
+            ) -> Result<ActionClientTakeResult> {
+                unreachable!()
+            }
+            fn handle_cancel_response(
+                &mut self, _completions: &mut Vec<ActionClientCompletion>,
+            ) -> Result<ActionClientTakeResult> {
+                unreachable!()
+            }
+            fn handle_feedback_msg(
+                &mut self, _client: Arc<Mutex<dyn ActionClient_>>,
+                _completions: &mut Vec<ActionClientCompletion>,
+            ) -> Result<ActionClientTakeResult> {
+                unreachable!()
+            }
+            fn handle_status_msg(
+                &mut self, _client: Arc<Mutex<dyn ActionClient_>>,
+            ) -> Result<Vec<ActionClientCompletion>> {
+                unreachable!()
+            }
+            fn handle_result_response(
+                &mut self, _client: Arc<Mutex<dyn ActionClient_>>,
+                _completions: &mut Vec<ActionClientCompletion>,
+            ) -> Result<ActionClientTakeResult> {
+                unreachable!()
+            }
+            fn register_poll_available(&mut self, _sender: oneshot::Sender<()>) {}
+            fn poll_available(&mut self, _node: &mut rcl_node_t) -> Vec<ActionClientCompletion> {
+                Vec::new()
+            }
+        }
+
+        let routed = Arc::new(Mutex::new(None));
+        let client: Arc<Mutex<dyn ActionClient_>> = Arc::new(Mutex::new(FeedbackRouteTestClient {
+            routed: Arc::clone(&routed),
+        }));
+        let client_for_decode = Arc::clone(&client);
+        let completion = action_feedback_decode_completion(Arc::clone(&client), 41, move |value| {
+            assert!(client_for_decode.try_lock().is_some());
+            Ok((uuid::Uuid::nil(), Box::new(value + 1)))
+        });
+
+        assert!(matches!((completion.notify)(), Ok(true)));
+        assert_eq!(*routed.lock(), Some(42));
     }
 
     #[test]

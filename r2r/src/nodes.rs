@@ -3223,14 +3223,14 @@ impl Node {
                 )
             };
 
+            let ac_ref = Arc::clone(ac);
             if is_feedback_ready {
                 complete_action_feedback_batch(
                     ac,
-                    |client, completions| client.handle_feedback_msg(completions),
+                    |client, completions| client.handle_feedback_msg(ac_ref.clone(), completions),
                     |client, uuid| client.forget_goal(uuid),
                 )?;
             }
-            let ac_ref = Arc::clone(ac);
             complete_action_client_operation(
                 ac,
                 |ac, completions| {
