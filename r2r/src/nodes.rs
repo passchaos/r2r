@@ -667,17 +667,26 @@ impl Node {
         &self, name: impl Into<String>, mut descriptor: ParameterDescriptor,
     ) -> Result<()> {
         let name = name.into();
-        let value = self
-            .params
-            .lock()
+        let params = self.params.lock();
+        let value = params
             .get(&name)
             .map(|parameter| parameter.value.clone())
             .ok_or_else(|| Error::InvalidParameterName { name: name.clone() })?;
+        let mut descriptors = self.parameter_descriptors.lock();
+        if descriptors
+            .get(&name)
+            .is_some_and(|descriptor| descriptor.read_only)
+        {
+            return Err(Error::ParameterConstraintViolation {
+                name,
+                reason: "a read-only parameter's descriptor cannot be replaced".into(),
+            });
+        }
         descriptor.name = name.clone();
         descriptor.type_ = value.parameter_type();
         validate_parameter_descriptor(&name, &descriptor)?;
         validate_parameter_update(&name, &value, &descriptor, false)?;
-        self.parameter_descriptors.lock().insert(name, descriptor);
+        descriptors.insert(name, descriptor);
         Ok(())
     }
 
@@ -5866,6 +5875,22 @@ mod tests {
             },
         )
         .unwrap();
+        assert!(matches!(
+            node.set_parameter_descriptor(
+                "read_only",
+                ParameterDescriptor {
+                    read_only: false,
+                    dynamic_typing: true,
+                    description: "replacement".into(),
+                    ..Default::default()
+                },
+            ),
+            Err(Error::ParameterConstraintViolation { .. })
+        ));
+        let read_only_descriptor = node.get_parameter_descriptor("read_only").unwrap();
+        assert!(read_only_descriptor.read_only);
+        assert!(!read_only_descriptor.dynamic_typing);
+        assert_eq!(read_only_descriptor.description, "immutable value");
         node.set_parameter_descriptor(
             "count",
             ParameterDescriptor {
