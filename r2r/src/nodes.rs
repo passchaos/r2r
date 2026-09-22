@@ -499,6 +499,7 @@ pub struct Node {
     subscription_indexes: HashMap<uuid::Uuid, usize>,
     // services,
     services: Vec<Arc<Mutex<dyn Service_>>>,
+    service_indexes: HashMap<uuid::Uuid, usize>,
     // service clients
     clients: Vec<Arc<Mutex<dyn Client_>>>,
     // action clients
@@ -628,6 +629,35 @@ impl Node {
             Some(subscriber) => Ok(&mut **subscriber),
             None => Err(Error::RCL_RET_SUBSCRIPTION_INVALID),
         }
+    }
+
+    fn add_service(&mut self, id: uuid::Uuid, service: Arc<Mutex<dyn Service_>>) {
+        let index = self.services.len();
+        debug_assert!(self.service_indexes.insert(id, index).is_none());
+        self.services.push(service);
+    }
+
+    fn rebuild_service_indexes(
+        services: &[Arc<Mutex<dyn Service_>>], indexes: &mut HashMap<uuid::Uuid, usize>,
+    ) {
+        indexes.clear();
+        indexes.reserve(services.len());
+        for (index, service) in services.iter().enumerate() {
+            if let Some(id) = service.lock().id() {
+                debug_assert!(indexes.insert(id, index).is_none());
+            }
+        }
+    }
+
+    fn service(&self, id: uuid::Uuid) -> Result<&Arc<Mutex<dyn Service_>>> {
+        let index = self
+            .service_indexes
+            .get(&id)
+            .copied()
+            .ok_or(Error::RCL_RET_SERVICE_INVALID)?;
+        self.services
+            .get(index)
+            .ok_or(Error::RCL_RET_SERVICE_INVALID)
     }
 
     pub(crate) fn owns_publisher(&self, publisher: &Arc<Publisher_>) -> bool {
@@ -876,6 +906,7 @@ impl Node {
                 subscribers: Vec::new(),
                 subscription_indexes: HashMap::new(),
                 services: Vec::new(),
+                service_indexes: HashMap::new(),
                 clients: Vec::new(),
                 action_clients: Vec::new(),
                 action_servers: Vec::new(),
@@ -2266,7 +2297,7 @@ impl Node {
             id,
         };
 
-        self.services.push(Arc::new(Mutex::new(ws)));
+        self.add_service(id, Arc::new(Mutex::new(ws)));
         Ok(Service::new(receiver, id))
     }
 
@@ -2304,41 +2335,26 @@ impl Node {
             sender: Arc::new(Mutex::new(Some(sender))),
             id,
         };
-        self.services.push(Arc::new(Mutex::new(service)));
+        self.add_service(id, Arc::new(Mutex::new(service)));
         Ok(ServiceUntyped::new(receiver, id))
     }
 
     pub(crate) fn get_service_request_subscription_actual_qos(
         &self, id: uuid::Uuid,
     ) -> Result<QosProfile> {
-        let service = self
-            .services
-            .iter()
-            .find(|service| service.lock().id() == Some(id))
-            .ok_or(Error::RCL_RET_SERVICE_INVALID)?
-            .lock();
+        let service = self.service(id)?.lock();
         service.request_subscription_actual_qos()
     }
 
     pub(crate) fn get_service_response_publisher_actual_qos(
         &self, id: uuid::Uuid,
     ) -> Result<QosProfile> {
-        let service = self
-            .services
-            .iter()
-            .find(|service| service.lock().id() == Some(id))
-            .ok_or(Error::RCL_RET_SERVICE_INVALID)?
-            .lock();
+        let service = self.service(id)?.lock();
         service.response_publisher_actual_qos()
     }
 
     pub(crate) fn get_service_name(&self, id: uuid::Uuid) -> Result<String> {
-        let service = self
-            .services
-            .iter()
-            .find(|service| service.lock().id() == Some(id))
-            .ok_or(Error::RCL_RET_SERVICE_INVALID)?
-            .lock();
+        let service = self.service(id)?.lock();
         service.service_name()
     }
 
@@ -2817,6 +2833,7 @@ impl Node {
         // cleanup path. Remove it before rebuilding the wait set so it leaves the ROS graph even
         // when the service is idle.
         let node_handle = self.node_handle.as_mut();
+        let previous_service_count = self.services.len();
         self.services.retain(|service| {
             let mut handle = service.lock();
             if handle.should_remove() {
@@ -2826,6 +2843,9 @@ impl Node {
                 true
             }
         });
+        if self.services.len() != previous_service_count {
+            Self::rebuild_service_indexes(&self.services, &mut self.service_indexes);
+        }
 
         // Public clients only keep weak references to their native state. Retain a client while
         // any request or availability future is still live, then release it once both the public
@@ -3139,6 +3159,7 @@ impl Node {
             }
         }
         let node_handle = self.node_handle.as_mut();
+        let previous_service_count = self.services.len();
         self.services.retain(|service| {
             let mut handle = service.lock();
             if services_to_remove.contains(&(handle.handle() as *const rcl_service_t)) {
@@ -3148,6 +3169,9 @@ impl Node {
                 true
             }
         });
+        if self.services.len() != previous_service_count {
+            Self::rebuild_service_indexes(&self.services, &mut self.service_indexes);
+        }
         if let Some(err) = service_error {
             return Err(err);
         }
@@ -9196,6 +9220,38 @@ mod tests {
         node.try_spin_once(Duration::ZERO).unwrap();
 
         assert_eq!(node.services.len(), services_before_drop - 1);
+    }
+
+    #[test]
+    fn service_indexes_follow_removal_and_reordering() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "service_index_test", "").unwrap();
+        let first_name = format!("/indexed_first_{}", uuid::Uuid::new_v4().simple());
+        let removed_name = format!("/indexed_removed_{}", uuid::Uuid::new_v4().simple());
+        let last_name = format!("/indexed_last_{}", uuid::Uuid::new_v4().simple());
+        let first = node
+            .create_service::<AddTwoInts::Service>(&first_name, QosProfile::default())
+            .unwrap();
+        let removed = node
+            .create_service::<AddTwoInts::Service>(&removed_name, QosProfile::default())
+            .unwrap();
+        let last = node
+            .create_service::<AddTwoInts::Service>(&last_name, QosProfile::default())
+            .unwrap();
+
+        assert_eq!(node.service_indexes.len(), 3);
+        drop(removed);
+        node.try_spin_once(Duration::ZERO).unwrap();
+
+        assert_eq!(node.services.len(), 2);
+        assert_eq!(node.service_indexes.len(), 2);
+        assert_eq!(first.service_name(&node).unwrap(), first_name);
+        assert_eq!(last.service_name(&node).unwrap(), last_name);
+        for (id, index) in &node.service_indexes {
+            assert_eq!(node.services[*index].lock().id(), Some(*id));
+        }
     }
 
     #[test]
