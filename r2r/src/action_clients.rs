@@ -303,9 +303,11 @@ where
             .client
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
-        let mut client = client.lock();
-
-        let response = client.send_cancel_request(&self.uuid)?;
+        let response = with_prepared_action_client(
+            &client,
+            || prepare_cancel_request(goal_cancel_info(&self.uuid)),
+            WrappedActionClient::send_cancel_request_native,
+        )?;
         Ok(response.map_ok(|_| ()))
     }
 
@@ -328,8 +330,11 @@ where
             .client
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
-        let mut client = client.lock();
-        client.send_cancel_request_for(batch_cancel_goal_info(Default::default()))
+        with_prepared_action_client(
+            &client,
+            || prepare_cancel_request(batch_cancel_goal_info(Default::default())),
+            WrappedActionClient::send_cancel_request_native,
+        )
     }
 
     /// Requests cancellation of every goal accepted at or before the supplied stamp.
@@ -340,8 +345,11 @@ where
             .client
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
-        let mut client = client.lock();
-        client.send_cancel_request_for(batch_cancel_goal_info(stamp))
+        with_prepared_action_client(
+            &client,
+            || prepare_cancel_request(batch_cancel_goal_info(stamp)),
+            WrappedActionClient::send_cancel_request_native,
+        )
     }
 
     pub fn cancel_all_with_timeout(
@@ -459,8 +467,9 @@ where
                                     let c = fut_client
                                         .upgrade()
                                         .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+                                    let native_msg = prepare_result_request::<T>(uuid)?;
                                     let mut c = c.lock();
-                                    c.send_result_request(uuid)?;
+                                    c.send_result_request_native(uuid, native_msg)?;
                                 }
                                 let status_registration = Arc::new(GoalStatusRegistration {
                                     client: fut_client.clone(),
@@ -572,8 +581,6 @@ pub trait ActionClient_ {
     fn handle_feedback_msg(&mut self) -> Result<()>;
     fn handle_status_msg(&mut self) -> Result<()>;
     fn handle_result_response(&mut self) -> Result<Option<ActionClientCompletion>>;
-
-    fn send_result_request(&mut self, uuid: uuid::Uuid) -> Result<()>;
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>);
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ActionClientCompletion>;
@@ -695,25 +702,9 @@ where
         }
     }
 
-    pub fn send_cancel_request(
-        &mut self, goal: &uuid::Uuid,
-    ) -> Result<impl Future<Output = Result<Vec<uuid::Uuid>>>>
-    where
-        T: WrappedActionTypeSupport,
-    {
-        self.send_cancel_request_for(action_msgs::msg::GoalInfo {
-            goal_id: unique_identifier_msgs::msg::UUID {
-                uuid: goal.as_bytes().to_vec(),
-            },
-            ..Default::default()
-        })
-    }
-
-    fn send_cancel_request_for(
-        &mut self, goal_info: action_msgs::msg::GoalInfo,
+    fn send_cancel_request_native(
+        &mut self, native_msg: WrappedNativeMsg<action_msgs::srv::CancelGoal::Request>,
     ) -> Result<impl Future<Output = Result<Vec<uuid::Uuid>>>> {
-        let msg = action_msgs::srv::CancelGoal::Request { goal_info };
-        let native_msg = WrappedNativeMsg::<action_msgs::srv::CancelGoal::Request>::try_from(&msg)?;
         let mut seq_no = 0i64;
         let result = unsafe {
             rcl_action_send_cancel_request(&self.rcl_handle, native_msg.void_ptr(), &mut seq_no)
@@ -730,6 +721,27 @@ where
             log::error!("could not send goal request {}", result);
             Err(Error::from_rcl_error(result))
         }
+    }
+
+    fn send_result_request_native(
+        &mut self, uuid: uuid::Uuid,
+        native_msg: WrappedNativeMsg<
+            <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
+        >,
+    ) -> Result<()> {
+        let result = {
+            let mut seq_no = 0i64;
+            let ret = unsafe {
+                rcl_action_send_result_request(&self.rcl_handle, native_msg.void_ptr(), &mut seq_no)
+            };
+            if ret == RCL_RET_OK as i32 {
+                Ok(seq_no)
+            } else {
+                log::error!("could not send request {}", ret);
+                Err(Error::from_rcl_error(ret))
+            }
+        };
+        self.finish_result_request_send(uuid, result)
     }
 }
 
@@ -950,29 +962,6 @@ where
         Ok(None)
     }
 
-    fn send_result_request(&mut self, uuid: uuid::Uuid) -> Result<()> {
-        let result = (|| {
-            let uuid_msg = unique_identifier_msgs::msg::UUID {
-                uuid: uuid.as_bytes().to_vec(),
-            };
-            let request_msg = T::make_result_request_msg(uuid_msg);
-            let native_msg = WrappedNativeMsg::<
-                <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
-            >::try_from(&request_msg)?;
-            let mut seq_no = 0i64;
-            let ret = unsafe {
-                rcl_action_send_result_request(&self.rcl_handle, native_msg.void_ptr(), &mut seq_no)
-            };
-            if ret == RCL_RET_OK as i32 {
-                Ok(seq_no)
-            } else {
-                log::error!("could not send request {}", ret);
-                Err(Error::from_rcl_error(ret))
-            }
-        })();
-        self.finish_result_request_send(uuid, result)
-    }
-
     fn register_poll_available(&mut self, s: oneshot::Sender<()>) {
         self.poll_available_channels.push(s);
     }
@@ -1021,6 +1010,37 @@ pub(crate) fn batch_cancel_goal_info(
         goal_id: unique_identifier_msgs::msg::UUID { uuid: vec![0; 16] },
         stamp,
     }
+}
+
+pub(crate) fn goal_cancel_info(uuid: &uuid::Uuid) -> action_msgs::msg::GoalInfo {
+    action_msgs::msg::GoalInfo {
+        goal_id: unique_identifier_msgs::msg::UUID {
+            uuid: uuid.as_bytes().to_vec(),
+        },
+        ..Default::default()
+    }
+}
+
+pub(crate) fn prepare_cancel_request(
+    goal_info: action_msgs::msg::GoalInfo,
+) -> Result<WrappedNativeMsg<action_msgs::srv::CancelGoal::Request>> {
+    WrappedNativeMsg::try_from(&action_msgs::srv::CancelGoal::Request { goal_info })
+}
+
+fn prepare_result_request<T>(
+    uuid: uuid::Uuid,
+) -> Result<
+    WrappedNativeMsg<
+        <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
+    >,
+>
+where
+    T: WrappedActionTypeSupport,
+{
+    let uuid_msg = unique_identifier_msgs::msg::UUID {
+        uuid: uuid.as_bytes().to_vec(),
+    };
+    WrappedNativeMsg::try_from(&T::make_result_request_msg(uuid_msg))
 }
 
 pub(crate) fn action_client_take_succeeded(ret: rcl_ret_t) -> Result<bool> {
