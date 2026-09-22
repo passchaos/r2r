@@ -50,6 +50,19 @@ impl Drop for RclParams {
     }
 }
 
+fn parameter_overrides(context: &Mutex<ContextHandle>) -> Result<RclParams> {
+    let mut params = RclParams(std::ptr::null_mut());
+    let ret = {
+        let context = context.lock();
+        unsafe { rcl_arguments_get_param_overrides(&context.global_arguments, &mut params.0) }
+    };
+    if ret == RCL_RET_OK as i32 {
+        Ok(params)
+    } else {
+        Err(Error::from_rcl_error(ret))
+    }
+}
+
 struct NodeOptionsNative(rcl_node_options_t);
 
 impl NodeOptionsNative {
@@ -844,15 +857,10 @@ impl Node {
     }
 
     fn load_params(&mut self) -> Result<()> {
-        let ctx = self.context.context_handle.lock();
-        let mut params = RclParams(std::ptr::null_mut());
-
-        let ret =
-            unsafe { rcl_arguments_get_param_overrides(&ctx.global_arguments, &mut params.0) };
-        if ret != RCL_RET_OK as i32 {
-            log::error!("could not read parameters: {}", ret);
-            return Err(Error::from_rcl_error(ret));
-        }
+        let params = parameter_overrides(&self.context.context_handle).map_err(|err| {
+            log::error!("could not read parameters: {err}");
+            err
+        })?;
 
         if params.0.is_null() {
             return Ok(());
@@ -4618,6 +4626,16 @@ mod tests {
 
         assert!(params.try_lock().is_some());
         assert!(descriptors.try_lock().is_some());
+    }
+
+    #[test]
+    fn parameter_override_snapshot_releases_the_context_lock() {
+        let context = Context::create().unwrap();
+
+        let overrides = parameter_overrides(&context.context_handle).unwrap();
+
+        assert!(context.context_handle.try_lock().is_some());
+        drop(overrides);
     }
 
     #[test]
