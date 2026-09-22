@@ -136,6 +136,32 @@ where
         &self.accepted_at
     }
 
+    /// Returns whether this goal's feedback stream is still being observed.
+    pub fn is_feedback_aware(&self) -> Result<bool> {
+        let client = self
+            .client
+            .upgrade()
+            .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+        let client = client.lock();
+        Ok(client
+            .feedback_senders
+            .iter()
+            .any(|(uuid, sender)| uuid == &self.uuid && !sender.is_closed()))
+    }
+
+    /// Returns whether this goal's result future is still being observed.
+    pub fn is_result_aware(&self) -> Result<bool> {
+        let client = self
+            .client
+            .upgrade()
+            .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+        let client = client.lock();
+        Ok(client
+            .result_senders
+            .iter()
+            .any(|(uuid, sender)| uuid == &self.uuid && !sender.is_canceled()))
+    }
+
     /// Send a cancel request for this goal to the server.
     ///
     /// If the server accepts and completes the request, the future completes without error.

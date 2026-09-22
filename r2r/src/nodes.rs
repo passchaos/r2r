@@ -7443,7 +7443,7 @@ mod tests {
         let mut response = Box::pin(response);
         let mut server_goal = None;
         let mut cancel_stream = None;
-        let (client_goal, mut feedback) = loop {
+        let (client_goal, result, mut feedback) = loop {
             node.try_spin_once(Duration::from_millis(10)).unwrap();
             if server_goal.is_none() {
                 if let Some(request) = flow_requests.next().now_or_never().flatten() {
@@ -7455,10 +7455,15 @@ mod tests {
                 }
             }
             if let Some(response) = response.as_mut().now_or_never() {
-                let (goal, _result, feedback) = response.unwrap();
-                break (goal, feedback);
+                break response.unwrap();
             }
         };
+        assert!(client_goal.is_feedback_aware().unwrap());
+        assert!(client_goal.is_result_aware().unwrap());
+        let client_goal_clone = client_goal.clone();
+        drop(result);
+        assert!(!client_goal.is_result_aware().unwrap());
+        assert!(!client_goal_clone.is_result_aware().unwrap());
         let goal = server_goal.as_ref().unwrap();
         for value in 1..=3 {
             goal.publish_feedback(Fibonacci::Feedback {
@@ -7477,6 +7482,9 @@ mod tests {
         node.try_spin_once(Duration::from_millis(10)).unwrap();
         assert_eq!(feedback.next().now_or_never().flatten().unwrap().sequence, vec![3]);
         assert!(feedback.next().now_or_never().is_none());
+        drop(feedback);
+        assert!(!client_goal.is_feedback_aware().unwrap());
+        assert!(!client_goal_clone.is_feedback_aware().unwrap());
 
         let first_cancel = client_goal.cancel().unwrap();
         for _ in 0..3 {
@@ -7505,7 +7513,7 @@ mod tests {
             .unwrap();
         let mut response = Box::pin(response);
         let mut untyped_server_goal = None;
-        let (untyped_client_goal, mut untyped_feedback) = loop {
+        let (untyped_client_goal, untyped_result, mut untyped_feedback) = loop {
             node.try_spin_once(Duration::from_millis(10)).unwrap();
             if untyped_server_goal.is_none() {
                 if let Some(request) = untyped_requests.next().now_or_never().flatten() {
@@ -7514,12 +7522,17 @@ mod tests {
                 }
             }
             if let Some(response) = response.as_mut().now_or_never() {
-                let (goal, _result, feedback) = response.unwrap();
-                break (goal, feedback);
+                break response.unwrap();
             }
         };
         assert!(untyped_client_goal.accepted_at().nanosec < 1_000_000_000);
         assert_eq!(untyped_client_goal.clone().accepted_at(), untyped_client_goal.accepted_at());
+        assert!(untyped_client_goal.is_feedback_aware().unwrap());
+        assert!(untyped_client_goal.is_result_aware().unwrap());
+        let untyped_client_goal_clone = untyped_client_goal.clone();
+        drop(untyped_result);
+        assert!(!untyped_client_goal.is_result_aware().unwrap());
+        assert!(!untyped_client_goal_clone.is_result_aware().unwrap());
         let goal = untyped_server_goal.as_ref().unwrap();
         for value in 1..=3 {
             goal.publish_feedback(Fibonacci::Feedback {
@@ -7541,6 +7554,9 @@ mod tests {
             assert!(untyped_feedback.next().now_or_never().is_none());
             node.try_spin_once(Duration::from_millis(10)).unwrap();
         }
+        drop(untyped_feedback);
+        assert!(!untyped_client_goal.is_feedback_aware().unwrap());
+        assert!(!untyped_client_goal_clone.is_feedback_aware().unwrap());
     }
 
     #[test]
