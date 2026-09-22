@@ -3262,7 +3262,9 @@ impl Node {
                 )?;
             }
             if is_result_request_ready {
-                complete_action_server_take_batch(s, ActionServer_::handle_result_request)?;
+                complete_action_server_take_batch(s, |server| {
+                    server.handle_result_request(s.clone())
+                })?;
             }
             complete_action_server_operation(s, |server, completions| {
                 if is_goal_expired {

@@ -31,10 +31,9 @@ pub(crate) type ActionServerCompletion = Box<dyn FnOnce() -> Result<()>>;
 
 const MAX_ACTION_SERVER_REQUESTS_PER_SPIN: usize = 16;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ActionServerTakeResult {
     Idle,
-    Taken,
+    Deliver(ActionServerCompletion),
 }
 
 pub(crate) enum ActionServerDeliveryAction {
@@ -105,8 +104,10 @@ pub(crate) fn complete_action_server_take_batch<S: ?Sized>(
     server: &Mutex<S>, mut operation: impl FnMut(&mut S) -> Result<ActionServerTakeResult>,
 ) -> Result<()> {
     for _ in 0..MAX_ACTION_SERVER_REQUESTS_PER_SPIN {
-        if operation(&mut *server.lock())? == ActionServerTakeResult::Idle {
-            break;
+        let action = { operation(&mut *server.lock())? };
+        match action {
+            ActionServerTakeResult::Idle => break,
+            ActionServerTakeResult::Deliver(completion) => completion()?,
         }
     }
     Ok(())
@@ -185,7 +186,13 @@ pub trait ActionServer_ {
     fn handle_cancel_request(
         &mut self, server: Arc<Mutex<dyn ActionServer_>>,
     ) -> Result<ActionServerDeliveryAction>;
-    fn handle_result_request(&mut self) -> Result<ActionServerTakeResult>;
+    fn handle_result_request(
+        &mut self, server: Arc<Mutex<dyn ActionServer_>>,
+    ) -> Result<ActionServerTakeResult>;
+    fn handle_decoded_result_request(
+        &mut self, request_id: rmw_request_id_t, uuid: uuid::Uuid,
+        goal_info: WrappedNativeMsg<action_msgs::msg::GoalInfo>,
+    ) -> Result<()>;
     fn handle_goal_expired(&mut self, completions: &mut Vec<ActionServerCompletion>) -> Result<()>;
     fn action_name(&self) -> Result<String>;
     fn publish_status(&self) -> Result<()>;
@@ -1343,7 +1350,9 @@ where
         first_error.map_or(Ok(()), Err)
     }
 
-    fn handle_result_request(&mut self) -> Result<ActionServerTakeResult> {
+    fn handle_result_request(
+        &mut self, server: Arc<Mutex<dyn ActionServer_>>,
+    ) -> Result<ActionServerTakeResult> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut request_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
@@ -1359,17 +1368,26 @@ where
         if !action_server_take_succeeded(ret)? {
             return Ok(ActionServerTakeResult::Idle);
         }
-        let mut request_id = unsafe { request_id.assume_init() };
+        let request_id = unsafe { request_id.assume_init() };
+        Ok(ActionServerTakeResult::Deliver(Box::new(move || {
+            let msg = <<<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request>::from_native(&request_msg);
+            let goal_info = action_msgs::msg::GoalInfo {
+                goal_id: T::destructure_result_request_msg(msg),
+                ..action_msgs::msg::GoalInfo::default()
+            };
+            let uuid = uuid_msg_to_uuid(&goal_info.goal_id)?;
+            let goal_info_native =
+                WrappedNativeMsg::<action_msgs::msg::GoalInfo>::try_from(&goal_info)?;
+            server
+                .lock()
+                .handle_decoded_result_request(request_id, uuid, goal_info_native)
+        })))
+    }
 
-        let msg = <<<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request>::from_native(&request_msg);
-        let goal_info = action_msgs::msg::GoalInfo {
-            goal_id: T::destructure_result_request_msg(msg),
-            ..action_msgs::msg::GoalInfo::default()
-        };
-        let uuid = uuid_msg_to_uuid(&goal_info.goal_id)?;
-        let goal_info_native =
-            WrappedNativeMsg::<action_msgs::msg::GoalInfo>::try_from(&goal_info)?;
-
+    fn handle_decoded_result_request(
+        &mut self, mut request_id: rmw_request_id_t, uuid: uuid::Uuid,
+        goal_info_native: WrappedNativeMsg<action_msgs::msg::GoalInfo>,
+    ) -> Result<()> {
         // does this goal exist?
         let goal_exists =
             unsafe { rcl_action_server_goal_exists(&self.rcl_handle, &*goal_info_native) };
@@ -1411,7 +1429,7 @@ where
                 .or_default()
                 .push(request_id);
         }
-        Ok(ActionServerTakeResult::Taken)
+        Ok(())
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -1873,7 +1891,16 @@ mod tests {
             unreachable!()
         }
 
-        fn handle_result_request(&mut self) -> Result<ActionServerTakeResult> {
+        fn handle_result_request(
+            &mut self, _server: Arc<Mutex<dyn ActionServer_>>,
+        ) -> Result<ActionServerTakeResult> {
+            unreachable!()
+        }
+
+        fn handle_decoded_result_request(
+            &mut self, _request_id: rmw_request_id_t, _uuid: uuid::Uuid,
+            _goal_info: WrappedNativeMsg<action_msgs::msg::GoalInfo>,
+        ) -> Result<()> {
             unreachable!()
         }
 
@@ -2224,7 +2251,7 @@ mod tests {
             if *calls == 3 {
                 Ok(ActionServerTakeResult::Idle)
             } else {
-                Ok(ActionServerTakeResult::Taken)
+                Ok(ActionServerTakeResult::Deliver(Box::new(|| Ok(()))))
             }
         })
         .unwrap();
@@ -2233,10 +2260,32 @@ mod tests {
         *server.lock() = 0;
         complete_action_server_take_batch(&server, |calls| {
             *calls += 1;
-            Ok(ActionServerTakeResult::Taken)
+            Ok(ActionServerTakeResult::Deliver(Box::new(|| Ok(()))))
         })
         .unwrap();
         assert_eq!(*server.lock(), MAX_ACTION_SERVER_REQUESTS_PER_SPIN);
+    }
+
+    #[test]
+    fn action_server_take_completions_run_after_releasing_the_server_lock() {
+        let server = Arc::new(Mutex::new(0usize));
+        let server_for_completion = Arc::clone(&server);
+
+        complete_action_server_take_batch(&*server, |calls| {
+            *calls += 1;
+            if *calls == 1 {
+                let server = Arc::clone(&server_for_completion);
+                Ok(ActionServerTakeResult::Deliver(Box::new(move || {
+                    assert!(server.try_lock().is_some());
+                    Ok(())
+                })))
+            } else {
+                Ok(ActionServerTakeResult::Idle)
+            }
+        })
+        .unwrap();
+
+        assert_eq!(*server.lock(), 2);
     }
 
     #[test]
