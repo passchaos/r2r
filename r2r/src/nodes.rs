@@ -1142,6 +1142,25 @@ impl Node {
         true
     }
 
+    fn rollback_clients(&mut self, client_count: usize) {
+        let mut removed_identities = HashSet::new();
+        while self.clients.len() > client_count {
+            let client = self.clients.pop().expect("client count checked");
+            let identity = Self::client_identity(&client);
+            self.client_identities.remove(&identity);
+            self.clients_with_active_availability.remove(&identity);
+            self.pending_client_removals.remove(&identity);
+            removed_identities.insert(identity);
+            client.lock().destroy(self.node_handle.as_mut());
+        }
+        self.dropped_clients
+            .lock()
+            .retain(|identity| !removed_identities.contains(identity));
+        self.active_availability_clients
+            .lock()
+            .retain(|identity| !removed_identities.contains(identity));
+    }
+
     fn action_client_identity<T: ?Sized>(client: &Arc<Mutex<T>>) -> usize {
         Arc::as_ptr(client).cast::<()>() as usize
     }
@@ -3341,7 +3360,14 @@ impl Node {
     pub fn create_parameter_client_with_qos(
         &mut self, remote_node_name: &str, qos: QosProfile,
     ) -> Result<ParameterClient> {
-        ParameterClient::new(self, remote_node_name, qos)
+        let client_count = self.clients.len();
+        match ParameterClient::new(self, remote_node_name, qos) {
+            Ok(client) => Ok(client),
+            Err(err) => {
+                self.rollback_clients(client_count);
+                Err(err)
+            }
+        }
     }
 
     /// Creates a runtime-agnostic client for this node's standard parameter services.
@@ -3357,7 +3383,7 @@ impl Node {
         &mut self, qos: QosProfile,
     ) -> Result<ParameterClient> {
         let node_name = self.fully_qualified_name()?;
-        ParameterClient::new(self, &node_name, qos)
+        self.create_parameter_client_with_qos(&node_name, qos)
     }
 
     /// Create a ROS service client.
@@ -10902,6 +10928,27 @@ mod tests {
         node.try_spin_once(Duration::ZERO).unwrap();
         assert_eq!(node.clients[active_index].lock().availability_poll_count(), 2);
         assert_eq!(node.clients[idle_index].lock().availability_poll_count(), 0);
+    }
+
+    #[test]
+    fn failed_parameter_client_creation_does_not_leave_partial_clients() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "parameter_client_rollback_test", "").unwrap();
+        let unrelated = node
+            .create_client::<AddTwoInts::Service>(
+                "/unrelated_parameter_client_service",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let remote_name = format!("/{}", "n".repeat(230));
+
+        assert!(node.create_parameter_client(&remote_name).is_err());
+        assert_eq!(node.clients.len(), 1);
+        assert_eq!(node.client_identities.len(), 1);
+        assert!(node.dropped_clients.lock().is_empty());
+        assert_eq!(unrelated.service_name().unwrap(), "/unrelated_parameter_client_service");
     }
 
     #[test]
