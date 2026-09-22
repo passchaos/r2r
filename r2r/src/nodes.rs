@@ -1170,6 +1170,9 @@ impl Node {
             });
             descriptor.name = name.clone();
             descriptor.type_ = parameter.value.parameter_type();
+            if name == "use_sim_time" {
+                descriptor.dynamic_typing = false;
+            }
             if descriptor.description.is_empty() {
                 descriptor.description = parameter.description.to_owned();
             }
@@ -1191,12 +1194,13 @@ impl Node {
                 descriptor.type_ = value.parameter_type();
             }
         } else {
+            let dynamic_typing = name != "use_sim_time";
             descriptors.insert(
                 name.to_owned(),
                 ParameterDescriptor {
                     name: name.to_owned(),
                     type_: value.parameter_type(),
-                    dynamic_typing: true,
+                    dynamic_typing,
                     ..Default::default()
                 },
             );
@@ -5802,6 +5806,34 @@ mod tests {
             }
         }
         panic!("publisher did not report liveliness loss");
+    }
+
+    #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+    #[test]
+    fn sim_time_remains_statically_typed_when_set_before_handler_creation() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "early_sim_time_test", "").unwrap();
+
+        node.set_parameter("use_sim_time", ParameterValue::Bool(false))
+            .unwrap();
+        let descriptor = node.get_parameter_descriptor("use_sim_time").unwrap();
+        assert_eq!(descriptor.type_, rcl_interfaces::msg::ParameterType::PARAMETER_BOOL as u8);
+        assert!(!descriptor.dynamic_typing);
+
+        let (_handler, _events) = node.make_parameter_handler().unwrap();
+        assert!(node
+            .set_parameter("use_sim_time", ParameterValue::NotSet)
+            .is_err());
+        assert!(node
+            .set_parameter("use_sim_time", ParameterValue::String("false".into()))
+            .is_err());
+        assert!(!node.get_parameter::<bool>("use_sim_time").unwrap());
+        assert!(
+            !node
+                .get_parameter_descriptor("use_sim_time")
+                .unwrap()
+                .dynamic_typing
+        );
     }
 
     #[cfg(r2r__rosgraph_msgs__msg__Clock)]
