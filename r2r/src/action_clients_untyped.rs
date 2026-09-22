@@ -617,14 +617,6 @@ impl WrappedActionClientUntyped {
 
     fn prune_canceled_requests(&mut self) -> Vec<ActionClientCompletion> {
         let mut completions = Vec::new();
-        let canceled_goals: Vec<_> = self
-            .goal_response_channels
-            .iter()
-            .filter_map(|(_, (uuid, sender))| sender.is_canceled().then_some(*uuid))
-            .collect();
-        for uuid in canceled_goals {
-            completions.extend(self.forget_goal(&uuid));
-        }
         self.cancel_response_channels
             .retain(|_, sender| !sender.is_canceled());
         self.feedback_senders
@@ -924,9 +916,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
     }
 
     fn has_pending_work(&mut self) -> bool {
-        self.goal_response_channels
-            .iter()
-            .any(|(_, (_, sender))| !sender.is_canceled())
+        !self.goal_response_channels.is_empty()
             || self
                 .cancel_response_channels
                 .iter()
@@ -1059,6 +1049,45 @@ mod tests {
         run_detached_action_client_completions(completions);
         assert!(matches!(target_receiver.try_recv(), Err(oneshot::Canceled)));
         assert_eq!(other_receiver.try_recv().unwrap(), None);
+    }
+
+    #[test]
+    fn dropping_pending_goal_registration_removes_closed_response() {
+        let uuid = uuid::Uuid::new_v4();
+        let (sender, receiver) = oneshot::channel::<(bool, builtin_interfaces::msg::Time)>();
+        let client = Arc::new(Mutex::new(WrappedActionClientUntyped {
+            action_type_support: UntypedActionSupport::new_from(
+                "example_interfaces/action/Fibonacci",
+            )
+            .unwrap(),
+            rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
+            goal_response_channels: HashMap::from([(10, (uuid, sender))]),
+            goal_response_sequences: HashMap::from([(uuid, 10)]),
+            cancel_response_channels: HashMap::new(),
+            feedback_senders: HashMap::new(),
+            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            result_requests: HashMap::new(),
+            result_request_sequences: HashMap::new(),
+            result_senders: HashMap::new(),
+            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
+            goal_status: HashMap::from([(uuid, GoalStatus::Unknown)]),
+            feedback_channel_capacity: 0,
+            poll_available_channels: Vec::new(),
+        }));
+        let registration = PendingGoalRegistration {
+            client: Arc::downgrade(&client),
+            uuid,
+            armed: true,
+        };
+
+        drop(receiver);
+        drop(registration);
+
+        let mut client = client.lock();
+        assert!(client.goal_response_channels.is_empty());
+        assert!(client.goal_response_sequences.is_empty());
+        assert!(!client.goal_status.contains_key(&uuid));
+        assert!(!client.has_pending_work());
     }
 
     #[test]
