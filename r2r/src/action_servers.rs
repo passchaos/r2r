@@ -210,6 +210,7 @@ fn with_prepared_action_server<S: ?Sized, P, T>(
 }
 
 pub trait ActionServer_ {
+    fn id(&self) -> uuid::Uuid;
     fn handle(&self) -> &rcl_action_server_t;
     fn handle_mut(&mut self) -> &mut rcl_action_server_t;
     fn reject_goal_request(
@@ -299,6 +300,40 @@ impl Stream for ActionServerCancelStreamUntyped {
 /// Stream of goal requests for a runtime-typed action server.
 pub struct ActionServerUntyped {
     inner: Pin<Box<dyn Stream<Item = ActionServerGoalRequestUntyped> + Send>>,
+}
+
+pub(crate) struct ActionServerRequestStream<T> {
+    receiver: mpsc::Receiver<T>,
+    id: uuid::Uuid,
+    dropped_action_servers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+}
+
+impl<T> ActionServerRequestStream<T> {
+    pub(crate) fn new(
+        receiver: mpsc::Receiver<T>, id: uuid::Uuid,
+        dropped_action_servers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    ) -> Self {
+        Self {
+            receiver,
+            id,
+            dropped_action_servers,
+        }
+    }
+}
+
+impl<T> Stream for ActionServerRequestStream<T> {
+    type Item = T;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.receiver).poll_next(cx)
+    }
+}
+
+impl<T> Drop for ActionServerRequestStream<T> {
+    fn drop(&mut self) {
+        self.receiver.close();
+        self.dropped_action_servers.lock().push_back(self.id);
+    }
 }
 
 impl Stream for ActionServerUntyped {
@@ -903,6 +938,7 @@ pub struct WrappedActionServer<T>
 where
     T: WrappedActionTypeSupport,
 {
+    pub id: uuid::Uuid,
     pub rcl_handle: rcl_action_server_t,
     pub clock: Arc<Mutex<Clock>>,
     pub goal_request_sender: Arc<Mutex<Option<mpsc::Sender<ActionServerGoalRequest<T>>>>>,
@@ -987,6 +1023,10 @@ impl<T: 'static> ActionServer_ for WrappedActionServer<T>
 where
     T: WrappedActionTypeSupport,
 {
+    fn id(&self) -> uuid::Uuid {
+        self.id
+    }
+
     fn handle(&self) -> &rcl_action_server_t {
         &self.rcl_handle
     }
@@ -1937,6 +1977,27 @@ mod tests {
 
     struct DummyResult;
 
+    #[test]
+    fn dropping_action_server_stream_queues_its_id() {
+        let id = uuid::Uuid::from_u128(1);
+        let dropped_action_servers = Arc::new(Mutex::new(VecDeque::new()));
+        let (sender, receiver) = mpsc::channel::<()>(1);
+        let stream =
+            ActionServerRequestStream::new(receiver, id, Arc::clone(&dropped_action_servers));
+
+        drop(stream);
+
+        assert_eq!(
+            dropped_action_servers
+                .lock()
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            [id]
+        );
+        assert!(sender.is_closed());
+    }
+
     impl VoidPtr for DummyResult {
         fn void_ptr(&self) -> *const std::os::raw::c_void {
             std::ptr::null()
@@ -1973,6 +2034,10 @@ mod tests {
     }
 
     impl ActionServer_ for CompletionTestServer {
+        fn id(&self) -> uuid::Uuid {
+            uuid::Uuid::nil()
+        }
+
         fn handle(&self) -> &rcl_action_server_t {
             &self.handle
         }

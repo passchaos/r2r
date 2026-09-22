@@ -546,6 +546,9 @@ pub struct Node {
     action_client_identities: HashSet<usize>,
     // action servers
     action_servers: Vec<Arc<Mutex<dyn ActionServer_>>>,
+    action_server_indexes: HashMap<uuid::Uuid, usize>,
+    dropped_action_servers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    pending_action_server_removals: HashSet<uuid::Uuid>,
     action_wait_set_capacities: WaitSetCapacities,
     // timers,
     timers: Vec<Timer_>,
@@ -836,6 +839,38 @@ impl Node {
         identities.extend(clients.iter().map(Self::action_client_identity));
     }
 
+    fn add_action_server(
+        &mut self, id: uuid::Uuid, server: Arc<Mutex<dyn ActionServer_>>,
+        capacities: WaitSetCapacities,
+    ) {
+        let index = self.action_servers.len();
+        debug_assert!(self.action_server_indexes.insert(id, index).is_none());
+        self.action_servers.push(server);
+        self.action_wait_set_capacities.add(capacities);
+    }
+
+    fn remove_action_server(&mut self, id: uuid::Uuid) -> Result<bool> {
+        let Some(index) = self.action_server_indexes.get(&id).copied() else {
+            return Ok(true);
+        };
+        let server = &self.action_servers[index];
+        let mut handle = server.lock();
+        if !handle.should_remove() {
+            return Ok(false);
+        }
+        let capacities = action_server_wait_set_capacities(handle.handle())?;
+        handle.destroy(self.node_handle.as_mut());
+        drop(handle);
+
+        self.action_server_indexes.remove(&id);
+        self.action_servers.swap_remove(index);
+        if let Some(moved) = self.action_servers.get(index) {
+            self.action_server_indexes.insert(moved.lock().id(), index);
+        }
+        self.action_wait_set_capacities.subtract(capacities);
+        Ok(true)
+    }
+
     pub(crate) fn owns_publisher(&self, publisher: &Arc<Publisher_>) -> bool {
         self.publisher_indexes
             .contains_key(&Self::publisher_identity(publisher))
@@ -1083,6 +1118,9 @@ impl Node {
                 action_clients: Vec::new(),
                 action_client_identities: HashSet::new(),
                 action_servers: Vec::new(),
+                action_server_indexes: HashMap::new(),
+                dropped_action_servers: Arc::new(Mutex::new(VecDeque::new())),
+                pending_action_server_removals: HashSet::new(),
                 action_wait_set_capacities: WaitSetCapacities::default(),
                 timers: Vec::new(),
                 timer_indexes: HashMap::new(),
@@ -3030,7 +3068,9 @@ impl Node {
                 return Err(err);
             }
         };
+        let id = uuid::Uuid::new_v4();
         let server = WrappedActionServer::<T> {
+            id,
             rcl_handle: server_handle,
             clock,
             goal_request_sender: Arc::new(Mutex::new(Some(goal_request_sender))),
@@ -3044,9 +3084,12 @@ impl Node {
         };
 
         let server_arc = Arc::new(Mutex::new(server));
-        self.action_servers.push(server_arc);
-        self.action_wait_set_capacities.add(action_capacities);
-        Ok(goal_request_receiver)
+        self.add_action_server(id, server_arc, action_capacities);
+        Ok(ActionServerRequestStream::new(
+            goal_request_receiver,
+            id,
+            Arc::clone(&self.dropped_action_servers),
+        ))
     }
 
     /// Creates a runtime-typed ROS action server whose goal, feedback, and result use JSON.
@@ -3331,28 +3374,25 @@ impl Node {
             })?;
         }
 
-        let node_handle = self.node_handle.as_mut();
-        let mut removed_action_capacities = WaitSetCapacities::default();
-        self.action_servers.retain(|server| {
-            let mut handle = server.lock();
-            if handle.should_remove() {
-                match action_server_wait_set_capacities(handle.handle()) {
-                    Ok(capacities) => {
-                        handle.destroy(node_handle);
-                        removed_action_capacities.add(capacities);
-                        false
-                    }
-                    Err(err) => {
-                        log::warn!("could not inspect dropped action server: {err}");
-                        true
-                    }
+        {
+            let mut dropped = self.dropped_action_servers.lock();
+            self.pending_action_server_removals
+                .extend(dropped.drain(..));
+        }
+        let pending_action_server_removals =
+            std::mem::take(&mut self.pending_action_server_removals);
+        for id in pending_action_server_removals {
+            match self.remove_action_server(id) {
+                Ok(true) => {}
+                Ok(false) => {
+                    self.pending_action_server_removals.insert(id);
                 }
-            } else {
-                true
+                Err(err) => {
+                    log::warn!("could not inspect dropped action server: {err}");
+                    self.pending_action_server_removals.insert(id);
+                }
             }
-        });
-        self.action_wait_set_capacities
-            .subtract(removed_action_capacities);
+        }
 
         // as well as polling any services/action servers for availability
         for c in &mut self.clients {
@@ -10730,9 +10770,58 @@ mod tests {
         assert_eq!(node.action_servers.len(), 1);
 
         drop(requests);
+        assert_eq!(
+            node.dropped_action_servers
+                .lock()
+                .iter()
+                .copied()
+                .collect::<Vec<_>>()
+                .len(),
+            1
+        );
         node.try_spin_once(Duration::ZERO).unwrap();
 
         assert!(node.action_servers.is_empty());
+        assert!(node.action_server_indexes.is_empty());
+        assert!(node.pending_action_server_removals.is_empty());
+        assert_eq!(node.action_wait_set_capacities, WaitSetCapacities::default());
+    }
+
+    #[test]
+    fn dropped_action_server_removal_updates_swapped_index() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "action_server_index_cleanup_test", "").unwrap();
+        let first = node
+            .create_action_server::<Fibonacci::Action>("/first_action_server_cleanup")
+            .unwrap();
+        let middle = node
+            .create_action_server::<Fibonacci::Action>("/middle_action_server_cleanup")
+            .unwrap();
+        let last = node
+            .create_action_server::<Fibonacci::Action>("/last_action_server_cleanup")
+            .unwrap();
+        let ids = node
+            .action_servers
+            .iter()
+            .map(|server| server.lock().id())
+            .collect::<Vec<_>>();
+
+        drop(middle);
+        node.try_spin_once(Duration::ZERO).unwrap();
+
+        assert_eq!(node.action_servers.len(), 2);
+        assert!(!node.action_server_indexes.contains_key(&ids[1]));
+        for (index, server) in node.action_servers.iter().enumerate() {
+            assert_eq!(node.action_server_indexes.get(&server.lock().id()), Some(&index));
+        }
+
+        drop(first);
+        drop(last);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.action_servers.is_empty());
+        assert!(node.action_server_indexes.is_empty());
         assert_eq!(node.action_wait_set_capacities, WaitSetCapacities::default());
     }
 }
