@@ -389,16 +389,10 @@ where
                 |response_msg| T::Response::from_native(&response_msg),
             ))))
         } else {
-            let we_have: String = self
-                .response_channels
-                .keys()
-                .map(|id| id.to_string())
-                .collect::<Vec<_>>()
-                .join(",");
             log::debug!(
-                "no such req id: {}, we have [{}], ignoring",
+                "no such req id: {}, we have {:?}, ignoring",
                 request_id.sequence_number,
-                we_have
+                self.response_channels.keys()
             );
             Ok(ClientResponseAction::Taken(None))
         }
@@ -478,16 +472,10 @@ impl Client_ for UntypedClient_ {
                 |response_msg| response_msg.to_json(),
             ))))
         } else {
-            let we_have: String = self
-                .response_channels
-                .keys()
-                .map(|id| id.to_string())
-                .collect::<Vec<_>>()
-                .join(",");
             log::debug!(
-                "no such req id: {}, we have [{}], ignoring",
+                "no such req id: {}, we have {:?}, ignoring",
                 request_id.sequence_number,
-                we_have
+                self.response_channels.keys()
             );
             Ok(ClientResponseAction::Taken(None))
         }

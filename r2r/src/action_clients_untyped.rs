@@ -717,16 +717,10 @@ impl ActionClient_ for WrappedActionClientUntyped {
                     Some(uuid),
                 ));
             } else {
-                let we_have: String = self
-                    .goal_response_channels
-                    .keys()
-                    .map(i64::to_string)
-                    .collect::<Vec<_>>()
-                    .join(",");
                 log::error!(
-                    "no such req id: {}, we have [{}], ignoring",
+                    "no such req id: {}, we have {:?}, ignoring",
                     request_id.sequence_number,
-                    we_have
+                    self.goal_response_channels.keys()
                 );
             }
             Ok(ActionClientTakeResult::Taken)
@@ -765,16 +759,10 @@ impl ActionClient_ for WrappedActionClientUntyped {
                     None,
                 ));
             } else {
-                let we_have: String = self
-                    .cancel_response_channels
-                    .keys()
-                    .map(i64::to_string)
-                    .collect::<Vec<_>>()
-                    .join(",");
                 log::error!(
-                    "no such req id: {}, we have [{}], ignoring",
+                    "no such req id: {}, we have {:?}, ignoring",
                     request_id.sequence_number,
-                    we_have
+                    self.cancel_response_channels.keys()
                 );
             }
             Ok(ActionClientTakeResult::Taken)
@@ -856,16 +844,10 @@ impl ActionClient_ for WrappedActionClientUntyped {
                     return Ok(ActionClientTakeResult::Taken);
                 }
             } else {
-                let we_have: String = self
-                    .result_requests
-                    .keys()
-                    .map(i64::to_string)
-                    .collect::<Vec<_>>()
-                    .join(",");
                 log::error!(
-                    "no such req id: {}, we have [{}], ignoring",
+                    "no such req id: {}, we have {:?}, ignoring",
                     request_id.sequence_number,
-                    we_have
+                    self.result_requests.keys()
                 );
             }
             Ok(ActionClientTakeResult::Taken)
