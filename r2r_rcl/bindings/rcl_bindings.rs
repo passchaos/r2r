@@ -9604,3 +9604,63 @@ extern "C" {
 extern "C" {
     pub fn rcl_yaml_node_struct_print(params_st: *const rcl_params_t);
 }
+#[repr(u32)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub enum rmw_transport_protocol_e {
+    RMW_TRANSPORT_PROTOCOL_UNKNOWN = 0,
+    RMW_TRANSPORT_PROTOCOL_UDP = 1,
+    RMW_TRANSPORT_PROTOCOL_TCP = 2,
+    RMW_TRANSPORT_PROTOCOL_COUNT = 3,
+}
+pub use self::rmw_transport_protocol_e as rmw_transport_protocol_t;
+#[repr(u32)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub enum rmw_internet_protocol_e {
+    RMW_INTERNET_PROTOCOL_UNKNOWN = 0,
+    RMW_INTERNET_PROTOCOL_IPV4 = 1,
+    RMW_INTERNET_PROTOCOL_IPV6 = 2,
+    RMW_INTERNET_PROTOCOL_COUNT = 3,
+}
+pub use self::rmw_internet_protocol_e as rmw_internet_protocol_t;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct rmw_network_flow_endpoint_s {
+    pub transport_protocol: rmw_transport_protocol_t,
+    pub internet_protocol: rmw_internet_protocol_t,
+    pub transport_port: u16,
+    pub flow_label: u32,
+    pub dscp: u8,
+    pub internet_address: [::std::os::raw::c_char; 48usize],
+}
+pub type rmw_network_flow_endpoint_t = rmw_network_flow_endpoint_s;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct rmw_network_flow_endpoint_array_s {
+    pub size: usize,
+    pub network_flow_endpoint: *mut rmw_network_flow_endpoint_t,
+    pub allocator: *mut rcutils_allocator_t,
+}
+pub type rmw_network_flow_endpoint_array_t = rmw_network_flow_endpoint_array_s;
+extern "C" {
+    pub fn rmw_get_zero_initialized_network_flow_endpoint_array(
+    ) -> rmw_network_flow_endpoint_array_t;
+    pub fn rmw_network_flow_endpoint_array_fini(
+        network_flow_endpoint_array: *mut rmw_network_flow_endpoint_array_t,
+    ) -> rmw_ret_t;
+    pub fn rmw_network_flow_endpoint_get_transport_protocol_string(
+        transport_protocol: rmw_transport_protocol_t,
+    ) -> *const ::std::os::raw::c_char;
+    pub fn rmw_network_flow_endpoint_get_internet_protocol_string(
+        internet_protocol: rmw_internet_protocol_t,
+    ) -> *const ::std::os::raw::c_char;
+    pub fn rcl_publisher_get_network_flow_endpoints(
+        publisher: *const rcl_publisher_t,
+        allocator: *mut rcutils_allocator_t,
+        network_flow_endpoint_array: *mut rmw_network_flow_endpoint_array_t,
+    ) -> rcl_ret_t;
+    pub fn rcl_subscription_get_network_flow_endpoints(
+        subscription: *const rcl_subscription_t,
+        allocator: *mut rcutils_allocator_t,
+        network_flow_endpoint_array: *mut rmw_network_flow_endpoint_array_t,
+    ) -> rcl_ret_t;
+}

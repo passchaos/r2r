@@ -1381,6 +1381,16 @@ impl Node {
             .can_loan_messages())
     }
 
+    pub(crate) fn get_subscription_network_flow_endpoints(
+        &self, id: uuid::Uuid,
+    ) -> Result<Vec<NetworkFlowEndpoint>> {
+        self.subscribers
+            .iter()
+            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
+            .network_flow_endpoints()
+    }
+
     pub(crate) fn get_subscription_content_filter_enabled(&self, id: uuid::Uuid) -> Result<bool> {
         Ok(self
             .subscribers
@@ -4023,7 +4033,28 @@ mod tests {
 
     #[test]
     fn publisher_and_subscription_support_unique_network_flow_options() {
+        fn validate_endpoints(result: Result<Vec<NetworkFlowEndpoint>>) {
+            match result {
+                Ok(endpoints) => {
+                    assert!(!endpoints.is_empty());
+                    for endpoint in endpoints {
+                        assert!(!endpoint.transport_protocol.is_empty());
+                        assert!(!endpoint.internet_protocol.is_empty());
+                        if endpoint.internet_protocol != "Unknown" {
+                            endpoint
+                                .internet_address
+                                .parse::<std::net::IpAddr>()
+                                .unwrap();
+                        }
+                    }
+                }
+                Err(Error::RCL_RET_UNSUPPORTED) => {}
+                Err(err) => panic!("unexpected network flow endpoint error: {err}"),
+            }
+        }
+
         let context = Context::create().unwrap();
+        let other = Node::create(context.clone(), "unique_network_flow_other", "").unwrap();
         let mut node = Node::create(context, "unique_network_flow_test", "").unwrap();
         let topic = format!("/unique_flow_{}", uuid::Uuid::new_v4().simple());
         let publisher = node
@@ -4042,15 +4073,34 @@ mod tests {
                     .unique_network_flow(UniqueNetworkFlowRequirement::SystemDefault),
             )
             .unwrap();
-        let _untyped = node
+        let untyped_topic = format!("/unique_flow_untyped_{}", uuid::Uuid::new_v4().simple());
+        let untyped = node
             .create_publisher_untyped_with_options(
-                "/unique_flow_untyped",
+                &untyped_topic,
                 "std_msgs/msg/Int32",
                 QosProfile::default(),
                 PublisherOptions::default()
                     .unique_network_flow(UniqueNetworkFlowRequirement::SystemDefault),
             )
             .unwrap();
+        let untyped_subscription = node
+            .subscribe_untyped_with_options(
+                &untyped_topic,
+                "std_msgs/msg/Int32",
+                QosProfile::default(),
+                SubscriptionOptions::default()
+                    .unique_network_flow(UniqueNetworkFlowRequirement::SystemDefault),
+            )
+            .unwrap();
+
+        validate_endpoints(publisher.get_network_flow_endpoints());
+        validate_endpoints(subscription.get_network_flow_endpoints(&node));
+        validate_endpoints(untyped.get_network_flow_endpoints());
+        validate_endpoints(untyped_subscription.get_network_flow_endpoints(&node));
+        assert!(matches!(
+            subscription.get_network_flow_endpoints(&other),
+            Err(Error::RCL_RET_SUBSCRIPTION_INVALID)
+        ));
 
         let wait = publisher
             .wait_for_subscribers_with_timeout(&mut node, Duration::from_secs(1))

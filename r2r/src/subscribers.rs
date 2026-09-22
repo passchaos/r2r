@@ -16,7 +16,13 @@ use std::{
 };
 
 use crate::{
-    error::*, msg_types::*, nodes::Node, publishers::UniqueNetworkFlowRequirement, qos::QosProfile,
+    error::*,
+    msg_types::*,
+    nodes::Node,
+    publishers::{
+        subscription_network_flow_endpoints, NetworkFlowEndpoint, UniqueNetworkFlowRequirement,
+    },
+    qos::QosProfile,
     QosPolicyKind,
 };
 use r2r_rcl::*;
@@ -267,6 +273,11 @@ impl<T> Subscription<T> {
     /// Returns whether the middleware can loan messages for this subscription and message type.
     pub fn can_loan_messages(&self, node: &Node) -> Result<bool> {
         node.get_subscription_can_loan_messages(self.id)
+    }
+
+    /// Returns the network flows used to receive messages, when supported by the RMW.
+    pub fn get_network_flow_endpoints(&self, node: &Node) -> Result<Vec<NetworkFlowEndpoint>> {
+        node.get_subscription_network_flow_endpoints(self.id)
     }
 
     /// Returns whether middleware-side content filtering is enabled for this subscription.
@@ -623,6 +634,9 @@ pub(crate) trait Subscriber_ {
     }
     fn can_loan_messages(&self) -> bool {
         unsafe { rcl_subscription_can_loan_messages(self.handle()) }
+    }
+    fn network_flow_endpoints(&self) -> Result<Vec<NetworkFlowEndpoint>> {
+        subscription_network_flow_endpoints(self.handle())
     }
     fn is_content_filter_enabled(&self) -> bool {
         #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]

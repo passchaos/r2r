@@ -99,8 +99,9 @@ pub use subscribers::{
 
 mod publishers;
 pub use publishers::{
-    LivelinessLostStatus, LoanedMessage, OfferedDeadlineMissedStatus, OfferedIncompatibleQosStatus,
-    Publisher, PublisherOptions, PublisherUntyped, UniqueNetworkFlowRequirement,
+    LivelinessLostStatus, LoanedMessage, NetworkFlowEndpoint, OfferedDeadlineMissedStatus,
+    OfferedIncompatibleQosStatus, Publisher, PublisherOptions, PublisherUntyped,
+    UniqueNetworkFlowRequirement,
 };
 
 mod services;

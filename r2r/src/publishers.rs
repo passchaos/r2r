@@ -21,6 +21,17 @@ pub enum UniqueNetworkFlowRequirement {
     SystemDefault,
 }
 
+/// Transport information for a middleware network flow used by an endpoint.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NetworkFlowEndpoint {
+    pub transport_protocol: String,
+    pub internet_protocol: String,
+    pub transport_port: u16,
+    pub flow_label: u32,
+    pub dscp: u8,
+    pub internet_address: String,
+}
+
 impl From<UniqueNetworkFlowRequirement> for rmw_unique_network_flow_endpoints_requirement_t {
     fn from(requirement: UniqueNetworkFlowRequirement) -> Self {
         match requirement {
@@ -112,6 +123,27 @@ mod option_tests {
             ),
             rmw_unique_network_flow_endpoints_requirement_t::RMW_UNIQUE_NETWORK_FLOW_ENDPOINTS_SYSTEM_DEFAULT
         );
+    }
+
+    #[cfg(not(r2r__ros__distro__foxy))]
+    #[test]
+    fn network_flow_endpoints_reject_invalid_native_addresses() {
+        let mut endpoint = unsafe { rmw_get_zero_initialized_network_flow_endpoint() };
+        endpoint.internet_address.fill(b'a' as std::os::raw::c_char);
+        assert!(matches!(
+            NetworkFlowEndpoint::try_from_native(&endpoint),
+            Err(Error::RCL_RET_ERROR)
+        ));
+
+        endpoint.internet_address.fill(0);
+        endpoint.internet_address[0] = 0xff_u8 as std::os::raw::c_char;
+        assert!(matches!(
+            NetworkFlowEndpoint::try_from_native(&endpoint),
+            Err(Error::InvalidUtf8 {
+                context: "network flow internet address",
+                ..
+            })
+        ));
     }
 }
 
@@ -336,6 +368,10 @@ impl Publisher_ {
 
     fn can_loan_messages(&self) -> Result<bool> {
         self.with_handle(|handle| Ok(unsafe { rcl_publisher_can_loan_messages(handle) }))
+    }
+
+    fn network_flow_endpoints(&self) -> Result<Vec<NetworkFlowEndpoint>> {
+        self.with_handle(publisher_network_flow_endpoints)
     }
 
     #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
@@ -659,6 +695,14 @@ impl PublisherUntyped {
             .can_loan_messages()
     }
 
+    /// Returns the network flows used to send messages, when supported by the RMW.
+    pub fn get_network_flow_endpoints(&self) -> Result<Vec<NetworkFlowEndpoint>> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .network_flow_endpoints()
+    }
+
     /// Manually asserts this publisher's liveliness.
     ///
     /// This is intended for publishers using [`crate::qos::LivelinessPolicy::ManualByTopic`].
@@ -880,6 +924,14 @@ where
             .can_loan_messages()
     }
 
+    /// Returns the network flows used to send messages, when supported by the RMW.
+    pub fn get_network_flow_endpoints(&self) -> Result<Vec<NetworkFlowEndpoint>> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .network_flow_endpoints()
+    }
+
     /// Manually asserts this publisher's liveliness.
     ///
     /// This is intended for publishers using [`crate::qos::LivelinessPolicy::ManualByTopic`].
@@ -1068,5 +1120,147 @@ fn check_publisher_ret(ret: rcl_ret_t) -> Result<()> {
         Ok(())
     } else {
         Err(Error::from_rcl_error(ret))
+    }
+}
+
+#[cfg(not(r2r__ros__distro__foxy))]
+struct NetworkFlowEndpointArray(rmw_network_flow_endpoint_array_t);
+
+#[cfg(not(r2r__ros__distro__foxy))]
+impl NetworkFlowEndpointArray {
+    fn new() -> Self {
+        Self(unsafe { rmw_get_zero_initialized_network_flow_endpoint_array() })
+    }
+
+    fn to_vec(&self) -> Result<Vec<NetworkFlowEndpoint>> {
+        if self.0.size == 0 {
+            return Ok(Vec::new());
+        }
+        if self.0.network_flow_endpoint.is_null() {
+            return Err(Error::RCL_RET_ERROR);
+        }
+        unsafe { std::slice::from_raw_parts(self.0.network_flow_endpoint, self.0.size) }
+            .iter()
+            .map(NetworkFlowEndpoint::try_from_native)
+            .collect()
+    }
+}
+
+#[cfg(not(r2r__ros__distro__foxy))]
+impl Drop for NetworkFlowEndpointArray {
+    fn drop(&mut self) {
+        if self.0.allocator.is_null() {
+            return;
+        }
+        let ret = unsafe { rmw_network_flow_endpoint_array_fini(&mut self.0) };
+        if ret != RCL_RET_OK as i32 {
+            log::error!("could not finalize network flow endpoint array: {ret}");
+        }
+    }
+}
+
+#[cfg(not(r2r__ros__distro__foxy))]
+impl NetworkFlowEndpoint {
+    fn try_from_native(endpoint: &rmw_network_flow_endpoint_t) -> Result<Self> {
+        fn protocol_string(
+            value: *const std::os::raw::c_char, context: &'static str,
+        ) -> Result<String> {
+            if value.is_null() {
+                return Err(Error::RCL_RET_ERROR);
+            }
+            unsafe { CStr::from_ptr(value) }
+                .to_str()
+                .map(str::to_owned)
+                .map_err(|err| Error::InvalidUtf8 {
+                    context,
+                    err: err.to_string(),
+                })
+        }
+
+        let address = unsafe {
+            std::slice::from_raw_parts(
+                endpoint.internet_address.as_ptr().cast::<u8>(),
+                endpoint.internet_address.len(),
+            )
+        };
+        let internet_address = CStr::from_bytes_until_nul(address)
+            .map_err(|_| Error::RCL_RET_ERROR)?
+            .to_str()
+            .map(str::to_owned)
+            .map_err(|err| Error::InvalidUtf8 {
+                context: "network flow internet address",
+                err: err.to_string(),
+            })?;
+
+        Ok(Self {
+            transport_protocol: protocol_string(
+                unsafe {
+                    rmw_network_flow_endpoint_get_transport_protocol_string(
+                        endpoint.transport_protocol,
+                    )
+                },
+                "network flow transport protocol",
+            )?,
+            internet_protocol: protocol_string(
+                unsafe {
+                    rmw_network_flow_endpoint_get_internet_protocol_string(
+                        endpoint.internet_protocol,
+                    )
+                },
+                "network flow internet protocol",
+            )?,
+            transport_port: endpoint.transport_port,
+            flow_label: endpoint.flow_label,
+            dscp: endpoint.dscp,
+            internet_address,
+        })
+    }
+}
+
+fn publisher_network_flow_endpoints(handle: &rcl_publisher_t) -> Result<Vec<NetworkFlowEndpoint>> {
+    #[cfg(not(r2r__ros__distro__foxy))]
+    {
+        let mut endpoints = NetworkFlowEndpointArray::new();
+        let mut allocator = unsafe { rcutils_get_default_allocator() };
+        let ret = unsafe {
+            rcl_publisher_get_network_flow_endpoints(handle, &mut allocator, &mut endpoints.0)
+        };
+        if ret != RCL_RET_OK as i32 {
+            let err = Error::from_rcl_error(ret);
+            drop(endpoints);
+            unsafe { rcutils_reset_error() };
+            return Err(err);
+        }
+        endpoints.to_vec()
+    }
+    #[cfg(r2r__ros__distro__foxy)]
+    {
+        let _ = handle;
+        Err(Error::RCL_RET_UNSUPPORTED)
+    }
+}
+
+pub(crate) fn subscription_network_flow_endpoints(
+    handle: &rcl_subscription_t,
+) -> Result<Vec<NetworkFlowEndpoint>> {
+    #[cfg(not(r2r__ros__distro__foxy))]
+    {
+        let mut endpoints = NetworkFlowEndpointArray::new();
+        let mut allocator = unsafe { rcutils_get_default_allocator() };
+        let ret = unsafe {
+            rcl_subscription_get_network_flow_endpoints(handle, &mut allocator, &mut endpoints.0)
+        };
+        if ret != RCL_RET_OK as i32 {
+            let err = Error::from_rcl_error(ret);
+            drop(endpoints);
+            unsafe { rcutils_reset_error() };
+            return Err(err);
+        }
+        endpoints.to_vec()
+    }
+    #[cfg(r2r__ros__distro__foxy)]
+    {
+        let _ = handle;
+        Err(Error::RCL_RET_UNSUPPORTED)
     }
 }
