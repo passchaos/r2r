@@ -1,7 +1,8 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use futures::{future, stream::StreamExt};
 
+use r2r::parking_lot::Mutex;
 use r2r::QosProfile;
 use tokio::task;
 
@@ -27,7 +28,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         {
             arc_node
                 .lock()
-                .unwrap()
                 .spin_once(std::time::Duration::from_millis(10));
         }
         std::thread::sleep(std::time::Duration::from_millis(100))
@@ -41,7 +41,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn subscriber(arc_node: Arc<Mutex<r2r::Node>>) -> Result<(), r2r::Error> {
     let sub = arc_node
         .lock()
-        .unwrap()
         .subscribe::<r2r::std_msgs::msg::String>("/topic", QosProfile::default())?;
     sub.for_each(|msg| {
         println!("topic: new msg: {}", msg.data);
@@ -54,7 +53,7 @@ async fn subscriber(arc_node: Arc<Mutex<r2r::Node>>) -> Result<(), r2r::Error> {
 async fn publisher(arc_node: Arc<Mutex<r2r::Node>>) -> Result<(), r2r::Error> {
     let (mut timer, publisher) = {
         // Limiting the scope when locking the arc
-        let mut node = arc_node.lock().unwrap();
+        let mut node = arc_node.lock();
         let timer = node.create_wall_timer(std::time::Duration::from_secs(2))?;
         let publisher =
             node.create_publisher::<r2r::std_msgs::msg::String>("/topic", QosProfile::default())?;
@@ -74,7 +73,7 @@ async fn client(arc_node: Arc<Mutex<r2r::Node>>) -> Result<(), r2r::Error> {
     use r2r::example_interfaces::srv::AddTwoInts;
     let (client, mut timer, service_available) = {
         // Limiting the scope when locking the arc
-        let mut node = arc_node.lock().unwrap();
+        let mut node = arc_node.lock();
         let client =
             node.create_client::<AddTwoInts::Service>("/add_two_ints", QosProfile::default())?;
         let timer = node.create_wall_timer(std::time::Duration::from_secs(2))?;
@@ -98,7 +97,7 @@ async fn service(arc_node: Arc<Mutex<r2r::Node>>) -> Result<(), r2r::Error> {
     use r2r::example_interfaces::srv::AddTwoInts;
     let mut service = {
         // Limiting the scope when locking the arc
-        let mut node = arc_node.lock().unwrap();
+        let mut node = arc_node.lock();
         node.create_service::<AddTwoInts::Service>("/add_two_ints", QosProfile::default())?
     };
     while let Some(req) = service.next().await {

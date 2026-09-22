@@ -1,9 +1,11 @@
-use r2r::{Context, ContextOptions, Error, Node};
-use std::sync::{Mutex, MutexGuard, OnceLock};
+use r2r::{
+    parking_lot::{Mutex, MutexGuard},
+    Context, ContextOptions, Error, Node,
+};
 
 fn context_test_lock() -> MutexGuard<'static, ()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+    static LOCK: Mutex<()> = Mutex::new(());
+    LOCK.lock()
 }
 
 #[test]

@@ -1,7 +1,8 @@
 use futures::stream::StreamExt;
+use r2r::parking_lot::Mutex;
 use r2r::QosProfile;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::task;
 
 const N_CONCURRENT_ROS_CONTEXT: usize = 3;
@@ -115,7 +116,7 @@ async fn tokio_testing() -> Result<(), Box<dyn std::error::Error>> {
 
                             let i = msg.data;
 
-                            *s.lock().unwrap() = i;
+                            *s.lock() = i;
                         }
                     });
 
@@ -131,7 +132,7 @@ async fn tokio_testing() -> Result<(), Box<dyn std::error::Error>> {
                     let handle = task::spawn_blocking(move || {
                         for _ in 1..30 {
                             node.spin_once(std::time::Duration::from_millis(100));
-                            let x = state.lock().unwrap();
+                            let x = state.lock();
 
                             println!("rec {}", x);
 
@@ -140,7 +141,7 @@ async fn tokio_testing() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
 
-                        *state.lock().unwrap()
+                        *state.lock()
                     });
                     let x = handle.await.unwrap();
                     assert_eq!(x, 19);

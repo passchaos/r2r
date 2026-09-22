@@ -6,7 +6,8 @@ use futures::{
 };
 
 use r2r::example_interfaces::action::Fibonacci;
-use std::sync::{Arc, Mutex};
+use r2r::parking_lot::Mutex;
+use std::sync::Arc;
 
 // main goal handling routine.
 async fn run_goal(
@@ -14,7 +15,6 @@ async fn run_goal(
 ) -> Fibonacci::Result {
     let mut timer = node // local timer, will be dropped after this request is processed.
         .lock()
-        .unwrap()
         .create_wall_timer(std::time::Duration::from_millis(1000))
         .expect("could not create timer");
 
@@ -85,7 +85,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let server_requests = node
         .lock()
-        .unwrap()
         .create_action_server::<Fibonacci::Action>("/fibonacci")?;
 
     let node_cb = node.clone();
@@ -94,9 +93,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
 
     loop {
-        node.lock()
-            .unwrap()
-            .spin_once(std::time::Duration::from_millis(100));
+        node.lock().spin_once(std::time::Duration::from_millis(100));
         pool.run_until_stalled();
     }
 }

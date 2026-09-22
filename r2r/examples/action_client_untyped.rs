@@ -2,8 +2,9 @@
 // This example is the same as action_client.rs but stripped of all (explicit) type information.
 //
 use futures::{executor::LocalPool, future::FutureExt, stream::StreamExt, task::LocalSpawnExt};
+use r2r::parking_lot::Mutex;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ctx = r2r::Context::create()?;
@@ -59,7 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .map(|r| {
                                     println!("goal cancelled: {:?}", r);
                                     // we are done.
-                                    *nested_task_done.lock().unwrap() = true;
+                                    *nested_task_done.lock() = true;
                                 })
                                 .await;
                         }
@@ -72,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         match result.await {
             Ok((status, msg)) => {
                 println!("got result {} with msg {:?}", status, msg);
-                *task_done.lock().unwrap() = true;
+                *task_done.lock() = true;
             }
             Err(e) => println!("action failed: {:?}", e),
         }
@@ -81,7 +82,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         node.spin_once(std::time::Duration::from_millis(100));
         pool.run_until_stalled();
-        if *done.lock().unwrap() {
+        if *done.lock() {
             break;
         }
     }

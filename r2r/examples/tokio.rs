@@ -1,7 +1,8 @@
 use futures::{future, stream::StreamExt};
+use r2r::parking_lot::Mutex;
 use r2r::QosProfile;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::task;
 
 #[derive(Debug, Default)]
@@ -30,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap();
             } else {
                 // update shared state
-                state_t1.lock().unwrap().state = x;
+                state_t1.lock().state = x;
             }
             x += 1;
         }
@@ -53,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     task::spawn(async move {
         loop {
             let time_passed = timer.tick().await.unwrap();
-            let x = state_t2.lock().unwrap().state;
+            let x = state_t2.lock().state;
             println!(
                 "timer event. time passed: {}. shared state is {}",
                 time_passed.as_micros(),
