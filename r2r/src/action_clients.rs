@@ -51,6 +51,55 @@ pub(crate) struct PendingFeedbackQueue {
     queued: HashSet<uuid::Uuid>,
 }
 
+pub(crate) type CanceledResultQueue = Arc<Mutex<VecDeque<uuid::Uuid>>>;
+
+pub(crate) struct ResultFutureRegistration {
+    canceled_results: CanceledResultQueue,
+    uuid: uuid::Uuid,
+    armed: bool,
+}
+
+impl ResultFutureRegistration {
+    pub(crate) fn new(canceled_results: CanceledResultQueue, uuid: uuid::Uuid) -> Self {
+        Self {
+            canceled_results,
+            uuid,
+            armed: true,
+        }
+    }
+
+    pub(crate) fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for ResultFutureRegistration {
+    fn drop(&mut self) {
+        if self.armed {
+            self.canceled_results.lock().push_back(self.uuid);
+        }
+    }
+}
+
+pub(crate) fn take_canceled_result_goals<T>(
+    canceled_results: &CanceledResultQueue,
+    result_senders: &HashMap<uuid::Uuid, oneshot::Sender<T>>,
+) -> Vec<uuid::Uuid> {
+    let candidates = {
+        let mut canceled_results = canceled_results.lock();
+        let count = canceled_results.len().min(MAX_ACTION_RESPONSES_PER_SPIN);
+        canceled_results.drain(..count).collect::<Vec<_>>()
+    };
+    candidates
+        .into_iter()
+        .filter(|uuid| {
+            result_senders
+                .get(uuid)
+                .is_some_and(oneshot::Sender::is_canceled)
+        })
+        .collect()
+}
+
 impl PendingFeedbackQueue {
     fn push(&mut self, uuid: uuid::Uuid) {
         if self.queued.insert(uuid) {
@@ -73,7 +122,7 @@ impl PendingFeedbackQueue {
     }
 }
 
-const MAX_ACTION_RESPONSES_PER_SPIN: usize = 16;
+pub(crate) const MAX_ACTION_RESPONSES_PER_SPIN: usize = 16;
 const MAX_ACTION_FEEDBACK_PER_SPIN: usize = 16;
 
 pub(crate) fn collect_action_client_responses<C: ?Sized>(
@@ -485,6 +534,7 @@ where
     T: WrappedActionTypeSupport,
 {
     receiver: oneshot::Receiver<(GoalStatus, T::Result)>,
+    registration: ResultFutureRegistration,
 }
 
 impl<T> Future for ActionResultFuture<T>
@@ -494,9 +544,22 @@ where
     type Output = Result<(GoalStatus, T::Result)>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.receiver)
-            .poll(cx)
-            .map(|result| result.map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID))
+        match Pin::new(&mut self.receiver).poll(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(result) => {
+                self.registration.disarm();
+                Poll::Ready(result.map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID))
+            }
+        }
+    }
+}
+
+impl<T> Drop for ActionResultFuture<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    fn drop(&mut self) {
+        self.receiver.close();
     }
 }
 
@@ -803,7 +866,13 @@ where
                 let result = options.track_result.then(|| {
                     let (sender, receiver) = oneshot::channel::<(GoalStatus, T::Result)>();
                     client.result_senders.insert(uuid, sender);
-                    ActionResultFuture { receiver }
+                    ActionResultFuture {
+                        receiver,
+                        registration: ResultFutureRegistration::new(
+                            Arc::clone(&client.canceled_result_goals),
+                            uuid,
+                        ),
+                    }
                 });
                 client.register_goal_response(seq_no, uuid, goal_req_sender);
                 client.goal_status.insert(uuid, GoalStatus::Unknown);
@@ -921,6 +990,7 @@ where
     pub result_requests: HashMap<i64, uuid::Uuid>,
     pub result_request_sequences: HashMap<uuid::Uuid, i64>,
     pub result_senders: HashMap<uuid::Uuid, ResultSender<T::Result>>,
+    pub canceled_result_goals: CanceledResultQueue,
     pub goal_status: HashMap<uuid::Uuid, GoalStatus>,
     pub feedback_channel_capacity: usize,
 
@@ -1114,11 +1184,8 @@ where
             .retain(|_, sender| !sender.is_canceled());
         self.feedback_senders
             .retain(|_, channel| !channel.lock().is_closed());
-        let canceled_results: Vec<_> = self
-            .result_senders
-            .iter()
-            .filter_map(|(uuid, sender)| sender.is_canceled().then_some(*uuid))
-            .collect();
+        let canceled_results =
+            take_canceled_result_goals(&self.canceled_result_goals, &self.result_senders);
         for uuid in canceled_results {
             completions.extend(self.forget_result(&uuid));
         }
@@ -1434,10 +1501,7 @@ where
                 .feedback_senders
                 .values()
                 .any(|channel| !channel.lock().is_closed())
-            || self
-                .result_senders
-                .values()
-                .any(|sender| !sender.is_canceled())
+            || !self.result_senders.is_empty()
             || self
                 .poll_available_channels
                 .iter()
@@ -1980,6 +2044,121 @@ mod tests {
     }
 
     #[test]
+    fn dropping_result_future_queues_only_its_goal_for_cleanup() {
+        let target = uuid::Uuid::from_u128(1);
+        let other = uuid::Uuid::from_u128(2);
+        let canceled_results = Arc::new(Mutex::new(VecDeque::new()));
+        let (target_sender, target_receiver) = oneshot::channel();
+        let (other_sender, _other_receiver) = oneshot::channel();
+        let result_senders = HashMap::from([(target, target_sender), (other, other_sender)]);
+        let future = ActionResultFuture::<Fibonacci::Action> {
+            receiver: target_receiver,
+            registration: ResultFutureRegistration::new(Arc::clone(&canceled_results), target),
+        };
+
+        drop(future);
+
+        assert_eq!(take_canceled_result_goals(&canceled_results, &result_senders), [target]);
+        assert!(!result_senders[&other].is_canceled());
+    }
+
+    #[test]
+    fn completed_result_future_does_not_queue_cleanup() {
+        let uuid = uuid::Uuid::from_u128(1);
+        let canceled_results = Arc::new(Mutex::new(VecDeque::new()));
+        let (sender, receiver) = oneshot::channel();
+        let mut future = Box::pin(ActionResultFuture::<Fibonacci::Action> {
+            receiver,
+            registration: ResultFutureRegistration::new(Arc::clone(&canceled_results), uuid),
+        });
+        sender
+            .send((GoalStatus::Succeeded, Fibonacci::Result::default()))
+            .unwrap();
+
+        assert!(matches!(future.as_mut().now_or_never(), Some(Ok(_))));
+        drop(future);
+
+        assert!(canceled_results.lock().is_empty());
+    }
+
+    #[test]
+    fn canceled_result_cleanup_is_bounded() {
+        let canceled_results = Arc::new(Mutex::new(
+            (1..=20_u128)
+                .map(uuid::Uuid::from_u128)
+                .collect::<VecDeque<_>>(),
+        ));
+        let result_senders = (1..=20_u128)
+            .map(|value| {
+                let (sender, receiver) = oneshot::channel::<()>();
+                drop(receiver);
+                (uuid::Uuid::from_u128(value), sender)
+            })
+            .collect::<HashMap<_, _>>();
+
+        let canceled = take_canceled_result_goals(&canceled_results, &result_senders);
+
+        assert_eq!(canceled.len(), MAX_ACTION_RESPONSES_PER_SPIN);
+        assert_eq!(
+            canceled_results
+                .lock()
+                .iter()
+                .map(uuid::Uuid::as_u128)
+                .collect::<Vec<_>>(),
+            (17..=20).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn canceled_terminal_result_closes_feedback_and_request_state() {
+        let uuid = uuid::Uuid::from_u128(1);
+        let canceled_results = Arc::new(Mutex::new(VecDeque::new()));
+        let (result_sender, result_receiver) = oneshot::channel();
+        let (feedback_sender, mut feedback_receiver) = mpsc::channel(1);
+        let mut client = WrappedActionClient::<Fibonacci::Action> {
+            rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
+            goal_response_channels: HashMap::new(),
+            goal_response_sequences: HashMap::new(),
+            cancel_response_channels: HashMap::new(),
+            feedback_senders: HashMap::from([(
+                uuid,
+                Arc::new(Mutex::new(FeedbackChannel::new(feedback_sender))),
+            )]),
+            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            result_requests: HashMap::from([(10, uuid)]),
+            result_request_sequences: HashMap::from([(uuid, 10)]),
+            result_senders: HashMap::from([(uuid, result_sender)]),
+            canceled_result_goals: Arc::clone(&canceled_results),
+            goal_status: HashMap::from([(uuid, GoalStatus::Succeeded)]),
+            feedback_channel_capacity: 1,
+            poll_available_channels: Vec::new(),
+        };
+        let result = ActionResultFuture::<Fibonacci::Action> {
+            receiver: result_receiver,
+            registration: ResultFutureRegistration::new(canceled_results, uuid),
+        };
+
+        drop(result);
+        let completions = client.prune_canceled_requests();
+
+        assert!(!client.result_senders.contains_key(&uuid));
+        assert!(!client.result_requests.contains_key(&10));
+        assert!(!client.result_request_sequences.contains_key(&uuid));
+        assert!(!client.feedback_senders.contains_key(&uuid));
+        assert!(matches!(
+            Pin::new(&mut feedback_receiver)
+                .poll_next(&mut Context::from_waker(futures::task::noop_waker_ref())),
+            Poll::Pending
+        ));
+        run_detached_action_client_completions(completions);
+        assert!(matches!(
+            Pin::new(&mut feedback_receiver)
+                .poll_next(&mut Context::from_waker(futures::task::noop_waker_ref())),
+            Poll::Ready(None)
+        ));
+    }
+
+    #[test]
     fn action_feedback_batches_stop_at_idle_and_fairness_limit() {
         let client = Mutex::new(0usize);
         let calls = std::cell::Cell::new(0);
@@ -2071,6 +2250,7 @@ mod tests {
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::new(),
+            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::new(),
             feedback_channel_capacity: 1,
             poll_available_channels: Vec::new(),
@@ -2337,6 +2517,7 @@ mod tests {
             result_requests: HashMap::from([(1, target)]),
             result_request_sequences: HashMap::from([(target, 1)]),
             result_senders: HashMap::from([(target, result_sender)]),
+            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::from([(target, GoalStatus::Accepted)]),
             feedback_channel_capacity: 0,
             poll_available_channels: Vec::new(),
@@ -2392,6 +2573,7 @@ mod tests {
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::new(),
+            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::from([
                 (target, GoalStatus::Unknown),
                 (other, GoalStatus::Unknown),
@@ -2436,6 +2618,7 @@ mod tests {
             result_requests: HashMap::from([(1, target)]),
             result_request_sequences: HashMap::from([(target, 1)]),
             result_senders: HashMap::from([(target, result_sender)]),
+            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::from([(target, GoalStatus::Accepted)]),
             feedback_channel_capacity: 1,
             poll_available_channels: Vec::new(),
@@ -2580,6 +2763,7 @@ mod tests {
             result_requests: HashMap::from([(10, target), (11, other)]),
             result_request_sequences: HashMap::from([(target, 10), (other, 11)]),
             result_senders: HashMap::from([(target, target_result), (other, other_result)]),
+            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::from([
                 (target, GoalStatus::Accepted),
                 (other, GoalStatus::Executing),
@@ -2640,6 +2824,7 @@ mod tests {
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::from([(target, target_result), (other, other_result)]),
+            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::from([
                 (target, GoalStatus::Accepted),
                 (other, GoalStatus::Unknown),

@@ -56,15 +56,26 @@ pub struct ActionClientGoalUntyped {
 /// Result future for an accepted untyped action goal.
 pub struct ActionResultFutureUntyped {
     receiver: oneshot::Receiver<(GoalStatus, Result<serde_json::Value>)>,
+    registration: ResultFutureRegistration,
 }
 
 impl Future for ActionResultFutureUntyped {
     type Output = Result<(GoalStatus, Result<serde_json::Value>)>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.receiver)
-            .poll(cx)
-            .map(|result| result.map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID))
+        match Pin::new(&mut self.receiver).poll(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(result) => {
+                self.registration.disarm();
+                Poll::Ready(result.map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID))
+            }
+        }
+    }
+}
+
+impl Drop for ActionResultFutureUntyped {
+    fn drop(&mut self) {
+        self.receiver.close();
     }
 }
 
@@ -336,7 +347,13 @@ impl ActionClientUntyped {
                     let (sender, receiver) =
                         oneshot::channel::<(GoalStatus, Result<serde_json::Value>)>();
                     client.result_senders.insert(uuid, sender);
-                    ActionResultFutureUntyped { receiver }
+                    ActionResultFutureUntyped {
+                        receiver,
+                        registration: ResultFutureRegistration::new(
+                            Arc::clone(&client.canceled_result_goals),
+                            uuid,
+                        ),
+                    }
                 });
                 client.register_goal_response(seq_no, uuid, goal_req_sender);
                 client.goal_status.insert(uuid, GoalStatus::Unknown);
@@ -456,6 +473,7 @@ pub struct WrappedActionClientUntyped {
     pub result_requests: HashMap<i64, uuid::Uuid>,
     pub result_request_sequences: HashMap<uuid::Uuid, i64>,
     pub result_senders: HashMap<uuid::Uuid, ResultSender>,
+    pub canceled_result_goals: CanceledResultQueue,
     pub goal_status: HashMap<uuid::Uuid, GoalStatus>,
     pub feedback_channel_capacity: usize,
 
@@ -611,11 +629,8 @@ impl WrappedActionClientUntyped {
             .retain(|_, sender| !sender.is_canceled());
         self.feedback_senders
             .retain(|_, channel| !channel.lock().is_closed());
-        let canceled_results: Vec<_> = self
-            .result_senders
-            .iter()
-            .filter_map(|(uuid, sender)| sender.is_canceled().then_some(*uuid))
-            .collect();
+        let canceled_results =
+            take_canceled_result_goals(&self.canceled_result_goals, &self.result_senders);
         for uuid in canceled_results {
             completions.extend(self.forget_result(&uuid));
         }
@@ -920,10 +935,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
                 .feedback_senders
                 .values()
                 .any(|channel| !channel.lock().is_closed())
-            || self
-                .result_senders
-                .values()
-                .any(|sender| !sender.is_canceled())
+            || !self.result_senders.is_empty()
             || self
                 .poll_available_channels
                 .iter()
@@ -979,6 +991,7 @@ mod tests {
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::new(),
+            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::new(),
             feedback_channel_capacity: 1,
             poll_available_channels: Vec::new(),
@@ -1025,6 +1038,7 @@ mod tests {
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::new(),
+            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::from([
                 (target, GoalStatus::Unknown),
                 (other, GoalStatus::Unknown),
@@ -1079,6 +1093,7 @@ mod tests {
             result_requests: HashMap::from([(10, target), (11, other)]),
             result_request_sequences: HashMap::from([(target, 10), (other, 11)]),
             result_senders: HashMap::from([(target, target_result), (other, other_result)]),
+            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::from([
                 (target, GoalStatus::Accepted),
                 (other, GoalStatus::Executing),
@@ -1143,6 +1158,7 @@ mod tests {
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::from([(target, target_result), (other, other_result)]),
+            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::from([
                 (target, GoalStatus::Accepted),
                 (other, GoalStatus::Unknown),
