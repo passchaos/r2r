@@ -1775,6 +1775,26 @@ impl Node {
         Ok(goal_request_receiver)
     }
 
+    /// Creates a runtime-typed ROS action server whose goal, feedback, and result use JSON.
+    pub fn create_action_server_untyped(
+        &mut self, action_name: &str, action_type: &str,
+    ) -> Result<ActionServerUntyped> {
+        self.create_action_server_untyped_with_options(
+            action_name,
+            action_type,
+            ActionServerOptions::default(),
+        )
+    }
+
+    /// Creates a runtime-typed ROS action server with explicit QoS and buffering options.
+    pub fn create_action_server_untyped_with_options(
+        &mut self, action_name: &str, action_type: &str, options: ActionServerOptions,
+    ) -> Result<ActionServerUntyped> {
+        options.validate()?;
+        let support = UntypedActionSupport::new_from(action_type)?;
+        (support.create_server)(self, action_name, options)
+    }
+
     /// Create a ROS publisher.
     pub fn create_publisher<T>(
         &mut self, topic: &str, qos_profile: QosProfile,
@@ -4564,6 +4584,159 @@ mod tests {
         assert!(subscriptions.iter().all(|endpoint| {
             endpoint.qos_profile.reliability == QosProfile::sensor_data().reliability
         }));
+    }
+
+    #[test]
+    fn untyped_action_servers_interoperate_with_typed_and_untyped_clients() {
+        use crate::example_interfaces::action::Fibonacci;
+        use crate::GoalStatus;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "untyped_action_server_test", "/scope").unwrap();
+        let mut requests = node
+            .create_action_server_untyped_with_options(
+                "fibonacci",
+                "example_interfaces/action/Fibonacci",
+                ActionServerOptions::default().goal_request_channel_capacity(0),
+            )
+            .unwrap();
+        let client = node
+            .create_action_client::<Fibonacci::Action>("fibonacci")
+            .unwrap();
+        let response = client
+            .send_goal_request(Fibonacci::Goal { order: 3 })
+            .unwrap();
+        let mut response = Box::pin(response);
+        let mut server_goal = None;
+        let mut cancel_requests = None;
+        let (client_goal, result, mut feedback) = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if server_goal.is_none() {
+                if let Some(request) = requests.next().now_or_never().flatten() {
+                    assert_eq!(request.action_name().unwrap(), "/scope/fibonacci");
+                    assert_eq!(request.goal.as_ref().unwrap(), &serde_json::json!({ "order": 3 }));
+                    let (goal, cancels) = request.accept_deferred().unwrap();
+                    server_goal = Some(goal);
+                    cancel_requests = Some(cancels);
+                }
+            }
+            if let Some(response) = response.as_mut().now_or_never() {
+                break response.unwrap();
+            }
+        };
+
+        let mut goal = server_goal.unwrap();
+        assert_eq!(goal.action_name().unwrap(), "/scope/fibonacci");
+        assert_eq!(goal.goal.as_ref().unwrap(), &serde_json::json!({ "order": 3 }));
+        assert_eq!(goal.get_status().unwrap(), GoalStatus::Accepted);
+        assert!(matches!(
+            goal.publish_feedback(serde_json::json!({ "sequence": "invalid" })),
+            Err(Error::SerdeError { .. })
+        ));
+        assert!(matches!(
+            goal.succeed(serde_json::json!({ "sequence": "invalid" })),
+            Err(Error::SerdeError { .. })
+        ));
+        assert_eq!(goal.get_status().unwrap(), GoalStatus::Accepted);
+        goal.execute().unwrap();
+        goal.publish_feedback(serde_json::json!({ "sequence": [0, 1, 1] }))
+            .unwrap();
+        goal.succeed(serde_json::json!({ "sequence": [0, 1, 1, 2] }))
+            .unwrap();
+
+        let mut result = Box::pin(result);
+        let mut received_feedback = None;
+        let mut received_result = None;
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            received_feedback =
+                received_feedback.or_else(|| feedback.next().now_or_never().flatten());
+            received_result = received_result.or_else(|| result.as_mut().now_or_never());
+            if received_feedback.is_some() && received_result.is_some() {
+                break;
+            }
+        }
+        assert_eq!(received_feedback.unwrap().sequence, vec![0, 1, 1]);
+        let (status, result) = received_result.unwrap().unwrap();
+        assert_eq!(status, GoalStatus::Succeeded);
+        assert_eq!(result.sequence, vec![0, 1, 1, 2]);
+        assert_eq!(client_goal.get_status().unwrap(), GoalStatus::Succeeded);
+        drop(cancel_requests);
+
+        let cancel_name = "cancel_fibonacci";
+        let mut cancel_requests_stream = node
+            .create_action_server_untyped(cancel_name, "example_interfaces/action/Fibonacci")
+            .unwrap();
+        let cancel_client = node
+            .create_action_client_untyped(cancel_name, "example_interfaces/action/Fibonacci")
+            .unwrap();
+        let response = cancel_client
+            .send_goal_request(serde_json::json!({ "order": 2 }))
+            .unwrap();
+        let mut response = Box::pin(response);
+        let mut cancel_server_goal = None;
+        let mut server_cancels = None;
+        let (cancel_client_goal, cancel_result) = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if cancel_server_goal.is_none() {
+                if let Some(request) = cancel_requests_stream.next().now_or_never().flatten() {
+                    let (goal, cancels) = request.accept().unwrap();
+                    cancel_server_goal = Some(goal);
+                    server_cancels = Some(cancels);
+                }
+            }
+            if let Some(response) = response.as_mut().now_or_never() {
+                let (goal, result, _feedback) = response.unwrap();
+                break (goal, result);
+            }
+        };
+        let cancel = cancel_client_goal.cancel().unwrap();
+        let mut cancel = Box::pin(cancel);
+        let mut cancel_request = None;
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            cancel_request = cancel_request.or_else(|| {
+                server_cancels
+                    .as_mut()
+                    .unwrap()
+                    .next()
+                    .now_or_never()
+                    .flatten()
+            });
+            if cancel_request.is_some() {
+                break;
+            }
+        }
+        cancel_request.unwrap().accept();
+        let mut cancel_server_goal = cancel_server_goal.unwrap();
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if cancel_server_goal.is_cancelling().unwrap() {
+                break;
+            }
+        }
+        cancel_server_goal
+            .cancel(serde_json::json!({ "sequence": [0, 1, 1] }))
+            .unwrap();
+        let mut cancel_result = Box::pin(cancel_result);
+        let mut cancel_response = None;
+        let mut result_response = None;
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            cancel_response = cancel_response.or_else(|| cancel.as_mut().now_or_never());
+            result_response = result_response.or_else(|| cancel_result.as_mut().now_or_never());
+            if cancel_response.is_some() && result_response.is_some() {
+                break;
+            }
+        }
+        cancel_response.unwrap().unwrap();
+        let (status, result) = result_response.unwrap().unwrap();
+        assert_eq!(status, GoalStatus::Canceled);
+        assert_eq!(result.unwrap(), serde_json::json!({ "sequence": [0, 1, 1] }));
+
+        let invalid =
+            node.create_action_server_untyped("invalid", "missing_interfaces/action/Nope");
+        assert!(matches!(invalid, Err(Error::InvalidMessageType { .. })));
     }
 
     #[test]

@@ -295,6 +295,11 @@ impl UntypedServiceSupport {
 unsafe impl Send for UntypedActionSupport {}
 pub struct UntypedActionSupport {
     pub(crate) ts: &'static rosidl_action_type_support_t,
+    pub(crate) create_server: fn(
+        &mut crate::Node,
+        &str,
+        crate::ActionServerOptions,
+    ) -> Result<crate::action_servers::ActionServerUntyped>,
 
     pub(crate) make_goal_request_msg: Box<
         dyn Fn(
@@ -330,7 +335,7 @@ pub struct UntypedActionSupport {
 impl UntypedActionSupport {
     fn new<T>() -> Self
     where
-        T: WrappedActionTypeSupport,
+        T: WrappedActionTypeSupport + 'static,
     {
         // TODO: this is terrible. These closures perform json (de)serialization just to move the data.
         // FIX.
@@ -418,6 +423,7 @@ impl UntypedActionSupport {
 
         UntypedActionSupport {
             ts: T::get_ts(),
+            create_server: crate::action_servers::create_action_server_untyped_for::<T>,
             make_goal_request_msg,
             make_goal_response_msg,
             destructure_goal_response_msg,

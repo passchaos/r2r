@@ -115,7 +115,11 @@ mod action_clients_untyped;
 pub use action_clients_untyped::{ActionClientGoalUntyped, ActionClientUntyped};
 
 mod action_servers;
-pub use action_servers::{ActionServerCancelRequest, ActionServerGoal, ActionServerGoalRequest};
+pub use action_servers::{
+    ActionServerCancelRequest, ActionServerCancelStreamUntyped, ActionServerGoal,
+    ActionServerGoalRequest, ActionServerGoalRequestUntyped, ActionServerGoalUntyped,
+    ActionServerUntyped,
+};
 
 mod context;
 pub use context::Context;

@@ -1,7 +1,7 @@
 use futures::{
     channel::{mpsc, oneshot},
     future::{join_all, FutureExt, JoinAll},
-    stream::Stream,
+    stream::{Stream, StreamExt},
     task::noop_waker_ref,
 };
 use parking_lot::Mutex;
@@ -9,6 +9,7 @@ use std::{
     collections::{HashMap, HashSet},
     ffi::{CStr, CString},
     mem::MaybeUninit,
+    pin::Pin,
     sync::{Arc, Weak},
     task::{Context, Poll},
 };
@@ -71,6 +72,241 @@ impl ActionServerCancelRequest {
         if self.response_sender.send((self.uuid, false)).is_err() {
             log::error!("warning: could not send goal cancellation rejection")
         }
+    }
+}
+
+/// Stream of cancel requests for a runtime-typed action goal.
+pub struct ActionServerCancelStreamUntyped {
+    inner: Pin<Box<dyn Stream<Item = ActionServerCancelRequest> + Send>>,
+}
+
+impl Stream for ActionServerCancelStreamUntyped {
+    type Item = ActionServerCancelRequest;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.inner.as_mut().poll_next(cx)
+    }
+}
+
+/// Stream of goal requests for a runtime-typed action server.
+pub struct ActionServerUntyped {
+    inner: Pin<Box<dyn Stream<Item = ActionServerGoalRequestUntyped> + Send>>,
+}
+
+impl Stream for ActionServerUntyped {
+    type Item = ActionServerGoalRequestUntyped;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.inner.as_mut().poll_next(cx)
+    }
+}
+
+pub(crate) fn create_action_server_untyped_for<T>(
+    node: &mut crate::Node, action_name: &str, options: ActionServerOptions,
+) -> Result<ActionServerUntyped>
+where
+    T: 'static + WrappedActionTypeSupport,
+{
+    let requests = node.create_action_server_with_options::<T>(action_name, options)?;
+    Ok(ActionServerUntyped {
+        inner: Box::pin(requests.map(ActionServerGoalRequestUntyped::from_typed)),
+    })
+}
+
+trait ErasedGoalRequest: Send {
+    fn action_name(&self) -> Result<String>;
+    fn accept(
+        self: Box<Self>, execute: bool, goal: Result<serde_json::Value>,
+    ) -> Result<(ActionServerGoalUntyped, ActionServerCancelStreamUntyped)>;
+    fn reject(self: Box<Self>) -> Result<()>;
+}
+
+impl<T> ErasedGoalRequest for ActionServerGoalRequest<T>
+where
+    T: 'static + WrappedActionTypeSupport,
+{
+    fn action_name(&self) -> Result<String> {
+        ActionServerGoalRequest::action_name(self)
+    }
+
+    fn accept(
+        self: Box<Self>, execute: bool, goal: Result<serde_json::Value>,
+    ) -> Result<(ActionServerGoalUntyped, ActionServerCancelStreamUntyped)> {
+        let (server_goal, cancel_requests) = (*self).accept_with_execution(execute)?;
+        Ok((
+            ActionServerGoalUntyped {
+                uuid: server_goal.uuid,
+                goal,
+                inner: Box::new(server_goal),
+            },
+            ActionServerCancelStreamUntyped {
+                inner: Box::pin(cancel_requests),
+            },
+        ))
+    }
+
+    fn reject(self: Box<Self>) -> Result<()> {
+        (*self).reject()
+    }
+}
+
+/// Runtime-typed action goal request with a JSON payload.
+pub struct ActionServerGoalRequestUntyped {
+    pub uuid: uuid::Uuid,
+    pub goal: Result<serde_json::Value>,
+    inner: Box<dyn ErasedGoalRequest>,
+}
+
+impl ActionServerGoalRequestUntyped {
+    fn from_typed<T>(request: ActionServerGoalRequest<T>) -> Self
+    where
+        T: 'static + WrappedActionTypeSupport,
+    {
+        let uuid = request.uuid;
+        let goal = serde_json::to_value(&request.goal).map_err(|err| Error::SerdeError {
+            err: err.to_string(),
+        });
+        Self {
+            uuid,
+            goal,
+            inner: Box::new(request),
+        }
+    }
+
+    pub fn action_name(&self) -> Result<String> {
+        self.inner.action_name()
+    }
+
+    pub fn accept(self) -> Result<(ActionServerGoalUntyped, ActionServerCancelStreamUntyped)> {
+        let Self { goal, inner, .. } = self;
+        inner.accept(true, goal)
+    }
+
+    pub fn accept_deferred(
+        self,
+    ) -> Result<(ActionServerGoalUntyped, ActionServerCancelStreamUntyped)> {
+        let Self { goal, inner, .. } = self;
+        inner.accept(false, goal)
+    }
+
+    pub fn reject(self) -> Result<()> {
+        self.inner.reject()
+    }
+}
+
+trait ErasedServerGoal: Send {
+    fn clone_box(&self) -> Box<dyn ErasedServerGoal>;
+    fn action_name(&self) -> Result<String>;
+    fn get_status(&self) -> Result<GoalStatus>;
+    fn execute(&self) -> Result<()>;
+    fn is_cancelling(&self) -> Result<bool>;
+    fn publish_feedback(&self, msg: serde_json::Value) -> Result<()>;
+    fn cancel(&mut self, msg: serde_json::Value) -> Result<()>;
+    fn abort(&mut self, msg: serde_json::Value) -> Result<()>;
+    fn succeed(&mut self, msg: serde_json::Value) -> Result<()>;
+}
+
+impl<T> ErasedServerGoal for ActionServerGoal<T>
+where
+    T: 'static + WrappedActionTypeSupport,
+{
+    fn clone_box(&self) -> Box<dyn ErasedServerGoal> {
+        Box::new(self.clone())
+    }
+
+    fn action_name(&self) -> Result<String> {
+        ActionServerGoal::action_name(self)
+    }
+
+    fn get_status(&self) -> Result<GoalStatus> {
+        ActionServerGoal::get_status(self)
+    }
+
+    fn execute(&self) -> Result<()> {
+        ActionServerGoal::execute(self)
+    }
+
+    fn is_cancelling(&self) -> Result<bool> {
+        ActionServerGoal::is_cancelling(self)
+    }
+
+    fn publish_feedback(&self, msg: serde_json::Value) -> Result<()> {
+        let msg = serde_json::from_value(msg).map_err(|err| Error::SerdeError {
+            err: err.to_string(),
+        })?;
+        ActionServerGoal::publish_feedback(self, msg)
+    }
+
+    fn cancel(&mut self, msg: serde_json::Value) -> Result<()> {
+        let msg = serde_json::from_value(msg).map_err(|err| Error::SerdeError {
+            err: err.to_string(),
+        })?;
+        ActionServerGoal::cancel(self, msg)
+    }
+
+    fn abort(&mut self, msg: serde_json::Value) -> Result<()> {
+        let msg = serde_json::from_value(msg).map_err(|err| Error::SerdeError {
+            err: err.to_string(),
+        })?;
+        ActionServerGoal::abort(self, msg)
+    }
+
+    fn succeed(&mut self, msg: serde_json::Value) -> Result<()> {
+        let msg = serde_json::from_value(msg).map_err(|err| Error::SerdeError {
+            err: err.to_string(),
+        })?;
+        ActionServerGoal::succeed(self, msg)
+    }
+}
+
+/// Handle to an accepted runtime-typed action goal.
+pub struct ActionServerGoalUntyped {
+    pub uuid: uuid::Uuid,
+    pub goal: Result<serde_json::Value>,
+    inner: Box<dyn ErasedServerGoal>,
+}
+
+impl Clone for ActionServerGoalUntyped {
+    fn clone(&self) -> Self {
+        Self {
+            uuid: self.uuid,
+            goal: self.goal.clone(),
+            inner: self.inner.clone_box(),
+        }
+    }
+}
+
+impl ActionServerGoalUntyped {
+    pub fn action_name(&self) -> Result<String> {
+        self.inner.action_name()
+    }
+
+    pub fn get_status(&self) -> Result<GoalStatus> {
+        self.inner.get_status()
+    }
+
+    pub fn execute(&self) -> Result<()> {
+        self.inner.execute()
+    }
+
+    pub fn is_cancelling(&self) -> Result<bool> {
+        self.inner.is_cancelling()
+    }
+
+    pub fn publish_feedback(&self, msg: serde_json::Value) -> Result<()> {
+        self.inner.publish_feedback(msg)
+    }
+
+    pub fn cancel(&mut self, msg: serde_json::Value) -> Result<()> {
+        self.inner.cancel(msg)
+    }
+
+    pub fn abort(&mut self, msg: serde_json::Value) -> Result<()> {
+        self.inner.abort(msg)
+    }
+
+    pub fn succeed(&mut self, msg: serde_json::Value) -> Result<()> {
+        self.inner.succeed(msg)
     }
 }
 
