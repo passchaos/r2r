@@ -453,6 +453,7 @@ pub struct WrappedActionClientUntyped {
         HashMap<i64, oneshot::Sender<action_msgs::srv::CancelGoal::Response>>,
     pub feedback_senders: HashMap<uuid::Uuid, FeedbackSender<Result<serde_json::Value>>>,
     pub result_requests: HashMap<i64, uuid::Uuid>,
+    pub result_request_sequences: HashMap<uuid::Uuid, i64>,
     pub result_senders: HashMap<uuid::Uuid, ResultSender>,
     pub goal_status: HashMap<uuid::Uuid, GoalStatus>,
     pub feedback_channel_capacity: usize,
@@ -486,6 +487,25 @@ impl WrappedActionClientUntyped {
         Some(sender)
     }
 
+    fn register_result_request(&mut self, sequence: i64, uuid: uuid::Uuid) {
+        debug_assert!(!self.result_requests.contains_key(&sequence));
+        debug_assert!(!self.result_request_sequences.contains_key(&uuid));
+        self.result_requests.insert(sequence, uuid);
+        self.result_request_sequences.insert(uuid, sequence);
+    }
+
+    fn take_result_request_by_sequence(&mut self, sequence: i64) -> Option<uuid::Uuid> {
+        let uuid = self.result_requests.remove(&sequence)?;
+        debug_assert_eq!(self.result_request_sequences.remove(&uuid), Some(sequence));
+        Some(uuid)
+    }
+
+    fn remove_result_request_by_uuid(&mut self, uuid: &uuid::Uuid) {
+        if let Some(sequence) = self.result_request_sequences.remove(uuid) {
+            debug_assert_eq!(self.result_requests.remove(&sequence), Some(*uuid));
+        }
+    }
+
     pub fn get_goal_status(&self, uuid: &uuid::Uuid) -> GoalStatus {
         *self.goal_status.get(uuid).unwrap_or(&GoalStatus::Unknown)
     }
@@ -507,14 +527,14 @@ impl WrappedActionClientUntyped {
         if let Some(sender) = self.result_senders.remove(uuid) {
             completions.push(drop_action_client_resources_completion(vec![sender]));
         }
-        self.result_requests.retain(|_, id| id != uuid);
+        self.remove_result_request_by_uuid(uuid);
         self.goal_status.remove(uuid);
         completions
     }
 
     fn forget_result(&mut self, uuid: &uuid::Uuid) -> Option<ActionClientCompletion> {
         self.result_senders.remove(uuid);
-        self.result_requests.retain(|_, id| id != uuid);
+        self.remove_result_request_by_uuid(uuid);
         if self.get_goal_status(uuid).is_terminal() {
             return self
                 .take_feedback_sender(uuid)
@@ -532,7 +552,7 @@ impl WrappedActionClientUntyped {
             .into_iter()
             .collect();
         self.result_senders.remove(uuid);
-        self.result_requests.retain(|_, id| id != uuid);
+        self.remove_result_request_by_uuid(uuid);
         if let Some(tracked_status) = self.goal_status.get_mut(uuid) {
             *tracked_status = status;
         }
@@ -616,7 +636,7 @@ impl WrappedActionClientUntyped {
     ) -> (Result<()>, Vec<ActionClientCompletion>) {
         match result {
             Ok(seq_no) => {
-                self.result_requests.insert(seq_no, uuid);
+                self.register_result_request(seq_no, uuid);
                 (Ok(()), Vec::new())
             }
             Err(err) => (Err(err), self.forget_goal(&uuid)),
@@ -835,7 +855,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
 
         if action_client_take_succeeded(ret)? {
             let request_id = unsafe { request_id.assume_init() };
-            if let Some(uuid) = self.result_requests.remove(&request_id.sequence_number) {
+            if let Some(uuid) = self.take_result_request_by_sequence(request_id.sequence_number) {
                 if let Some(sender) = self.result_senders.remove(&uuid) {
                     let destructure = self.action_type_support.destructure_result_response_msg;
                     completions.push(action_stateful_response_completion(
@@ -953,6 +973,7 @@ mod tests {
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_sender)))),
             ]),
             result_requests: HashMap::new(),
+            result_request_sequences: HashMap::new(),
             result_senders: HashMap::new(),
             goal_status: HashMap::new(),
             feedback_channel_capacity: 1,
@@ -997,6 +1018,7 @@ mod tests {
             cancel_response_channels: HashMap::new(),
             feedback_senders: HashMap::new(),
             result_requests: HashMap::new(),
+            result_request_sequences: HashMap::new(),
             result_senders: HashMap::new(),
             goal_status: HashMap::from([
                 (target, GoalStatus::Unknown),
@@ -1049,6 +1071,7 @@ mod tests {
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),
             ]),
             result_requests: HashMap::from([(10, target), (11, other)]),
+            result_request_sequences: HashMap::from([(target, 10), (other, 11)]),
             result_senders: HashMap::from([(target, target_result), (other, other_result)]),
             goal_status: HashMap::from([
                 (target, GoalStatus::Accepted),
@@ -1072,6 +1095,8 @@ mod tests {
             .result_requests
             .iter()
             .any(|(_, uuid)| uuid == &other));
+        assert!(!client.result_request_sequences.contains_key(&target));
+        assert_eq!(client.result_request_sequences.get(&other), Some(&11));
         assert!(!client.result_senders.contains_key(&target));
         assert!(client.result_senders.contains_key(&other));
         assert!(!client.goal_status.contains_key(&target));
@@ -1109,6 +1134,7 @@ mod tests {
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),
             ]),
             result_requests: HashMap::new(),
+            result_request_sequences: HashMap::new(),
             result_senders: HashMap::from([(target, target_result), (other, other_result)]),
             goal_status: HashMap::from([
                 (target, GoalStatus::Accepted),
