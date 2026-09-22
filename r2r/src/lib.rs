@@ -98,7 +98,8 @@ pub use subscribers::{
 
 mod publishers;
 pub use publishers::{
-    LoanedMessage, Publisher, PublisherOptions, PublisherUntyped, UniqueNetworkFlowRequirement,
+    LoanedMessage, OfferedIncompatibleQosStatus, Publisher, PublisherOptions, PublisherUntyped,
+    UniqueNetworkFlowRequirement,
 };
 
 mod services;

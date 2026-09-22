@@ -4550,6 +4550,77 @@ mod tests {
         panic!("subscription did not report incompatible QoS");
     }
 
+    #[test]
+    fn publishers_report_offered_incompatible_qos() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "publisher_qos_event_test", "").unwrap();
+        let topic = format!("/publisher_qos_event_{}", uuid::Uuid::new_v4().simple());
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::Int32>(
+                &topic,
+                QosProfile::default().best_effort(),
+            )
+            .unwrap();
+
+        match publisher.take_offered_incompatible_qos() {
+            Err(Error::RCL_RET_UNSUPPORTED) => return,
+            Err(err) => panic!("unexpected QoS event initialization error: {err}"),
+            Ok(None) => {}
+            Ok(Some(status)) => panic!("unexpected initial QoS event: {status:?}"),
+        }
+
+        let _subscription = node
+            .subscribe::<crate::std_msgs::msg::Int32>(&topic, QosProfile::default().reliable())
+            .unwrap();
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(status) = publisher.take_offered_incompatible_qos().unwrap() {
+                assert!(status.total_count >= 1);
+                assert!(status.total_count_change >= 1);
+                assert_eq!(status.last_policy_kind, crate::QosPolicyKind::Reliability);
+                assert!(publisher.take_offered_incompatible_qos().unwrap().is_none());
+                return;
+            }
+        }
+        panic!("publisher did not report incompatible QoS");
+    }
+
+    #[test]
+    fn untyped_publishers_report_offered_incompatible_qos() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "untyped_publisher_qos_event_test", "").unwrap();
+        let topic = format!("/untyped_publisher_qos_event_{}", uuid::Uuid::new_v4().simple());
+        let publisher = node
+            .create_publisher_untyped_with_options(
+                &topic,
+                "std_msgs/msg/Int32",
+                QosProfile::default().best_effort(),
+                PublisherOptions::default(),
+            )
+            .unwrap();
+
+        match publisher.take_offered_incompatible_qos() {
+            Err(Error::RCL_RET_UNSUPPORTED) => return,
+            Err(err) => panic!("unexpected QoS event initialization error: {err}"),
+            Ok(None) => {}
+            Ok(Some(status)) => panic!("unexpected initial QoS event: {status:?}"),
+        }
+
+        let _subscription = node
+            .subscribe::<crate::std_msgs::msg::Int32>(&topic, QosProfile::default().reliable())
+            .unwrap();
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(status) = publisher.take_offered_incompatible_qos().unwrap() {
+                assert!(status.total_count >= 1);
+                assert!(status.total_count_change >= 1);
+                assert_eq!(status.last_policy_kind, crate::QosPolicyKind::Reliability);
+                return;
+            }
+        }
+        panic!("untyped publisher did not report incompatible QoS");
+    }
+
     #[cfg(r2r__rosgraph_msgs__msg__Clock)]
     #[test]
     fn parameter_service_switches_sim_time_at_runtime() {

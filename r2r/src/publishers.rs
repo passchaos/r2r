@@ -4,11 +4,12 @@ use std::{
     ffi::{CStr, CString},
     fmt::Debug,
     marker::PhantomData,
+    mem::MaybeUninit,
     sync::{Arc, Weak},
     time::Duration,
 };
 
-use crate::{error::*, msg_types::*, nodes::Node, qos::QosProfile};
+use crate::{error::*, msg_types::*, nodes::Node, qos::QosProfile, QosPolicyKind};
 use r2r_rcl::*;
 
 /// Whether an endpoint should use a unique middleware network flow.
@@ -42,6 +43,14 @@ impl From<UniqueNetworkFlowRequirement> for rmw_unique_network_flow_endpoints_re
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PublisherOptions {
     pub unique_network_flow: UniqueNetworkFlowRequirement,
+}
+
+/// Cumulative status from an offered-incompatible-QoS publisher event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OfferedIncompatibleQosStatus {
+    pub total_count: i32,
+    pub total_count_change: i32,
+    pub last_policy_kind: QosPolicyKind,
 }
 
 impl Default for PublisherOptions {
@@ -128,7 +137,70 @@ pub(crate) struct Publisher_ {
     poll_ack_channels: Mutex<Vec<oneshot::Sender<Result<()>>>>,
 }
 
-struct PublisherHandle(Option<rcl_publisher_t>);
+struct PublisherHandle {
+    publisher: Option<rcl_publisher_t>,
+    offered_incompatible_qos: Option<PublisherEvent>,
+}
+
+struct PublisherEvent {
+    handle: rcl_event_t,
+    initialized: bool,
+}
+
+impl PublisherEvent {
+    fn uninitialized() -> Self {
+        Self {
+            handle: unsafe { rcl_get_zero_initialized_event() },
+            initialized: false,
+        }
+    }
+
+    fn ensure_initialized(&mut self, publisher: *const rcl_publisher_t) -> Result<()> {
+        if self.initialized {
+            return Ok(());
+        }
+        let ret = unsafe {
+            rcl_publisher_event_init(
+                &mut self.handle,
+                publisher,
+                rcl_publisher_event_type_t::RCL_PUBLISHER_OFFERED_INCOMPATIBLE_QOS,
+            )
+        };
+        check_publisher_ret(ret)?;
+        self.initialized = true;
+        Ok(())
+    }
+
+    fn take_offered_incompatible_qos(&self) -> Result<Option<OfferedIncompatibleQosStatus>> {
+        let mut status = MaybeUninit::<rmw_offered_qos_incompatible_event_status_t>::uninit();
+        let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
+        if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
+            return Ok(None);
+        }
+        check_publisher_ret(ret)?;
+        let status = unsafe { status.assume_init() };
+        if status.total_count_change == 0 {
+            return Ok(None);
+        }
+        Ok(Some(OfferedIncompatibleQosStatus {
+            total_count: status.total_count,
+            total_count_change: status.total_count_change,
+            last_policy_kind: status.last_policy_kind.into(),
+        }))
+    }
+}
+
+impl Drop for PublisherEvent {
+    fn drop(&mut self) {
+        if !self.initialized {
+            return;
+        }
+        let ret = unsafe { rcl_event_fini(&mut self.handle) };
+        if ret != RCL_RET_OK as i32 {
+            log::error!("could not finalize publisher event: {ret}");
+        }
+    }
+}
 
 // SAFETY: every access to the native publisher is serialized by the enclosing mutex.
 unsafe impl Send for PublisherHandle {}
@@ -140,8 +212,25 @@ unsafe impl Sync for Publisher_ {}
 impl Publisher_ {
     fn with_handle<T>(&self, operation: impl FnOnce(&rcl_publisher_t) -> Result<T>) -> Result<T> {
         let handle = self.handle.lock();
-        let handle = handle.0.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        let handle = handle
+            .publisher
+            .as_ref()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
         operation(handle)
+    }
+
+    fn take_offered_incompatible_qos(&self) -> Result<Option<OfferedIncompatibleQosStatus>> {
+        let mut handle = self.handle.lock();
+        let publisher = handle
+            .publisher
+            .as_ref()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            as *const rcl_publisher_t;
+        let event = handle
+            .offered_incompatible_qos
+            .get_or_insert_with(PublisherEvent::uninitialized);
+        event.ensure_initialized(publisher)?;
+        event.take_offered_incompatible_qos()
     }
 
     fn assert_liveliness(&self) -> Result<()> {
@@ -188,7 +277,10 @@ impl Publisher_ {
 
     fn get_actual_qos(&self) -> Result<QosProfile> {
         let handle = self.handle.lock();
-        let handle = handle.0.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        let handle = handle
+            .publisher
+            .as_ref()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
         let qos = unsafe { rcl_publisher_get_actual_qos(handle) };
         let qos = unsafe { qos.as_ref() }.ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
         QosProfile::try_from(qos)
@@ -199,7 +291,10 @@ impl Publisher_ {
 
         let mut subscription_count = 0;
         let handle = self.handle.lock();
-        let handle = handle.0.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        let handle = handle
+            .publisher
+            .as_ref()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
 
         let result = unsafe {
             rcl_publisher_get_subscription_count(handle, &mut subscription_count as *mut usize)
@@ -270,7 +365,9 @@ impl Publisher_ {
     }
 
     pub(crate) fn destroy(&self, node: &mut rcl_node_t) {
-        if let Some(mut handle) = self.handle.lock().0.take() {
+        let mut state = self.handle.lock();
+        state.offered_incompatible_qos = None;
+        if let Some(mut handle) = state.publisher.take() {
             let ret = unsafe { rcl_publisher_fini(&mut handle, node) };
             if ret != RCL_RET_OK as i32 {
                 log::error!("could not finalize publisher: {}", ret);
@@ -334,7 +431,7 @@ where
     pub fn publish(mut self) -> Result<()> {
         let handle = self
             .publisher
-            .0
+            .publisher
             .as_ref()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
         let msg = std::mem::replace(&mut self.msg, std::ptr::null_mut());
@@ -355,7 +452,7 @@ where
         if self.msg.is_null() {
             return;
         }
-        let Some(handle) = self.publisher.0.as_ref() else {
+        let Some(handle) = self.publisher.publisher.as_ref() else {
             return;
         };
         let ret = unsafe { rcl_return_loaned_message_from_publisher(handle, self.msg.cast()) };
@@ -415,7 +512,10 @@ pub fn create_publisher_helper(
     };
     if result == RCL_RET_OK as i32 {
         Ok(Publisher_ {
-            handle: Arc::new(Mutex::new(PublisherHandle(Some(publisher_handle)))),
+            handle: Arc::new(Mutex::new(PublisherHandle {
+                publisher: Some(publisher_handle),
+                offered_incompatible_qos: None,
+            })),
             poll_subscriber_channels: Mutex::new(Vec::new()),
             #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
             poll_ack_channels: Mutex::new(Vec::new()),
@@ -426,6 +526,17 @@ pub fn create_publisher_helper(
 }
 
 impl PublisherUntyped {
+    /// Takes the latest offered-incompatible-QoS status without blocking.
+    ///
+    /// The first call initializes the native event. Call this once before creating potentially
+    /// incompatible subscriptions when every discovery event must be observed.
+    pub fn take_offered_incompatible_qos(&self) -> Result<Option<OfferedIncompatibleQosStatus>> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .take_offered_incompatible_qos()
+    }
+
     /// Returns the QoS profile resolved by the RMW implementation.
     pub fn get_actual_qos(&self) -> Result<QosProfile> {
         self.handle
@@ -507,7 +618,10 @@ impl PublisherUntyped {
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
         let handle = publisher.handle.lock();
-        let handle = handle.0.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        let handle = handle
+            .publisher
+            .as_ref()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
 
         let mut native_msg = WrappedNativeMsgUntyped::new_from(&self.type_)?;
         native_msg.from_json(msg)?;
@@ -534,7 +648,10 @@ impl PublisherUntyped {
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
         let handle = publisher.handle.lock();
-        let handle = handle.0.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        let handle = handle
+            .publisher
+            .as_ref()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
 
         // Safety: Not retained beyond this function
         let msg_buf = rcl_serialized_message_t {
@@ -614,6 +731,17 @@ impl<T: 'static> Publisher<T>
 where
     T: WrappedTypesupport,
 {
+    /// Takes the latest offered-incompatible-QoS status without blocking.
+    ///
+    /// The first call initializes the native event. Call this once before creating potentially
+    /// incompatible subscriptions when every discovery event must be observed.
+    pub fn take_offered_incompatible_qos(&self) -> Result<Option<OfferedIncompatibleQosStatus>> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .take_offered_incompatible_qos()
+    }
+
     /// Returns the QoS profile resolved by the RMW implementation.
     pub fn get_actual_qos(&self) -> Result<QosProfile> {
         self.handle
@@ -696,7 +824,10 @@ where
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
         let handle = publisher.handle.lock();
-        let handle = handle.0.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        let handle = handle
+            .publisher
+            .as_ref()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
         let native_msg = WrappedNativeMsg::<T>::try_from(msg)?;
         let result = unsafe { rcl_publish(handle, native_msg.void_ptr(), std::ptr::null_mut()) };
 
@@ -723,7 +854,7 @@ where
         }
         let publisher = publisher.handle.clone().lock_arc();
         let handle = publisher
-            .0
+            .publisher
             .as_ref()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
         let mut msg = std::ptr::null_mut();
@@ -755,7 +886,10 @@ where
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
         let handle = publisher.handle.lock();
-        let handle = handle.0.as_ref().ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        let handle = handle
+            .publisher
+            .as_ref()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
 
         let result = unsafe { rcl_publish(handle, msg.void_ptr(), std::ptr::null_mut()) };
 
