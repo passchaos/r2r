@@ -512,6 +512,7 @@ fn apply_parameter_updates(
 pub struct Node {
     /// ROS parameters.
     pub params: Arc<Mutex<IndexMap<String, Parameter>>>,
+    parameter_overrides: IndexMap<String, ParameterValue>,
     parameter_descriptors: Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
     parameter_provider: Option<Arc<Mutex<dyn RosParams + Send>>>,
     parameter_transaction: Arc<Mutex<()>>,
@@ -908,19 +909,20 @@ impl Node {
         c_str_to_owned(unsafe { CStr::from_ptr(output.output) }, "resolved ROS name")
     }
 
-    fn load_params(&mut self) -> Result<()> {
+    fn load_parameter_overrides(&self) -> Result<IndexMap<String, ParameterValue>> {
         let params = parameter_overrides(&self.context.context_handle).map_err(|err| {
             log::error!("could not read parameters: {err}");
             err
         })?;
+        let mut overrides = IndexMap::new();
 
         if params.0.is_null() {
-            return Ok(());
+            return Ok(overrides);
         }
 
         let num_nodes = unsafe { (*params.0).num_nodes };
         if num_nodes == 0 {
-            return Ok(());
+            return Ok(overrides);
         }
         unsafe {
             if (*params.0).node_names.is_null() || (*params.0).params.is_null() {
@@ -953,8 +955,6 @@ impl Node {
                 continue;
             }
 
-            // make key value pairs.
-            let mut params = self.params.lock();
             if np.num_params == 0 {
                 continue;
             }
@@ -974,11 +974,11 @@ impl Node {
                 let s = unsafe { CStr::from_ptr(*s) };
                 let key = c_str_to_str(s, "parameter override name")?;
                 let val = ParameterValue::from_rcl(v)?;
-                params.insert(key.to_owned(), Parameter::new(val));
+                overrides.insert(key.to_owned(), val);
             }
         }
 
-        Ok(())
+        Ok(overrides)
     }
 
     /// Creates a ROS node.
@@ -1026,6 +1026,7 @@ impl Node {
 
             let mut node = Node {
                 params: Arc::new(Mutex::new(IndexMap::new())),
+                parameter_overrides: IndexMap::new(),
                 parameter_descriptors: Arc::new(Mutex::new(IndexMap::new())),
                 parameter_provider: None,
                 parameter_transaction: Arc::new(Mutex::new(())),
@@ -1062,20 +1063,32 @@ impl Node {
             #[cfg(r2r__rosgraph_msgs__msg__Clock)]
             node.time_source
                 .attach_ros_clock(Arc::downgrade(&node.ros_clock))?;
-            if options.use_global_arguments {
-                node.load_params()?;
-            }
-            {
-                let mut params = node.params.lock();
-                for (name, value) in options.parameter_overrides {
-                    params.insert(name, Parameter::new(value));
-                }
-            }
+            let mut parameter_overrides = if options.use_global_arguments {
+                node.load_parameter_overrides()?
+            } else {
+                IndexMap::new()
+            };
+            parameter_overrides.extend(options.parameter_overrides);
+            node.params.lock().extend(
+                parameter_overrides
+                    .iter()
+                    .map(|(name, value)| (name.clone(), Parameter::new(value.clone()))),
+            );
+            node.parameter_overrides = parameter_overrides;
             Ok(node)
         } else {
             log::error!("could not create node{}", res);
             Err(Error::from_rcl_error(res))
         }
+    }
+
+    /// Returns the initial CLI, YAML, and programmatic parameter overrides for this node.
+    ///
+    /// Programmatic overrides replace global overrides with the same name. The returned map is an
+    /// immutable creation-time snapshot: declaring, setting, or undeclaring parameters does not
+    /// change it.
+    pub fn parameter_overrides(&self) -> &IndexMap<String, ParameterValue> {
+        &self.parameter_overrides
     }
 
     /// Creates parameter service handlers for the Node.
@@ -5676,6 +5689,14 @@ mod tests {
 
         assert_eq!(node.get_parameter::<i64>("answer").unwrap(), 43);
         assert!(node.get_parameter::<bool>("enabled").unwrap());
+        assert_eq!(
+            node.parameter_overrides()
+                .keys()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+            ["answer", "enabled"]
+        );
+        assert_eq!(node.parameter_overrides().get("answer"), Some(&ParameterValue::Integer(43)));
         let native_options = unsafe { rcl_node_get_options(node.node_handle.as_ref()) };
         assert!(!native_options.is_null());
         assert!(!unsafe { (*native_options).use_global_arguments });
@@ -5869,6 +5890,50 @@ mod tests {
         assert_eq!(node.get_parameter::<i64>("single").unwrap(), 1);
         assert_eq!(node.get_parameter::<i64>("group.first").unwrap(), 2);
         assert_eq!(node.get_parameter::<i64>("group.even").unwrap(), 6);
+    }
+
+    #[test]
+    fn parameter_override_snapshot_survives_runtime_mutations() {
+        let context = Context::create().unwrap();
+        let node = Node::create_with_options(
+            context,
+            "parameter_override_snapshot_test",
+            "",
+            NodeOptions::default()
+                .use_global_arguments(false)
+                .parameter_override("mutable", 41_i64)
+                .parameter_override("ignored", 42_i64),
+        )
+        .unwrap();
+
+        node.declare_parameter_with_descriptor(
+            "mutable",
+            1_i64,
+            ParameterDescriptor {
+                dynamic_typing: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        node.set_parameter("mutable", 43_i64).unwrap();
+        node.undeclare_parameter("mutable").unwrap();
+        node.declare_parameter_with_options(
+            "ignored",
+            2_i64,
+            ParameterDescriptor::default(),
+            ParameterDeclarationOptions::default().ignore_override(true),
+        )
+        .unwrap();
+
+        assert_eq!(
+            node.parameter_overrides(),
+            &IndexMap::from([
+                ("mutable".into(), ParameterValue::Integer(41)),
+                ("ignored".into(), ParameterValue::Integer(42)),
+            ])
+        );
+        assert!(!node.has_parameter("mutable"));
+        assert_eq!(node.get_parameter::<i64>("ignored").unwrap(), 2);
     }
 
     #[test]
@@ -6082,9 +6147,24 @@ mod tests {
             let node =
                 Node::create_with_options(context, "node_options_cli_test", "", options).unwrap();
             match mode.as_str() {
-                "global" => assert_eq!(node.get_parameter::<i64>("answer").unwrap(), 42),
-                "isolated" => assert!(node.get_parameter::<i64>("answer").is_err()),
-                "override" => assert_eq!(node.get_parameter::<i64>("answer").unwrap(), 43),
+                "global" => {
+                    assert_eq!(node.get_parameter::<i64>("answer").unwrap(), 42);
+                    assert_eq!(
+                        node.parameter_overrides().get("answer"),
+                        Some(&ParameterValue::Integer(42))
+                    );
+                }
+                "isolated" => {
+                    assert!(node.get_parameter::<i64>("answer").is_err());
+                    assert!(node.parameter_overrides().is_empty());
+                }
+                "override" => {
+                    assert_eq!(node.get_parameter::<i64>("answer").unwrap(), 43);
+                    assert_eq!(
+                        node.parameter_overrides().get("answer"),
+                        Some(&ParameterValue::Integer(43))
+                    );
+                }
                 _ => unreachable!(),
             }
             return;
