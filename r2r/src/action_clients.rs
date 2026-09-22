@@ -36,6 +36,7 @@ pub(crate) struct ActionClientCompletion {
 pub(crate) enum ActionClientTakeResult {
     Idle,
     Taken,
+    Backpressured,
 }
 
 const MAX_ACTION_RESPONSES_PER_SPIN: usize = 16;
@@ -46,8 +47,9 @@ pub(crate) fn collect_action_client_responses<C: ?Sized>(
     mut take: impl FnMut(&mut C, &mut Vec<ActionClientCompletion>) -> Result<ActionClientTakeResult>,
 ) -> Result<()> {
     for _ in 0..MAX_ACTION_RESPONSES_PER_SPIN {
-        if take(client, completions)? == ActionClientTakeResult::Idle {
-            break;
+        match take(client, completions)? {
+            ActionClientTakeResult::Taken => {}
+            ActionClientTakeResult::Idle | ActionClientTakeResult::Backpressured => break,
         }
     }
     Ok(())
@@ -115,8 +117,9 @@ pub(crate) fn complete_action_feedback_batch<T: ?Sized>(
             run_action_client_completions(client, completions, &mut cleanup_goal);
         let take_result = take_result?;
         completion_result?;
-        if take_result == ActionClientTakeResult::Idle {
-            break;
+        match take_result {
+            ActionClientTakeResult::Taken => {}
+            ActionClientTakeResult::Idle | ActionClientTakeResult::Backpressured => break,
         }
     }
     Ok(())
@@ -1179,7 +1182,7 @@ where
     ) -> Result<ActionClientTakeResult> {
         if let Some(completion) = self.pending_feedback_completion() {
             completions.push(completion);
-            return Ok(ActionClientTakeResult::Taken);
+            return Ok(ActionClientTakeResult::Backpressured);
         }
         let mut feedback_msg = WrappedNativeMsg::<T::FeedbackMessage>::try_new()?;
         let ret =
@@ -1869,6 +1872,18 @@ mod tests {
         )
         .unwrap();
         assert_eq!(calls.get(), MAX_ACTION_FEEDBACK_PER_SPIN);
+
+        calls.set(0);
+        complete_action_feedback_batch(
+            &client,
+            |_, _| {
+                calls.set(calls.get() + 1);
+                Ok(ActionClientTakeResult::Backpressured)
+            },
+            |_, _| Vec::new(),
+        )
+        .unwrap();
+        assert_eq!(calls.get(), 1);
     }
 
     #[test]

@@ -777,7 +777,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
     ) -> Result<ActionClientTakeResult> {
         if let Some(completion) = self.pending_feedback_completion() {
             completions.push(completion);
-            return Ok(ActionClientTakeResult::Taken);
+            return Ok(ActionClientTakeResult::Backpressured);
         }
         let mut feedback_msg = (self.action_type_support.make_feedback_msg)()?;
         let ret =
