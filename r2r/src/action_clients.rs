@@ -53,6 +53,35 @@ pub(crate) struct PendingFeedbackQueue {
 
 pub(crate) type CanceledResultQueue = Arc<Mutex<VecDeque<uuid::Uuid>>>;
 pub(crate) type CanceledCancelQueue = Arc<Mutex<VecDeque<i64>>>;
+pub(crate) type CanceledFeedbackQueue = Arc<Mutex<VecDeque<uuid::Uuid>>>;
+
+pub(crate) struct FeedbackStreamRegistration {
+    canceled_feedback: CanceledFeedbackQueue,
+    uuid: uuid::Uuid,
+    armed: bool,
+}
+
+impl FeedbackStreamRegistration {
+    pub(crate) fn new(canceled_feedback: CanceledFeedbackQueue, uuid: uuid::Uuid) -> Self {
+        Self {
+            canceled_feedback,
+            uuid,
+            armed: true,
+        }
+    }
+
+    pub(crate) fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for FeedbackStreamRegistration {
+    fn drop(&mut self) {
+        if self.armed {
+            self.canceled_feedback.lock().push_back(self.uuid);
+        }
+    }
+}
 
 struct CancelFutureRegistration {
     canceled_cancels: CanceledCancelQueue,
@@ -179,6 +208,34 @@ pub(crate) fn take_canceled_cancel_sequences(
         .collect()
 }
 
+pub(crate) fn take_canceled_feedback_goals<T>(
+    canceled_feedback: &CanceledFeedbackQueue,
+    feedback_senders: &HashMap<uuid::Uuid, FeedbackSender<T>>,
+) -> Vec<uuid::Uuid> {
+    let candidates = {
+        let mut canceled_feedback = canceled_feedback.lock();
+        let count = canceled_feedback.len().min(MAX_ACTION_FEEDBACK_PER_SPIN);
+        canceled_feedback.drain(..count).collect::<Vec<_>>()
+    };
+    let mut canceled = Vec::new();
+    let mut retry = Vec::new();
+    for uuid in candidates {
+        let Some(channel) = feedback_senders.get(&uuid) else {
+            continue;
+        };
+        let channel = channel.lock();
+        if channel.is_closed() {
+            canceled.push(uuid);
+        } else if channel.sender.is_none() {
+            retry.push(uuid);
+        }
+    }
+    if !retry.is_empty() {
+        canceled_feedback.lock().extend(retry);
+    }
+    canceled
+}
+
 impl PendingFeedbackQueue {
     fn push(&mut self, uuid: uuid::Uuid) {
         if self.queued.insert(uuid) {
@@ -202,7 +259,7 @@ impl PendingFeedbackQueue {
 }
 
 pub(crate) const MAX_ACTION_RESPONSES_PER_SPIN: usize = 16;
-const MAX_ACTION_FEEDBACK_PER_SPIN: usize = 16;
+pub(crate) const MAX_ACTION_FEEDBACK_PER_SPIN: usize = 16;
 
 pub(crate) fn collect_action_client_responses<C: ?Sized>(
     client: &mut C, completions: &mut Vec<ActionClientCompletion>,
@@ -648,6 +705,7 @@ where
     T: WrappedActionTypeSupport,
 {
     receiver: mpsc::Receiver<T::Feedback>,
+    registration: FeedbackStreamRegistration,
 }
 
 impl<T> Stream for ActionFeedbackStream<T>
@@ -657,7 +715,20 @@ where
     type Item = T::Feedback;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut self.receiver).poll_next(cx)
+        let result = Pin::new(&mut self.receiver).poll_next(cx);
+        if matches!(result, Poll::Ready(None)) {
+            self.registration.disarm();
+        }
+        result
+    }
+}
+
+impl<T> Drop for ActionFeedbackStream<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    fn drop(&mut self) {
+        self.receiver.close();
     }
 }
 
@@ -940,7 +1011,13 @@ where
                     client
                         .feedback_senders
                         .insert(uuid, Arc::new(Mutex::new(FeedbackChannel::new(sender))));
-                    ActionFeedbackStream { receiver }
+                    ActionFeedbackStream {
+                        receiver,
+                        registration: FeedbackStreamRegistration::new(
+                            Arc::clone(&client.canceled_feedback_goals),
+                            uuid,
+                        ),
+                    }
                 });
                 let result = options.track_result.then(|| {
                     let (sender, receiver) = oneshot::channel::<(GoalStatus, T::Result)>();
@@ -1066,6 +1143,7 @@ where
         HashMap<i64, oneshot::Sender<action_msgs::srv::CancelGoal::Response>>,
     pub canceled_cancel_requests: CanceledCancelQueue,
     pub feedback_senders: HashMap<uuid::Uuid, FeedbackSender<T::Feedback>>,
+    pub canceled_feedback_goals: CanceledFeedbackQueue,
     pub pending_feedback_goals: Arc<Mutex<PendingFeedbackQueue>>,
     pub result_requests: HashMap<i64, uuid::Uuid>,
     pub result_request_sequences: HashMap<uuid::Uuid, i64>,
@@ -1253,8 +1331,7 @@ where
     fn prune_canceled_requests(&mut self) -> Vec<ActionClientCompletion> {
         let mut completions = Vec::new();
         self.prune_canceled_cancel_requests();
-        self.feedback_senders
-            .retain(|_, channel| !channel.lock().is_closed());
+        self.prune_canceled_feedback();
         let canceled_results =
             take_canceled_result_goals(&self.canceled_result_goals, &self.result_senders);
         for uuid in canceled_results {
@@ -1269,6 +1346,14 @@ where
             &self.cancel_response_channels,
         ) {
             self.cancel_response_channels.remove(&sequence);
+        }
+    }
+
+    fn prune_canceled_feedback(&mut self) {
+        for uuid in
+            take_canceled_feedback_goals(&self.canceled_feedback_goals, &self.feedback_senders)
+        {
+            self.feedback_senders.remove(&uuid);
         }
     }
 
@@ -1575,12 +1660,10 @@ where
 
     fn has_pending_work(&mut self) -> bool {
         self.prune_canceled_cancel_requests();
+        self.prune_canceled_feedback();
         !self.goal_response_channels.is_empty()
             || !self.cancel_response_channels.is_empty()
-            || self
-                .feedback_senders
-                .values()
-                .any(|channel| !channel.lock().is_closed())
+            || !self.feedback_senders.is_empty()
             || !self.result_senders.is_empty()
             || self
                 .poll_available_channels
@@ -2179,6 +2262,87 @@ mod tests {
     }
 
     #[test]
+    fn dropping_feedback_stream_queues_only_its_goal_for_cleanup() {
+        let target = uuid::Uuid::from_u128(1);
+        let other = uuid::Uuid::from_u128(2);
+        let canceled_feedback = Arc::new(Mutex::new(VecDeque::new()));
+        let (target_sender, target_receiver) = mpsc::channel::<Fibonacci::Feedback>(1);
+        let (other_sender, _other_receiver) = mpsc::channel::<Fibonacci::Feedback>(1);
+        let feedback_senders = HashMap::from([
+            (target, Arc::new(Mutex::new(FeedbackChannel::new(target_sender)))),
+            (other, Arc::new(Mutex::new(FeedbackChannel::new(other_sender)))),
+        ]);
+        let stream = ActionFeedbackStream::<Fibonacci::Action> {
+            receiver: target_receiver,
+            registration: FeedbackStreamRegistration::new(Arc::clone(&canceled_feedback), target),
+        };
+
+        drop(stream);
+
+        assert_eq!(take_canceled_feedback_goals(&canceled_feedback, &feedback_senders), [target]);
+        assert!(!feedback_senders[&other].lock().is_closed());
+    }
+
+    #[test]
+    fn completed_feedback_stream_does_not_queue_cleanup() {
+        let uuid = uuid::Uuid::from_u128(1);
+        let canceled_feedback = Arc::new(Mutex::new(VecDeque::new()));
+        let (sender, receiver) = mpsc::channel::<Fibonacci::Feedback>(1);
+        let mut stream = ActionFeedbackStream::<Fibonacci::Action> {
+            receiver,
+            registration: FeedbackStreamRegistration::new(Arc::clone(&canceled_feedback), uuid),
+        };
+        drop(sender);
+
+        assert!(matches!(stream.next().now_or_never(), Some(None)));
+        drop(stream);
+
+        assert!(canceled_feedback.lock().is_empty());
+    }
+
+    #[test]
+    fn canceled_feedback_cleanup_is_bounded_and_retries_in_flight_sends() {
+        let in_flight = uuid::Uuid::from_u128(1);
+        let canceled_feedback = Arc::new(Mutex::new(
+            (1..=20_u128)
+                .map(uuid::Uuid::from_u128)
+                .collect::<VecDeque<_>>(),
+        ));
+        let feedback_senders = (1..=20_u128)
+            .map(|value| {
+                let uuid = uuid::Uuid::from_u128(value);
+                let channel = if uuid == in_flight {
+                    FeedbackChannel {
+                        sender: None,
+                        pending: Some(()),
+                        closing: false,
+                    }
+                } else {
+                    let (sender, receiver) = mpsc::channel::<()>(1);
+                    drop(receiver);
+                    FeedbackChannel::new(sender)
+                };
+                (uuid, Arc::new(Mutex::new(channel)))
+            })
+            .collect::<HashMap<_, _>>();
+
+        let canceled = take_canceled_feedback_goals(&canceled_feedback, &feedback_senders);
+
+        assert_eq!(
+            canceled.iter().map(uuid::Uuid::as_u128).collect::<Vec<_>>(),
+            (2..=16).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            canceled_feedback
+                .lock()
+                .iter()
+                .map(uuid::Uuid::as_u128)
+                .collect::<Vec<_>>(),
+            [17, 18, 19, 20, 1]
+        );
+    }
+
+    #[test]
     fn canceled_result_cleanup_is_bounded() {
         let canceled_results = Arc::new(Mutex::new(
             (1..=20_u128)
@@ -2218,6 +2382,7 @@ mod tests {
             goal_response_sequences: HashMap::new(),
             cancel_response_channels: HashMap::new(),
             canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
+            canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::from([(
                 uuid,
                 Arc::new(Mutex::new(FeedbackChannel::new(feedback_sender))),
@@ -2341,6 +2506,7 @@ mod tests {
             goal_response_sequences: HashMap::new(),
             cancel_response_channels: HashMap::new(),
             canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
+            canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::from([
                 (target, Arc::new(Mutex::new(FeedbackChannel::new(target_sender)))),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_sender)))),
@@ -2609,6 +2775,7 @@ mod tests {
             goal_response_sequences: HashMap::new(),
             cancel_response_channels: HashMap::new(),
             canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
+            canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::from([(
                 target,
                 Arc::new(Mutex::new(FeedbackChannel::new(feedback_sender))),
@@ -2669,6 +2836,7 @@ mod tests {
             goal_response_sequences: HashMap::from([(target, 10), (other, 11)]),
             cancel_response_channels: HashMap::new(),
             canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
+            canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::new(),
             pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
@@ -2707,6 +2875,7 @@ mod tests {
             goal_response_sequences: HashMap::from([(uuid, 10)]),
             cancel_response_channels: HashMap::new(),
             canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
+            canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::new(),
             pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
@@ -2744,6 +2913,7 @@ mod tests {
             goal_response_sequences: HashMap::new(),
             cancel_response_channels: HashMap::new(),
             canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
+            canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::from([(
                 target,
                 Arc::new(Mutex::new(FeedbackChannel {
@@ -2894,6 +3064,7 @@ mod tests {
             goal_response_sequences: HashMap::new(),
             cancel_response_channels: HashMap::from([(10, sender)]),
             canceled_cancel_requests: Arc::clone(&canceled_cancels),
+            canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::new(),
             pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
@@ -2910,6 +3081,42 @@ mod tests {
 
         assert!(!client.has_pending_work());
         assert!(client.cancel_response_channels.is_empty());
+    }
+
+    #[test]
+    fn pending_work_prunes_dropped_feedback_stream() {
+        let uuid = uuid::Uuid::from_u128(1);
+        let canceled_feedback = Arc::new(Mutex::new(VecDeque::new()));
+        let (sender, receiver) = mpsc::channel(1);
+        let mut client = WrappedActionClient::<Fibonacci::Action> {
+            rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
+            goal_response_channels: HashMap::new(),
+            goal_response_sequences: HashMap::new(),
+            cancel_response_channels: HashMap::new(),
+            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
+            feedback_senders: HashMap::from([(
+                uuid,
+                Arc::new(Mutex::new(FeedbackChannel::new(sender))),
+            )]),
+            canceled_feedback_goals: Arc::clone(&canceled_feedback),
+            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            result_requests: HashMap::new(),
+            result_request_sequences: HashMap::new(),
+            result_senders: HashMap::new(),
+            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
+            goal_status: HashMap::new(),
+            feedback_channel_capacity: 1,
+            poll_available_channels: Vec::new(),
+        };
+        let stream = ActionFeedbackStream::<Fibonacci::Action> {
+            receiver,
+            registration: FeedbackStreamRegistration::new(canceled_feedback, uuid),
+        };
+
+        drop(stream);
+
+        assert!(!client.has_pending_work());
+        assert!(client.feedback_senders.is_empty());
     }
 
     #[test]
@@ -2974,6 +3181,7 @@ mod tests {
             goal_response_sequences: HashMap::new(),
             cancel_response_channels: HashMap::new(),
             canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
+            canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::from([
                 (
                     target,
@@ -3036,6 +3244,7 @@ mod tests {
             goal_response_sequences: HashMap::from([(other, 12)]),
             cancel_response_channels: HashMap::new(),
             canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
+            canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::from([
                 (
                     target,
