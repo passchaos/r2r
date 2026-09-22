@@ -23,14 +23,9 @@ pub struct ParameterClient {
 impl ParameterClient {
     pub(crate) fn new(node: &mut Node, remote_node_name: &str, qos: QosProfile) -> Result<Self> {
         let remote_node_name = normalize_remote_node_name(remote_node_name)?;
+        let resolved_remote_node_name = resolve_remote_node_name(node, &remote_node_name)?;
         let get_parameters =
             node.create_client(&format!("{remote_node_name}/get_parameters"), qos.clone())?;
-        let get_parameters_service = get_parameters.service_name()?;
-        let resolved_remote_node_name = get_parameters_service
-            .strip_suffix("/get_parameters")
-            .filter(|name| !name.is_empty())
-            .ok_or(Error::RCL_RET_SERVICE_NAME_INVALID)?
-            .to_owned();
         Ok(Self {
             get_parameters,
             get_parameter_types: node
@@ -533,6 +528,35 @@ impl ParameterClient {
     }
 }
 
+#[cfg(not(r2r__ros__distro__foxy))]
+fn resolve_remote_node_name(node: &Node, name: &str) -> Result<String> {
+    let service = node.resolve_service_name_without_remapping(&format!("{name}/get_parameters"))?;
+    service
+        .strip_suffix("/get_parameters")
+        .filter(|name| !name.is_empty())
+        .map(str::to_owned)
+        .ok_or(Error::RCL_RET_SERVICE_NAME_INVALID)
+}
+
+#[cfg(r2r__ros__distro__foxy)]
+fn resolve_remote_node_name(node: &Node, name: &str) -> Result<String> {
+    if name.starts_with('/') {
+        return Ok(name.to_owned());
+    }
+    if name == "~" {
+        return node.fully_qualified_name();
+    }
+    if let Some(suffix) = name.strip_prefix("~/") {
+        return Ok(format!("{}/{suffix}", node.fully_qualified_name()?));
+    }
+    let namespace = node.namespace()?;
+    Ok(if namespace == "/" {
+        format!("/{name}")
+    } else {
+        format!("{namespace}/{name}")
+    })
+}
+
 fn check_response_length(operation: &'static str, expected: usize, actual: usize) -> Result<()> {
     if expected == actual {
         Ok(())
@@ -592,7 +616,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Context, IntegerRange, ParameterDescriptor};
+    use crate::{Context, ContextOptions, IntegerRange, ParameterDescriptor};
     use futures::{executor::LocalPool, task::LocalSpawnExt, FutureExt, StreamExt};
 
     fn drive<T>(
@@ -1128,5 +1152,35 @@ mod tests {
         fn assert_clone<T: Clone>() {}
 
         assert_clone::<ParameterClient>();
+    }
+
+    #[test]
+    fn parameter_event_identity_ignores_service_remaps() {
+        const CHILD_ENV: &str = "R2R_PARAMETER_CLIENT_REMAP_CHILD";
+        if std::env::var_os(CHILD_ENV).is_none() {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .arg("parameter_clients::tests::parameter_event_identity_ignores_service_remaps")
+                .arg("--exact")
+                .arg("--nocapture")
+                .arg("--test-threads=1")
+                .env(CHILD_ENV, "1")
+                .status()
+                .unwrap();
+            assert!(status.success());
+            return;
+        }
+
+        let context = Context::create_with_options(ContextOptions::default().arguments([
+            "r2r-test",
+            "--ros-args",
+            "-r",
+            "/scope/event_server/get_parameters:=/proxy/get_parameters",
+        ]))
+        .unwrap();
+        let mut node = Node::create(context, "event_client", "/scope").unwrap();
+        let client = node.create_parameter_client("event_server").unwrap();
+
+        assert_eq!(client.get_parameters.service_name().unwrap(), "/proxy/get_parameters");
+        assert_eq!(client.resolved_remote_node_name(), "/scope/event_server");
     }
 }
