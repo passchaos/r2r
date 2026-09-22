@@ -55,13 +55,20 @@ pub(crate) fn flatten_parameter_event(
             if parameter.is_some_and(|expected| parameter_msg.name != expected) {
                 return None;
             }
-            Some(ParameterEventChange {
-                stamp: stamp.clone(),
-                node: node.clone(),
-                kind,
-                name: parameter_msg.name,
-                value: ParameterValue::from_parameter_value_msg(parameter_msg.value),
-            })
+            let name = parameter_msg.name;
+            match ParameterValue::try_from_parameter_value_msg(parameter_msg.value) {
+                Ok(value) => Some(ParameterEventChange {
+                    stamp: stamp.clone(),
+                    node: node.clone(),
+                    kind,
+                    name,
+                    value,
+                }),
+                Err(err) => {
+                    log::warn!("ignoring malformed parameter event for {name}: {err}");
+                    None
+                }
+            }
         })
     })
     .collect()
@@ -222,9 +229,11 @@ impl ParameterValue {
         Ok(value)
     }
 
-    pub(crate) fn from_parameter_value_msg(msg: rcl_interfaces::msg::ParameterValue) -> Self {
+    pub(crate) fn try_from_parameter_value_msg(
+        msg: rcl_interfaces::msg::ParameterValue,
+    ) -> Result<Self> {
         // todo: use constants from ParameterType message
-        match msg.type_ {
+        let value = match msg.type_ {
             0 => ParameterValue::NotSet,
             1 => ParameterValue::Bool(msg.bool_value),
             2 => ParameterValue::Integer(msg.integer_value),
@@ -235,11 +244,9 @@ impl ParameterValue {
             7 => ParameterValue::IntegerArray(msg.integer_array_value),
             8 => ParameterValue::DoubleArray(msg.double_array_value),
             9 => ParameterValue::StringArray(msg.string_array_value),
-            _ => {
-                log::debug!("warning: malformed parametervalue message");
-                ParameterValue::NotSet
-            }
-        }
+            type_ => return Err(Error::UnknownParameterType { type_ }),
+        };
+        Ok(value)
     }
 
     pub(crate) fn into_parameter_value_msg(self) -> rcl_interfaces::msg::ParameterValue {
@@ -916,5 +923,27 @@ mod tests {
         descriptor.integer_range.clear();
         descriptor.floating_point_range[0].step = f64::INFINITY;
         assert!(validate_parameter_descriptor("value", &descriptor).is_err());
+    }
+
+    #[test]
+    fn unknown_wire_parameter_types_are_rejected() {
+        let malformed = rcl_interfaces::msg::ParameterValue {
+            type_: u8::MAX,
+            integer_value: 42,
+            ..Default::default()
+        };
+        assert!(matches!(
+            ParameterValue::try_from_parameter_value_msg(malformed.clone()),
+            Err(Error::UnknownParameterType { type_: u8::MAX })
+        ));
+
+        let event = rcl_interfaces::msg::ParameterEvent {
+            new_parameters: vec![rcl_interfaces::msg::Parameter {
+                name: "malformed".into(),
+                value: malformed,
+            }],
+            ..Default::default()
+        };
+        assert!(flatten_parameter_event(event, None, None).is_empty());
     }
 }

@@ -132,6 +132,9 @@ pub enum Error {
     #[error("Invalid type for parameter {name} (should be {ty})")]
     InvalidParameterType { name: String, ty: &'static str },
 
+    #[error("Unknown ROS parameter type: {type_}")]
+    UnknownParameterType { type_: u8 },
+
     #[error("Parameter {name} conversion failed: {msg}")]
     ParameterValueConv { name: String, msg: String },
 

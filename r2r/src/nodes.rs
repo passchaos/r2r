@@ -681,7 +681,18 @@ impl Node {
                 let mut result = rcl_interfaces::srv::SetParameters::Response::default();
                 let mut ros_events = ParameterEventChanges::default();
                 for p in &req.message.parameters {
-                    let val = ParameterValue::from_parameter_value_msg(p.value.clone());
+                    let val = match ParameterValue::try_from_parameter_value_msg(p.value.clone()) {
+                        Ok(value) => value,
+                        Err(err) => {
+                            result
+                                .results
+                                .push(rcl_interfaces::msg::SetParametersResult {
+                                    successful: false,
+                                    reason: err.to_string(),
+                                });
+                            continue;
+                        }
+                    };
                     let previous = params.lock().get(&p.name).map(|v| v.value.clone());
                     let changed = previous.as_ref() != Some(&val);
                     let descriptor_result = parameter_descriptors
@@ -896,12 +907,25 @@ impl Node {
                     .parameters
                     .iter()
                     .map(|parameter| {
-                        (
+                        Ok((
                             parameter.name.clone(),
-                            ParameterValue::from_parameter_value_msg(parameter.value.clone()),
-                        )
+                            ParameterValue::try_from_parameter_value_msg(parameter.value.clone())?,
+                        ))
                     })
-                    .collect::<Vec<_>>();
+                    .collect::<Result<Vec<_>>>();
+                let updates = match updates {
+                    Ok(updates) => updates,
+                    Err(err) => {
+                        result.result.successful = false;
+                        result.result.reason = format!("Can't set parameters atomically: {err}");
+                        if let Err(err) = req.respond(result) {
+                            log::warn!(
+                                "could not send reply to atomic set parameter request: {err}"
+                            );
+                        }
+                        return future::ready(());
+                    }
+                };
                 let sim_time_update = updates
                     .iter()
                     .rev()
@@ -5439,6 +5463,28 @@ mod tests {
             msg::ParameterType::PARAMETER_INTEGER as u8
         );
 
+        let malformed = msg::ParameterValue {
+            type_: u8::MAX,
+            integer_value: 10,
+            ..Default::default()
+        };
+        let response = drive(
+            &mut node,
+            &mut pool,
+            set.request(&SetParameters::Request {
+                parameters: vec![msg::Parameter {
+                    name: "count".into(),
+                    value: malformed.clone(),
+                }],
+            })
+            .unwrap(),
+        );
+        assert!(!response.results[0].successful);
+        assert!(response.results[0]
+            .reason
+            .contains("Unknown ROS parameter type"));
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 6);
+
         let response = drive(
             &mut node,
             &mut pool,
@@ -5452,6 +5498,29 @@ mod tests {
                 .unwrap(),
         );
         assert!(!response.result.successful);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 6);
+        assert_eq!(node.get_parameter::<f64>("ratio").unwrap(), 0.2);
+
+        let response = drive(
+            &mut node,
+            &mut pool,
+            set_atomically
+                .request(&SetParametersAtomically::Request {
+                    parameters: vec![
+                        parameter("count", ParameterValue::Integer(8)),
+                        msg::Parameter {
+                            name: "ratio".into(),
+                            value: malformed,
+                        },
+                    ],
+                })
+                .unwrap(),
+        );
+        assert!(!response.result.successful);
+        assert!(response
+            .result
+            .reason
+            .contains("Unknown ROS parameter type"));
         assert_eq!(node.get_parameter::<i64>("count").unwrap(), 6);
         assert_eq!(node.get_parameter::<f64>("ratio").unwrap(), 0.2);
 
