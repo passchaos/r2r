@@ -4,8 +4,12 @@ use futures::{
     Future, Stream, TryFutureExt,
 };
 use std::{
+    any::TypeId,
     ffi::{CStr, CString},
+    marker::PhantomData,
     pin::Pin,
+    ptr::NonNull,
+    rc::Rc,
     task::{Context, Poll},
     time::Duration,
 };
@@ -107,6 +111,54 @@ pub struct ReceivedMessage<T> {
     pub info: MessageInfo,
 }
 
+/// A message borrowed directly from the subscription middleware.
+///
+/// The message is returned to the middleware when this value is dropped. While it exists, the
+/// owning [`Node`] remains mutably borrowed and therefore cannot be spun or destroyed.
+pub struct LoanedSubscriptionMessage<'node, T>
+where
+    T: WrappedTypesupport,
+{
+    msg: NonNull<T::CStruct>,
+    subscription: &'node rcl_subscription_t,
+    pub info: MessageInfo,
+    return_message:
+        unsafe extern "C" fn(*const rcl_subscription_t, *mut std::os::raw::c_void) -> rcl_ret_t,
+    _node: PhantomData<&'node mut Node>,
+    _not_send_or_sync: PhantomData<Rc<()>>,
+}
+
+impl<T> std::ops::Deref for LoanedSubscriptionMessage<'_, T>
+where
+    T: WrappedTypesupport,
+{
+    type Target = T::CStruct;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.msg.as_ref() }
+    }
+}
+
+impl<T> Drop for LoanedSubscriptionMessage<'_, T>
+where
+    T: WrappedTypesupport,
+{
+    fn drop(&mut self) {
+        let ret = unsafe {
+            (self.return_message)(
+                self.subscription,
+                self.msg.as_ptr().cast::<std::os::raw::c_void>(),
+            )
+        };
+        if ret != RCL_RET_OK as i32 {
+            log::error!(
+                "could not return subscription loaned message: {}",
+                Error::from_rcl_error(ret)
+            );
+        }
+    }
+}
+
 impl<T> ReceivedMessage<T> {
     pub(crate) fn new(message: T, info: MessageInfo) -> Self {
         Self { message, info }
@@ -156,6 +208,56 @@ impl<T> Subscription<T> {
         node.get_subscription_can_loan_messages(self.id)
     }
 
+    /// Tries to take a message loaned directly by the middleware without copying it.
+    ///
+    /// This is a non-blocking operation and returns `Ok(None)` when no message is available. It
+    /// returns [`Error::RCL_RET_UNSUPPORTED`] when the selected RMW or message type does not
+    /// support subscription loaning. The node cannot be spun again until the returned message is
+    /// dropped.
+    pub fn take_loaned_message<'node>(
+        &self, node: &'node mut Node,
+    ) -> Result<Option<LoanedSubscriptionMessage<'node, T>>>
+    where
+        T: WrappedTypesupport,
+    {
+        let subscriber = node
+            .subscribers
+            .iter_mut()
+            .find(|subscriber| {
+                subscriber
+                    .match_state()
+                    .is_some_and(|state| state.id == self.id)
+            })
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
+        if subscriber.message_type_id() != Some(TypeId::of::<T>()) {
+            return Err(Error::RCL_RET_SUBSCRIPTION_INVALID);
+        }
+        if !subscriber.can_loan_messages() {
+            return Err(Error::RCL_RET_UNSUPPORTED);
+        }
+
+        let mut msg = std::ptr::null_mut();
+        let mut info = rmw_message_info_t::default();
+        let ret = unsafe {
+            rcl_take_loaned_message(subscriber.handle(), &mut msg, &mut info, std::ptr::null_mut())
+        };
+        if ret == RCL_RET_SUBSCRIPTION_TAKE_FAILED as i32 {
+            return Ok(None);
+        }
+        if ret != RCL_RET_OK as i32 {
+            return Err(Error::from_rcl_error(ret));
+        }
+        let msg = NonNull::new(msg.cast::<T::CStruct>()).ok_or(Error::RCL_RET_ERROR)?;
+        Ok(Some(LoanedSubscriptionMessage {
+            msg,
+            subscription: subscriber.handle(),
+            info: info.into(),
+            return_message: rcl_return_loaned_message_from_subscription,
+            _node: PhantomData,
+            _not_send_or_sync: PhantomData,
+        }))
+    }
+
     /// Waits for at least one publisher to match this subscription.
     pub fn wait_for_publishers(&self, node: &mut Node) -> Result<impl Future<Output = Result<()>>> {
         let receiver = node.register_subscription_publisher_wait(self.id)?;
@@ -195,6 +297,9 @@ impl SubscriptionMatchState {
 
 pub(crate) trait Subscriber_ {
     fn handle(&self) -> &rcl_subscription_t;
+    fn message_type_id(&self) -> Option<TypeId> {
+        None
+    }
     fn match_state(&self) -> Option<&SubscriptionMatchState> {
         None
     }
@@ -322,6 +427,10 @@ where
         &self.rcl_handle
     }
 
+    fn message_type_id(&self) -> Option<TypeId> {
+        Some(TypeId::of::<T>())
+    }
+
     fn match_state(&self) -> Option<&SubscriptionMatchState> {
         Some(&self.match_state)
     }
@@ -373,6 +482,10 @@ where
 {
     fn handle(&self) -> &rcl_subscription_t {
         &self.rcl_handle
+    }
+
+    fn message_type_id(&self) -> Option<TypeId> {
+        Some(TypeId::of::<T>())
     }
 
     fn match_state(&self) -> Option<&SubscriptionMatchState> {
@@ -564,5 +677,42 @@ pub(crate) fn create_subscription_helper(
         Ok(subscription_handle)
     } else {
         Err(Error::from_rcl_error(result))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static RETURNED_LOANS: AtomicUsize = AtomicUsize::new(0);
+
+    unsafe extern "C" fn return_int32_loan(
+        _subscription: *const rcl_subscription_t, message: *mut std::os::raw::c_void,
+    ) -> rcl_ret_t {
+        RETURNED_LOANS.fetch_add(1, Ordering::Relaxed);
+        crate::std_msgs::msg::Int32::destroy_msg(
+            message.cast::<<crate::std_msgs::msg::Int32 as WrappedTypesupport>::CStruct>(),
+        );
+        RCL_RET_OK as i32
+    }
+
+    #[test]
+    fn loaned_subscription_message_returns_native_storage_once() {
+        RETURNED_LOANS.store(0, Ordering::Relaxed);
+        let subscription = unsafe { rcl_get_zero_initialized_subscription() };
+        let msg = NonNull::new(crate::std_msgs::msg::Int32::create_msg()).unwrap();
+        let loan = LoanedSubscriptionMessage::<crate::std_msgs::msg::Int32> {
+            msg,
+            subscription: &subscription,
+            info: rmw_message_info_t::default().into(),
+            return_message: return_int32_loan,
+            _node: PhantomData,
+            _not_send_or_sync: PhantomData,
+        };
+
+        assert_eq!(loan.data, 0);
+        drop(loan);
+        assert_eq!(RETURNED_LOANS.load(Ordering::Relaxed), 1);
     }
 }

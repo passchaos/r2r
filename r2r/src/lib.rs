@@ -90,7 +90,9 @@ mod utils;
 pub use utils::*;
 
 mod subscribers;
-pub use subscribers::{MessageInfo, ReceivedMessage, Subscription, SubscriptionOptions};
+pub use subscribers::{
+    LoanedSubscriptionMessage, MessageInfo, ReceivedMessage, Subscription, SubscriptionOptions,
+};
 
 mod publishers;
 pub use publishers::{

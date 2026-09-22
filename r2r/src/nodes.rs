@@ -4368,6 +4368,50 @@ mod tests {
         };
     }
 
+    #[test]
+    fn subscription_loan_is_received_or_reports_unsupported() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context.clone(), "subscription_loan_test", "").unwrap();
+        let mut other = Node::create(context, "subscription_loan_other", "").unwrap();
+        let topic = format!("/subscription_loan_{}", uuid::Uuid::new_v4().simple());
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::Int32>(&topic, QosProfile::default())
+            .unwrap();
+        let subscription = node
+            .subscribe::<crate::std_msgs::msg::Int32>(&topic, QosProfile::default())
+            .unwrap();
+
+        assert!(matches!(
+            subscription.take_loaned_message(&mut other),
+            Err(Error::RCL_RET_SUBSCRIPTION_INVALID)
+        ));
+        if !subscription.can_loan_messages(&node).unwrap() {
+            assert!(matches!(
+                subscription.take_loaned_message(&mut node),
+                Err(Error::RCL_RET_UNSUPPORTED)
+            ));
+            return;
+        }
+
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if publisher.get_subscription_count().unwrap() > 0 {
+                break;
+            }
+        }
+        publisher
+            .publish(&crate::std_msgs::msg::Int32 { data: 42 })
+            .unwrap();
+        for _ in 0..100 {
+            if let Some(message) = subscription.take_loaned_message(&mut node).unwrap() {
+                assert_eq!(message.data, 42);
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        panic!("subscription did not receive a loaned message");
+    }
+
     #[cfg(r2r__rosgraph_msgs__msg__Clock)]
     #[test]
     fn parameter_service_switches_sim_time_at_runtime() {
