@@ -44,6 +44,7 @@ pub trait ActionServer_ {
     fn set_goal_state(
         &mut self, uuid: &uuid::Uuid, new_state: rcl_action_goal_event_t,
     ) -> Result<()>;
+    fn notify_goal_done(&self) -> Result<()>;
     fn add_result(&mut self, uuid: uuid::Uuid, msg: Box<dyn VoidPtr>) -> Result<()>;
     fn cancel_goal(&mut self, uuid: &uuid::Uuid) -> Result<()>;
     fn execute_goal(&mut self, uuid: &uuid::Uuid) -> Result<()>;
@@ -402,8 +403,7 @@ where
                 )
             };
             if ret != RCL_RET_OK as i32 {
-                if let Err(rollback_err) =
-                    server.set_goal_state(&self.uuid, rcl_action_goal_event_t::GOAL_EVENT_ABORT)
+                if let Err(rollback_err) = abort_goal_after_failed_accept(&mut *server, &self.uuid)
                 {
                     log::error!(
                         "could not abort goal after execution setup failed: {rollback_err}"
@@ -422,8 +422,7 @@ where
         {
             Ok(response) => response,
             Err(err) => {
-                if let Err(rollback_err) =
-                    server.set_goal_state(&self.uuid, rcl_action_goal_event_t::GOAL_EVENT_ABORT)
+                if let Err(rollback_err) = abort_goal_after_failed_accept(&mut *server, &self.uuid)
                 {
                     log::error!(
                         "could not abort goal after response allocation failed: {rollback_err}"
@@ -443,9 +442,7 @@ where
             )
         };
         if ret != RCL_RET_OK as i32 {
-            if let Err(rollback_err) =
-                server.set_goal_state(&self.uuid, rcl_action_goal_event_t::GOAL_EVENT_ABORT)
-            {
+            if let Err(rollback_err) = abort_goal_after_failed_accept(&mut *server, &self.uuid) {
                 log::error!(
                     "could not abort goal after sending its response failed: {rollback_err}"
                 );
@@ -768,14 +765,18 @@ where
                 return Err(Error::from_rcl_error(ret));
             }
 
-            let ret = unsafe { rcl_action_notify_goal_done(self.handle()) };
-            if ret != RCL_RET_OK as i32 {
-                return Err(Error::from_rcl_error(ret));
-            }
-
             Ok(())
         } else {
             Err(Error::RCL_RET_ACTION_GOAL_HANDLE_INVALID)
+        }
+    }
+
+    fn notify_goal_done(&self) -> Result<()> {
+        let ret = unsafe { rcl_action_notify_goal_done(self.handle()) };
+        if ret == RCL_RET_OK as i32 {
+            Ok(())
+        } else {
+            Err(Error::from_rcl_error(ret))
         }
     }
 
@@ -1169,7 +1170,15 @@ fn complete_goal(
     if let Err(err) = server.publish_status() {
         first_error.get_or_insert(err);
     }
+    if let Err(err) = server.notify_goal_done() {
+        first_error.get_or_insert(err);
+    }
     first_error.map_or(Ok(()), Err)
+}
+
+fn abort_goal_after_failed_accept(server: &mut dyn ActionServer_, uuid: &uuid::Uuid) -> Result<()> {
+    server.set_goal_state(uuid, rcl_action_goal_event_t::GOAL_EVENT_ABORT)?;
+    server.notify_goal_done()
 }
 
 fn time_point_to_builtin(time: rcl_time_point_value_t) -> Result<builtin_interfaces::msg::Time> {
@@ -1472,6 +1481,157 @@ mod tests {
     use futures::{executor::LocalPool, task::LocalSpawnExt, StreamExt};
     use std::time::Duration;
 
+    struct DummyResult;
+
+    impl VoidPtr for DummyResult {
+        fn void_ptr(&self) -> *const std::os::raw::c_void {
+            std::ptr::null()
+        }
+
+        fn void_ptr_mut(&mut self) -> *mut std::os::raw::c_void {
+            std::ptr::null_mut()
+        }
+    }
+
+    struct CompletionTestServer {
+        handle: rcl_action_server_t,
+        calls: Mutex<Vec<&'static str>>,
+        state_error: bool,
+        add_result_error: bool,
+        publish_status_error: bool,
+        notify_error: bool,
+    }
+
+    impl CompletionTestServer {
+        fn new(
+            state_error: bool, add_result_error: bool, publish_status_error: bool,
+            notify_error: bool,
+        ) -> Self {
+            Self {
+                handle: unsafe { rcl_action_get_zero_initialized_server() },
+                calls: Mutex::new(Vec::new()),
+                state_error,
+                add_result_error,
+                publish_status_error,
+                notify_error,
+            }
+        }
+    }
+
+    impl ActionServer_ for CompletionTestServer {
+        fn handle(&self) -> &rcl_action_server_t {
+            &self.handle
+        }
+
+        fn handle_mut(&mut self) -> &mut rcl_action_server_t {
+            &mut self.handle
+        }
+
+        fn now(&mut self) -> Result<builtin_interfaces::msg::Time> {
+            unreachable!()
+        }
+
+        fn reject_goal_request(
+            &mut self, _uuid: &uuid::Uuid, _request_id: &mut rmw_request_id_t,
+        ) -> Result<()> {
+            unreachable!()
+        }
+
+        fn handle_goal_request(&mut self, _server: Arc<Mutex<dyn ActionServer_>>) -> Result<()> {
+            unreachable!()
+        }
+
+        fn send_completed_cancel_requests(&mut self) -> Result<()> {
+            unreachable!()
+        }
+
+        fn handle_cancel_request(&mut self) -> Result<()> {
+            unreachable!()
+        }
+
+        fn handle_result_request(&mut self) -> Result<()> {
+            unreachable!()
+        }
+
+        fn handle_goal_expired(&mut self) -> Result<()> {
+            unreachable!()
+        }
+
+        fn action_name(&self) -> Result<String> {
+            unreachable!()
+        }
+
+        fn publish_status(&self) -> Result<()> {
+            self.calls.lock().push("status");
+            if self.publish_status_error {
+                Err(Error::RCL_RET_ERROR)
+            } else {
+                Ok(())
+            }
+        }
+
+        fn set_goal_state(
+            &mut self, _uuid: &uuid::Uuid, _new_state: rcl_action_goal_event_t,
+        ) -> Result<()> {
+            self.calls.lock().push("state");
+            if self.state_error {
+                Err(Error::RCL_RET_ACTION_GOAL_EVENT_INVALID)
+            } else {
+                Ok(())
+            }
+        }
+
+        fn notify_goal_done(&self) -> Result<()> {
+            self.calls.lock().push("notify");
+            if self.notify_error {
+                Err(Error::RCL_RET_TIMEOUT)
+            } else {
+                Ok(())
+            }
+        }
+
+        fn add_result(&mut self, _uuid: uuid::Uuid, _msg: Box<dyn VoidPtr>) -> Result<()> {
+            self.calls.lock().push("result");
+            if self.add_result_error {
+                Err(Error::RCL_RET_BAD_ALLOC)
+            } else {
+                Ok(())
+            }
+        }
+
+        fn cancel_goal(&mut self, _uuid: &uuid::Uuid) -> Result<()> {
+            unreachable!()
+        }
+
+        fn execute_goal(&mut self, _uuid: &uuid::Uuid) -> Result<()> {
+            unreachable!()
+        }
+
+        fn get_goal_status(&self, _uuid: &uuid::Uuid) -> Result<GoalStatus> {
+            unreachable!()
+        }
+
+        fn is_cancelling(&self, _uuid: &uuid::Uuid) -> Result<bool> {
+            unreachable!()
+        }
+
+        fn add_goal_handle(
+            &mut self, _uuid: uuid::Uuid, _goal_handle: *mut rcl_action_goal_handle_t,
+        ) {
+            unreachable!()
+        }
+
+        fn forget_cancel_sender(&mut self, _uuid: &uuid::Uuid) {
+            unreachable!()
+        }
+
+        fn should_remove(&self) -> bool {
+            false
+        }
+
+        fn destroy(&mut self, _node: &mut rcl_node_t) {}
+    }
+
     fn goal_info(uuid: uuid::Uuid) -> action_msgs::msg::GoalInfo {
         action_msgs::msg::GoalInfo {
             goal_id: unique_identifier_msgs::msg::UUID {
@@ -1524,6 +1684,34 @@ mod tests {
             publish_action_status(&invalid_server),
             Err(Error::RCL_RET_ACTION_SERVER_INVALID)
         ));
+    }
+
+    #[test]
+    fn terminal_goal_completion_attempts_every_post_transition_step() {
+        let mut server = CompletionTestServer::new(false, true, true, true);
+        let result = complete_goal(
+            &mut server,
+            uuid::Uuid::nil(),
+            rcl_action_goal_event_t::GOAL_EVENT_SUCCEED,
+            Box::new(DummyResult),
+        );
+
+        assert!(matches!(result, Err(Error::RCL_RET_BAD_ALLOC)));
+        assert_eq!(*server.calls.lock(), ["state", "result", "status", "notify"]);
+    }
+
+    #[test]
+    fn terminal_goal_completion_stops_after_failed_transition() {
+        let mut server = CompletionTestServer::new(true, false, false, false);
+        let result = complete_goal(
+            &mut server,
+            uuid::Uuid::nil(),
+            rcl_action_goal_event_t::GOAL_EVENT_SUCCEED,
+            Box::new(DummyResult),
+        );
+
+        assert!(matches!(result, Err(Error::RCL_RET_ACTION_GOAL_EVENT_INVALID)));
+        assert_eq!(*server.calls.lock(), ["state"]);
     }
 
     #[test]
