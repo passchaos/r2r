@@ -1436,6 +1436,44 @@ impl Node {
         Ok(Service::new(receiver, id))
     }
 
+    /// Creates a runtime-typed ROS service whose requests and responses use JSON values.
+    pub fn create_service_untyped(
+        &mut self, service_name: &str, service_type: &str, qos_profile: QosProfile,
+    ) -> Result<ServiceUntyped> {
+        self.create_service_untyped_with_options(
+            service_name,
+            service_type,
+            qos_profile,
+            ServiceOptions::default(),
+        )
+    }
+
+    /// Creates a runtime-typed ROS service with explicit request stream buffering.
+    pub fn create_service_untyped_with_options(
+        &mut self, service_name: &str, service_type: &str, qos_profile: QosProfile,
+        options: ServiceOptions,
+    ) -> Result<ServiceUntyped> {
+        let options = options.validate()?;
+        let service_type = UntypedServiceSupport::new_from(service_type)?;
+        let service_handle = create_service_helper(
+            self.node_handle.as_mut(),
+            service_name,
+            service_type.ts,
+            qos_profile,
+        )?;
+        let (sender, receiver) =
+            mpsc::channel::<ServiceRequestUntyped>(options.request_channel_capacity);
+        let id = uuid::Uuid::new_v4();
+        let service = UntypedService {
+            service_type,
+            rcl_handle: service_handle,
+            sender,
+            id,
+        };
+        self.services.push(Arc::new(Mutex::new(service)));
+        Ok(ServiceUntyped::new(receiver, id))
+    }
+
     pub(crate) fn get_service_request_subscription_actual_qos(
         &self, id: uuid::Uuid,
     ) -> Result<QosProfile> {
@@ -4099,6 +4137,78 @@ mod tests {
             ServiceOptions::default().request_channel_capacity(usize::MAX),
         );
         assert!(matches!(invalid, Err(Error::RCL_RET_INVALID_ARGUMENT)));
+    }
+
+    #[test]
+    fn untyped_service_servers_interoperate_with_typed_clients() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "untyped_service_server_test", "/scope").unwrap();
+        let mut requests = node
+            .create_service_untyped_with_options(
+                "add",
+                "example_interfaces/srv/AddTwoInts",
+                QosProfile::default().keep_last(7),
+                ServiceOptions::default().request_channel_capacity(0),
+            )
+            .unwrap();
+        assert_eq!(requests.service_name(&node).unwrap(), "/scope/add");
+        assert_eq!(
+            requests
+                .get_request_subscription_actual_qos(&node)
+                .unwrap()
+                .depth,
+            7
+        );
+        assert_eq!(
+            requests
+                .get_response_publisher_actual_qos(&node)
+                .unwrap()
+                .depth,
+            7
+        );
+        let client = node
+            .create_client::<AddTwoInts::Service>("add", QosProfile::default().keep_last(7))
+            .unwrap();
+
+        let first = client.request(&AddTwoInts::Request { a: 1, b: 2 }).unwrap();
+        let second = client
+            .request(&AddTwoInts::Request { a: 20, b: 22 })
+            .unwrap();
+        let mut first = Box::pin(first);
+        let mut second = Box::pin(second);
+        for _ in 0..2 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+        }
+        let request = requests.next().now_or_never().flatten().unwrap();
+        assert_eq!(request.message.as_ref().unwrap(), &serde_json::json!({ "a": 1, "b": 2 }));
+        request.respond(serde_json::json!({ "sum": 3 })).unwrap();
+        assert!(requests.next().now_or_never().is_none());
+        node.try_spin_once(Duration::from_millis(10)).unwrap();
+        let request = requests.next().now_or_never().flatten().unwrap();
+        assert_eq!(request.message.as_ref().unwrap(), &serde_json::json!({ "a": 20, "b": 22 }));
+        request.respond(serde_json::json!({ "sum": 42 })).unwrap();
+
+        let mut first_result = None;
+        let mut second_result = None;
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            first_result = first_result.or_else(|| first.as_mut().now_or_never());
+            second_result = second_result.or_else(|| second.as_mut().now_or_never());
+            if first_result.is_some() && second_result.is_some() {
+                break;
+            }
+        }
+        assert_eq!(first_result.unwrap().unwrap().sum, 3);
+        assert_eq!(second_result.unwrap().unwrap().sum, 42);
+
+        let invalid = node.create_service_untyped(
+            "invalid",
+            "missing_interfaces/srv/Nope",
+            QosProfile::default(),
+        );
+        assert!(matches!(invalid, Err(Error::InvalidMessageType { .. })));
     }
 
     #[test]

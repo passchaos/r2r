@@ -98,7 +98,9 @@ pub use publishers::{
 };
 
 mod services;
-pub use services::{Service, ServiceOptions, ServiceRequest};
+pub use services::{
+    Service, ServiceOptions, ServiceRequest, ServiceRequestUntyped, ServiceUntyped,
+};
 
 mod clients;
 pub use clients::{Client, ClientUntyped};
