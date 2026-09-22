@@ -51,6 +51,29 @@ pub struct RequestedIncompatibleQosStatus {
     pub last_policy_kind: QosPolicyKind,
 }
 
+/// Cumulative status from a requested-deadline-missed subscription event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RequestedDeadlineMissedStatus {
+    pub total_count: i32,
+    pub total_count_change: i32,
+}
+
+/// Current publisher liveliness counts reported by a subscription event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LivelinessChangedStatus {
+    pub alive_count: i32,
+    pub not_alive_count: i32,
+    pub alive_count_change: i32,
+    pub not_alive_count_change: i32,
+}
+
+/// Cumulative status from a subscription message-lost event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MessageLostStatus {
+    pub total_count: usize,
+    pub total_count_change: usize,
+}
+
 impl ContentFilterOptions {
     pub fn new(filter_expression: impl Into<String>) -> Self {
         Self {
@@ -281,6 +304,25 @@ impl<T> Subscription<T> {
         node.take_subscription_requested_incompatible_qos(self.id)
     }
 
+    /// Takes the latest requested-deadline-missed status without blocking.
+    pub fn take_requested_deadline_missed(
+        &self, node: &mut Node,
+    ) -> Result<Option<RequestedDeadlineMissedStatus>> {
+        node.take_subscription_requested_deadline_missed(self.id)
+    }
+
+    /// Takes the latest liveliness-changed status without blocking.
+    pub fn take_liveliness_changed(
+        &self, node: &mut Node,
+    ) -> Result<Option<LivelinessChangedStatus>> {
+        node.take_subscription_liveliness_changed(self.id)
+    }
+
+    /// Takes the latest message-lost status without blocking.
+    pub fn take_message_lost(&self, node: &mut Node) -> Result<Option<MessageLostStatus>> {
+        node.take_subscription_message_lost(self.id)
+    }
+
     /// Tries to take a message loaned directly by the middleware without copying it.
     ///
     /// This is a non-blocking operation and returns `Ok(None)` when no message is available. It
@@ -358,6 +400,9 @@ pub(crate) struct SubscriptionMatchState {
     pub(crate) id: uuid::Uuid,
     pub(crate) waiters: Vec<oneshot::Sender<()>>,
     requested_incompatible_qos: Option<SubscriptionEvent>,
+    requested_deadline_missed: Option<SubscriptionEvent>,
+    liveliness_changed: Option<SubscriptionEvent>,
+    message_lost: Option<SubscriptionEvent>,
 }
 
 impl SubscriptionMatchState {
@@ -366,6 +411,9 @@ impl SubscriptionMatchState {
             id,
             waiters: Vec::new(),
             requested_incompatible_qos: None,
+            requested_deadline_missed: None,
+            liveliness_changed: None,
+            message_lost: None,
         }
     }
 
@@ -381,8 +429,47 @@ impl SubscriptionMatchState {
         event.take_requested_incompatible_qos()
     }
 
+    fn take_requested_deadline_missed(
+        &mut self, subscription: *const rcl_subscription_t,
+    ) -> Result<Option<RequestedDeadlineMissedStatus>> {
+        let event = self.requested_deadline_missed.get_or_insert_with(|| {
+            SubscriptionEvent::uninitialized(
+                rcl_subscription_event_type_t::RCL_SUBSCRIPTION_REQUESTED_DEADLINE_MISSED,
+            )
+        });
+        event.ensure_initialized(subscription)?;
+        event.take_requested_deadline_missed()
+    }
+
+    fn take_liveliness_changed(
+        &mut self, subscription: *const rcl_subscription_t,
+    ) -> Result<Option<LivelinessChangedStatus>> {
+        let event = self.liveliness_changed.get_or_insert_with(|| {
+            SubscriptionEvent::uninitialized(
+                rcl_subscription_event_type_t::RCL_SUBSCRIPTION_LIVELINESS_CHANGED,
+            )
+        });
+        event.ensure_initialized(subscription)?;
+        event.take_liveliness_changed()
+    }
+
+    fn take_message_lost(
+        &mut self, subscription: *const rcl_subscription_t,
+    ) -> Result<Option<MessageLostStatus>> {
+        let event = self.message_lost.get_or_insert_with(|| {
+            SubscriptionEvent::uninitialized(
+                rcl_subscription_event_type_t::RCL_SUBSCRIPTION_MESSAGE_LOST,
+            )
+        });
+        event.ensure_initialized(subscription)?;
+        event.take_message_lost()
+    }
+
     fn clear_events(&mut self) {
         self.requested_incompatible_qos = None;
+        self.requested_deadline_missed = None;
+        self.liveliness_changed = None;
+        self.message_lost = None;
     }
 }
 
@@ -427,6 +514,59 @@ impl SubscriptionEvent {
             total_count: status.total_count,
             total_count_change: status.total_count_change,
             last_policy_kind: status.last_policy_kind.into(),
+        }))
+    }
+
+    fn take_requested_deadline_missed(&self) -> Result<Option<RequestedDeadlineMissedStatus>> {
+        let mut status = MaybeUninit::<rmw_requested_deadline_missed_status_t>::uninit();
+        let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
+        if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
+            return Ok(None);
+        }
+        check_subscription_ret(ret)?;
+        let status = unsafe { status.assume_init() };
+        if status.total_count_change == 0 {
+            return Ok(None);
+        }
+        Ok(Some(RequestedDeadlineMissedStatus {
+            total_count: status.total_count,
+            total_count_change: status.total_count_change,
+        }))
+    }
+
+    fn take_liveliness_changed(&self) -> Result<Option<LivelinessChangedStatus>> {
+        let mut status = MaybeUninit::<rmw_liveliness_changed_status_t>::uninit();
+        let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
+        if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
+            return Ok(None);
+        }
+        check_subscription_ret(ret)?;
+        let status = unsafe { status.assume_init() };
+        if status.alive_count_change == 0 && status.not_alive_count_change == 0 {
+            return Ok(None);
+        }
+        Ok(Some(LivelinessChangedStatus {
+            alive_count: status.alive_count,
+            not_alive_count: status.not_alive_count,
+            alive_count_change: status.alive_count_change,
+            not_alive_count_change: status.not_alive_count_change,
+        }))
+    }
+
+    fn take_message_lost(&self) -> Result<Option<MessageLostStatus>> {
+        let mut status = MaybeUninit::<rmw_message_lost_status_t>::uninit();
+        let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
+        if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
+            return Ok(None);
+        }
+        check_subscription_ret(ret)?;
+        let status = unsafe { status.assume_init() };
+        if status.total_count_change == 0 {
+            return Ok(None);
+        }
+        Ok(Some(MessageLostStatus {
+            total_count: status.total_count,
+            total_count_change: status.total_count_change,
         }))
     }
 }
@@ -525,6 +665,27 @@ pub(crate) trait Subscriber_ {
             .match_state_mut()
             .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
         state.take_requested_incompatible_qos(subscription)
+    }
+    fn take_requested_deadline_missed(&mut self) -> Result<Option<RequestedDeadlineMissedStatus>> {
+        let subscription = self.handle() as *const rcl_subscription_t;
+        let state = self
+            .match_state_mut()
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
+        state.take_requested_deadline_missed(subscription)
+    }
+    fn take_liveliness_changed(&mut self) -> Result<Option<LivelinessChangedStatus>> {
+        let subscription = self.handle() as *const rcl_subscription_t;
+        let state = self
+            .match_state_mut()
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
+        state.take_liveliness_changed(subscription)
+    }
+    fn take_message_lost(&mut self) -> Result<Option<MessageLostStatus>> {
+        let subscription = self.handle() as *const rcl_subscription_t;
+        let state = self
+            .match_state_mut()
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
+        state.take_message_lost(subscription)
     }
     fn poll_has_publishers(&mut self) {
         {

@@ -92,8 +92,9 @@ pub use utils::*;
 mod subscribers;
 pub use subscribers::ContentFilterOptions;
 pub use subscribers::{
-    LoanedSubscriptionMessage, MessageInfo, ReceivedMessage, RequestedIncompatibleQosStatus,
-    Subscription, SubscriptionOptions,
+    LivelinessChangedStatus, LoanedSubscriptionMessage, MessageInfo, MessageLostStatus,
+    ReceivedMessage, RequestedDeadlineMissedStatus, RequestedIncompatibleQosStatus, Subscription,
+    SubscriptionOptions,
 };
 
 mod publishers;

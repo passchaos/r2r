@@ -1420,6 +1420,36 @@ impl Node {
             .take_requested_incompatible_qos()
     }
 
+    pub(crate) fn take_subscription_requested_deadline_missed(
+        &mut self, id: uuid::Uuid,
+    ) -> Result<Option<RequestedDeadlineMissedStatus>> {
+        self.subscribers
+            .iter_mut()
+            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
+            .take_requested_deadline_missed()
+    }
+
+    pub(crate) fn take_subscription_liveliness_changed(
+        &mut self, id: uuid::Uuid,
+    ) -> Result<Option<LivelinessChangedStatus>> {
+        self.subscribers
+            .iter_mut()
+            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
+            .take_liveliness_changed()
+    }
+
+    pub(crate) fn take_subscription_message_lost(
+        &mut self, id: uuid::Uuid,
+    ) -> Result<Option<MessageLostStatus>> {
+        self.subscribers
+            .iter_mut()
+            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
+            .take_message_lost()
+    }
+
     pub(crate) fn register_subscription_publisher_wait(
         &mut self, id: uuid::Uuid,
     ) -> Result<oneshot::Receiver<()>> {
@@ -4548,6 +4578,110 @@ mod tests {
             }
         }
         panic!("subscription did not report incompatible QoS");
+    }
+
+    #[test]
+    fn subscriptions_report_requested_deadline_misses() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "subscription_deadline_event_test", "").unwrap();
+        let topic = format!("/subscription_deadline_event_{}", uuid::Uuid::new_v4().simple());
+        let qos = QosProfile::default().deadline(Duration::from_millis(20));
+        let mut subscription = node
+            .subscribe::<crate::std_msgs::msg::Int32>(&topic, qos.clone())
+            .unwrap();
+        match subscription.take_requested_deadline_missed(&mut node) {
+            Err(Error::RCL_RET_UNSUPPORTED) => return,
+            Err(err) => panic!("unexpected deadline event initialization error: {err}"),
+            Ok(None) => {}
+            Ok(Some(status)) => panic!("unexpected initial deadline event: {status:?}"),
+        }
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::Int32>(&topic, qos)
+            .unwrap();
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if publisher.get_subscription_count().unwrap() > 0 {
+                break;
+            }
+        }
+        publisher
+            .publish(&crate::std_msgs::msg::Int32 { data: 1 })
+            .unwrap();
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if subscription.next().now_or_never().flatten().is_some() {
+                break;
+            }
+        }
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(status) = subscription
+                .take_requested_deadline_missed(&mut node)
+                .unwrap()
+            {
+                assert!(status.total_count >= 1);
+                assert!(status.total_count_change >= 1);
+                return;
+            }
+        }
+        panic!("subscription did not report a missed deadline");
+    }
+
+    #[test]
+    fn subscriptions_report_liveliness_changes() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "subscription_liveliness_event_test", "").unwrap();
+        let topic = format!("/subscription_liveliness_event_{}", uuid::Uuid::new_v4().simple());
+        let qos = QosProfile::default()
+            .liveliness(crate::qos::LivelinessPolicy::ManualByTopic)
+            .liveliness_lease_duration(Duration::from_millis(50));
+        let subscription = node
+            .subscribe::<crate::std_msgs::msg::Int32>(&topic, qos.clone())
+            .unwrap();
+        match subscription.take_liveliness_changed(&mut node) {
+            Err(Error::RCL_RET_UNSUPPORTED) => return,
+            Err(err) => panic!("unexpected liveliness event initialization error: {err}"),
+            Ok(None) => {}
+            Ok(Some(status)) => panic!("unexpected initial liveliness event: {status:?}"),
+        }
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::Int32>(&topic, qos)
+            .unwrap();
+        publisher
+            .publish(&crate::std_msgs::msg::Int32 { data: 1 })
+            .unwrap();
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(status) = subscription.take_liveliness_changed(&mut node).unwrap() {
+                assert!(status.alive_count >= 1);
+                assert!(status.alive_count_change >= 1);
+                assert!(subscription
+                    .take_liveliness_changed(&mut node)
+                    .unwrap()
+                    .is_none());
+                assert!(publisher.get_subscription_count().unwrap() >= 1);
+                return;
+            }
+        }
+        panic!("subscription did not report publisher liveliness");
+    }
+
+    #[test]
+    fn subscription_message_lost_status_is_nonblocking() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "subscription_message_lost_test", "").unwrap();
+        let subscription = node
+            .subscribe::<crate::std_msgs::msg::Int32>(
+                "/subscription_message_lost",
+                QosProfile::default(),
+            )
+            .unwrap();
+
+        match subscription.take_message_lost(&mut node) {
+            Ok(None) | Err(Error::RCL_RET_UNSUPPORTED) => {}
+            Ok(Some(status)) => panic!("unexpected initial message-lost event: {status:?}"),
+            Err(err) => panic!("unexpected message-lost event initialization error: {err}"),
+        }
     }
 
     #[test]
