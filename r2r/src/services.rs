@@ -17,6 +17,15 @@ pub(crate) enum ServiceRequestAction {
     Deliver(Box<dyn FnOnce() -> bool + Send>),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ServiceHandleResult {
+    Taken,
+    Idle,
+    Remove,
+}
+
+const MAX_SERVICE_REQUESTS_PER_SPIN: usize = 16;
+
 fn request_delivery<T: Send + 'static>(
     sender_slot: Arc<Mutex<Option<mpsc::Sender<T>>>>, mut sender: mpsc::Sender<T>, request: T,
     description: &'static str,
@@ -39,16 +48,35 @@ fn request_delivery<T: Send + 'static>(
 
 pub(crate) fn complete_service_request<S: ?Sized>(
     service: &Mutex<S>, operation: impl FnOnce(&mut S) -> Result<ServiceRequestAction>,
-) -> Result<bool> {
+) -> Result<ServiceHandleResult> {
     let action = {
         let mut service = service.lock();
         operation(&mut *service)?
     };
     match action {
-        ServiceRequestAction::Idle => Ok(false),
-        ServiceRequestAction::Remove => Ok(true),
-        ServiceRequestAction::Deliver(deliver) => Ok(deliver()),
+        ServiceRequestAction::Idle => Ok(ServiceHandleResult::Idle),
+        ServiceRequestAction::Remove => Ok(ServiceHandleResult::Remove),
+        ServiceRequestAction::Deliver(deliver) => Ok(if deliver() {
+            ServiceHandleResult::Remove
+        } else {
+            ServiceHandleResult::Taken
+        }),
     }
+}
+
+pub(crate) fn complete_ready_service(
+    service: &Arc<Mutex<dyn Service_>>,
+) -> Result<ServiceHandleResult> {
+    for _ in 0..MAX_SERVICE_REQUESTS_PER_SPIN {
+        let service_ref = Arc::clone(service);
+        match complete_service_request(service, |service| service.handle_request(service_ref))? {
+            ServiceHandleResult::Taken => {}
+            result @ (ServiceHandleResult::Idle | ServiceHandleResult::Remove) => {
+                return Ok(result);
+            }
+        }
+    }
+    Ok(ServiceHandleResult::Taken)
 }
 
 fn with_prepared_service<S: ?Sized, P, T>(
@@ -498,6 +526,11 @@ mod tests {
             let _service = arc_self.service.lock();
             arc_self.woke.store(true, Ordering::SeqCst);
         }
+    }
+
+    #[test]
+    fn service_batch_limit_is_bounded_for_fairness() {
+        assert_eq!(MAX_SERVICE_REQUESTS_PER_SPIN, 16);
     }
 
     #[test]

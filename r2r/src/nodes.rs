@@ -3160,11 +3160,11 @@ impl Node {
                 unsafe { std::slice::from_raw_parts(ws.services, self.services.len()) };
             for (s, ws_s) in self.services.iter_mut().zip(ws_services) {
                 if ws_s != &std::ptr::null() {
-                    match complete_service_request(s, |service| service.handle_request(s.clone())) {
-                        Ok(true) => {
+                    match complete_ready_service(s) {
+                        Ok(ServiceHandleResult::Remove) => {
                             services_to_remove.push(s.lock().handle() as *const rcl_service_t);
                         }
-                        Ok(false) => {}
+                        Ok(ServiceHandleResult::Taken | ServiceHandleResult::Idle) => {}
                         Err(err) => {
                             service_error.get_or_insert(err);
                         }
@@ -6317,6 +6317,44 @@ mod tests {
             ServiceOptions::default().request_channel_capacity(usize::MAX),
         );
         assert!(matches!(invalid, Err(Error::RCL_RET_INVALID_ARGUMENT)));
+    }
+
+    #[test]
+    fn service_drains_request_bursts_in_one_spin() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "service_batch_test", "").unwrap();
+        let service_name = format!("/service_batch_{}", uuid::Uuid::new_v4().simple());
+        let mut service = node
+            .create_service_with_options::<AddTwoInts::Service>(
+                &service_name,
+                QosProfile::default(),
+                ServiceOptions::default().request_channel_capacity(8),
+            )
+            .unwrap();
+        let client = node
+            .create_client::<AddTwoInts::Service>(&service_name, QosProfile::default())
+            .unwrap();
+        let available = Node::is_available(&client).unwrap();
+        node.spin_until_future_complete(available, Duration::from_secs(1))
+            .unwrap();
+
+        let responses = (1..=3)
+            .map(|value| {
+                client
+                    .request(&AddTwoInts::Request { a: value, b: 0 })
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        std::thread::sleep(Duration::from_millis(20));
+        node.try_spin_once(Duration::from_millis(100)).unwrap();
+
+        let received = (0..3)
+            .map(|_| service.next().now_or_never().flatten().unwrap().message.a)
+            .collect::<Vec<_>>();
+        assert_eq!(received, vec![1, 2, 3]);
+        drop(responses);
     }
 
     #[test]
