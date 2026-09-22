@@ -2622,7 +2622,7 @@ impl Node {
             result_request_sequences: HashMap::new(),
             goal_status: HashMap::new(),
             feedback_channel_capacity: options.feedback_channel_capacity,
-            poll_available_channels: Vec::new(),
+            poll_available_channels: ActionAvailabilityWaiters::default(),
         };
 
         let client_arc = Arc::new(Mutex::new(client));
@@ -2687,7 +2687,7 @@ impl Node {
             result_request_sequences: HashMap::new(),
             goal_status: HashMap::new(),
             feedback_channel_capacity: options.feedback_channel_capacity,
-            poll_available_channels: Vec::new(),
+            poll_available_channels: ActionAvailabilityWaiters::default(),
         };
 
         let client_arc = Arc::new(Mutex::new(client));

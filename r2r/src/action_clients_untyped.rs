@@ -496,7 +496,7 @@ pub struct WrappedActionClientUntyped {
     pub goal_status: HashMap<uuid::Uuid, GoalStatus>,
     pub feedback_channel_capacity: usize,
 
-    pub poll_available_channels: Vec<oneshot::Sender<()>>,
+    pub poll_available_channels: ActionAvailabilityWaiters,
 }
 
 impl WrappedActionClientUntyped {
@@ -932,7 +932,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
     }
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>) {
-        self.poll_available_channels.push(s);
+        self.poll_available_channels.register(s);
     }
 
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Vec<ActionClientCompletion> {
@@ -940,14 +940,13 @@ impl ActionClient_ for WrappedActionClientUntyped {
         if let PendingFeedbackAction::Deliver(completion) = self.pending_feedback_completion() {
             completions.push(completion);
         }
-        self.poll_available_channels
-            .retain(|sender| !sender.is_canceled());
+        self.poll_available_channels.prune_canceled();
         if self.poll_available_channels.is_empty() {
             return completions;
         }
         let available = action_server_available_helper(node, self.handle());
         if !matches!(available, Ok(false)) {
-            let senders = std::mem::take(&mut self.poll_available_channels);
+            let senders = self.poll_available_channels.take_all();
             completions.extend(action_availability_completion(senders, available));
         }
         completions
@@ -956,14 +955,12 @@ impl ActionClient_ for WrappedActionClientUntyped {
     fn has_pending_work(&mut self) -> bool {
         self.prune_canceled_cancel_requests();
         self.prune_canceled_feedback();
+        self.poll_available_channels.prune_canceled();
         !self.goal_response_channels.is_empty()
             || !self.cancel_response_channels.is_empty()
             || !self.feedback_senders.is_empty()
             || !self.result_senders.is_empty()
-            || self
-                .poll_available_channels
-                .iter()
-                .any(|sender| !sender.is_canceled())
+            || !self.poll_available_channels.is_empty()
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -1015,7 +1012,7 @@ mod tests {
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::new(),
             feedback_channel_capacity: 0,
-            poll_available_channels: Vec::new(),
+            poll_available_channels: ActionAvailabilityWaiters::default(),
         };
         let future = registered_cancel_response_future(receiver, canceled_cancels, 10);
 
@@ -1052,7 +1049,7 @@ mod tests {
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::new(),
             feedback_channel_capacity: 1,
-            poll_available_channels: Vec::new(),
+            poll_available_channels: ActionAvailabilityWaiters::default(),
         };
         let stream = ActionFeedbackStreamUntyped {
             receiver,
@@ -1063,6 +1060,39 @@ mod tests {
 
         assert!(!client.has_pending_work());
         assert!(client.feedback_senders.is_empty());
+    }
+
+    #[test]
+    fn pending_work_prunes_dropped_availability_waiter() {
+        let mut waiters = ActionAvailabilityWaiters::default();
+        let (sender, receiver) = oneshot::channel();
+        waiters.register(sender);
+        let mut client = WrappedActionClientUntyped {
+            action_type_support: UntypedActionSupport::new_from(
+                "example_interfaces/action/Fibonacci",
+            )
+            .unwrap(),
+            rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
+            goal_response_channels: HashMap::new(),
+            goal_response_sequences: HashMap::new(),
+            cancel_response_channels: HashMap::new(),
+            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
+            feedback_senders: HashMap::new(),
+            canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            result_requests: HashMap::new(),
+            result_request_sequences: HashMap::new(),
+            result_senders: HashMap::new(),
+            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
+            goal_status: HashMap::new(),
+            feedback_channel_capacity: 1,
+            poll_available_channels: waiters,
+        };
+
+        drop(receiver);
+
+        assert!(!client.has_pending_work());
+        assert!(client.poll_available_channels.is_empty());
     }
 
     #[test]
@@ -1093,7 +1123,7 @@ mod tests {
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::new(),
             feedback_channel_capacity: 1,
-            poll_available_channels: Vec::new(),
+            poll_available_channels: ActionAvailabilityWaiters::default(),
         };
         let expected = serde_json::json!({ "sequence": [1, 2, 3] });
 
@@ -1145,7 +1175,7 @@ mod tests {
                 (other, GoalStatus::Unknown),
             ]),
             feedback_channel_capacity: 0,
-            poll_available_channels: Vec::new(),
+            poll_available_channels: ActionAvailabilityWaiters::default(),
         };
 
         let completions = client.forget_goal(&target);
@@ -1185,7 +1215,7 @@ mod tests {
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::from([(uuid, GoalStatus::Unknown)]),
             feedback_channel_capacity: 0,
-            poll_available_channels: Vec::new(),
+            poll_available_channels: ActionAvailabilityWaiters::default(),
         }));
         let registration = PendingGoalRegistration {
             client: Arc::downgrade(&client),
@@ -1243,7 +1273,7 @@ mod tests {
                 (other, GoalStatus::Executing),
             ]),
             feedback_channel_capacity: 1,
-            poll_available_channels: Vec::new(),
+            poll_available_channels: ActionAvailabilityWaiters::default(),
         };
 
         let (result, completions) =
@@ -1310,7 +1340,7 @@ mod tests {
                 (other, GoalStatus::Unknown),
             ]),
             feedback_channel_capacity: 1,
-            poll_available_channels: Vec::new(),
+            poll_available_channels: ActionAvailabilityWaiters::default(),
         }));
         let pending = PendingGoalRegistration {
             client: Arc::downgrade(&client),
