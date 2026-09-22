@@ -23,6 +23,7 @@ use crate::{
         generated_msgs::{action_msgs, builtin_interfaces, unique_identifier_msgs},
         *,
     },
+    Node,
 };
 use r2r_actions::*;
 use r2r_rcl::*;
@@ -300,17 +301,32 @@ impl Stream for ActionServerCancelStreamUntyped {
 /// Stream of goal requests for a runtime-typed action server.
 pub struct ActionServerUntyped {
     inner: Pin<Box<dyn Stream<Item = ActionServerGoalRequestUntyped> + Send>>,
+    pub(crate) id: uuid::Uuid,
 }
 
-pub(crate) struct ActionServerRequestStream<T> {
-    receiver: mpsc::Receiver<T>,
-    id: uuid::Uuid,
+impl ActionServerUntyped {
+    /// Returns the fully resolved action name used by this server.
+    pub fn action_name(&self, node: &Node) -> Result<String> {
+        node.get_action_server_name(self.id)
+    }
+}
+
+/// Stream of goal requests for a typed action server.
+pub struct ActionServer<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    receiver: mpsc::Receiver<ActionServerGoalRequest<T>>,
+    pub(crate) id: uuid::Uuid,
     dropped_action_servers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
 }
 
-impl<T> ActionServerRequestStream<T> {
+impl<T> ActionServer<T>
+where
+    T: WrappedActionTypeSupport,
+{
     pub(crate) fn new(
-        receiver: mpsc::Receiver<T>, id: uuid::Uuid,
+        receiver: mpsc::Receiver<ActionServerGoalRequest<T>>, id: uuid::Uuid,
         dropped_action_servers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
     ) -> Self {
         Self {
@@ -319,17 +335,28 @@ impl<T> ActionServerRequestStream<T> {
             dropped_action_servers,
         }
     }
+
+    /// Returns the fully resolved action name used by this server.
+    pub fn action_name(&self, node: &Node) -> Result<String> {
+        node.get_action_server_name(self.id)
+    }
 }
 
-impl<T> Stream for ActionServerRequestStream<T> {
-    type Item = T;
+impl<T> Stream for ActionServer<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    type Item = ActionServerGoalRequest<T>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Pin::new(&mut self.receiver).poll_next(cx)
     }
 }
 
-impl<T> Drop for ActionServerRequestStream<T> {
+impl<T> Drop for ActionServer<T>
+where
+    T: WrappedActionTypeSupport,
+{
     fn drop(&mut self) {
         self.receiver.close();
         self.dropped_action_servers.lock().push_back(self.id);
@@ -351,8 +378,10 @@ where
     T: 'static + WrappedActionTypeSupport,
 {
     let requests = node.create_action_server_with_options::<T>(action_name, options)?;
+    let id = requests.id;
     Ok(ActionServerUntyped {
         inner: Box::pin(requests.map(ActionServerGoalRequestUntyped::from_typed)),
+        id,
     })
 }
 
@@ -1981,9 +2010,8 @@ mod tests {
     fn dropping_action_server_stream_queues_its_id() {
         let id = uuid::Uuid::from_u128(1);
         let dropped_action_servers = Arc::new(Mutex::new(VecDeque::new()));
-        let (sender, receiver) = mpsc::channel::<()>(1);
-        let stream =
-            ActionServerRequestStream::new(receiver, id, Arc::clone(&dropped_action_servers));
+        let (sender, receiver) = mpsc::channel::<ActionServerGoalRequest<Fibonacci::Action>>(1);
+        let stream = ActionServer::new(receiver, id, Arc::clone(&dropped_action_servers));
 
         drop(stream);
 

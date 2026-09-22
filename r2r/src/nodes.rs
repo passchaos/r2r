@@ -1285,6 +1285,37 @@ impl Node {
         Ok(true)
     }
 
+    fn destroy_action_server_by_id(&mut self, id: uuid::Uuid) -> Result<bool> {
+        let Some(index) = self.action_server_indexes.get(&id).copied() else {
+            return Ok(false);
+        };
+        let capacities = {
+            let server = self.action_servers[index].lock();
+            action_server_wait_set_capacities(server.handle())?
+        };
+        let server = self.action_servers.swap_remove(index);
+        self.action_server_indexes.remove(&id);
+        if let Some(moved) = self.action_servers.get(index) {
+            self.action_server_indexes.insert(moved.lock().id(), index);
+        }
+        self.pending_action_server_removals.remove(&id);
+        self.dropped_action_servers
+            .lock()
+            .retain(|queued| *queued != id);
+        server.lock().destroy(self.node_handle.as_mut());
+        self.action_wait_set_capacities.subtract(capacities);
+        Ok(true)
+    }
+
+    pub(crate) fn get_action_server_name(&self, id: uuid::Uuid) -> Result<String> {
+        let index = self
+            .action_server_indexes
+            .get(&id)
+            .copied()
+            .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
+        self.action_servers[index].lock().action_name()
+    }
+
     pub(crate) fn owns_publisher(&self, publisher: &Arc<Publisher_>) -> bool {
         self.publisher_indexes
             .contains_key(&Self::publisher_identity(publisher))
@@ -3771,9 +3802,7 @@ impl Node {
     ///
     /// This function returns a stream of `GoalRequest`s, which needs
     /// to be either accepted or rejected.
-    pub fn create_action_server<T>(
-        &mut self, action_name: &str,
-    ) -> Result<impl Stream<Item = ActionServerGoalRequest<T>> + Unpin>
+    pub fn create_action_server<T>(&mut self, action_name: &str) -> Result<ActionServer<T>>
     where
         T: 'static + WrappedActionTypeSupport,
     {
@@ -3783,7 +3812,7 @@ impl Node {
     /// Create a ROS action server with per-channel QoS and result-retention overrides.
     pub fn create_action_server_with_options<T>(
         &mut self, action_name: &str, options: ActionServerOptions,
-    ) -> Result<impl Stream<Item = ActionServerGoalRequest<T>> + Unpin>
+    ) -> Result<ActionServer<T>>
     where
         T: 'static + WrappedActionTypeSupport,
     {
@@ -3830,7 +3859,7 @@ impl Node {
 
         let server_arc = Arc::new(Mutex::new(server));
         self.add_action_server(id, server_arc, action_capacities);
-        Ok(ActionServerRequestStream::new(
+        Ok(ActionServer::new(
             goal_request_receiver,
             id,
             Arc::clone(&self.dropped_action_servers),
@@ -3855,6 +3884,30 @@ impl Node {
         options.validate()?;
         let support = UntypedActionSupport::new_from(action_type)?;
         (support.create_server)(self, action_name, options)
+    }
+
+    /// Immediately destroys a typed action server owned by this node.
+    ///
+    /// Pending goal and cancel streams are closed before this method returns.
+    pub fn destroy_action_server<T>(&mut self, server: ActionServer<T>) -> Result<()>
+    where
+        T: WrappedActionTypeSupport,
+    {
+        let id = server.id;
+        drop(server);
+        self.destroy_action_server_by_id(id)?;
+        Ok(())
+    }
+
+    /// Immediately destroys a runtime-typed action server owned by this node.
+    ///
+    /// Passing a server created by another node leaves this node unchanged and schedules normal
+    /// cleanup by its owning node.
+    pub fn destroy_action_server_untyped(&mut self, server: ActionServerUntyped) -> Result<()> {
+        let id = server.id;
+        drop(server);
+        self.destroy_action_server_by_id(id)?;
+        Ok(())
     }
 
     /// Create a ROS publisher.
@@ -12816,5 +12869,60 @@ mod tests {
         assert!(node.action_servers.is_empty());
         assert!(node.action_server_indexes.is_empty());
         assert_eq!(node.action_wait_set_capacities, WaitSetCapacities::default());
+    }
+
+    #[test]
+    fn explicit_action_server_destruction_is_immediate_and_updates_capacity() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context.clone(), "destroy_action_server_test", "").unwrap();
+        let mut other = Node::create(context, "destroy_action_server_other", "").unwrap();
+        let first = node
+            .create_action_server::<Fibonacci::Action>("/destroy_action_server_first")
+            .unwrap();
+        let removed = node
+            .create_action_server::<Fibonacci::Action>("/destroy_action_server_removed")
+            .unwrap();
+        let last = node
+            .create_action_server_untyped(
+                "/destroy_action_server_last",
+                "example_interfaces/action/Fibonacci",
+            )
+            .unwrap();
+        let removed_id = removed.id;
+        let removed_index = node.action_server_indexes[&removed_id];
+        let removed_capacities =
+            action_server_wait_set_capacities(node.action_servers[removed_index].lock().handle())
+                .unwrap();
+        let expected_capacities = {
+            let mut capacities = node.action_wait_set_capacities;
+            capacities.subtract(removed_capacities);
+            capacities
+        };
+
+        node.destroy_action_server(removed).unwrap();
+
+        assert_eq!(node.action_servers.len(), 2);
+        assert_eq!(node.action_server_indexes.len(), 2);
+        assert!(!node.action_server_indexes.contains_key(&removed_id));
+        assert!(node.pending_action_server_removals.is_empty());
+        assert!(node.dropped_action_servers.lock().is_empty());
+        assert_eq!(node.action_wait_set_capacities, expected_capacities);
+        assert_eq!(first.action_name(&node).unwrap(), "/destroy_action_server_first");
+        assert_eq!(last.action_name(&node).unwrap(), "/destroy_action_server_last");
+
+        let foreign = node
+            .create_action_server_untyped(
+                "/destroy_action_server_foreign",
+                "example_interfaces/action/Fibonacci",
+            )
+            .unwrap();
+        other.destroy_action_server_untyped(foreign).unwrap();
+        assert_eq!(node.action_servers.len(), 3);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(node.action_servers.len(), 2);
+        assert_eq!(first.action_name(&node).unwrap(), "/destroy_action_server_first");
+        assert_eq!(last.action_name(&node).unwrap(), "/destroy_action_server_last");
     }
 }

@@ -133,7 +133,7 @@ pub use action_clients_untyped::{
 
 mod action_servers;
 pub use action_servers::{
-    ActionServerCancelRequest, ActionServerCancelStreamUntyped, ActionServerGoal,
+    ActionServer, ActionServerCancelRequest, ActionServerCancelStreamUntyped, ActionServerGoal,
     ActionServerGoalRequest, ActionServerGoalRequestUntyped, ActionServerGoalUntyped,
     ActionServerUntyped,
 };
