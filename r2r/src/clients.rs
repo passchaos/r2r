@@ -23,6 +23,17 @@ where
     client: Weak<Mutex<TypedClient<T>>>,
 }
 
+impl<T> Clone for Client<T>
+where
+    T: WrappedServiceTypeSupport,
+{
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+        }
+    }
+}
+
 impl<T: 'static> Client<T>
 where
     T: WrappedServiceTypeSupport,
@@ -89,6 +100,7 @@ where
 ///
 /// This is a handle to a service client wrapped in a `Mutex` inside a
 /// `Weak` `Arc`. As such you can pass it between threads safely.
+#[derive(Clone)]
 pub struct ClientUntyped {
     client: Weak<Mutex<UntypedClient_>>,
 }
@@ -517,5 +529,19 @@ impl IsAvailablePollable for ClientUntyped {
         let mut client = client.lock();
         client.register_poll_available(sender);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::example_interfaces::srv::AddTwoInts;
+
+    fn assert_clone<T: Clone>() {}
+
+    #[test]
+    fn service_client_handles_are_cloneable() {
+        assert_clone::<Client<AddTwoInts::Service>>();
+        assert_clone::<ClientUntyped>();
     }
 }

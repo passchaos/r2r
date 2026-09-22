@@ -6,6 +6,7 @@ use futures::{future::try_join_all, Future, FutureExt, TryFutureExt};
 use std::time::Duration;
 
 /// Runtime-agnostic client for the standard ROS parameter services of another node.
+#[derive(Clone)]
 pub struct ParameterClient {
     remote_node_name: String,
     get_parameters: Client<srv::GetParameters::Service>,
@@ -364,5 +365,12 @@ mod tests {
         assert!(normalize_remote_node_name("/").is_err());
         assert!(normalize_remote_node_name("bad\0node").is_err());
         assert_eq!(normalize_remote_node_name("node/").unwrap(), "/node");
+    }
+
+    #[test]
+    fn parameter_client_is_cloneable() {
+        fn assert_clone<T: Clone>() {}
+
+        assert_clone::<ParameterClient>();
     }
 }
