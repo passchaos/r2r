@@ -267,6 +267,33 @@ mod waiter_tests {
 
         assert_eq!(waiters.lock().len(), 2);
     }
+
+    #[test]
+    fn publisher_payloads_are_prepared_before_locking_the_native_handle() {
+        let publisher = Publisher_ {
+            handle: Arc::new(Mutex::new(PublisherHandle {
+                publisher: Some(unsafe { rcl_get_zero_initialized_publisher() }),
+                offered_incompatible_qos: None,
+                offered_deadline_missed: None,
+                liveliness_lost: None,
+            })),
+            poll_subscriber_channels: Mutex::new(Vec::new()),
+            #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+            poll_ack_channels: Mutex::new(Vec::new()),
+        };
+
+        let prepared = publisher
+            .with_prepared_handle(
+                || {
+                    assert!(publisher.handle.try_lock().is_some());
+                    Ok(41)
+                },
+                |_handle, value| Ok(value + 1),
+            )
+            .unwrap();
+
+        assert_eq!(prepared, 42);
+    }
 }
 
 struct PublisherHandle {
@@ -374,6 +401,14 @@ unsafe impl Send for Publisher_ {}
 unsafe impl Sync for Publisher_ {}
 
 impl Publisher_ {
+    fn with_prepared_handle<P, T>(
+        &self, prepare: impl FnOnce() -> Result<P>,
+        operation: impl FnOnce(&rcl_publisher_t, P) -> Result<T>,
+    ) -> Result<T> {
+        let prepared = prepare()?;
+        self.with_handle(|handle| operation(handle, prepared))
+    }
+
     fn with_handle<T>(&self, operation: impl FnOnce(&rcl_publisher_t) -> Result<T>) -> Result<T> {
         let handle = self.handle.lock();
         let handle = handle
@@ -834,23 +869,23 @@ impl PublisherUntyped {
             .handle
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
-        let handle = publisher.handle.lock();
-        let handle = handle
-            .publisher
-            .as_ref()
-            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
-
-        let mut native_msg = WrappedNativeMsgUntyped::new_from(&self.type_)?;
-        native_msg.from_json(msg)?;
-
-        let result = unsafe { rcl_publish(handle, native_msg.void_ptr(), std::ptr::null_mut()) };
-
-        if result == RCL_RET_OK as i32 {
-            Ok(())
-        } else {
-            log::error!("could not publish {}", result);
-            Err(Error::from_rcl_error(result))
-        }
+        publisher.with_prepared_handle(
+            || {
+                let mut native_msg = WrappedNativeMsgUntyped::new_from(&self.type_)?;
+                native_msg.from_json(msg)?;
+                Ok(native_msg)
+            },
+            |handle, native_msg| {
+                let result =
+                    unsafe { rcl_publish(handle, native_msg.void_ptr(), std::ptr::null_mut()) };
+                if result == RCL_RET_OK as i32 {
+                    Ok(())
+                } else {
+                    log::error!("could not publish {}", result);
+                    Err(Error::from_rcl_error(result))
+                }
+            },
+        )
     }
 
     /// Publish an pre-serialized ROS message represented by a `&[u8]`.
@@ -1064,20 +1099,19 @@ where
             .handle
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
-        let handle = publisher.handle.lock();
-        let handle = handle
-            .publisher
-            .as_ref()
-            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
-        let native_msg = WrappedNativeMsg::<T>::try_from(msg)?;
-        let result = unsafe { rcl_publish(handle, native_msg.void_ptr(), std::ptr::null_mut()) };
-
-        if result == RCL_RET_OK as i32 {
-            Ok(())
-        } else {
-            log::error!("could not publish {}", result);
-            Err(Error::from_rcl_error(result))
-        }
+        publisher.with_prepared_handle(
+            || WrappedNativeMsg::<T>::try_from(msg),
+            |handle, native_msg| {
+                let result =
+                    unsafe { rcl_publish(handle, native_msg.void_ptr(), std::ptr::null_mut()) };
+                if result == RCL_RET_OK as i32 {
+                    Ok(())
+                } else {
+                    log::error!("could not publish {}", result);
+                    Err(Error::from_rcl_error(result))
+                }
+            },
+        )
     }
 
     pub fn borrow_loaned_message<'node>(
