@@ -2251,7 +2251,7 @@ impl Node {
 
         let ws = TypedService::<T> {
             rcl_handle: service_handle,
-            sender,
+            sender: Arc::new(Mutex::new(sender)),
             id,
         };
 
@@ -2290,7 +2290,7 @@ impl Node {
         let service = UntypedService {
             service_type,
             rcl_handle: service_handle,
-            sender,
+            sender: Arc::new(Mutex::new(sender)),
             id,
         };
         self.services.push(Arc::new(Mutex::new(service)));
@@ -3075,10 +3075,9 @@ impl Node {
                 unsafe { std::slice::from_raw_parts(ws.services, self.services.len()) };
             for (s, ws_s) in self.services.iter_mut().zip(ws_services) {
                 if ws_s != &std::ptr::null() {
-                    let mut service = s.lock();
-                    match service.handle_request(s.clone()) {
+                    match complete_service_request(s, |service| service.handle_request(s.clone())) {
                         Ok(true) => {
-                            services_to_remove.push(service.handle() as *const rcl_service_t);
+                            services_to_remove.push(s.lock().handle() as *const rcl_service_t);
                         }
                         Ok(false) => {}
                         Err(err) => {

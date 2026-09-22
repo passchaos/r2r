@@ -11,6 +11,41 @@ use std::{
 use crate::{error::*, msg_types::*, Node, QosProfile};
 use r2r_rcl::*;
 
+pub(crate) enum ServiceRequestAction {
+    Idle,
+    Remove,
+    Deliver(Box<dyn FnOnce() -> bool + Send>),
+}
+
+fn request_delivery<T: Send + 'static>(
+    sender: Arc<Mutex<mpsc::Sender<T>>>, request: T, description: &'static str,
+) -> ServiceRequestAction {
+    ServiceRequestAction::Deliver(Box::new(move || {
+        let mut sender = sender.lock();
+        if let Err(err) = sender.try_send(request) {
+            if err.is_disconnected() {
+                return true;
+            }
+            log::debug!("{description} channel was unexpectedly full ({err})");
+        }
+        false
+    }))
+}
+
+pub(crate) fn complete_service_request<S: ?Sized>(
+    service: &Mutex<S>, operation: impl FnOnce(&mut S) -> Result<ServiceRequestAction>,
+) -> Result<bool> {
+    let action = {
+        let mut service = service.lock();
+        operation(&mut *service)?
+    };
+    match action {
+        ServiceRequestAction::Idle => Ok(false),
+        ServiceRequestAction::Remove => Ok(true),
+        ServiceRequestAction::Deliver(deliver) => Ok(deliver()),
+    }
+}
+
 fn with_prepared_service<S: ?Sized, P, T>(
     service: &Mutex<S>, prepare: impl FnOnce() -> Result<P>,
     operation: impl FnOnce(&mut S, P) -> Result<T>,
@@ -222,7 +257,8 @@ pub trait Service_ {
         false
     }
     /// Returns true if the service stream has been dropped.
-    fn handle_request(&mut self, service: Arc<Mutex<dyn Service_>>) -> Result<bool>;
+    fn handle_request(&mut self, service: Arc<Mutex<dyn Service_>>)
+        -> Result<ServiceRequestAction>;
     fn destroy(&mut self, node: &mut rcl_node_t);
 }
 
@@ -231,14 +267,14 @@ where
     T: WrappedServiceTypeSupport,
 {
     pub rcl_handle: rcl_service_t,
-    pub sender: mpsc::Sender<ServiceRequest<T>>,
+    pub sender: Arc<Mutex<mpsc::Sender<ServiceRequest<T>>>>,
     pub(crate) id: uuid::Uuid,
 }
 
 pub struct UntypedService {
     pub service_type: UntypedServiceSupport,
     pub rcl_handle: rcl_service_t,
-    pub sender: mpsc::Sender<ServiceRequestUntyped>,
+    pub sender: Arc<Mutex<mpsc::Sender<ServiceRequestUntyped>>>,
     pub(crate) id: uuid::Uuid,
 }
 
@@ -268,17 +304,21 @@ impl Service_ for UntypedService {
     }
 
     fn should_remove(&self) -> bool {
-        self.sender.is_closed()
+        self.sender.lock().is_closed()
     }
 
-    fn handle_request(&mut self, service: Arc<Mutex<dyn Service_>>) -> Result<bool> {
-        if self.sender.is_closed() {
-            return Ok(true);
+    fn handle_request(
+        &mut self, service: Arc<Mutex<dyn Service_>>,
+    ) -> Result<ServiceRequestAction> {
+        let mut sender = self.sender.lock();
+        if sender.is_closed() {
+            return Ok(ServiceRequestAction::Remove);
         }
         let mut cx = Context::from_waker(noop_waker_ref());
-        if self.sender.poll_ready(&mut cx) == Poll::Pending {
-            return Ok(false);
+        if sender.poll_ready(&mut cx) == Poll::Pending {
+            return Ok(ServiceRequestAction::Idle);
         }
+        drop(sender);
 
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut request_msg = (self.service_type.make_request_msg)()?;
@@ -286,7 +326,7 @@ impl Service_ for UntypedService {
             rcl_take_request(&self.rcl_handle, request_id.as_mut_ptr(), request_msg.void_ptr_mut())
         };
         if ret == RCL_RET_SERVICE_TAKE_FAILED as i32 {
-            return Ok(false);
+            return Ok(ServiceRequestAction::Idle);
         }
         if ret != RCL_RET_OK as i32 {
             return Err(Error::from_rcl_error(ret));
@@ -298,13 +338,7 @@ impl Service_ for UntypedService {
             service: Arc::downgrade(&service),
             make_response_msg: self.service_type.make_response_msg,
         };
-        if let Err(err) = self.sender.try_send(request) {
-            if err.is_disconnected() {
-                return Ok(true);
-            }
-            log::debug!("untyped service request channel was unexpectedly full ({err})");
-        }
-        Ok(false)
+        Ok(request_delivery(Arc::clone(&self.sender), request, "untyped service request"))
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -339,17 +373,21 @@ where
     }
 
     fn should_remove(&self) -> bool {
-        self.sender.is_closed()
+        self.sender.lock().is_closed()
     }
 
-    fn handle_request(&mut self, service: Arc<Mutex<dyn Service_>>) -> Result<bool> {
-        if self.sender.is_closed() {
-            return Ok(true);
+    fn handle_request(
+        &mut self, service: Arc<Mutex<dyn Service_>>,
+    ) -> Result<ServiceRequestAction> {
+        let mut sender = self.sender.lock();
+        if sender.is_closed() {
+            return Ok(ServiceRequestAction::Remove);
         }
         let mut cx = Context::from_waker(noop_waker_ref());
-        if self.sender.poll_ready(&mut cx) == Poll::Pending {
-            return Ok(false);
+        if sender.poll_ready(&mut cx) == Poll::Pending {
+            return Ok(ServiceRequestAction::Idle);
         }
+        drop(sender);
 
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut request_msg = WrappedNativeMsg::<T::Request>::try_new()?;
@@ -358,7 +396,7 @@ where
             rcl_take_request(&self.rcl_handle, request_id.as_mut_ptr(), request_msg.void_ptr_mut())
         };
         if ret == RCL_RET_SERVICE_TAKE_FAILED as i32 {
-            return Ok(false);
+            return Ok(ServiceRequestAction::Idle);
         }
         if ret != RCL_RET_OK as i32 {
             return Err(Error::from_rcl_error(ret));
@@ -371,13 +409,7 @@ where
             request_id,
             service: Arc::downgrade(&service),
         };
-        if let Err(e) = self.sender.try_send(request) {
-            if e.is_disconnected() {
-                return Ok(true);
-            }
-            log::debug!("service request channel was unexpectedly full ({e})");
-        }
-        Ok(false)
+        Ok(request_delivery(Arc::clone(&self.sender), request, "service request"))
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -416,6 +448,23 @@ pub fn create_service_helper(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::task::{waker_ref, ArcWake};
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    };
+
+    struct LockingWake {
+        service: Arc<Mutex<()>>,
+        woke: AtomicBool,
+    }
+
+    impl ArcWake for LockingWake {
+        fn wake_by_ref(arc_self: &Arc<Self>) {
+            let _service = arc_self.service.lock();
+            arc_self.woke.store(true, Ordering::SeqCst);
+        }
+    }
 
     #[test]
     fn service_payloads_are_prepared_before_locking_the_native_handle() {
@@ -432,5 +481,28 @@ mod tests {
         .unwrap();
 
         assert_eq!(prepared, 42);
+    }
+
+    #[test]
+    fn service_requests_wake_streams_after_releasing_the_service_lock() {
+        let service = Arc::new(Mutex::new(()));
+        let (sender, mut receiver) = mpsc::channel(1);
+        let sender = Arc::new(Mutex::new(sender));
+        let wake = Arc::new(LockingWake {
+            service: Arc::clone(&service),
+            woke: AtomicBool::new(false),
+        });
+        let waker = waker_ref(&wake);
+        let mut context = Context::from_waker(&waker);
+        assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Pending));
+        assert!(matches!(sender.lock().poll_ready(&mut context), Poll::Ready(Ok(()))));
+
+        complete_service_request(&service, |_| {
+            Ok(request_delivery(Arc::clone(&sender), 42, "test service request"))
+        })
+        .unwrap();
+
+        assert!(wake.woke.load(Ordering::SeqCst));
+        assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Ready(Some(42))));
     }
 }
