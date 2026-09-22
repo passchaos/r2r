@@ -2038,6 +2038,30 @@ pub enum rmw_endpoint_type_e {
     RMW_ENDPOINT_SUBSCRIPTION = 2,
 }
 pub use self::rmw_endpoint_type_e as rmw_endpoint_type_t;
+#[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct rosidl_type_hash_s {
+    pub version: u8,
+    pub value: [u8; 32usize],
+}
+#[test]
+fn bindgen_test_layout_rosidl_type_hash_s() {
+    const UNINIT: ::std::mem::MaybeUninit<rosidl_type_hash_s> =
+        ::std::mem::MaybeUninit::uninit();
+    let ptr = UNINIT.as_ptr();
+    assert_eq!(::std::mem::size_of::<rosidl_type_hash_s>(), 33usize);
+    assert_eq!(::std::mem::align_of::<rosidl_type_hash_s>(), 1usize);
+    assert_eq!(unsafe { ::std::ptr::addr_of!((*ptr).version) as usize - ptr as usize }, 0usize);
+    assert_eq!(unsafe { ::std::ptr::addr_of!((*ptr).value) as usize - ptr as usize }, 1usize);
+}
+pub type rosidl_type_hash_t = rosidl_type_hash_s;
+extern "C" {
+    pub fn rosidl_stringify_type_hash(
+        type_hash: *const rosidl_type_hash_t,
+        allocator: rcutils_allocator_t,
+        output_string: *mut *mut ::std::os::raw::c_char,
+    ) -> rcutils_ret_t;
+}
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum rmw_unique_network_flow_endpoints_requirement_e {
@@ -7087,6 +7111,7 @@ pub struct rmw_topic_endpoint_info_s {
     pub node_name: *const ::std::os::raw::c_char,
     pub node_namespace: *const ::std::os::raw::c_char,
     pub topic_type: *const ::std::os::raw::c_char,
+    pub topic_type_hash: rosidl_type_hash_t,
     pub endpoint_type: rmw_endpoint_type_t,
     pub endpoint_gid: [u8; 24usize],
     pub qos_profile: rmw_qos_profile_t,
@@ -7098,7 +7123,7 @@ fn bindgen_test_layout_rmw_topic_endpoint_info_s() {
     let ptr = UNINIT.as_ptr();
     assert_eq!(
         ::std::mem::size_of::<rmw_topic_endpoint_info_s>(),
-        144usize,
+        176usize,
         concat!("Size of: ", stringify!(rmw_topic_endpoint_info_s))
     );
     assert_eq!(
@@ -7137,8 +7162,18 @@ fn bindgen_test_layout_rmw_topic_endpoint_info_s() {
         )
     );
     assert_eq!(
-        unsafe { ::std::ptr::addr_of!((*ptr).endpoint_type) as usize - ptr as usize },
+        unsafe { ::std::ptr::addr_of!((*ptr).topic_type_hash) as usize - ptr as usize },
         24usize,
+        concat!(
+            "Offset of field: ",
+            stringify!(rmw_topic_endpoint_info_s),
+            "::",
+            stringify!(topic_type_hash)
+        )
+    );
+    assert_eq!(
+        unsafe { ::std::ptr::addr_of!((*ptr).endpoint_type) as usize - ptr as usize },
+        60usize,
         concat!(
             "Offset of field: ",
             stringify!(rmw_topic_endpoint_info_s),
@@ -7148,7 +7183,7 @@ fn bindgen_test_layout_rmw_topic_endpoint_info_s() {
     );
     assert_eq!(
         unsafe { ::std::ptr::addr_of!((*ptr).endpoint_gid) as usize - ptr as usize },
-        28usize,
+        64usize,
         concat!(
             "Offset of field: ",
             stringify!(rmw_topic_endpoint_info_s),
@@ -7158,7 +7193,7 @@ fn bindgen_test_layout_rmw_topic_endpoint_info_s() {
     );
     assert_eq!(
         unsafe { ::std::ptr::addr_of!((*ptr).qos_profile) as usize - ptr as usize },
-        56usize,
+        88usize,
         concat!(
             "Offset of field: ",
             stringify!(rmw_topic_endpoint_info_s),

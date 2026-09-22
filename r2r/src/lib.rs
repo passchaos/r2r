@@ -145,7 +145,7 @@ pub use clocks::{Clock, ClockType};
 mod nodes;
 pub use nodes::{
     Node, NodeOptions, ParameterCallbackHandle, ParameterPostSetCallbackHandle,
-    ParameterPreSetCallbackHandle, Timer, TopicEndpointInfo, TopicEndpointType,
+    ParameterPreSetCallbackHandle, Timer, TopicEndpointInfo, TopicEndpointType, TopicTypeHash,
 };
 
 pub mod qos;

@@ -4032,6 +4032,43 @@ pub enum TopicEndpointType {
     Subscription,
 }
 
+/// A ROS interface type hash as defined by REP-2011.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TopicTypeHash {
+    /// Hash format version. Zero means that no hash was supplied by the middleware.
+    pub version: u8,
+    /// SHA-256 bytes associated with `version`.
+    pub value: [u8; 32],
+}
+
+impl TopicTypeHash {
+    pub fn is_unset(&self) -> bool {
+        self.version == 0
+    }
+}
+
+impl std::fmt::Display for TopicTypeHash {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "RIHS{:02x}_", self.version)?;
+        for byte in self.value {
+            write!(formatter, "{byte:02x}")?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(not(any(
+    r2r__ros__distro__foxy,
+    r2r__ros__distro__galactic,
+    r2r__ros__distro__humble
+)))]
+fn topic_type_hash_from_native(value: &rosidl_type_hash_t) -> TopicTypeHash {
+    TopicTypeHash {
+        version: value.version,
+        value: value.value,
+    }
+}
+
 impl TryFrom<rmw_endpoint_type_t> for TopicEndpointType {
     type Error = Error;
 
@@ -4050,6 +4087,8 @@ pub struct TopicEndpointInfo {
     pub node_name: String,
     pub node_namespace: String,
     pub topic_type: String,
+    /// Topic schema hash when supported by the ROS distribution (Iron and newer).
+    pub topic_type_hash: Option<TopicTypeHash>,
     pub endpoint_type: TopicEndpointType,
     pub endpoint_gid: [u8; RMW_GID_STORAGE_SIZE as usize],
     pub qos_profile: QosProfile,
@@ -4061,6 +4100,18 @@ impl TopicEndpointInfo {
             node_name: c_string_from_ptr(info.node_name)?,
             node_namespace: c_string_from_ptr(info.node_namespace)?,
             topic_type: c_string_from_ptr(info.topic_type)?,
+            #[cfg(not(any(
+                r2r__ros__distro__foxy,
+                r2r__ros__distro__galactic,
+                r2r__ros__distro__humble
+            )))]
+            topic_type_hash: Some(topic_type_hash_from_native(&info.topic_type_hash)),
+            #[cfg(any(
+                r2r__ros__distro__foxy,
+                r2r__ros__distro__galactic,
+                r2r__ros__distro__humble
+            ))]
+            topic_type_hash: None,
             endpoint_type: info.endpoint_type.try_into()?,
             endpoint_gid: info.endpoint_gid,
             qos_profile: QosProfile::try_from(&info.qos_profile)?,
@@ -5139,6 +5190,28 @@ mod tests {
                 && subscription.qos_profile.reliability
                     == QosProfile::default().best_effort().reliability
         }));
+        #[cfg(not(any(
+            r2r__ros__distro__foxy,
+            r2r__ros__distro__galactic,
+            r2r__ros__distro__humble
+        )))]
+        {
+            let publisher_hash = publishers
+                .iter()
+                .find(|endpoint| endpoint.topic_type == "std_msgs/msg/String")
+                .and_then(|endpoint| endpoint.topic_type_hash);
+            let subscription_hash = subscriptions
+                .iter()
+                .find(|endpoint| endpoint.topic_type == "std_msgs/msg/String")
+                .and_then(|endpoint| endpoint.topic_type_hash);
+            assert_eq!(publisher_hash, subscription_hash);
+            if let Some(hash) = publisher_hash {
+                if !hash.is_unset() {
+                    assert!(hash.to_string().starts_with("RIHS"));
+                    assert_eq!(hash.to_string().len(), 71);
+                }
+            }
+        }
     }
 
     #[test]
@@ -5155,6 +5228,40 @@ mod tests {
             TopicEndpointType::try_from(rmw_endpoint_type_t::RMW_ENDPOINT_SUBSCRIPTION).unwrap(),
             TopicEndpointType::Subscription
         );
+    }
+
+    #[test]
+    fn formats_topic_type_hash_as_rep_2011_identifier() {
+        let mut value = [0_u8; 32];
+        for (index, byte) in value.iter_mut().enumerate() {
+            *byte = index as u8;
+        }
+        let hash = TopicTypeHash { version: 1, value };
+        assert!(!hash.is_unset());
+        assert_eq!(
+            hash.to_string(),
+            "RIHS01_000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+        );
+        assert!(TopicTypeHash {
+            version: 0,
+            value: [0; 32],
+        }
+        .is_unset());
+
+        #[cfg(not(any(
+            r2r__ros__distro__foxy,
+            r2r__ros__distro__galactic,
+            r2r__ros__distro__humble
+        )))]
+        {
+            let native = rosidl_type_hash_t { version: 1, value };
+            let allocator = unsafe { rcutils_get_default_allocator() };
+            let mut output = std::ptr::null_mut();
+            let ret = unsafe { rosidl_stringify_type_hash(&native, allocator, &mut output) };
+            assert_eq!(ret, RCL_RET_OK as i32);
+            let output = AllocatedCString { output, allocator };
+            assert_eq!(c_string_from_ptr(output.output).unwrap(), hash.to_string());
+        }
     }
 
     #[test]
