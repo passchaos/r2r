@@ -3297,12 +3297,13 @@ impl Node {
                     server.handle_goal_request(s.clone())
                 })?;
             }
-            complete_action_server_operation(s, |server, completions| {
-                if is_cancel_request_ready {
-                    completions.extend(server.handle_cancel_request(s.clone())?);
-                }
-                Ok(())
-            })?;
+            if is_cancel_request_ready {
+                complete_action_server_delivery_batch(
+                    s,
+                    |server| server.handle_cancel_request(s.clone()),
+                    ActionServer_::has_pending_cancel_delivery,
+                )?;
+            }
             if is_result_request_ready {
                 complete_action_server_take_batch(s, ActionServer_::handle_result_request)?;
             }
@@ -8124,6 +8125,7 @@ mod tests {
                 break;
             }
         }
+        assert!(client.is_available(&client_node).unwrap());
 
         let response = client
             .send_goal_request_with_options(
@@ -8262,6 +8264,195 @@ mod tests {
             .map(|result| result.now_or_never().unwrap().unwrap().1.sequence[0])
             .collect::<Vec<_>>();
         assert_eq!(values, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn action_cancel_batches_stop_at_zero_capacity_backpressure() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        let context = Context::create().unwrap();
+        let mut server_node =
+            Node::create(context.clone(), "action_cancel_batch_server", "").unwrap();
+        let mut client_node = Node::create(context, "action_cancel_batch_client", "").unwrap();
+        let action_name = format!("/action_cancel_batch_{}", uuid::Uuid::new_v4().simple());
+        let mut requests = server_node
+            .create_action_server_with_options::<Fibonacci::Action>(
+                &action_name,
+                ActionServerOptions::default().cancel_request_channel_capacity(0),
+            )
+            .unwrap();
+        let client = client_node
+            .create_action_client::<Fibonacci::Action>(&action_name)
+            .unwrap();
+        for _ in 0..200 {
+            server_node.try_spin_once(Duration::ZERO).unwrap();
+            client_node
+                .try_spin_once(Duration::from_millis(10))
+                .unwrap();
+            if client.is_available(&client_node).unwrap() {
+                break;
+            }
+        }
+
+        let response = client
+            .send_goal_request_with_options(
+                Fibonacci::Goal { order: 1 },
+                ActionGoalOptions::default().track_feedback(false),
+            )
+            .unwrap();
+        let mut response = Box::pin(response);
+        let mut server_goal = None;
+        let mut cancel_stream = None;
+        let mut client_goal = None;
+        for _ in 0..200 {
+            server_node
+                .try_spin_once(Duration::from_millis(10))
+                .unwrap();
+            if server_goal.is_none() {
+                if let Some(request) = requests.next().now_or_never().flatten() {
+                    let (goal, cancels) = request.accept().unwrap();
+                    server_goal = Some(goal);
+                    cancel_stream = Some(cancels);
+                }
+            }
+            client_node
+                .try_spin_once(Duration::from_millis(10))
+                .unwrap();
+            if let Some(response) = response.as_mut().now_or_never() {
+                client_goal = Some(response.unwrap().goal);
+                break;
+            }
+        }
+        let client_goal = client_goal.expect("goal response was not delivered");
+        assert!(server_goal.is_some());
+        assert!(cancel_stream.is_some());
+
+        let first = client_goal.cancel().unwrap();
+        let second = client_goal.cancel().unwrap();
+        std::thread::sleep(Duration::from_millis(20));
+        let mut cancel_stream = cancel_stream.unwrap();
+        let waker = futures::task::noop_waker_ref();
+        let mut context = std::task::Context::from_waker(waker);
+        assert!(matches!(Pin::new(&mut cancel_stream).poll_next(&mut context), Poll::Pending));
+
+        let mut first_request = None;
+        for _ in 0..200 {
+            server_node
+                .try_spin_once(Duration::from_millis(10))
+                .unwrap();
+            first_request = first_request.or_else(|| cancel_stream.next().now_or_never().flatten());
+            if first_request.is_some() {
+                break;
+            }
+        }
+        let first_request = first_request.expect("first cancel request was not delivered");
+        assert!(cancel_stream.next().now_or_never().is_none());
+        first_request.reject();
+
+        let mut second_request = None;
+        for _ in 0..200 {
+            server_node
+                .try_spin_once(Duration::from_millis(10))
+                .unwrap();
+            second_request =
+                second_request.or_else(|| cancel_stream.next().now_or_never().flatten());
+            if second_request.is_some() {
+                break;
+            }
+        }
+        let second_request = second_request.expect("second cancel request was not delivered");
+        second_request.reject();
+        drop(first);
+        drop(second);
+        drop(server_goal);
+    }
+
+    #[test]
+    fn action_server_drains_cancel_request_bursts_in_one_spin() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        let context = Context::create().unwrap();
+        let mut server_node =
+            Node::create(context.clone(), "action_cancel_burst_server", "").unwrap();
+        let mut client_node = Node::create(context, "action_cancel_burst_client", "").unwrap();
+        let action_name = format!("/action_cancel_burst_{}", uuid::Uuid::new_v4().simple());
+        let qos = QosProfile::default().keep_last(8);
+        let mut requests = server_node
+            .create_action_server_with_options::<Fibonacci::Action>(
+                &action_name,
+                ActionServerOptions::default()
+                    .goal_service_qos(qos.clone())
+                    .cancel_service_qos(qos.clone())
+                    .cancel_request_channel_capacity(8),
+            )
+            .unwrap();
+        let client = client_node
+            .create_action_client_with_options::<Fibonacci::Action>(
+                &action_name,
+                ActionClientOptions::default()
+                    .goal_service_qos(qos.clone())
+                    .cancel_service_qos(qos),
+            )
+            .unwrap();
+        for _ in 0..200 {
+            server_node.try_spin_once(Duration::ZERO).unwrap();
+            client_node
+                .try_spin_once(Duration::from_millis(10))
+                .unwrap();
+            if client.is_available(&client_node).unwrap() {
+                break;
+            }
+        }
+
+        let response = client
+            .send_goal_request_with_options(
+                Fibonacci::Goal { order: 1 },
+                ActionGoalOptions::default().track_feedback(false),
+            )
+            .unwrap();
+        let mut response = Box::pin(response);
+        let mut server_goal = None;
+        let mut cancel_stream = None;
+        let client_goal = loop {
+            server_node
+                .try_spin_once(Duration::from_millis(10))
+                .unwrap();
+            if server_goal.is_none() {
+                if let Some(request) = requests.next().now_or_never().flatten() {
+                    let (goal, cancels) = request.accept().unwrap();
+                    server_goal = Some(goal);
+                    cancel_stream = Some(cancels);
+                }
+            }
+            client_node
+                .try_spin_once(Duration::from_millis(10))
+                .unwrap();
+            if let Some(response) = response.as_mut().now_or_never() {
+                break response.unwrap().goal;
+            }
+        };
+
+        let cancels = [
+            client_goal.cancel().unwrap(),
+            client_goal.cancel().unwrap(),
+            client_goal.cancel().unwrap(),
+        ];
+        std::thread::sleep(Duration::from_millis(20));
+        server_node
+            .try_spin_once(Duration::from_millis(100))
+            .unwrap();
+
+        let mut cancel_stream = cancel_stream.unwrap();
+        for _ in 0..3 {
+            cancel_stream
+                .next()
+                .now_or_never()
+                .flatten()
+                .unwrap()
+                .reject();
+        }
+        drop(cancels);
+        drop(server_goal);
     }
 
     #[test]

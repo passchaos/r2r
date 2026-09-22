@@ -37,6 +37,12 @@ pub(crate) enum ActionServerTakeResult {
     Taken,
 }
 
+pub(crate) enum ActionServerDeliveryAction {
+    Idle,
+    Taken,
+    Deliver(ActionServerCompletion),
+}
+
 fn finish_action_server_operation(
     operation_result: Result<()>, completions: Vec<ActionServerCompletion>,
 ) -> Result<()> {
@@ -70,6 +76,27 @@ pub(crate) fn complete_action_server_request_batch<S: ?Sized>(
             break;
         };
         completion()?;
+    }
+    Ok(())
+}
+
+pub(crate) fn complete_action_server_delivery_batch<S: ?Sized>(
+    server: &Mutex<S>, mut operation: impl FnMut(&mut S) -> Result<ActionServerDeliveryAction>,
+    mut is_backpressured: impl FnMut(&S) -> bool,
+) -> Result<()> {
+    for _ in 0..MAX_ACTION_SERVER_REQUESTS_PER_SPIN {
+        let action = {
+            let mut server = server.lock();
+            operation(&mut *server)?
+        };
+        match action {
+            ActionServerDeliveryAction::Idle => break,
+            ActionServerDeliveryAction::Taken => {}
+            ActionServerDeliveryAction::Deliver(completion) => completion()?,
+        }
+        if is_backpressured(&*server.lock()) {
+            break;
+        }
     }
     Ok(())
 }
@@ -132,10 +159,11 @@ pub trait ActionServer_ {
         &mut self, server: Arc<Mutex<dyn ActionServer_>>,
     ) -> Option<ActionServerCompletion>;
     fn finish_cancel_delivery(&mut self, pending: PendingCancelRequest);
+    fn has_pending_cancel_delivery(&self) -> bool;
     fn send_completed_cancel_requests(&mut self) -> Result<()>;
     fn handle_cancel_request(
         &mut self, server: Arc<Mutex<dyn ActionServer_>>,
-    ) -> Result<Option<ActionServerCompletion>>;
+    ) -> Result<ActionServerDeliveryAction>;
     fn handle_result_request(&mut self) -> Result<ActionServerTakeResult>;
     fn handle_goal_expired(&mut self, completions: &mut Vec<ActionServerCompletion>) -> Result<()>;
     fn action_name(&self) -> Result<String>;
@@ -824,6 +852,10 @@ where
         WrappedActionServer::finish_cancel_delivery(self, pending);
     }
 
+    fn has_pending_cancel_delivery(&self) -> bool {
+        self.pending_cancel_request.is_some()
+    }
+
     fn reject_goal_request(
         &mut self, uuid: &uuid::Uuid, request_id: &mut rmw_request_id_t,
         completions: &mut Vec<ActionServerCompletion>,
@@ -1105,9 +1137,11 @@ where
 
     fn handle_cancel_request(
         &mut self, server: Arc<Mutex<dyn ActionServer_>>,
-    ) -> Result<Option<ActionServerCompletion>> {
+    ) -> Result<ActionServerDeliveryAction> {
         if self.pending_cancel_request.is_some() {
-            return Ok(self.take_pending_cancel_delivery(server));
+            return Ok(self
+                .take_pending_cancel_delivery(server)
+                .map_or(ActionServerDeliveryAction::Taken, ActionServerDeliveryAction::Deliver));
         }
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut request_msg = WrappedNativeMsg::<action_msgs::srv::CancelGoal::Request>::try_new()?;
@@ -1120,7 +1154,7 @@ where
         };
 
         if !action_server_take_succeeded(ret)? {
-            return Ok(None);
+            return Ok(ActionServerDeliveryAction::Idle);
         }
 
         // `rcl_action_take_cancel_request` only initializes the request id on success.
@@ -1169,7 +1203,9 @@ where
             deliveries,
             decisions,
         });
-        Ok(self.take_pending_cancel_delivery(server))
+        Ok(self
+            .take_pending_cancel_delivery(server)
+            .map_or(ActionServerDeliveryAction::Taken, ActionServerDeliveryAction::Deliver))
     }
 
     fn handle_goal_expired(&mut self, completions: &mut Vec<ActionServerCompletion>) -> Result<()> {
@@ -1779,9 +1815,13 @@ mod tests {
 
         fn finish_cancel_delivery(&mut self, _pending: PendingCancelRequest) {}
 
+        fn has_pending_cancel_delivery(&self) -> bool {
+            false
+        }
+
         fn handle_cancel_request(
             &mut self, _server: Arc<Mutex<dyn ActionServer_>>,
-        ) -> Result<Option<ActionServerCompletion>> {
+        ) -> Result<ActionServerDeliveryAction> {
             unreachable!()
         }
 
@@ -2093,6 +2133,33 @@ mod tests {
         })
         .unwrap();
         assert_eq!(*server.lock(), MAX_ACTION_SERVER_REQUESTS_PER_SPIN);
+    }
+
+    #[test]
+    fn action_server_delivery_batches_stop_at_backpressure_and_fairness_limit() {
+        let server = Mutex::new((0usize, false));
+        complete_action_server_delivery_batch(
+            &server,
+            |state| {
+                state.0 += 1;
+                Ok(ActionServerDeliveryAction::Deliver(Box::new(|| Ok(()))))
+            },
+            |state| state.0 == 3,
+        )
+        .unwrap();
+        assert_eq!(server.lock().0, 3);
+
+        server.lock().0 = 0;
+        complete_action_server_delivery_batch(
+            &server,
+            |state| {
+                state.0 += 1;
+                Ok(ActionServerDeliveryAction::Taken)
+            },
+            |_| false,
+        )
+        .unwrap();
+        assert_eq!(server.lock().0, MAX_ACTION_SERVER_REQUESTS_PER_SPIN);
     }
 
     #[test]
