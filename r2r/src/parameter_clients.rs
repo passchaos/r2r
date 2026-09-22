@@ -80,11 +80,12 @@ impl ParameterClient {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
-        let request = srv::GetParameters::Request {
-            names: strings(names),
-        };
+        let names = strings(names);
+        let expected = names.len();
+        let request = srv::GetParameters::Request { names };
         let response = self.get_parameters.request(&request)?;
-        Ok(response.and_then(|response| async move {
+        Ok(response.and_then(move |response| async move {
+            check_response_length("get_parameters", expected, response.values.len())?;
             response
                 .values
                 .into_iter()
@@ -112,11 +113,12 @@ impl ParameterClient {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
-        let request = srv::GetParameterTypes::Request {
-            names: strings(names),
-        };
+        let names = strings(names);
+        let expected = names.len();
+        let request = srv::GetParameterTypes::Request { names };
         let response = self.get_parameter_types.request(&request)?;
-        Ok(response.and_then(|response| async move {
+        Ok(response.and_then(move |response| async move {
+            check_response_length("get_parameter_types", expected, response.types.len())?;
             response
                 .types
                 .into_iter()
@@ -144,11 +146,14 @@ impl ParameterClient {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
-        let request = srv::DescribeParameters::Request {
-            names: strings(names),
-        };
+        let names = strings(names);
+        let expected = names.len();
+        let request = srv::DescribeParameters::Request { names };
         let response = self.describe_parameters.request(&request)?;
-        Ok(response.map(|response| response.map(|response| response.descriptors)))
+        Ok(response.and_then(move |response| async move {
+            check_response_length("describe_parameters", expected, response.descriptors.len())?;
+            Ok(response.descriptors)
+        }))
     }
 
     /// Describes parameters, failing with [`Error::RCL_RET_TIMEOUT`] after `timeout`.
@@ -197,11 +202,14 @@ impl ParameterClient {
         I: IntoIterator<Item = (S, ParameterValue)>,
         S: Into<String>,
     {
-        let request = srv::SetParameters::Request {
-            parameters: parameter_messages(parameters),
-        };
+        let parameters = parameter_messages(parameters);
+        let expected = parameters.len();
+        let request = srv::SetParameters::Request { parameters };
         let response = self.set_parameters.request(&request)?;
-        Ok(response.map(|response| response.map(|response| response.results)))
+        Ok(response.and_then(move |response| async move {
+            check_response_length("set_parameters", expected, response.results.len())?;
+            Ok(response.results)
+        }))
     }
 
     /// Sets parameters, failing with [`Error::RCL_RET_TIMEOUT`] after `timeout`.
@@ -262,6 +270,18 @@ impl ParameterClient {
     {
         let response = self.delete_parameters(names)?;
         node.with_timeout(response, timeout)
+    }
+}
+
+fn check_response_length(operation: &'static str, expected: usize, actual: usize) -> Result<()> {
+    if expected == actual {
+        Ok(())
+    } else {
+        Err(Error::ParameterResponseLengthMismatch {
+            operation,
+            expected,
+            actual,
+        })
     }
 }
 
@@ -558,6 +578,110 @@ mod tests {
         assert_times_out!(client
             .delete_parameters_with_timeout(&mut node, ["value"], timeout)
             .unwrap());
+    }
+
+    #[test]
+    fn parameter_client_rejects_mismatched_response_lengths() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "short_parameter_server", "").unwrap();
+        let get = node
+            .create_service::<srv::GetParameters::Service>(
+                "/short_parameter_server/get_parameters",
+                QosProfile::parameters(),
+            )
+            .unwrap();
+        let types = node
+            .create_service::<srv::GetParameterTypes::Service>(
+                "/short_parameter_server/get_parameter_types",
+                QosProfile::parameters(),
+            )
+            .unwrap();
+        let describe = node
+            .create_service::<srv::DescribeParameters::Service>(
+                "/short_parameter_server/describe_parameters",
+                QosProfile::parameters(),
+            )
+            .unwrap();
+        let set = node
+            .create_service::<srv::SetParameters::Service>(
+                "/short_parameter_server/set_parameters",
+                QosProfile::parameters(),
+            )
+            .unwrap();
+        let client = node
+            .create_parameter_client("/short_parameter_server")
+            .unwrap();
+        let mut pool = LocalPool::new();
+        pool.spawner()
+            .spawn_local(get.for_each(|request| async move {
+                request
+                    .respond(srv::GetParameters::Response::default())
+                    .unwrap();
+            }))
+            .unwrap();
+        pool.spawner()
+            .spawn_local(types.for_each(|request| async move {
+                request
+                    .respond(srv::GetParameterTypes::Response::default())
+                    .unwrap();
+            }))
+            .unwrap();
+        pool.spawner()
+            .spawn_local(describe.for_each(|request| async move {
+                request
+                    .respond(srv::DescribeParameters::Response::default())
+                    .unwrap();
+            }))
+            .unwrap();
+        pool.spawner()
+            .spawn_local(set.for_each(|request| async move {
+                request
+                    .respond(srv::SetParameters::Response::default())
+                    .unwrap();
+            }))
+            .unwrap();
+
+        let response = client.get_parameters(["first", "second"]).unwrap();
+        assert!(matches!(
+            drive_result(&mut node, &mut pool, response),
+            Err(Error::ParameterResponseLengthMismatch {
+                operation: "get_parameters",
+                expected: 2,
+                actual: 0,
+            })
+        ));
+        let response = client.get_parameter_types(["first"]).unwrap();
+        assert!(matches!(
+            drive_result(&mut node, &mut pool, response),
+            Err(Error::ParameterResponseLengthMismatch {
+                operation: "get_parameter_types",
+                expected: 1,
+                actual: 0,
+            })
+        ));
+        let response = client.describe_parameters(["first"]).unwrap();
+        assert!(matches!(
+            drive_result(&mut node, &mut pool, response),
+            Err(Error::ParameterResponseLengthMismatch {
+                operation: "describe_parameters",
+                expected: 1,
+                actual: 0,
+            })
+        ));
+        let response = client
+            .set_parameters([
+                ("first", ParameterValue::Integer(1)),
+                ("second", ParameterValue::Integer(2)),
+            ])
+            .unwrap();
+        assert!(matches!(
+            drive_result(&mut node, &mut pool, response),
+            Err(Error::ParameterResponseLengthMismatch {
+                operation: "set_parameters",
+                expected: 2,
+                actual: 0,
+            })
+        ));
     }
 
     #[test]

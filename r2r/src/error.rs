@@ -138,6 +138,15 @@ pub enum Error {
     #[error("Unknown ROS parameter type: {type_}")]
     UnknownParameterType { type_: u8 },
 
+    #[error(
+        "Parameter {operation} response length mismatch: expected {expected} entries, got {actual}"
+    )]
+    ParameterResponseLengthMismatch {
+        operation: &'static str,
+        expected: usize,
+        actual: usize,
+    },
+
     #[error("Parameter {name} conversion failed: {msg}")]
     ParameterValueConv { name: String, msg: String },
 
