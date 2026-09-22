@@ -26,6 +26,15 @@ pub(crate) enum ServiceHandleResult {
 
 const MAX_SERVICE_REQUESTS_PER_SPIN: usize = 16;
 
+fn service_sender_ready<T>(sender: &mut mpsc::Sender<T>) -> ServiceHandleResult {
+    let mut context = Context::from_waker(noop_waker_ref());
+    match sender.poll_ready(&mut context) {
+        Poll::Ready(Ok(())) => ServiceHandleResult::Taken,
+        Poll::Pending => ServiceHandleResult::Idle,
+        Poll::Ready(Err(_)) => ServiceHandleResult::Remove,
+    }
+}
+
 fn deliver_request<T>(
     sender_slot: Arc<Mutex<Option<mpsc::Sender<T>>>>, mut sender: mpsc::Sender<T>, request: T,
     description: &'static str,
@@ -363,12 +372,10 @@ impl Service_ for UntypedService {
             let Some(sender) = sender.as_mut() else {
                 return Ok(ServiceRequestAction::Idle);
             };
-            if sender.is_closed() {
-                return Ok(ServiceRequestAction::Remove);
-            }
-            let mut cx = Context::from_waker(noop_waker_ref());
-            if sender.poll_ready(&mut cx) == Poll::Pending {
-                return Ok(ServiceRequestAction::Idle);
+            match service_sender_ready(sender) {
+                ServiceHandleResult::Taken => {}
+                ServiceHandleResult::Idle => return Ok(ServiceRequestAction::Idle),
+                ServiceHandleResult::Remove => return Ok(ServiceRequestAction::Remove),
             }
         }
 
@@ -452,12 +459,10 @@ where
             let Some(sender) = sender.as_mut() else {
                 return Ok(ServiceRequestAction::Idle);
             };
-            if sender.is_closed() {
-                return Ok(ServiceRequestAction::Remove);
-            }
-            let mut cx = Context::from_waker(noop_waker_ref());
-            if sender.poll_ready(&mut cx) == Poll::Pending {
-                return Ok(ServiceRequestAction::Idle);
+            match service_sender_ready(sender) {
+                ServiceHandleResult::Taken => {}
+                ServiceHandleResult::Idle => return Ok(ServiceRequestAction::Idle),
+                ServiceHandleResult::Remove => return Ok(ServiceRequestAction::Remove),
             }
         }
 
@@ -551,6 +556,25 @@ mod tests {
     #[test]
     fn service_batch_limit_is_bounded_for_fairness() {
         assert_eq!(MAX_SERVICE_REQUESTS_PER_SPIN, 16);
+    }
+
+    #[test]
+    fn closed_service_sender_is_removed_before_taking_a_request() {
+        let (mut sender, receiver) = mpsc::channel::<i32>(1);
+        drop(receiver);
+
+        assert_eq!(service_sender_ready(&mut sender), ServiceHandleResult::Remove);
+    }
+
+    #[test]
+    fn full_service_sender_reports_backpressure() {
+        let (mut sender, mut receiver) = mpsc::channel(0);
+        let mut context = Context::from_waker(noop_waker_ref());
+        assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Pending));
+        sender.try_send(41).unwrap();
+
+        assert_eq!(service_sender_ready(&mut sender), ServiceHandleResult::Idle);
+        assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Ready(Some(41))));
     }
 
     #[test]
