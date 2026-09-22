@@ -89,6 +89,90 @@ pub enum ParameterValue {
     StringArray(Vec<String>),
 }
 
+impl From<()> for ParameterValue {
+    fn from((): ()) -> Self {
+        Self::NotSet
+    }
+}
+
+impl From<bool> for ParameterValue {
+    fn from(value: bool) -> Self {
+        Self::Bool(value)
+    }
+}
+
+macro_rules! parameter_integer_from {
+    ($($type:ty),+ $(,)?) => {
+        $(
+            impl From<$type> for ParameterValue {
+                fn from(value: $type) -> Self {
+                    Self::Integer(i64::from(value))
+                }
+            }
+        )+
+    };
+}
+
+parameter_integer_from!(i8, i16, i32, i64, u8, u16, u32);
+
+impl From<f32> for ParameterValue {
+    fn from(value: f32) -> Self {
+        Self::Double(f64::from(value))
+    }
+}
+
+impl From<f64> for ParameterValue {
+    fn from(value: f64) -> Self {
+        Self::Double(value)
+    }
+}
+
+impl From<String> for ParameterValue {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}
+
+impl From<&str> for ParameterValue {
+    fn from(value: &str) -> Self {
+        Self::String(value.to_owned())
+    }
+}
+
+macro_rules! parameter_array_from {
+    ($type:ty, $variant:ident) => {
+        impl From<Vec<$type>> for ParameterValue {
+            fn from(value: Vec<$type>) -> Self {
+                Self::$variant(value)
+            }
+        }
+
+        impl From<&[$type]> for ParameterValue {
+            fn from(value: &[$type]) -> Self {
+                Self::$variant(value.to_vec())
+            }
+        }
+
+        impl<const N: usize> From<[$type; N]> for ParameterValue {
+            fn from(value: [$type; N]) -> Self {
+                Self::$variant(Vec::from(value))
+            }
+        }
+    };
+}
+
+parameter_array_from!(bool, BoolArray);
+parameter_array_from!(u8, ByteArray);
+parameter_array_from!(i64, IntegerArray);
+parameter_array_from!(f64, DoubleArray);
+parameter_array_from!(String, StringArray);
+
+impl<const N: usize> From<[&str; N]> for ParameterValue {
+    fn from(value: [&str; N]) -> Self {
+        Self::StringArray(value.into_iter().map(str::to_owned).collect())
+    }
+}
+
 /// Strongly typed identifier used by ROS parameter values and type queries.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -803,6 +887,41 @@ mod tests {
         assert!(strings
             .check_parameter("", &ParameterValue::IntegerArray(vec![1]))
             .is_err());
+    }
+
+    #[test]
+    fn native_rust_values_convert_to_parameter_values_without_loss() {
+        assert_eq!(ParameterValue::from(()), ParameterValue::NotSet);
+        assert_eq!(ParameterValue::from(true), ParameterValue::Bool(true));
+        assert_eq!(ParameterValue::from(i8::MIN), ParameterValue::Integer(i8::MIN.into()));
+        assert_eq!(ParameterValue::from(i16::MIN), ParameterValue::Integer(i16::MIN.into()));
+        assert_eq!(ParameterValue::from(i32::MIN), ParameterValue::Integer(i32::MIN.into()));
+        assert_eq!(ParameterValue::from(i64::MIN), ParameterValue::Integer(i64::MIN));
+        assert_eq!(ParameterValue::from(u8::MAX), ParameterValue::Integer(u8::MAX.into()));
+        assert_eq!(ParameterValue::from(u16::MAX), ParameterValue::Integer(u16::MAX.into()));
+        assert_eq!(ParameterValue::from(u32::MAX), ParameterValue::Integer(u32::MAX.into()));
+        assert_eq!(ParameterValue::from(1.25_f32), ParameterValue::Double(1.25));
+        assert_eq!(ParameterValue::from(2.5_f64), ParameterValue::Double(2.5));
+        assert_eq!(ParameterValue::from("text"), ParameterValue::String("text".into()));
+        assert_eq!(
+            ParameterValue::from(String::from("owned")),
+            ParameterValue::String("owned".into())
+        );
+        assert_eq!(
+            ParameterValue::from([true, false]),
+            ParameterValue::BoolArray(vec![true, false])
+        );
+        assert_eq!(ParameterValue::from([1_u8, 2]), ParameterValue::ByteArray(vec![1, 2]));
+        assert_eq!(ParameterValue::from([1_i64, 2]), ParameterValue::IntegerArray(vec![1, 2]));
+        assert_eq!(
+            ParameterValue::from([1.0_f64, 2.0]),
+            ParameterValue::DoubleArray(vec![1.0, 2.0])
+        );
+        assert_eq!(
+            ParameterValue::from(["first", "second"]),
+            ParameterValue::StringArray(vec!["first".into(), "second".into()])
+        );
+        assert_eq!(ParameterValue::from(&[3_i64, 4][..]), ParameterValue::IntegerArray(vec![3, 4]));
     }
 
     #[test]
