@@ -593,6 +593,35 @@ impl Node {
         Ok(Self::default_parameter_descriptor(name, parameter, true))
     }
 
+    /// Returns whether a parameter is currently declared on this node.
+    pub fn has_parameter(&self, name: &str) -> bool {
+        self.params.lock().contains_key(name)
+    }
+
+    /// Removes a declared parameter and its descriptor.
+    ///
+    /// Read-only parameters cannot be undeclared. Parameter service clients can undeclare dynamic
+    /// parameters by assigning [`ParameterValue::NotSet`]; statically typed parameters require
+    /// this explicit API, matching ROS 2's distinction between setting and undeclaring.
+    pub fn undeclare_parameter(&self, name: &str) -> Result<ParameterValue> {
+        let mut params = self.params.lock();
+        let mut descriptors = self.parameter_descriptors.lock();
+        if let Some(descriptor) = descriptors.get(name) {
+            if descriptor.read_only {
+                return Err(Error::ParameterConstraintViolation {
+                    name: name.to_owned(),
+                    reason: "a read-only parameter cannot be undeclared".into(),
+                });
+            }
+        }
+
+        let removed = params
+            .shift_remove(name)
+            .ok_or_else(|| Error::InvalidParameterName { name: name.into() })?;
+        descriptors.shift_remove(name);
+        Ok(removed.value)
+    }
+
     /// Creates parameter service handlers for the Node based on the
     /// [`RosParams`] trait.
     ///
@@ -743,11 +772,7 @@ impl Node {
                         }
                     } else {
                         // No parameter structure - update only Node::params
-                        params
-                            .lock()
-                            .entry(p.name.clone())
-                            .and_modify(|p| p.value = val.clone())
-                            .or_insert(Parameter::new(val.clone()));
+                        Self::store_dynamic_parameter(&mut params.lock(), &p.name, &val);
                         rcl_interfaces::msg::SetParametersResult {
                             successful: true,
                             reason: "".into(),
@@ -972,10 +997,7 @@ impl Node {
                                 if previous != Some(value) {
                                     local_events.push((name.clone(), value.clone()));
                                     ros_events.record(name, previous, value);
-                                    params
-                                        .entry(name.clone())
-                                        .and_modify(|parameter| parameter.value = value.clone())
-                                        .or_insert_with(|| Parameter::new(value.clone()));
+                                    Self::store_dynamic_parameter(&mut params, name, value);
                                 }
                             }
                             drop(params);
@@ -1066,6 +1088,10 @@ impl Node {
         value: &ParameterValue,
     ) {
         let mut descriptors = descriptors.lock();
+        if matches!(value, ParameterValue::NotSet) {
+            descriptors.shift_remove(name);
+            return;
+        }
         if let Some(descriptor) = descriptors.get_mut(name) {
             if descriptor.dynamic_typing {
                 descriptor.type_ = value.parameter_type();
@@ -1080,6 +1106,19 @@ impl Node {
                     ..Default::default()
                 },
             );
+        }
+    }
+
+    fn store_dynamic_parameter(
+        params: &mut IndexMap<String, Parameter>, name: &str, value: &ParameterValue,
+    ) {
+        if matches!(value, ParameterValue::NotSet) {
+            params.shift_remove(name);
+        } else {
+            params
+                .entry(name.to_owned())
+                .and_modify(|parameter| parameter.value = value.clone())
+                .or_insert_with(|| Parameter::new(value.clone()));
         }
     }
 
@@ -3799,6 +3838,42 @@ mod tests {
     }
 
     #[test]
+    fn local_parameter_undeclare_removes_mutable_parameters() {
+        let context = Context::create().unwrap();
+        let node = Node::create(context, "local_parameter_undeclare_test", "").unwrap();
+        node.declare_parameter_with_descriptor(
+            "dynamic",
+            ParameterValue::Integer(1),
+            ParameterDescriptor {
+                dynamic_typing: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        node.declare_parameter("static", ParameterValue::Integer(2))
+            .unwrap();
+        node.declare_parameter_with_descriptor(
+            "read_only",
+            ParameterValue::Integer(3),
+            ParameterDescriptor {
+                read_only: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        assert!(node.has_parameter("dynamic"));
+        assert_eq!(node.undeclare_parameter("dynamic").unwrap(), ParameterValue::Integer(1));
+        assert!(!node.has_parameter("dynamic"));
+        assert!(node.get_parameter_descriptor("dynamic").is_err());
+        assert!(node.undeclare_parameter("dynamic").is_err());
+        assert_eq!(node.undeclare_parameter("static").unwrap(), ParameterValue::Integer(2));
+        assert!(node.undeclare_parameter("read_only").is_err());
+        assert!(!node.has_parameter("static"));
+        assert!(node.has_parameter("read_only"));
+    }
+
+    #[test]
     fn primitive_derived_parameter_handler_returns_an_error_instead_of_panicking() {
         let context = Context::create().unwrap();
         let mut node = Node::create(context, "primitive_parameter_handler_test", "").unwrap();
@@ -5257,7 +5332,10 @@ mod tests {
 
     #[test]
     fn parameter_service_publishes_standard_parameter_events() {
-        use rcl_interfaces::{msg, srv::SetParameters};
+        use rcl_interfaces::{
+            msg,
+            srv::{DescribeParameters, ListParameters, SetParameters},
+        };
 
         let context = Context::create().unwrap();
         let mut node = Node::create(context, "parameter_event_test", "").unwrap();
@@ -5271,6 +5349,18 @@ mod tests {
         let client = node
             .create_client::<SetParameters::Service>(
                 "parameter_event_test/set_parameters",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let list_client = node
+            .create_client::<ListParameters::Service>(
+                "parameter_event_test/list_parameters",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let describe_client = node
+            .create_client::<DescribeParameters::Service>(
+                "parameter_event_test/describe_parameters",
                 QosProfile::default(),
             )
             .unwrap();
@@ -5329,6 +5419,46 @@ mod tests {
                 }
             );
         }
+        assert!(!node.has_parameter("dynamic_value"));
+        assert!(node.get_parameter_descriptor("dynamic_value").is_err());
+
+        let mut listed = Box::pin(
+            list_client
+                .request(&ListParameters::Request {
+                    prefixes: vec![],
+                    depth: ListParameters::Request::DEPTH_RECURSIVE as u64,
+                })
+                .unwrap(),
+        );
+        let listed = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            pool.run_until_stalled();
+            if let Some(response) = listed.as_mut().now_or_never() {
+                break response.unwrap();
+            }
+        };
+        assert!(!listed
+            .result
+            .names
+            .iter()
+            .any(|name| name == "dynamic_value"));
+
+        let mut described = Box::pin(
+            describe_client
+                .request(&DescribeParameters::Request {
+                    names: vec!["dynamic_value".into()],
+                })
+                .unwrap(),
+        );
+        let described = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            pool.run_until_stalled();
+            if let Some(response) = described.as_mut().now_or_never() {
+                break response.unwrap();
+            }
+        };
+        assert_eq!(described.descriptors[0].type_, msg::ParameterType::PARAMETER_NOT_SET as u8);
+        assert!(!described.descriptors[0].dynamic_typing);
     }
 
     #[test]
@@ -5475,6 +5605,37 @@ mod tests {
             msg::ParameterType::PARAMETER_INTEGER as u8
         );
 
+        let response = drive(
+            &mut node,
+            &mut pool,
+            set_atomically
+                .request(&SetParametersAtomically::Request {
+                    parameters: vec![
+                        parameter("count", ParameterValue::Integer(8)),
+                        parameter("dynamic", ParameterValue::NotSet),
+                    ],
+                })
+                .unwrap(),
+        );
+        assert!(response.result.successful);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 8);
+        assert!(!node.has_parameter("dynamic"));
+        assert!(node.get_parameter_descriptor("dynamic").is_err());
+
+        let response = drive(
+            &mut node,
+            &mut pool,
+            set.request(&SetParameters::Request {
+                parameters: vec![parameter("dynamic", ParameterValue::Bool(true))],
+            })
+            .unwrap(),
+        );
+        assert!(response.results[0].successful);
+        assert!(node.get_parameter::<bool>("dynamic").unwrap());
+        let descriptor = node.get_parameter_descriptor("dynamic").unwrap();
+        assert!(descriptor.dynamic_typing);
+        assert_eq!(descriptor.type_, msg::ParameterType::PARAMETER_BOOL as u8);
+
         let malformed = msg::ParameterValue {
             type_: u8::MAX,
             integer_value: 10,
@@ -5495,7 +5656,7 @@ mod tests {
         assert!(response.results[0]
             .reason
             .contains("Unknown ROS parameter type"));
-        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 6);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 8);
 
         let response = drive(
             &mut node,
@@ -5503,14 +5664,14 @@ mod tests {
             set_atomically
                 .request(&SetParametersAtomically::Request {
                     parameters: vec![
-                        parameter("count", ParameterValue::Integer(8)),
+                        parameter("count", ParameterValue::Integer(10)),
                         parameter("ratio", ParameterValue::Double(0.25)),
                     ],
                 })
                 .unwrap(),
         );
         assert!(!response.result.successful);
-        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 6);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 8);
         assert_eq!(node.get_parameter::<f64>("ratio").unwrap(), 0.2);
 
         let response = drive(
@@ -5519,7 +5680,7 @@ mod tests {
             set_atomically
                 .request(&SetParametersAtomically::Request {
                     parameters: vec![
-                        parameter("count", ParameterValue::Integer(8)),
+                        parameter("count", ParameterValue::Integer(10)),
                         msg::Parameter {
                             name: "ratio".into(),
                             value: malformed,
@@ -5533,7 +5694,7 @@ mod tests {
             .result
             .reason
             .contains("Unknown ROS parameter type"));
-        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 6);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 8);
         assert_eq!(node.get_parameter::<f64>("ratio").unwrap(), 0.2);
 
         let response = drive(
@@ -5542,14 +5703,14 @@ mod tests {
             set_atomically
                 .request(&SetParametersAtomically::Request {
                     parameters: vec![
-                        parameter("count", ParameterValue::Integer(8)),
+                        parameter("count", ParameterValue::Integer(10)),
                         parameter("ratio", ParameterValue::Double(0.4)),
                     ],
                 })
                 .unwrap(),
         );
         assert!(response.result.successful);
-        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 8);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 10);
         assert_eq!(node.get_parameter::<f64>("ratio").unwrap(), 0.4);
     }
 
