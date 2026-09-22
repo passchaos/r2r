@@ -1,12 +1,13 @@
 use futures::{channel::oneshot, Future, TryFutureExt};
 use parking_lot::{ArcMutexGuard, Mutex, RawMutex};
+#[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+use std::time::Duration;
 use std::{
     ffi::{CStr, CString},
     fmt::Debug,
     marker::PhantomData,
     mem::MaybeUninit,
     sync::{Arc, Weak},
-    time::Duration,
 };
 
 use crate::{error::*, msg_types::*, nodes::Node, qos::QosProfile, QosPolicyKind};
