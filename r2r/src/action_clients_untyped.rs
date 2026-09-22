@@ -534,6 +534,28 @@ impl WrappedActionClientUntyped {
         feedback
     }
 
+    fn apply_status_updates(
+        &mut self, updates: &[(uuid::Uuid, GoalStatus)],
+    ) -> Vec<ActionClientCompletion> {
+        let mut completions = Vec::new();
+        for (uuid, status) in updates {
+            if let Some(tracked_status) = self.goal_status.get_mut(uuid) {
+                *tracked_status = *status;
+            }
+            let result_is_tracked = self
+                .result_senders
+                .iter()
+                .any(|(id, sender)| id == uuid && !sender.is_canceled());
+            if status.is_terminal() && !result_is_tracked {
+                completions.extend(
+                    self.take_feedback_sender(uuid)
+                        .map(|(_, channel)| close_feedback_completion(channel)),
+                );
+            }
+        }
+        completions
+    }
+
     fn prune_canceled_requests(&mut self) -> Vec<ActionClientCompletion> {
         let mut completions = Vec::new();
         let canceled_goals: Vec<_> = self
@@ -639,6 +661,12 @@ impl ActionClient_ for WrappedActionClientUntyped {
         &mut self, uuid: &uuid::Uuid, status: GoalStatus,
     ) -> Vec<ActionClientCompletion> {
         WrappedActionClientUntyped::finish_goal(self, uuid, status)
+    }
+
+    fn apply_status_updates(
+        &mut self, updates: &[(uuid::Uuid, GoalStatus)],
+    ) -> Vec<ActionClientCompletion> {
+        WrappedActionClientUntyped::apply_status_updates(self, updates)
     }
 
     fn handle_goal_response(
@@ -771,31 +799,16 @@ impl ActionClient_ for WrappedActionClientUntyped {
         }
     }
 
-    fn handle_status_msg(&mut self) -> Result<Vec<ActionClientCompletion>> {
-        let mut completions = Vec::new();
+    fn handle_status_msg(
+        &mut self, client: Arc<Mutex<dyn ActionClient_>>,
+    ) -> Result<Vec<ActionClientCompletion>> {
         let mut status_array = WrappedNativeMsg::<action_msgs::msg::GoalStatusArray>::try_new()?;
         let ret = unsafe { rcl_action_take_status(&self.rcl_handle, status_array.void_ptr_mut()) };
         if action_client_take_succeeded(ret)? {
-            let arr = action_msgs::msg::GoalStatusArray::from_native(&status_array);
-            for a in &arr.status_list {
-                let uuid = uuid_msg_to_uuid(&a.goal_info.goal_id)?;
-                let status = GoalStatus::from_rcl(a.status);
-                if let Some(tracked_status) = self.goal_status.get_mut(&uuid) {
-                    *tracked_status = status;
-                }
-                let result_is_tracked = self
-                    .result_senders
-                    .iter()
-                    .any(|(id, sender)| id == &uuid && !sender.is_canceled());
-                if status.is_terminal() && !result_is_tracked {
-                    completions.extend(
-                        self.take_feedback_sender(&uuid)
-                            .map(|(_, channel)| close_feedback_completion(channel)),
-                    );
-                }
-            }
+            Ok(vec![action_status_completion(client, status_array)])
+        } else {
+            Ok(Vec::new())
         }
-        Ok(completions)
     }
 
     fn handle_result_response(

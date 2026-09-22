@@ -167,6 +167,37 @@ where
     }
 }
 
+pub(crate) fn action_status_completion(
+    client: Arc<Mutex<dyn ActionClient_>>,
+    status_array: WrappedNativeMsg<action_msgs::msg::GoalStatusArray>,
+) -> ActionClientCompletion {
+    ActionClientCompletion {
+        notify: Box::new(move || {
+            let status_array = action_msgs::msg::GoalStatusArray::from_native(&status_array);
+            let updates = decode_status_updates(&status_array)?;
+            let cleanup = { client.lock().apply_status_updates(&updates) };
+            run_detached_action_client_completions(cleanup);
+            Ok(true)
+        }),
+        cleanup_goal_on_failure: None,
+    }
+}
+
+fn decode_status_updates(
+    status_array: &action_msgs::msg::GoalStatusArray,
+) -> Result<Vec<(uuid::Uuid, GoalStatus)>> {
+    status_array
+        .status_list
+        .iter()
+        .map(|status| {
+            Ok((
+                uuid_msg_to_uuid(&status.goal_info.goal_id)?,
+                GoalStatus::from_rcl(status.status),
+            ))
+        })
+        .collect()
+}
+
 pub(crate) fn action_availability_completion(
     senders: Vec<oneshot::Sender<()>>, available: Result<bool>,
 ) -> Option<ActionClientCompletion> {
@@ -771,6 +802,9 @@ pub trait ActionClient_ {
     fn forget_goal(&mut self, uuid: &uuid::Uuid) -> Vec<ActionClientCompletion>;
     fn finish_goal(&mut self, uuid: &uuid::Uuid, status: GoalStatus)
         -> Vec<ActionClientCompletion>;
+    fn apply_status_updates(
+        &mut self, updates: &[(uuid::Uuid, GoalStatus)],
+    ) -> Vec<ActionClientCompletion>;
 
     fn handle_goal_response(
         &mut self, client: Arc<Mutex<dyn ActionClient_>>,
@@ -782,7 +816,9 @@ pub trait ActionClient_ {
     fn handle_feedback_msg(
         &mut self, completions: &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult>;
-    fn handle_status_msg(&mut self) -> Result<Vec<ActionClientCompletion>>;
+    fn handle_status_msg(
+        &mut self, client: Arc<Mutex<dyn ActionClient_>>,
+    ) -> Result<Vec<ActionClientCompletion>>;
     fn handle_result_response(
         &mut self, client: Arc<Mutex<dyn ActionClient_>>,
         completions: &mut Vec<ActionClientCompletion>,
@@ -865,6 +901,28 @@ where
             *tracked_status = status;
         }
         feedback
+    }
+
+    fn apply_status_updates(
+        &mut self, updates: &[(uuid::Uuid, GoalStatus)],
+    ) -> Vec<ActionClientCompletion> {
+        let mut completions = Vec::new();
+        for (uuid, status) in updates {
+            if let Some(tracked_status) = self.goal_status.get_mut(uuid) {
+                *tracked_status = *status;
+            }
+            let result_is_tracked = self
+                .result_senders
+                .iter()
+                .any(|(id, sender)| id == uuid && !sender.is_canceled());
+            if status.is_terminal() && !result_is_tracked {
+                completions.extend(
+                    self.take_feedback_sender(uuid)
+                        .map(|(_, channel)| close_feedback_completion(channel)),
+                );
+            }
+        }
+        completions
     }
 
     fn prune_canceled_requests(&mut self) -> Vec<ActionClientCompletion> {
@@ -978,6 +1036,12 @@ where
         &mut self, uuid: &uuid::Uuid, status: GoalStatus,
     ) -> Vec<ActionClientCompletion> {
         WrappedActionClient::finish_goal(self, uuid, status)
+    }
+
+    fn apply_status_updates(
+        &mut self, updates: &[(uuid::Uuid, GoalStatus)],
+    ) -> Vec<ActionClientCompletion> {
+        WrappedActionClient::apply_status_updates(self, updates)
     }
 
     fn handle_goal_response(
@@ -1112,31 +1176,16 @@ where
         }
     }
 
-    fn handle_status_msg(&mut self) -> Result<Vec<ActionClientCompletion>> {
-        let mut completions = Vec::new();
+    fn handle_status_msg(
+        &mut self, client: Arc<Mutex<dyn ActionClient_>>,
+    ) -> Result<Vec<ActionClientCompletion>> {
         let mut status_array = WrappedNativeMsg::<action_msgs::msg::GoalStatusArray>::try_new()?;
         let ret = unsafe { rcl_action_take_status(&self.rcl_handle, status_array.void_ptr_mut()) };
         if action_client_take_succeeded(ret)? {
-            let arr = action_msgs::msg::GoalStatusArray::from_native(&status_array);
-            for a in &arr.status_list {
-                let uuid = uuid_msg_to_uuid(&a.goal_info.goal_id)?;
-                let status = GoalStatus::from_rcl(a.status);
-                if let Some(tracked_status) = self.goal_status.get_mut(&uuid) {
-                    *tracked_status = status;
-                }
-                let result_is_tracked = self
-                    .result_senders
-                    .iter()
-                    .any(|(id, sender)| id == &uuid && !sender.is_canceled());
-                if status.is_terminal() && !result_is_tracked {
-                    completions.extend(
-                        self.take_feedback_sender(&uuid)
-                            .map(|(_, channel)| close_feedback_completion(channel)),
-                    );
-                }
-            }
+            Ok(vec![action_status_completion(client, status_array)])
+        } else {
+            Ok(Vec::new())
         }
-        Ok(completions)
     }
 
     fn handle_result_response(
@@ -1561,6 +1610,36 @@ mod tests {
 
         assert!(wake.woke.load(Ordering::SeqCst));
         assert!(matches!(Pin::new(&mut receiver).poll(&mut context), Poll::Ready(Ok(42))));
+    }
+
+    #[test]
+    fn status_decoding_rejects_a_batch_before_applying_any_updates() {
+        let valid = uuid::Uuid::new_v4();
+        let status_array = action_msgs::msg::GoalStatusArray {
+            status_list: vec![
+                action_msgs::msg::GoalStatus {
+                    goal_info: action_msgs::msg::GoalInfo {
+                        goal_id: unique_identifier_msgs::msg::UUID {
+                            uuid: valid.as_bytes().to_vec(),
+                        },
+                        ..Default::default()
+                    },
+                    status: action_msgs::msg::GoalStatus::STATUS_EXECUTING as i8,
+                },
+                action_msgs::msg::GoalStatus {
+                    goal_info: action_msgs::msg::GoalInfo {
+                        goal_id: unique_identifier_msgs::msg::UUID { uuid: vec![0; 15] },
+                        ..Default::default()
+                    },
+                    status: action_msgs::msg::GoalStatus::STATUS_SUCCEEDED as i8,
+                },
+            ],
+        };
+
+        assert!(matches!(
+            decode_status_updates(&status_array),
+            Err(Error::InvalidActionUuidLength { actual: 15 })
+        ));
     }
 
     #[test]

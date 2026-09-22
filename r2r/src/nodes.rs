@@ -3235,7 +3235,7 @@ impl Node {
                 ac,
                 |ac, completions| {
                     if is_status_ready {
-                        completions.extend(ac.handle_status_msg()?);
+                        completions.extend(ac.handle_status_msg(ac_ref.clone())?);
                     }
                     if is_goal_response_ready {
                         collect_action_client_responses(ac, completions, |ac, completions| {
