@@ -263,6 +263,28 @@ mod tests {
         assert_eq!(client.remote_node_name(), "parameter_client_server");
         let self_client = node.create_parameter_client_for_self().unwrap();
         assert_eq!(self_client.remote_node_name(), "/scope/parameter_client_server");
+        let custom_qos_client = node
+            .create_parameter_client_with_qos(
+                "parameter_client_server",
+                QosProfile::parameters().keep_last(7),
+            )
+            .unwrap();
+        assert_eq!(
+            custom_qos_client
+                .get_parameters
+                .get_request_publisher_actual_qos()
+                .unwrap()
+                .depth,
+            7
+        );
+        assert_eq!(
+            custom_qos_client
+                .describe_parameters
+                .get_response_subscription_actual_qos()
+                .unwrap()
+                .depth,
+            7
+        );
         let mut pool = LocalPool::new();
         pool.spawner().spawn_local(handler).unwrap();
 

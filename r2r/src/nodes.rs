@@ -2312,7 +2312,14 @@ impl Node {
 
     /// Creates a runtime-agnostic client for another node's standard parameter services.
     pub fn create_parameter_client(&mut self, remote_node_name: &str) -> Result<ParameterClient> {
-        ParameterClient::new(self, remote_node_name, QosProfile::parameters())
+        self.create_parameter_client_with_qos(remote_node_name, QosProfile::parameters())
+    }
+
+    /// Creates a parameter client with an explicit QoS profile for all six services.
+    pub fn create_parameter_client_with_qos(
+        &mut self, remote_node_name: &str, qos: QosProfile,
+    ) -> Result<ParameterClient> {
+        ParameterClient::new(self, remote_node_name, qos)
     }
 
     /// Creates a runtime-agnostic client for this node's standard parameter services.
@@ -2320,8 +2327,15 @@ impl Node {
     /// The fully qualified node name is read after ROS name remapping, so this remains correct
     /// when the node is namespaced or renamed through command-line arguments.
     pub fn create_parameter_client_for_self(&mut self) -> Result<ParameterClient> {
+        self.create_parameter_client_for_self_with_qos(QosProfile::parameters())
+    }
+
+    /// Creates a parameter client for this node with an explicit service QoS profile.
+    pub fn create_parameter_client_for_self_with_qos(
+        &mut self, qos: QosProfile,
+    ) -> Result<ParameterClient> {
         let node_name = self.fully_qualified_name()?;
-        ParameterClient::new(self, &node_name, QosProfile::parameters())
+        ParameterClient::new(self, &node_name, qos)
     }
 
     /// Create a ROS service client.
