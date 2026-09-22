@@ -1261,19 +1261,12 @@ where
         let Some(server) = self.server.upgrade() else {
             return;
         };
-
-        let mut server = server.lock();
-        let needs_cancel = match server.get_goal_status(&self.uuid) {
-            Ok(GoalStatus::Accepted | GoalStatus::Executing) => true,
-            Ok(GoalStatus::Canceling) => false,
-            Ok(
-                GoalStatus::Succeeded
-                | GoalStatus::Canceled
-                | GoalStatus::Aborted
-                | GoalStatus::Unknown,
-            )
-            | Err(_) => return,
-        };
+        if !matches!(
+            server.lock().get_goal_status(&self.uuid),
+            Ok(GoalStatus::Accepted | GoalStatus::Executing | GoalStatus::Canceling)
+        ) {
+            return;
+        }
 
         // Allocate the result before changing state. If allocation fails, the goal remains in a
         // state that a future recovery path can still complete.
@@ -1290,6 +1283,18 @@ where
                 log::error!("could not allocate result for abandoned action goal: {err}");
                 return;
             }
+        };
+        let mut server = server.lock();
+        let needs_cancel = match server.get_goal_status(&self.uuid) {
+            Ok(GoalStatus::Accepted | GoalStatus::Executing) => true,
+            Ok(GoalStatus::Canceling) => false,
+            Ok(
+                GoalStatus::Succeeded
+                | GoalStatus::Canceled
+                | GoalStatus::Aborted
+                | GoalStatus::Unknown,
+            )
+            | Err(_) => return,
         };
         if needs_cancel {
             if let Err(err) = server.cancel_goal(&self.uuid) {
