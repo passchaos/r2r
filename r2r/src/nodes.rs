@@ -335,6 +335,7 @@ fn list_parameter_values(
     params: &IndexMap<String, Parameter>, prefixes: &[String], depth: u64,
 ) -> rcl_interfaces::msg::ListParametersResult {
     let mut result = rcl_interfaces::msg::ListParametersResult::default();
+    let mut seen_prefixes = HashSet::new();
     for name in params
         .keys()
         .filter(|name| parameter_name_matches(name, prefixes, depth))
@@ -342,7 +343,7 @@ fn list_parameter_values(
         result.names.push(name.clone());
         if let Some(last_separator) = name.rfind('.') {
             let prefix = &name[..last_separator];
-            if result.prefixes.iter().all(|candidate| candidate != prefix) {
+            if seen_prefixes.insert(prefix) {
                 result.prefixes.push(prefix.to_owned());
             }
         }
@@ -4435,6 +4436,21 @@ mod tests {
         assert!(parameter_name_matches("top", &[], 1));
         assert!(!parameter_name_matches("top.child", &[], 1));
         assert!(parameter_name_matches("top.child", &[], 0));
+    }
+
+    #[test]
+    fn parameter_prefixes_are_deduplicated_in_first_seen_order() {
+        let params = IndexMap::from([
+            ("robot.motor.speed".to_owned(), Parameter::new(ParameterValue::Integer(1))),
+            ("robot.motor.torque".to_owned(), Parameter::new(ParameterValue::Integer(2))),
+            ("camera.exposure".to_owned(), Parameter::new(ParameterValue::Integer(3))),
+            ("robot.sensor.range".to_owned(), Parameter::new(ParameterValue::Integer(4))),
+        ]);
+
+        let result = list_parameter_values(&params, &[], 0);
+
+        assert_eq!(result.prefixes, vec!["robot.motor", "camera", "robot.sensor"]);
+        assert_eq!(result.names, params.keys().cloned().collect::<Vec<_>>());
     }
 
     #[test]
