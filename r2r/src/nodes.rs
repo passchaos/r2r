@@ -445,6 +445,9 @@ fn apply_parameter_updates(
         let params = params.lock();
         let descriptors = descriptors.lock();
         for (name, value) in &updates {
+            if name.is_empty() {
+                return Err(Error::InvalidParameterName { name: name.clone() });
+            }
             if !allow_undeclared_parameters && !params.contains_key(name) {
                 return Err(Error::ParameterNotDeclared { name: name.clone() });
             }
@@ -6003,6 +6006,32 @@ mod tests {
         ));
         assert_eq!(node.get_parameter::<i64>("declared").unwrap(), 1);
         assert!(!node.has_parameter("injected"));
+    }
+
+    #[test]
+    fn parameter_updates_reject_empty_names_after_pre_set_callbacks() {
+        let context = Context::create().unwrap();
+        let node = Node::create_with_options(
+            context,
+            "parameter_name_validation_test",
+            "",
+            NodeOptions::default().use_global_arguments(false),
+        )
+        .unwrap();
+
+        assert!(matches!(
+            node.set_parameter("", 1_i64),
+            Err(Error::InvalidParameterName { name }) if name.is_empty()
+        ));
+        let _pre = node.add_pre_set_parameters_callback(|updates| {
+            updates.push((String::new(), ParameterValue::Integer(2)));
+        });
+        assert!(matches!(
+            node.set_parameter("valid", 1_i64),
+            Err(Error::InvalidParameterName { name }) if name.is_empty()
+        ));
+        assert!(!node.has_parameter(""));
+        assert!(!node.has_parameter("valid"));
     }
 
     #[test]
