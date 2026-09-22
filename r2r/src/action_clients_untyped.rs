@@ -111,7 +111,8 @@ impl Drop for PendingGoalRegistration {
     fn drop(&mut self) {
         if self.armed {
             if let Some(client) = self.client.upgrade() {
-                client.lock().forget_goal(&self.uuid);
+                let completions = { client.lock().forget_goal(&self.uuid) };
+                run_detached_action_client_completions(completions);
             }
         }
     }
@@ -359,8 +360,10 @@ impl ActionClientUntyped {
                                     let make_result_request_msg =
                                         c.lock().action_type_support.make_result_request_msg;
                                     let native_msg = make_result_request_msg(uuid_msg)?;
-                                    let mut c = c.lock();
-                                    c.send_result_request_native(uuid, native_msg)?;
+                                    let (result, completions) =
+                                        { c.lock().send_result_request_native(uuid, native_msg) };
+                                    run_detached_action_client_completions(completions);
+                                    result?;
                                 }
                                 let status_registration = Arc::new(GoalStatusRegistration {
                                     client: fut_client.clone(),
@@ -472,12 +475,28 @@ impl WrappedActionClientUntyped {
         Some(self.feedback_senders.swap_remove(index))
     }
 
-    fn forget_goal(&mut self, uuid: &uuid::Uuid) {
-        self.goal_response_channels.retain(|(_, id, _)| id != uuid);
-        self.feedback_senders.retain(|(id, _)| id != uuid);
-        self.result_senders.retain(|(id, _)| id != uuid);
+    fn forget_goal(&mut self, uuid: &uuid::Uuid) -> Vec<ActionClientCompletion> {
+        let mut completions = Vec::new();
+        let (removed, retained) = std::mem::take(&mut self.goal_response_channels)
+            .into_iter()
+            .partition(|(_, id, _)| id == uuid);
+        self.goal_response_channels = retained;
+        if !removed.is_empty() {
+            completions.push(drop_action_client_resources_completion(removed));
+        }
+        if let Some((_, channel)) = self.take_feedback_sender(uuid) {
+            completions.push(close_feedback_completion(channel));
+        }
+        let (removed, retained) = std::mem::take(&mut self.result_senders)
+            .into_iter()
+            .partition(|(id, _)| id == uuid);
+        self.result_senders = retained;
+        if !removed.is_empty() {
+            completions.push(drop_action_client_resources_completion(removed));
+        }
         self.result_requests.retain(|(_, id)| id != uuid);
         self.goal_status.remove(uuid);
+        completions
     }
 
     fn forget_result(&mut self, uuid: &uuid::Uuid) -> Option<ActionClientCompletion> {
@@ -515,7 +534,7 @@ impl WrappedActionClientUntyped {
         self.goal_response_channels
             .retain(|(_, _, sender)| !sender.is_canceled());
         for uuid in canceled_goals {
-            self.forget_goal(&uuid);
+            completions.extend(self.forget_goal(&uuid));
         }
         self.cancel_response_channels
             .retain(|(_, sender)| !sender.is_canceled());
@@ -545,16 +564,15 @@ impl WrappedActionClientUntyped {
         })
     }
 
-    fn finish_result_request_send(&mut self, uuid: uuid::Uuid, result: Result<i64>) -> Result<()> {
+    fn finish_result_request_send(
+        &mut self, uuid: uuid::Uuid, result: Result<i64>,
+    ) -> (Result<()>, Vec<ActionClientCompletion>) {
         match result {
             Ok(seq_no) => {
                 self.result_requests.push((seq_no, uuid));
-                Ok(())
+                (Ok(()), Vec::new())
             }
-            Err(err) => {
-                self.forget_goal(&uuid);
-                Err(err)
-            }
+            Err(err) => (Err(err), self.forget_goal(&uuid)),
         }
     }
 
@@ -581,7 +599,7 @@ impl WrappedActionClientUntyped {
 
     fn send_result_request_native(
         &mut self, uuid: uuid::Uuid, native_msg: WrappedNativeMsgUntyped,
-    ) -> Result<()> {
+    ) -> (Result<()>, Vec<ActionClientCompletion>) {
         let result = {
             let mut seq_no = 0i64;
             let ret = unsafe {
@@ -603,8 +621,8 @@ impl ActionClient_ for WrappedActionClientUntyped {
         &self.rcl_handle
     }
 
-    fn forget_goal(&mut self, uuid: &uuid::Uuid) {
-        WrappedActionClientUntyped::forget_goal(self, uuid);
+    fn forget_goal(&mut self, uuid: &uuid::Uuid) -> Vec<ActionClientCompletion> {
+        WrappedActionClientUntyped::forget_goal(self, uuid)
     }
 
     fn handle_goal_response(
@@ -631,7 +649,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
                 let (accept, stamp) =
                     (self.action_type_support.destructure_goal_response_msg)(response_msg);
                 if !accept {
-                    self.forget_goal(&uuid);
+                    completions.extend(self.forget_goal(&uuid));
                 }
                 completions.push(action_response_completion(
                     sender,
@@ -924,10 +942,10 @@ mod tests {
             poll_available_channels: Vec::new(),
         };
 
-        assert!(matches!(
-            client.finish_result_request_send(target, Err(Error::RCL_RET_BAD_ALLOC)),
-            Err(Error::RCL_RET_BAD_ALLOC)
-        ));
+        let (result, completions) =
+            client.finish_result_request_send(target, Err(Error::RCL_RET_BAD_ALLOC));
+        assert!(matches!(result, Err(Error::RCL_RET_BAD_ALLOC)));
+        run_detached_action_client_completions(completions);
         assert!(!client
             .feedback_senders
             .iter()

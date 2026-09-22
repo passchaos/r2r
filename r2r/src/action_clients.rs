@@ -5,7 +5,7 @@ use futures::{
 };
 use parking_lot::Mutex;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     ffi::{CStr, CString},
     future::Future,
     mem::MaybeUninit,
@@ -55,22 +55,38 @@ pub(crate) fn collect_action_client_responses<C: ?Sized>(
 pub(crate) fn complete_action_client_operation<T: ?Sized>(
     client: &Mutex<T>,
     operation: impl FnOnce(&mut T, &mut Vec<ActionClientCompletion>) -> Result<()>,
-    mut cleanup_goal: impl FnMut(&mut T, &uuid::Uuid),
+    cleanup_goal: impl FnMut(&mut T, &uuid::Uuid) -> Vec<ActionClientCompletion>,
 ) -> Result<()> {
     let mut completions = Vec::new();
     let operation_result = { operation(&mut *client.lock(), &mut completions) };
-    for completion in completions {
+    run_action_client_completions(client, completions, cleanup_goal);
+    operation_result
+}
+
+fn run_action_client_completions<T: ?Sized>(
+    client: &Mutex<T>, completions: Vec<ActionClientCompletion>,
+    mut cleanup_goal: impl FnMut(&mut T, &uuid::Uuid) -> Vec<ActionClientCompletion>,
+) {
+    let mut completions = VecDeque::from(completions);
+    while let Some(completion) = completions.pop_front() {
         let ActionClientCompletion {
             notify,
             cleanup_goal_on_failure,
         } = completion;
         if !notify() {
             if let Some(uuid) = cleanup_goal_on_failure {
-                cleanup_goal(&mut *client.lock(), &uuid);
+                let cleanup = { cleanup_goal(&mut *client.lock(), &uuid) };
+                completions.extend(cleanup);
             }
         }
     }
-    operation_result
+}
+
+pub(crate) fn run_detached_action_client_completions(completions: Vec<ActionClientCompletion>) {
+    for completion in completions {
+        debug_assert!(completion.cleanup_goal_on_failure.is_none());
+        (completion.notify)();
+    }
 }
 
 pub(crate) fn complete_action_feedback_batch<T: ?Sized>(
@@ -79,22 +95,12 @@ pub(crate) fn complete_action_feedback_batch<T: ?Sized>(
         &mut T,
         &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult>,
-    mut cleanup_goal: impl FnMut(&mut T, &uuid::Uuid),
+    mut cleanup_goal: impl FnMut(&mut T, &uuid::Uuid) -> Vec<ActionClientCompletion>,
 ) -> Result<()> {
     for _ in 0..MAX_ACTION_FEEDBACK_PER_SPIN {
         let mut completions = Vec::new();
         let take_result = { operation(&mut *client.lock(), &mut completions) };
-        for completion in completions {
-            let ActionClientCompletion {
-                notify,
-                cleanup_goal_on_failure,
-            } = completion;
-            if !notify() {
-                if let Some(uuid) = cleanup_goal_on_failure {
-                    cleanup_goal(&mut *client.lock(), &uuid);
-                }
-            }
-        }
+        run_action_client_completions(client, completions, &mut cleanup_goal);
         if take_result? == ActionClientTakeResult::Idle {
             break;
         }
@@ -243,6 +249,18 @@ pub(crate) fn close_feedback_completion<T: Send + 'static>(
     }
 }
 
+pub(crate) fn drop_action_client_resources_completion<T: Send + 'static>(
+    resources: T,
+) -> ActionClientCompletion {
+    ActionClientCompletion {
+        notify: Box::new(move || {
+            drop(resources);
+            true
+        }),
+        cleanup_goal_on_failure: None,
+    }
+}
+
 pub(crate) fn with_prepared_action_client<C: ?Sized, P, T>(
     client: &Mutex<C>, prepare: impl FnOnce() -> Result<P>,
     operation: impl FnOnce(&mut C, P) -> Result<T>,
@@ -365,7 +383,8 @@ where
     fn drop(&mut self) {
         if self.armed {
             if let Some(client) = self.client.upgrade() {
-                client.lock().forget_goal(&self.uuid);
+                let completions = { client.lock().forget_goal(&self.uuid) };
+                run_detached_action_client_completions(completions);
             }
         }
     }
@@ -622,8 +641,10 @@ where
                                         .upgrade()
                                         .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
                                     let native_msg = prepare_result_request::<T>(uuid)?;
-                                    let mut c = c.lock();
-                                    c.send_result_request_native(uuid, native_msg)?;
+                                    let (result, completions) =
+                                        { c.lock().send_result_request_native(uuid, native_msg) };
+                                    run_detached_action_client_completions(completions);
+                                    result?;
                                 }
                                 let status_registration = Arc::new(GoalStatusRegistration {
                                     client: fut_client.clone(),
@@ -727,7 +748,7 @@ pub trait ActionClient_ {
     fn handle(&self) -> &rcl_action_client_t;
     fn destroy(&mut self, node: &mut rcl_node_t);
     fn has_pending_work(&mut self) -> bool;
-    fn forget_goal(&mut self, uuid: &uuid::Uuid);
+    fn forget_goal(&mut self, uuid: &uuid::Uuid) -> Vec<ActionClientCompletion>;
 
     fn handle_goal_response(
         &mut self, completions: &mut Vec<ActionClientCompletion>,
@@ -763,12 +784,28 @@ where
         Some(self.feedback_senders.swap_remove(index))
     }
 
-    fn forget_goal(&mut self, uuid: &uuid::Uuid) {
-        self.goal_response_channels.retain(|(_, id, _)| id != uuid);
-        self.feedback_senders.retain(|(id, _)| id != uuid);
-        self.result_senders.retain(|(id, _)| id != uuid);
+    fn forget_goal(&mut self, uuid: &uuid::Uuid) -> Vec<ActionClientCompletion> {
+        let mut completions = Vec::new();
+        let (removed, retained) = std::mem::take(&mut self.goal_response_channels)
+            .into_iter()
+            .partition(|(_, id, _)| id == uuid);
+        self.goal_response_channels = retained;
+        if !removed.is_empty() {
+            completions.push(drop_action_client_resources_completion(removed));
+        }
+        if let Some((_, channel)) = self.take_feedback_sender(uuid) {
+            completions.push(close_feedback_completion(channel));
+        }
+        let (removed, retained) = std::mem::take(&mut self.result_senders)
+            .into_iter()
+            .partition(|(id, _)| id == uuid);
+        self.result_senders = retained;
+        if !removed.is_empty() {
+            completions.push(drop_action_client_resources_completion(removed));
+        }
         self.result_requests.retain(|(_, id)| id != uuid);
         self.goal_status.remove(uuid);
+        completions
     }
 
     fn forget_result(&mut self, uuid: &uuid::Uuid) -> Option<ActionClientCompletion> {
@@ -806,7 +843,7 @@ where
         self.goal_response_channels
             .retain(|(_, _, sender)| !sender.is_canceled());
         for uuid in canceled_goals {
-            self.forget_goal(&uuid);
+            completions.extend(self.forget_goal(&uuid));
         }
         self.cancel_response_channels
             .retain(|(_, sender)| !sender.is_canceled());
@@ -836,16 +873,15 @@ where
         })
     }
 
-    fn finish_result_request_send(&mut self, uuid: uuid::Uuid, result: Result<i64>) -> Result<()> {
+    fn finish_result_request_send(
+        &mut self, uuid: uuid::Uuid, result: Result<i64>,
+    ) -> (Result<()>, Vec<ActionClientCompletion>) {
         match result {
             Ok(seq_no) => {
                 self.result_requests.push((seq_no, uuid));
-                Ok(())
+                (Ok(()), Vec::new())
             }
-            Err(err) => {
-                self.forget_goal(&uuid);
-                Err(err)
-            }
+            Err(err) => (Err(err), self.forget_goal(&uuid)),
         }
     }
 
@@ -875,7 +911,7 @@ where
         native_msg: WrappedNativeMsg<
             <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
         >,
-    ) -> Result<()> {
+    ) -> (Result<()>, Vec<ActionClientCompletion>) {
         let result = {
             let mut seq_no = 0i64;
             let ret = unsafe {
@@ -900,8 +936,8 @@ where
         &self.rcl_handle
     }
 
-    fn forget_goal(&mut self, uuid: &uuid::Uuid) {
-        WrappedActionClient::forget_goal(self, uuid);
+    fn forget_goal(&mut self, uuid: &uuid::Uuid) -> Vec<ActionClientCompletion> {
+        WrappedActionClient::forget_goal(self, uuid)
     }
 
     fn handle_goal_response(
@@ -930,7 +966,7 @@ where
                 let response = <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response::from_native(&response_msg);
                 let (accept, stamp) = T::destructure_goal_response_msg(response);
                 if !accept {
-                    self.forget_goal(&uuid);
+                    completions.extend(self.forget_goal(&uuid));
                 }
                 completions.push(action_response_completion(
                     sender,
@@ -1357,9 +1393,22 @@ mod tests {
         woke: AtomicBool,
     }
 
+    struct GoalCleanupWake {
+        client: Weak<Mutex<WrappedActionClient<Fibonacci::Action>>>,
+        woke: AtomicBool,
+    }
+
     impl ArcWake for LockingWake {
         fn wake_by_ref(arc_self: &Arc<Self>) {
             let _client = arc_self.client.lock();
+            arc_self.woke.store(true, Ordering::SeqCst);
+        }
+    }
+
+    impl ArcWake for GoalCleanupWake {
+        fn wake_by_ref(arc_self: &Arc<Self>) {
+            let client = arc_self.client.upgrade().unwrap();
+            assert!(client.try_lock().is_some());
             arc_self.woke.store(true, Ordering::SeqCst);
         }
     }
@@ -1382,7 +1431,7 @@ mod tests {
                 completions.push(action_response_completion(sender, (), "test response", None));
                 Ok(())
             },
-            |_, _| {},
+            |_, _| Vec::new(),
         )
         .unwrap();
 
@@ -1411,7 +1460,7 @@ mod tests {
                 ));
                 Ok(())
             },
-            |_, _| {},
+            |_, _| Vec::new(),
         )
         .unwrap();
 
@@ -1429,7 +1478,7 @@ mod tests {
                 completions.push(action_response_completion(sender, 42, "test response", None));
                 Err(Error::RCL_RET_ERROR)
             },
-            |_, _| {},
+            |_, _| Vec::new(),
         );
 
         assert!(matches!(result, Err(Error::RCL_RET_ERROR)));
@@ -1477,7 +1526,7 @@ mod tests {
                     Ok(ActionClientTakeResult::Taken)
                 }
             },
-            |_, _| {},
+            |_, _| Vec::new(),
         )
         .unwrap();
         assert_eq!(calls.get(), 3);
@@ -1489,7 +1538,7 @@ mod tests {
                 calls.set(calls.get() + 1);
                 Ok(ActionClientTakeResult::Taken)
             },
-            |_, _| {},
+            |_, _| Vec::new(),
         )
         .unwrap();
         assert_eq!(calls.get(), MAX_ACTION_FEEDBACK_PER_SPIN);
@@ -1514,7 +1563,7 @@ mod tests {
                 completions.extend(feedback_completion(Arc::clone(&channel), 42));
                 Ok(())
             },
-            |_, _| {},
+            |_, _| Vec::new(),
         )
         .unwrap();
 
@@ -1567,12 +1616,61 @@ mod tests {
                 completions.push(close_feedback_completion(Arc::clone(&channel)));
                 Ok(())
             },
-            |_, _| {},
+            |_, _| Vec::new(),
         )
         .unwrap();
 
         assert!(wake.woke.load(Ordering::SeqCst));
         assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Ready(None)));
+    }
+
+    #[test]
+    fn forgetting_goals_drops_observers_after_releasing_the_client_lock() {
+        let target = uuid::Uuid::new_v4();
+        let (feedback_sender, mut feedback_receiver) = mpsc::channel(0);
+        let (result_sender, mut result_receiver) = oneshot::channel();
+        let client = Arc::new(Mutex::new(WrappedActionClient::<Fibonacci::Action> {
+            rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
+            goal_response_channels: Vec::new(),
+            cancel_response_channels: Vec::new(),
+            feedback_senders: vec![(
+                target,
+                Arc::new(Mutex::new(FeedbackChannel::new(feedback_sender))),
+            )],
+            result_requests: vec![(1, target)],
+            result_senders: vec![(target, result_sender)],
+            goal_status: HashMap::from([(target, GoalStatus::Accepted)]),
+            feedback_channel_capacity: 0,
+            poll_available_channels: Vec::new(),
+        }));
+        let wake = Arc::new(GoalCleanupWake {
+            client: Arc::downgrade(&client),
+            woke: AtomicBool::new(false),
+        });
+        let waker = waker_ref(&wake);
+        let mut context = Context::from_waker(&waker);
+        assert!(matches!(
+            Pin::new(&mut feedback_receiver).poll_next(&mut context),
+            Poll::Pending
+        ));
+        assert!(matches!(Pin::new(&mut result_receiver).poll(&mut context), Poll::Pending));
+
+        complete_action_client_operation(
+            &*client,
+            |client, completions| {
+                completions.extend(client.forget_goal(&target));
+                Ok(())
+            },
+            |client, uuid| client.forget_goal(uuid),
+        )
+        .unwrap();
+
+        assert!(wake.woke.load(Ordering::SeqCst));
+        assert!(matches!(
+            Pin::new(&mut feedback_receiver).poll_next(&mut context),
+            Poll::Ready(None)
+        ));
+        assert!(matches!(Pin::new(&mut result_receiver).poll(&mut context), Poll::Ready(Err(_))));
     }
 
     #[test]
@@ -1742,10 +1840,10 @@ mod tests {
             poll_available_channels: Vec::new(),
         };
 
-        assert!(matches!(
-            client.finish_result_request_send(target, Err(Error::RCL_RET_BAD_ALLOC)),
-            Err(Error::RCL_RET_BAD_ALLOC)
-        ));
+        let (result, completions) =
+            client.finish_result_request_send(target, Err(Error::RCL_RET_BAD_ALLOC));
+        assert!(matches!(result, Err(Error::RCL_RET_BAD_ALLOC)));
+        run_detached_action_client_completions(completions);
         assert!(!client
             .feedback_senders
             .iter()
