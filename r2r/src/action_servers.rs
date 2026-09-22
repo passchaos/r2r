@@ -112,7 +112,7 @@ pub(crate) fn complete_action_server_take_batch<S: ?Sized>(
     Ok(())
 }
 
-fn request_delivery<T: Send + 'static>(
+fn request_delivery<T: 'static>(
     sender_slot: Arc<Mutex<Option<mpsc::Sender<T>>>>, mut sender: mpsc::Sender<T>, request: T,
     on_failed: impl FnOnce(T) -> Result<()> + 'static,
 ) -> ActionServerCompletion {
@@ -123,6 +123,27 @@ fn request_delivery<T: Send + 'static>(
         };
         *sender_slot.lock() = Some(sender);
         result
+    })
+}
+
+fn request_conversion_delivery<N, T>(
+    sender_slot: Arc<Mutex<Option<mpsc::Sender<T>>>>, sender: mpsc::Sender<T>, native: N,
+    convert: impl FnOnce(N) -> Result<T> + 'static,
+    on_failed: impl FnOnce(T) -> Result<()> + 'static,
+) -> ActionServerCompletion
+where
+    N: 'static,
+    T: 'static,
+{
+    Box::new(move || {
+        let request = match convert(native) {
+            Ok(request) => request,
+            Err(err) => {
+                *sender_slot.lock() = Some(sender);
+                return Err(err);
+            }
+        };
+        request_delivery(sender_slot, sender, request, on_failed)()
     })
 }
 
@@ -178,6 +199,10 @@ pub trait ActionServer_ {
     fn get_goal_status(&self, uuid: &uuid::Uuid) -> Result<GoalStatus>;
     fn is_cancelling(&self, uuid: &uuid::Uuid) -> Result<bool>;
     fn add_goal_handle(&mut self, uuid: uuid::Uuid, goal_handle: *mut rcl_action_goal_handle_t);
+    fn add_cancel_sender(
+        &mut self, uuid: uuid::Uuid,
+        sender: Arc<Mutex<Option<mpsc::Sender<ActionServerCancelRequest>>>>,
+    );
     fn forget_cancel_sender(
         &mut self, uuid: &uuid::Uuid, completions: &mut Vec<ActionServerCompletion>,
     );
@@ -1079,60 +1104,76 @@ where
             return Ok(None);
         }
         let mut request_id = unsafe { request_id.assume_init() };
-        let msg = <<<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Request>::from_native(&request_msg);
-        let (uuid_msg, goal) = T::destructure_goal_request_msg(msg);
-        let uuid = match uuid_msg_to_uuid(&uuid_msg) {
-            Ok(uuid) => uuid,
-            Err(err) => {
-                let mut completions = Vec::new();
-                if let Err(reject_err) =
-                    self.reject_goal_request(&uuid::Uuid::nil(), &mut request_id, &mut completions)
-                {
-                    log::error!("could not reject malformed action goal request: {reject_err}");
-                }
-                return Err(err);
-            }
-        };
-
-        let (cancel_sender, cancel_receiver) =
-            mpsc::channel::<ActionServerCancelRequest>(self.cancel_request_channel_capacity);
-        self.cancel_senders
-            .insert(uuid, Arc::new(Mutex::new(Some(cancel_sender))));
-
-        let gr: ActionServerGoalRequest<T> = ActionServerGoalRequest {
-            uuid,
-            goal,
-            clock: Arc::clone(&self.clock),
-            cancel_requests: cancel_receiver,
-            response: GoalRequestResponseGuard {
-                server: Arc::downgrade(&server),
-                uuid,
-                request_id,
-                response_sent: false,
-            },
-        };
-
+        let clock = Arc::clone(&self.clock);
+        let cancel_request_channel_capacity = self.cancel_request_channel_capacity;
         let sender = self
             .goal_request_sender
             .lock()
             .take()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
         let sender_slot = Arc::clone(&self.goal_request_sender);
-        Ok(Some(request_delivery(sender_slot, sender, gr, move |mut request| {
-            request.response.response_sent = true;
-            let server = request
-                .response
-                .server
-                .upgrade()
-                .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
-            complete_action_server_operation(&server, |server, completions| {
-                server.reject_goal_request(
-                    &request.uuid,
-                    &mut request.response.request_id,
-                    completions,
-                )
-            })
-        })))
+        let conversion_server = Arc::clone(&server);
+        Ok(Some(request_conversion_delivery(
+            sender_slot,
+            sender,
+            request_msg,
+            move |request_msg| {
+                let msg = <<<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Request>::from_native(&request_msg);
+                let (uuid_msg, goal) = T::destructure_goal_request_msg(msg);
+                let uuid = match uuid_msg_to_uuid(&uuid_msg) {
+                    Ok(uuid) => uuid,
+                    Err(err) => {
+                        if let Err(reject_err) = complete_action_server_operation(
+                            &conversion_server,
+                            |server, completions| {
+                                server.reject_goal_request(
+                                    &uuid::Uuid::nil(),
+                                    &mut request_id,
+                                    completions,
+                                )
+                            },
+                        ) {
+                            log::error!(
+                                "could not reject malformed action goal request: {reject_err}"
+                            );
+                        }
+                        return Err(err);
+                    }
+                };
+                let (cancel_sender, cancel_receiver) =
+                    mpsc::channel::<ActionServerCancelRequest>(cancel_request_channel_capacity);
+                conversion_server
+                    .lock()
+                    .add_cancel_sender(uuid, Arc::new(Mutex::new(Some(cancel_sender))));
+                Ok(ActionServerGoalRequest {
+                    uuid,
+                    goal,
+                    clock,
+                    cancel_requests: cancel_receiver,
+                    response: GoalRequestResponseGuard {
+                        server: Arc::downgrade(&conversion_server),
+                        uuid,
+                        request_id,
+                        response_sent: false,
+                    },
+                })
+            },
+            move |mut request| {
+                request.response.response_sent = true;
+                let server = request
+                    .response
+                    .server
+                    .upgrade()
+                    .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
+                complete_action_server_operation(&server, |server, completions| {
+                    server.reject_goal_request(
+                        &request.uuid,
+                        &mut request.response.request_id,
+                        completions,
+                    )
+                })
+            },
+        )))
     }
 
     fn handle_cancel_request(
@@ -1254,6 +1295,13 @@ where
     fn add_goal_handle(&mut self, uuid: uuid::Uuid, goal_handle: *mut rcl_action_goal_handle_t) {
         self.goals
             .insert(uuid, unsafe { OwnedGoalHandle::copy_from(goal_handle) });
+    }
+
+    fn add_cancel_sender(
+        &mut self, uuid: uuid::Uuid,
+        sender: Arc<Mutex<Option<mpsc::Sender<ActionServerCancelRequest>>>>,
+    ) {
+        self.cancel_senders.insert(uuid, sender);
     }
 
     fn forget_cancel_sender(
@@ -1899,6 +1947,13 @@ mod tests {
             unreachable!()
         }
 
+        fn add_cancel_sender(
+            &mut self, _uuid: uuid::Uuid,
+            _sender: Arc<Mutex<Option<mpsc::Sender<ActionServerCancelRequest>>>>,
+        ) {
+            unreachable!()
+        }
+
         fn forget_cancel_sender(
             &mut self, _uuid: &uuid::Uuid, _completions: &mut Vec<ActionServerCompletion>,
         ) {
@@ -2070,6 +2125,55 @@ mod tests {
 
         assert!(wake.woke.load(Ordering::SeqCst));
         assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Ready(Some(42))));
+    }
+
+    #[test]
+    fn action_server_requests_are_converted_after_releasing_the_server_lock() {
+        let server = Arc::new(Mutex::new(()));
+        let (sender, mut receiver) = mpsc::channel(1);
+        let sender = Arc::new(Mutex::new(Some(sender)));
+        let server_for_conversion = Arc::clone(&server);
+
+        complete_action_server_operation(&*server, |_, completions| {
+            let detached = sender.lock().take().unwrap();
+            completions.push(request_conversion_delivery(
+                Arc::clone(&sender),
+                detached,
+                41,
+                move |value| {
+                    assert!(server_for_conversion.try_lock().is_some());
+                    Ok(value + 1)
+                },
+                |_| Ok(()),
+            ));
+            Ok(())
+        })
+        .unwrap();
+
+        assert_eq!(receiver.next().now_or_never().flatten(), Some(42));
+    }
+
+    #[test]
+    fn failed_action_server_request_conversion_restores_the_sender() {
+        let server = Mutex::new(());
+        let (sender, mut receiver) = mpsc::channel::<i32>(1);
+        let sender = Arc::new(Mutex::new(Some(sender)));
+
+        let result = complete_action_server_operation(&server, |_, completions| {
+            let detached = sender.lock().take().unwrap();
+            completions.push(request_conversion_delivery(
+                Arc::clone(&sender),
+                detached,
+                41,
+                |_| Err(Error::RCL_RET_INVALID_ARGUMENT),
+                |_| unreachable!(),
+            ));
+            Ok(())
+        });
+
+        assert!(matches!(result, Err(Error::RCL_RET_INVALID_ARGUMENT)));
+        assert!(sender.lock().is_some());
+        assert!(receiver.next().now_or_never().is_none());
     }
 
     #[test]
