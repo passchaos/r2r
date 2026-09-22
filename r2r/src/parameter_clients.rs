@@ -413,12 +413,13 @@ impl ParameterClient {
         node.with_timeout(response, timeout)
     }
 
-    pub fn set_parameters<I, S>(
+    pub fn set_parameters<I, S, V>(
         &self, parameters: I,
     ) -> Result<impl Future<Output = Result<Vec<msg::SetParametersResult>>>>
     where
-        I: IntoIterator<Item = (S, ParameterValue)>,
+        I: IntoIterator<Item = (S, V)>,
         S: Into<String>,
+        V: Into<ParameterValue>,
     {
         let parameters = parameter_messages(parameters);
         let expected = parameters.len();
@@ -431,12 +432,13 @@ impl ParameterClient {
     }
 
     /// Sets parameters, failing with [`Error::RCL_RET_TIMEOUT`] after `timeout`.
-    pub fn set_parameters_with_timeout<I, S>(
+    pub fn set_parameters_with_timeout<I, S, V>(
         &self, node: &mut Node, parameters: I, timeout: Duration,
     ) -> Result<impl Future<Output = Result<Vec<msg::SetParametersResult>>>>
     where
-        I: IntoIterator<Item = (S, ParameterValue)>,
+        I: IntoIterator<Item = (S, V)>,
         S: Into<String>,
+        V: Into<ParameterValue>,
     {
         let response = self.set_parameters(parameters)?;
         node.with_timeout(response, timeout)
@@ -444,7 +446,7 @@ impl ParameterClient {
 
     /// Sets one parameter and returns the remote node's validation result.
     pub fn set_parameter(
-        &self, name: impl Into<String>, value: ParameterValue,
+        &self, name: impl Into<String>, value: impl Into<ParameterValue>,
     ) -> Result<impl Future<Output = Result<msg::SetParametersResult>>> {
         let response = self.set_parameters([(name.into(), value)])?;
         Ok(response.and_then(|mut results| {
@@ -458,18 +460,20 @@ impl ParameterClient {
 
     /// Sets one parameter, failing after `timeout`.
     pub fn set_parameter_with_timeout(
-        &self, node: &mut Node, name: impl Into<String>, value: ParameterValue, timeout: Duration,
+        &self, node: &mut Node, name: impl Into<String>, value: impl Into<ParameterValue>,
+        timeout: Duration,
     ) -> Result<impl Future<Output = Result<msg::SetParametersResult>>> {
         let response = self.set_parameter(name, value)?;
         node.with_timeout(response, timeout)
     }
 
-    pub fn set_parameters_atomically<I, S>(
+    pub fn set_parameters_atomically<I, S, V>(
         &self, parameters: I,
     ) -> Result<impl Future<Output = Result<msg::SetParametersResult>>>
     where
-        I: IntoIterator<Item = (S, ParameterValue)>,
+        I: IntoIterator<Item = (S, V)>,
         S: Into<String>,
+        V: Into<ParameterValue>,
     {
         let request = srv::SetParametersAtomically::Request {
             parameters: parameter_messages(parameters),
@@ -479,12 +483,13 @@ impl ParameterClient {
     }
 
     /// Atomically sets parameters, failing with [`Error::RCL_RET_TIMEOUT`] after `timeout`.
-    pub fn set_parameters_atomically_with_timeout<I, S>(
+    pub fn set_parameters_atomically_with_timeout<I, S, V>(
         &self, node: &mut Node, parameters: I, timeout: Duration,
     ) -> Result<impl Future<Output = Result<msg::SetParametersResult>>>
     where
-        I: IntoIterator<Item = (S, ParameterValue)>,
+        I: IntoIterator<Item = (S, V)>,
         S: Into<String>,
+        V: Into<ParameterValue>,
     {
         let response = self.set_parameters_atomically(parameters)?;
         node.with_timeout(response, timeout)
@@ -599,16 +604,17 @@ where
         .collect()
 }
 
-fn parameter_messages<I, S>(parameters: I) -> Vec<msg::Parameter>
+fn parameter_messages<I, S, V>(parameters: I) -> Vec<msg::Parameter>
 where
-    I: IntoIterator<Item = (S, ParameterValue)>,
+    I: IntoIterator<Item = (S, V)>,
     S: Into<String>,
+    V: Into<ParameterValue>,
 {
     parameters
         .into_iter()
         .map(|(name, value)| msg::Parameter {
             name: name.into(),
-            value: value.into_parameter_value_msg(),
+            value: value.into().into_parameter_value_msg(),
         })
         .collect()
 }
@@ -767,13 +773,7 @@ mod tests {
             vec![ParameterValue::Integer(4), ParameterValue::Integer(6)]
         );
 
-        let set = drive(
-            &mut node,
-            &mut pool,
-            client
-                .set_parameter("answer", ParameterValue::Integer(4))
-                .unwrap(),
-        );
+        let set = drive(&mut node, &mut pool, client.set_parameter("answer", 4_i64).unwrap());
         assert!(set.successful);
         let rejected = drive(
             &mut node,
@@ -818,13 +818,8 @@ mod tests {
         let deleted = drive(&mut node, &mut pool, client.delete_parameters(["temporary"]).unwrap());
         assert!(deleted[0].successful);
         assert!(!node.has_parameter("temporary"));
-        let set = drive(
-            &mut node,
-            &mut pool,
-            client
-                .set_parameter("single_temporary", ParameterValue::Bool(true))
-                .unwrap(),
-        );
+        let set =
+            drive(&mut node, &mut pool, client.set_parameter("single_temporary", true).unwrap());
         assert!(set.successful);
         let deleted =
             drive(&mut node, &mut pool, client.delete_parameter("single_temporary").unwrap());

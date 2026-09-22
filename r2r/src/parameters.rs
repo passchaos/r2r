@@ -595,9 +595,9 @@ pub struct Parameter {
 }
 
 impl Parameter {
-    pub fn new(value: ParameterValue) -> Self {
+    pub fn new(value: impl Into<ParameterValue>) -> Self {
         Self {
-            value,
+            value: value.into(),
             description: "",
         }
     }

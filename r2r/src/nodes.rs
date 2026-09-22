@@ -517,15 +517,24 @@ impl NodeOptions {
         self
     }
 
-    pub fn parameter_override(mut self, name: impl Into<String>, value: ParameterValue) -> Self {
-        self.parameter_overrides.insert(name.into(), value);
+    pub fn parameter_override(
+        mut self, name: impl Into<String>, value: impl Into<ParameterValue>,
+    ) -> Self {
+        self.parameter_overrides.insert(name.into(), value.into());
         self
     }
 
-    pub fn parameter_overrides(
-        mut self, overrides: impl IntoIterator<Item = (String, ParameterValue)>,
-    ) -> Self {
-        self.parameter_overrides.extend(overrides);
+    pub fn parameter_overrides<I, N, V>(mut self, overrides: I) -> Self
+    where
+        I: IntoIterator<Item = (N, V)>,
+        N: Into<String>,
+        V: Into<ParameterValue>,
+    {
+        self.parameter_overrides.extend(
+            overrides
+                .into_iter()
+                .map(|(name, value)| (name.into(), value.into())),
+        );
         self
     }
 
@@ -837,7 +846,7 @@ impl Node {
 
     /// Declares a statically typed parameter, honoring any CLI, YAML, or programmatic override.
     pub fn declare_parameter(
-        &self, name: impl Into<String>, default_value: ParameterValue,
+        &self, name: impl Into<String>, default_value: impl Into<ParameterValue>,
     ) -> Result<ParameterValue> {
         self.declare_parameter_with_descriptor(name, default_value, ParameterDescriptor::default())
     }
@@ -848,11 +857,12 @@ impl Node {
     /// satisfy the declared type and constraints. The descriptor's `name` and `type_` fields are
     /// derived from the arguments, matching ROS 2's declaration semantics.
     pub fn declare_parameter_with_descriptor(
-        &self, name: impl Into<String>, default_value: ParameterValue,
+        &self, name: impl Into<String>, default_value: impl Into<ParameterValue>,
         mut descriptor: ParameterDescriptor,
     ) -> Result<ParameterValue> {
         let _transaction = self.parameter_transaction.lock();
         let name = name.into();
+        let default_value = default_value.into();
         if name.is_empty() {
             return Err(Error::InvalidParameterName { name });
         }
@@ -1549,22 +1559,25 @@ impl Node {
     ///
     /// Descriptor constraints and a registered [`RosParams`] provider are applied before the
     /// cached value changes. Parameter events are emitted when a parameter handler is active.
-    pub fn set_parameter(&self, name: impl Into<String>, value: ParameterValue) -> Result<()> {
-        self.set_parameters_atomically([(name.into(), value)])
+    pub fn set_parameter(
+        &self, name: impl Into<String>, value: impl Into<ParameterValue>,
+    ) -> Result<()> {
+        self.set_parameters_atomically([(name.into(), value.into())])
     }
 
     /// Sets parameters independently and returns one result for each input item.
     ///
     /// A failed item does not prevent later items from being attempted. Use
     /// [`Node::set_parameters_atomically`] when the whole batch must succeed or fail together.
-    pub fn set_parameters<I, N>(&self, parameters: I) -> Vec<Result<()>>
+    pub fn set_parameters<I, N, V>(&self, parameters: I) -> Vec<Result<()>>
     where
-        I: IntoIterator<Item = (N, ParameterValue)>,
+        I: IntoIterator<Item = (N, V)>,
         N: Into<String>,
+        V: Into<ParameterValue>,
     {
         parameters
             .into_iter()
-            .map(|(name, value)| self.set_parameter(name, value))
+            .map(|(name, value)| self.set_parameter(name, value.into()))
             .collect()
     }
 
@@ -1637,14 +1650,15 @@ impl Node {
     }
 
     /// Validates and sets a batch of parameters as one transaction.
-    pub fn set_parameters_atomically<I, N>(&self, parameters: I) -> Result<()>
+    pub fn set_parameters_atomically<I, N, V>(&self, parameters: I) -> Result<()>
     where
-        I: IntoIterator<Item = (N, ParameterValue)>,
+        I: IntoIterator<Item = (N, V)>,
         N: Into<String>,
+        V: Into<ParameterValue>,
     {
         let updates = parameters
             .into_iter()
-            .map(|(name, value)| (name.into(), value))
+            .map(|(name, value)| (name.into(), value.into()))
             .collect::<Vec<_>>();
         let applied = {
             let _transaction = self.parameter_transaction.lock();
@@ -5026,11 +5040,9 @@ mod tests {
             "",
             NodeOptions::default()
                 .use_global_arguments(false)
-                .parameter_override("answer", ParameterValue::Integer(42))
-                .parameter_overrides([
-                    ("answer".to_owned(), ParameterValue::Integer(43)),
-                    ("enabled".to_owned(), ParameterValue::Bool(true)),
-                ]),
+                .parameter_override("answer", 42_i64)
+                .parameter_overrides([("answer", 43_i64)])
+                .parameter_override("enabled", true),
         )
         .unwrap();
 
@@ -5039,6 +5051,28 @@ mod tests {
         let native_options = unsafe { rcl_node_get_options(node.node_handle.as_ref()) };
         assert!(!native_options.is_null());
         assert!(!unsafe { (*native_options).use_global_arguments });
+    }
+
+    #[test]
+    fn parameter_mutation_accepts_native_rust_values() {
+        let context = Context::create().unwrap();
+        let node = Node::create(context, "native_parameter_value_test", "").unwrap();
+
+        assert_eq!(node.declare_parameter("count", 1_i64).unwrap(), ParameterValue::Integer(1));
+        assert_eq!(
+            node.declare_parameter("label", "initial").unwrap(),
+            ParameterValue::String("initial".into())
+        );
+        node.set_parameter("count", 2_i32).unwrap();
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 2);
+        assert!(node
+            .set_parameters([("count", 3_i64), ("other", 4_i64)])
+            .into_iter()
+            .all(|result| result.is_ok()));
+        node.set_parameters_atomically([("count", 5_i64), ("other", 6_i64)])
+            .unwrap();
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 5);
+        assert_eq!(node.get_parameter::<i64>("other").unwrap(), 6);
     }
 
     #[test]
