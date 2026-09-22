@@ -509,6 +509,7 @@ pub struct Node {
     action_wait_set_capacities: WaitSetCapacities,
     // timers,
     timers: Vec<Timer_>,
+    timer_indexes: HashMap<uuid::Uuid, usize>,
     // and the publishers, whom we allow to be shared.. hmm.
     pub(crate) pubs: Vec<Arc<Publisher_>>,
     // RosTime clock used by all timers created by create_timer()
@@ -658,6 +659,20 @@ impl Node {
         self.services
             .get(index)
             .ok_or(Error::RCL_RET_SERVICE_INVALID)
+    }
+
+    fn add_timer(&mut self, timer: Timer_) {
+        let index = self.timers.len();
+        debug_assert!(self.timer_indexes.insert(timer.id, index).is_none());
+        self.timers.push(timer);
+    }
+
+    fn rebuild_timer_indexes(timers: &[Timer_], indexes: &mut HashMap<uuid::Uuid, usize>) {
+        indexes.clear();
+        indexes.reserve(timers.len());
+        for (index, timer) in timers.iter().enumerate() {
+            debug_assert!(indexes.insert(timer.id, index).is_none());
+        }
     }
 
     pub(crate) fn owns_publisher(&self, publisher: &Arc<Publisher_>) -> bool {
@@ -912,6 +927,7 @@ impl Node {
                 action_servers: Vec::new(),
                 action_wait_set_capacities: WaitSetCapacities::default(),
                 timers: Vec::new(),
+                timer_indexes: HashMap::new(),
                 pubs: Vec::new(),
                 ros_clock,
                 #[cfg(r2r__rosgraph_msgs__msg__Clock)]
@@ -2876,7 +2892,11 @@ impl Node {
 
         // Do not wait for a long-period timer to become ready before noticing that its public
         // handle has gone away. Dropping Timer closes the receiver immediately.
+        let previous_timer_count = self.timers.len();
         self.timers.retain(|timer| !timer.sender.is_closed());
+        if self.timers.len() != previous_timer_count {
+            Self::rebuild_timer_indexes(&self.timers, &mut self.timer_indexes);
+        }
 
         let node_handle = self.node_handle.as_mut();
         let mut removed_action_capacities = WaitSetCapacities::default();
@@ -3124,8 +3144,12 @@ impl Node {
             }
         }
         // drop timers scheduled for deletion
+        let previous_timer_count = self.timers.len();
         self.timers
             .retain(|t| !timers_to_remove.contains(&t.get_handle()));
+        if self.timers.len() != previous_timer_count {
+            Self::rebuild_timer_indexes(&self.timers, &mut self.timer_indexes);
+        }
         if let Some(err) = timer_error {
             return Err(err);
         }
@@ -3654,7 +3678,7 @@ impl Node {
             id: uuid::Uuid::new_v4(),
         };
         let id = timer.id;
-        self.timers.push(timer);
+        self.add_timer(timer);
 
         let out_timer = Timer { receiver: rx, id };
 
@@ -3667,8 +3691,10 @@ impl Node {
     ///
     /// This timer uses node's [`ClockType::RosTime`] clock.
     pub fn create_timer(&mut self, period: Duration) -> Result<Timer> {
-        let mut clock = self.ros_clock.lock();
-        let timer_handle = self.create_timer_helper(&mut clock, period)?;
+        let timer_handle = {
+            let mut clock = self.ros_clock.lock();
+            self.create_timer_helper(&mut clock, period)?
+        };
 
         let (tx, rx) = mpsc::channel::<Duration>(1);
 
@@ -3679,7 +3705,7 @@ impl Node {
             id: uuid::Uuid::new_v4(),
         };
         let id = timer.id;
-        self.timers.push(timer);
+        self.add_timer(timer);
 
         let out_timer = Timer { receiver: rx, id };
 
@@ -3743,16 +3769,16 @@ impl Node {
     }
 
     fn timer(&self, id: uuid::Uuid) -> Result<&Timer_> {
-        self.timers
-            .iter()
-            .find(|timer| timer.id == id)
+        self.timer_indexes
+            .get(&id)
+            .and_then(|index| self.timers.get(*index))
             .ok_or(Error::RCL_RET_TIMER_INVALID)
     }
 
     fn timer_mut(&mut self, id: uuid::Uuid) -> Result<&mut Timer_> {
-        self.timers
-            .iter_mut()
-            .find(|timer| timer.id == id)
+        self.timer_indexes
+            .get(&id)
+            .and_then(|index| self.timers.get_mut(*index))
             .ok_or(Error::RCL_RET_TIMER_INVALID)
     }
 }
@@ -9420,6 +9446,30 @@ mod tests {
         node.try_spin_once(Duration::ZERO).unwrap();
 
         assert!(node.timers.is_empty());
+        assert!(node.timer_indexes.is_empty());
+    }
+
+    #[test]
+    fn timer_indexes_follow_removal_and_reordering() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "timer_index_test", "").unwrap();
+        let first = node.create_wall_timer(Duration::from_secs(60)).unwrap();
+        let removed = node.create_wall_timer(Duration::from_secs(61)).unwrap();
+        let last = node.create_wall_timer(Duration::from_secs(62)).unwrap();
+
+        assert_eq!(node.timer_indexes.len(), 3);
+        drop(removed);
+        node.try_spin_once(Duration::ZERO).unwrap();
+
+        assert_eq!(node.timers.len(), 2);
+        assert_eq!(node.timer_indexes.len(), 2);
+        assert_eq!(first.period(&node).unwrap(), Duration::from_secs(60));
+        assert_eq!(last.period(&node).unwrap(), Duration::from_secs(62));
+        last.cancel(&mut node).unwrap();
+        assert!(last.is_canceled(&node).unwrap());
+        for (id, index) in &node.timer_indexes {
+            assert_eq!(node.timers[*index].id, *id);
+        }
     }
 
     #[test]
