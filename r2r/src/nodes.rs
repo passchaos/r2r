@@ -2880,11 +2880,9 @@ impl Node {
         for c in &mut self.action_clients {
             complete_action_client_operation(
                 c,
-                |client| {
-                    Ok(client
-                        .poll_available(self.node_handle.as_mut())
-                        .into_iter()
-                        .collect())
+                |client, completions| {
+                    completions.extend(client.poll_available(self.node_handle.as_mut()));
+                    Ok(())
                 },
                 |client, uuid| client.forget_goal(uuid),
             )?;
@@ -3108,7 +3106,7 @@ impl Node {
         for ac in &self.action_clients {
             complete_action_client_operation(
                 ac,
-                |ac| {
+                |ac, completions| {
                     let mut is_feedback_ready = false;
                     let mut is_status_ready = false;
                     let mut is_goal_response_ready = false;
@@ -3131,7 +3129,6 @@ impl Node {
                         return Err(Error::from_rcl_error(ret));
                     }
 
-                    let mut completions = Vec::new();
                     if is_feedback_ready {
                         ac.handle_feedback_msg()?;
                     }
@@ -3147,7 +3144,7 @@ impl Node {
                     if is_result_response_ready {
                         completions.extend(ac.handle_result_response()?);
                     }
-                    Ok(completions)
+                    Ok(())
                 },
                 |client, uuid| client.forget_goal(uuid),
             )?;

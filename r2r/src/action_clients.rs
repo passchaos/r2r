@@ -32,10 +32,12 @@ pub(crate) struct ActionClientCompletion {
 }
 
 pub(crate) fn complete_action_client_operation<T: ?Sized>(
-    client: &Mutex<T>, operation: impl FnOnce(&mut T) -> Result<Vec<ActionClientCompletion>>,
+    client: &Mutex<T>,
+    operation: impl FnOnce(&mut T, &mut Vec<ActionClientCompletion>) -> Result<()>,
     mut cleanup_goal: impl FnMut(&mut T, &uuid::Uuid),
 ) -> Result<()> {
-    let completions = { operation(&mut *client.lock())? };
+    let mut completions = Vec::new();
+    let operation_result = { operation(&mut *client.lock(), &mut completions) };
     for completion in completions {
         let ActionClientCompletion {
             notify,
@@ -47,7 +49,7 @@ pub(crate) fn complete_action_client_operation<T: ?Sized>(
             }
         }
     }
-    Ok(())
+    operation_result
 }
 
 pub(crate) fn action_response_completion<T: Send + 'static>(
@@ -1210,13 +1212,9 @@ mod tests {
 
         complete_action_client_operation(
             &client,
-            |_| {
-                Ok(vec![action_response_completion(
-                    sender,
-                    (),
-                    "test response",
-                    None,
-                )])
+            |_, completions| {
+                completions.push(action_response_completion(sender, (), "test response", None));
+                Ok(())
             },
             |_, _| {},
         )
@@ -1224,6 +1222,24 @@ mod tests {
 
         assert!(wake.woke.load(Ordering::SeqCst));
         assert!(matches!(Pin::new(&mut receiver).poll(&mut context), Poll::Ready(Ok(()))));
+    }
+
+    #[test]
+    fn action_completions_run_after_a_failed_locked_operation() {
+        let client = Mutex::new(());
+        let (sender, mut receiver) = oneshot::channel();
+
+        let result = complete_action_client_operation(
+            &client,
+            |_, completions| {
+                completions.push(action_response_completion(sender, 42, "test response", None));
+                Err(Error::RCL_RET_ERROR)
+            },
+            |_, _| {},
+        );
+
+        assert!(matches!(result, Err(Error::RCL_RET_ERROR)));
+        assert_eq!(receiver.try_recv().unwrap(), Some(42));
     }
 
     #[test]
@@ -1248,13 +1264,14 @@ mod tests {
 
         complete_action_client_operation(
             &client,
-            |_| {
-                Ok(vec![action_response_completion(
+            |_, completions| {
+                completions.push(action_response_completion(
                     sender,
                     (),
                     "test goal response",
                     Some(target),
-                )])
+                ));
+                Ok(())
             },
             |client, uuid| client.forget_goal(uuid),
         )
