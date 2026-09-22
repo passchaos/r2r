@@ -1744,9 +1744,23 @@ impl Node {
     pub fn subscribe_parameter_events(
         &mut self, node: Option<String>, parameter: Option<String>,
     ) -> Result<impl Stream<Item = ParameterEventChange> + Unpin> {
-        let events = self.subscribe::<rcl_interfaces::msg::ParameterEvent>(
-            "/parameter_events",
+        self.subscribe_parameter_events_with_options(
+            node,
+            parameter,
             QosProfile::parameter_events(),
+            SubscriptionOptions::default(),
+        )
+    }
+
+    /// Subscribes to standard ROS parameter events with explicit QoS and stream options.
+    pub fn subscribe_parameter_events_with_options(
+        &mut self, node: Option<String>, parameter: Option<String>, qos: QosProfile,
+        options: SubscriptionOptions,
+    ) -> Result<impl Stream<Item = ParameterEventChange> + Unpin> {
+        let events = self.subscribe_with_options::<rcl_interfaces::msg::ParameterEvent>(
+            "/parameter_events",
+            qos,
+            options,
         )?;
         Ok(events
             .map(move |event| flatten_parameter_event(event, node.as_deref(), parameter.as_deref()))

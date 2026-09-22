@@ -1,6 +1,7 @@
 use crate::{
     rcl_interfaces::{msg, srv},
     Client, Error, Node, ParameterEventChange, ParameterType, ParameterValue, QosProfile, Result,
+    SubscriptionOptions,
 };
 use futures::{future::try_join_all, Future, FutureExt, Stream, TryFutureExt};
 use std::time::Duration;
@@ -63,7 +64,25 @@ impl ParameterClient {
     pub fn subscribe_parameter_events(
         &self, node: &mut Node, parameter: Option<String>,
     ) -> Result<impl Stream<Item = ParameterEventChange> + Unpin> {
-        node.subscribe_parameter_events(Some(self.resolved_remote_node_name.clone()), parameter)
+        self.subscribe_parameter_events_with_options(
+            node,
+            parameter,
+            QosProfile::parameter_events(),
+            SubscriptionOptions::default(),
+        )
+    }
+
+    /// Subscribes to target-node parameter events with explicit QoS and stream options.
+    pub fn subscribe_parameter_events_with_options(
+        &self, node: &mut Node, parameter: Option<String>, qos: QosProfile,
+        options: SubscriptionOptions,
+    ) -> Result<impl Stream<Item = ParameterEventChange> + Unpin> {
+        node.subscribe_parameter_events_with_options(
+            Some(self.resolved_remote_node_name.clone()),
+            parameter,
+            qos,
+            options,
+        )
     }
 
     /// Returns true only when all six standard parameter services are available.
@@ -501,8 +520,21 @@ mod tests {
         let (handler, _local_events) = server.make_parameter_handler().unwrap();
         let client = client_node.create_parameter_client("event_server").unwrap();
         let mut events = client
-            .subscribe_parameter_events(&mut client_node, Some("watched".into()))
+            .subscribe_parameter_events_with_options(
+                &mut client_node,
+                Some("watched".into()),
+                QosProfile::parameter_events().keep_last(3),
+                SubscriptionOptions::default().channel_capacity(1),
+            )
             .unwrap();
+        assert!(client
+            .subscribe_parameter_events_with_options(
+                &mut client_node,
+                None,
+                QosProfile::parameter_events(),
+                SubscriptionOptions::default().channel_capacity(usize::MAX),
+            )
+            .is_err());
         let mut pool = LocalPool::new();
         pool.spawner().spawn_local(handler).unwrap();
 
@@ -542,6 +574,13 @@ mod tests {
         assert_eq!(event.kind, ParameterEventKind::New);
         assert_eq!(event.value, ParameterValue::Integer(2));
         assert!(events.next().now_or_never().flatten().is_none());
+        let endpoint = server
+            .get_subscriptions_info_by_topic("/parameter_events", false)
+            .unwrap()
+            .into_iter()
+            .find(|endpoint| endpoint.node_name == "event_client")
+            .unwrap();
+        assert_eq!(endpoint.qos_profile.depth, 3);
     }
 
     #[test]
