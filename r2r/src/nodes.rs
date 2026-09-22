@@ -4755,6 +4755,86 @@ mod tests {
         panic!("untyped publisher did not report incompatible QoS");
     }
 
+    #[test]
+    fn publishers_report_offered_deadline_misses() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "publisher_deadline_event_test", "").unwrap();
+        let topic = format!("/publisher_deadline_event_{}", uuid::Uuid::new_v4().simple());
+        let qos = QosProfile::default().deadline(Duration::from_millis(20));
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::Int32>(&topic, qos.clone())
+            .unwrap();
+        match publisher.take_offered_deadline_missed() {
+            Err(Error::RCL_RET_UNSUPPORTED) => return,
+            Err(err) => panic!("unexpected deadline event initialization error: {err}"),
+            Ok(None) => {}
+            Ok(Some(status)) => panic!("unexpected initial deadline event: {status:?}"),
+        }
+        let _subscription = node
+            .subscribe::<crate::std_msgs::msg::Int32>(&topic, qos)
+            .unwrap();
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if publisher.get_subscription_count().unwrap() > 0 {
+                break;
+            }
+        }
+        publisher
+            .publish(&crate::std_msgs::msg::Int32 { data: 1 })
+            .unwrap();
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(status) = publisher.take_offered_deadline_missed().unwrap() {
+                assert!(status.total_count >= 1);
+                assert!(status.total_count_change >= 1);
+                assert!(publisher.take_offered_deadline_missed().unwrap().is_none());
+                return;
+            }
+        }
+        panic!("publisher did not report a missed deadline");
+    }
+
+    #[test]
+    fn publishers_report_liveliness_lost() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "publisher_liveliness_event_test", "").unwrap();
+        let topic = format!("/publisher_liveliness_event_{}", uuid::Uuid::new_v4().simple());
+        let qos = QosProfile::default()
+            .liveliness(crate::qos::LivelinessPolicy::ManualByTopic)
+            .liveliness_lease_duration(Duration::from_millis(50));
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::Int32>(&topic, qos.clone())
+            .unwrap();
+        match publisher.take_liveliness_lost() {
+            Err(Error::RCL_RET_UNSUPPORTED) => return,
+            Err(err) => panic!("unexpected liveliness event initialization error: {err}"),
+            Ok(None) => {}
+            Ok(Some(status)) => panic!("unexpected initial liveliness event: {status:?}"),
+        }
+        let _subscription = node
+            .subscribe::<crate::std_msgs::msg::Int32>(&topic, qos)
+            .unwrap();
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if publisher.get_subscription_count().unwrap() > 0 {
+                break;
+            }
+        }
+        publisher
+            .publish(&crate::std_msgs::msg::Int32 { data: 1 })
+            .unwrap();
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(status) = publisher.take_liveliness_lost().unwrap() {
+                assert!(status.total_count >= 1);
+                assert!(status.total_count_change >= 1);
+                assert!(publisher.take_liveliness_lost().unwrap().is_none());
+                return;
+            }
+        }
+        panic!("publisher did not report liveliness loss");
+    }
+
     #[cfg(r2r__rosgraph_msgs__msg__Clock)]
     #[test]
     fn parameter_service_switches_sim_time_at_runtime() {

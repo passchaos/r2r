@@ -53,6 +53,20 @@ pub struct OfferedIncompatibleQosStatus {
     pub last_policy_kind: QosPolicyKind,
 }
 
+/// Cumulative status from an offered-deadline-missed publisher event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OfferedDeadlineMissedStatus {
+    pub total_count: i32,
+    pub total_count_change: i32,
+}
+
+/// Cumulative status from a liveliness-lost publisher event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LivelinessLostStatus {
+    pub total_count: i32,
+    pub total_count_change: i32,
+}
+
 impl Default for PublisherOptions {
     fn default() -> Self {
         Self {
@@ -140,17 +154,21 @@ pub(crate) struct Publisher_ {
 struct PublisherHandle {
     publisher: Option<rcl_publisher_t>,
     offered_incompatible_qos: Option<PublisherEvent>,
+    offered_deadline_missed: Option<PublisherEvent>,
+    liveliness_lost: Option<PublisherEvent>,
 }
 
 struct PublisherEvent {
     handle: rcl_event_t,
+    event_type: rcl_publisher_event_type_t,
     initialized: bool,
 }
 
 impl PublisherEvent {
-    fn uninitialized() -> Self {
+    fn uninitialized(event_type: rcl_publisher_event_type_t) -> Self {
         Self {
             handle: unsafe { rcl_get_zero_initialized_event() },
+            event_type,
             initialized: false,
         }
     }
@@ -159,13 +177,7 @@ impl PublisherEvent {
         if self.initialized {
             return Ok(());
         }
-        let ret = unsafe {
-            rcl_publisher_event_init(
-                &mut self.handle,
-                publisher,
-                rcl_publisher_event_type_t::RCL_PUBLISHER_OFFERED_INCOMPATIBLE_QOS,
-            )
-        };
+        let ret = unsafe { rcl_publisher_event_init(&mut self.handle, publisher, self.event_type) };
         check_publisher_ret(ret)?;
         self.initialized = true;
         Ok(())
@@ -186,6 +198,40 @@ impl PublisherEvent {
             total_count: status.total_count,
             total_count_change: status.total_count_change,
             last_policy_kind: status.last_policy_kind.into(),
+        }))
+    }
+
+    fn take_offered_deadline_missed(&self) -> Result<Option<OfferedDeadlineMissedStatus>> {
+        let mut status = MaybeUninit::<rmw_offered_deadline_missed_status_t>::uninit();
+        let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
+        if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
+            return Ok(None);
+        }
+        check_publisher_ret(ret)?;
+        let status = unsafe { status.assume_init() };
+        if status.total_count_change == 0 {
+            return Ok(None);
+        }
+        Ok(Some(OfferedDeadlineMissedStatus {
+            total_count: status.total_count,
+            total_count_change: status.total_count_change,
+        }))
+    }
+
+    fn take_liveliness_lost(&self) -> Result<Option<LivelinessLostStatus>> {
+        let mut status = MaybeUninit::<rmw_liveliness_lost_status_t>::uninit();
+        let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
+        if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
+            return Ok(None);
+        }
+        check_publisher_ret(ret)?;
+        let status = unsafe { status.assume_init() };
+        if status.total_count_change == 0 {
+            return Ok(None);
+        }
+        Ok(Some(LivelinessLostStatus {
+            total_count: status.total_count,
+            total_count_change: status.total_count_change,
         }))
     }
 }
@@ -226,11 +272,43 @@ impl Publisher_ {
             .as_ref()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
             as *const rcl_publisher_t;
-        let event = handle
-            .offered_incompatible_qos
-            .get_or_insert_with(PublisherEvent::uninitialized);
+        let event = handle.offered_incompatible_qos.get_or_insert_with(|| {
+            PublisherEvent::uninitialized(
+                rcl_publisher_event_type_t::RCL_PUBLISHER_OFFERED_INCOMPATIBLE_QOS,
+            )
+        });
         event.ensure_initialized(publisher)?;
         event.take_offered_incompatible_qos()
+    }
+
+    fn take_offered_deadline_missed(&self) -> Result<Option<OfferedDeadlineMissedStatus>> {
+        let mut handle = self.handle.lock();
+        let publisher = handle
+            .publisher
+            .as_ref()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            as *const rcl_publisher_t;
+        let event = handle.offered_deadline_missed.get_or_insert_with(|| {
+            PublisherEvent::uninitialized(
+                rcl_publisher_event_type_t::RCL_PUBLISHER_OFFERED_DEADLINE_MISSED,
+            )
+        });
+        event.ensure_initialized(publisher)?;
+        event.take_offered_deadline_missed()
+    }
+
+    fn take_liveliness_lost(&self) -> Result<Option<LivelinessLostStatus>> {
+        let mut handle = self.handle.lock();
+        let publisher = handle
+            .publisher
+            .as_ref()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            as *const rcl_publisher_t;
+        let event = handle.liveliness_lost.get_or_insert_with(|| {
+            PublisherEvent::uninitialized(rcl_publisher_event_type_t::RCL_PUBLISHER_LIVELINESS_LOST)
+        });
+        event.ensure_initialized(publisher)?;
+        event.take_liveliness_lost()
     }
 
     fn assert_liveliness(&self) -> Result<()> {
@@ -367,6 +445,8 @@ impl Publisher_ {
     pub(crate) fn destroy(&self, node: &mut rcl_node_t) {
         let mut state = self.handle.lock();
         state.offered_incompatible_qos = None;
+        state.offered_deadline_missed = None;
+        state.liveliness_lost = None;
         if let Some(mut handle) = state.publisher.take() {
             let ret = unsafe { rcl_publisher_fini(&mut handle, node) };
             if ret != RCL_RET_OK as i32 {
@@ -515,6 +595,8 @@ pub fn create_publisher_helper(
             handle: Arc::new(Mutex::new(PublisherHandle {
                 publisher: Some(publisher_handle),
                 offered_incompatible_qos: None,
+                offered_deadline_missed: None,
+                liveliness_lost: None,
             })),
             poll_subscriber_channels: Mutex::new(Vec::new()),
             #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
@@ -526,6 +608,22 @@ pub fn create_publisher_helper(
 }
 
 impl PublisherUntyped {
+    /// Takes the latest offered-deadline-missed status without blocking.
+    pub fn take_offered_deadline_missed(&self) -> Result<Option<OfferedDeadlineMissedStatus>> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .take_offered_deadline_missed()
+    }
+
+    /// Takes the latest liveliness-lost status without blocking.
+    pub fn take_liveliness_lost(&self) -> Result<Option<LivelinessLostStatus>> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .take_liveliness_lost()
+    }
+
     /// Takes the latest offered-incompatible-QoS status without blocking.
     ///
     /// The first call initializes the native event. Call this once before creating potentially
@@ -731,6 +829,22 @@ impl<T: 'static> Publisher<T>
 where
     T: WrappedTypesupport,
 {
+    /// Takes the latest offered-deadline-missed status without blocking.
+    pub fn take_offered_deadline_missed(&self) -> Result<Option<OfferedDeadlineMissedStatus>> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .take_offered_deadline_missed()
+    }
+
+    /// Takes the latest liveliness-lost status without blocking.
+    pub fn take_liveliness_lost(&self) -> Result<Option<LivelinessLostStatus>> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .take_liveliness_lost()
+    }
+
     /// Takes the latest offered-incompatible-QoS status without blocking.
     ///
     /// The first call initializes the native event. Call this once before creating potentially
