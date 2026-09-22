@@ -30,6 +30,7 @@ use crate::{
     context::*,
     error::*,
     msg_types::{generated_msgs::rcl_interfaces, *},
+    parameter_clients::ParameterClient,
     parameters::*,
     publishers::*,
     qos::QosProfile,
@@ -2306,6 +2307,11 @@ impl Node {
         let c = make_client(Arc::downgrade(&client_arc));
         self.clients.push(client_arc);
         Ok(c)
+    }
+
+    /// Creates a runtime-agnostic client for another node's standard parameter services.
+    pub fn create_parameter_client(&mut self, remote_node_name: &str) -> Result<ParameterClient> {
+        ParameterClient::new(self, remote_node_name, QosProfile::parameters())
     }
 
     /// Create a ROS service client.

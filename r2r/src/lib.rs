@@ -112,6 +112,9 @@ pub use services::{
 mod clients;
 pub use clients::{Client, ClientUntyped};
 
+mod parameter_clients;
+pub use parameter_clients::ParameterClient;
+
 mod action_common;
 pub use action_common::{ActionClientOptions, ActionServerOptions, GoalStatus};
 
