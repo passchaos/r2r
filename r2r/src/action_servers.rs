@@ -1,6 +1,5 @@
 use futures::{
     channel::{mpsc, oneshot},
-    future::{join_all, JoinAll},
     stream::{Stream, StreamExt},
     task::noop_waker_ref,
 };
@@ -713,19 +712,35 @@ impl Drop for GoalRequestResponseGuard {
         self.response_sent = true;
     }
 }
-pub type ActiveCancelRequest = (
-    rmw_request_id_t,
-    action_msgs::srv::CancelGoal::Response,
-    JoinAll<oneshot::Receiver<(uuid::Uuid, bool)>>,
-);
+pub struct ActiveCancelRequest {
+    request_id: rmw_request_id_t,
+    response: action_msgs::srv::CancelGoal::Response,
+    pending_decisions: VecDeque<oneshot::Receiver<(uuid::Uuid, bool)>>,
+    completed_decisions: Vec<std::result::Result<(uuid::Uuid, bool), oneshot::Canceled>>,
+}
 
 fn poll_cancel_decisions(
-    decisions: &mut JoinAll<oneshot::Receiver<(uuid::Uuid, bool)>>,
+    request: &mut ActiveCancelRequest,
 ) -> Option<Vec<std::result::Result<(uuid::Uuid, bool), oneshot::Canceled>>> {
     let mut context = Context::from_waker(noop_waker_ref());
-    match Pin::new(decisions).poll(&mut context) {
-        Poll::Ready(results) => Some(results),
-        Poll::Pending => None,
+    let scan_count = request
+        .pending_decisions
+        .len()
+        .min(MAX_ACTION_SERVER_REQUESTS_PER_SPIN);
+    for _ in 0..scan_count {
+        let mut decision = request
+            .pending_decisions
+            .pop_front()
+            .expect("bounded cancel decision count was captured before polling");
+        match Pin::new(&mut decision).poll(&mut context) {
+            Poll::Ready(result) => request.completed_decisions.push(result),
+            Poll::Pending => request.pending_decisions.push_back(decision),
+        }
+    }
+    if request.pending_decisions.is_empty() {
+        Some(std::mem::take(&mut request.completed_decisions))
+    } else {
+        None
     }
 }
 
@@ -939,11 +954,12 @@ where
 {
     fn finish_cancel_delivery(&mut self, pending: PendingCancelRequest) {
         if pending.deliveries.is_empty() {
-            self.active_cancel_requests.push_back((
-                pending.request_id,
-                pending.response,
-                join_all(pending.decisions),
-            ));
+            self.active_cancel_requests.push_back(ActiveCancelRequest {
+                request_id: pending.request_id,
+                response: pending.response,
+                pending_decisions: pending.decisions.into(),
+                completed_decisions: Vec::new(),
+            });
         } else {
             self.pending_cancel_request = Some(pending);
         }
@@ -1112,10 +1128,13 @@ where
         let mut canceled = vec![];
         let mut responses = vec![];
         let mut first_error = None;
-        let completed = poll_bounded_queue(&mut self.active_cancel_requests, |(_, _, future)| {
-            poll_cancel_decisions(future)
-        });
-        for ((request_id, mut response, _), results) in completed {
+        let completed = poll_bounded_queue(&mut self.active_cancel_requests, poll_cancel_decisions);
+        for (request, results) in completed {
+            let ActiveCancelRequest {
+                request_id,
+                mut response,
+                ..
+            } = request;
             let requested_cancels = response.goals_canceling.len();
             let decisions = results.into_iter().filter_map(|result| match result {
                 Ok(decision) => Some(decision),
@@ -2162,11 +2181,53 @@ mod tests {
     fn cancel_decisions_are_polled_in_place_until_ready() {
         let goal = uuid::Uuid::new_v4();
         let (sender, receiver) = oneshot::channel();
-        let mut decisions = join_all(vec![receiver]);
+        let mut request = ActiveCancelRequest {
+            request_id: unsafe { std::mem::zeroed() },
+            response: action_msgs::srv::CancelGoal::Response::default(),
+            pending_decisions: VecDeque::from([receiver]),
+            completed_decisions: Vec::new(),
+        };
 
-        assert!(poll_cancel_decisions(&mut decisions).is_none());
+        assert!(poll_cancel_decisions(&mut request).is_none());
         sender.send((goal, true)).unwrap();
-        assert_eq!(poll_cancel_decisions(&mut decisions).unwrap(), vec![Ok((goal, true))]);
+        assert_eq!(poll_cancel_decisions(&mut request).unwrap(), vec![Ok((goal, true))]);
+    }
+
+    #[test]
+    fn cancel_decision_scans_are_bounded_and_preserve_completed_results() {
+        let mut senders = Vec::new();
+        let mut decisions = VecDeque::new();
+        for value in 1..=20_u128 {
+            let (sender, receiver) = oneshot::channel();
+            if value != 1 {
+                sender.send((uuid::Uuid::from_u128(value), true)).unwrap();
+            } else {
+                senders.push(sender);
+            }
+            decisions.push_back(receiver);
+        }
+        let mut request = ActiveCancelRequest {
+            request_id: unsafe { std::mem::zeroed() },
+            response: action_msgs::srv::CancelGoal::Response::default(),
+            pending_decisions: decisions,
+            completed_decisions: Vec::new(),
+        };
+
+        assert!(poll_cancel_decisions(&mut request).is_none());
+        assert_eq!(request.pending_decisions.len(), 5);
+        assert_eq!(request.completed_decisions.len(), 15);
+
+        assert!(poll_cancel_decisions(&mut request).is_none());
+        assert_eq!(request.pending_decisions.len(), 1);
+        assert_eq!(request.completed_decisions.len(), 19);
+
+        let blocked_sender = senders.pop().unwrap();
+        blocked_sender
+            .send((uuid::Uuid::from_u128(1), false))
+            .unwrap();
+        let results = poll_cancel_decisions(&mut request).unwrap();
+        assert_eq!(results.len(), 20);
+        assert!(results.contains(&Ok((uuid::Uuid::from_u128(1), false))));
     }
 
     #[test]
