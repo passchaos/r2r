@@ -124,7 +124,6 @@ impl Context {
 
 impl Clone for Context {
     fn clone(&self) -> Self {
-        let _shared = CONTEXT.get().unwrap().lock();
         Self {
             context_handle: Arc::clone(&self.context_handle),
         }
@@ -329,5 +328,17 @@ mod tests {
             let ctx = Context::create().unwrap();
             assert!(ctx.is_valid());
         }
+    }
+
+    #[test]
+    fn context_cloning_does_not_require_the_global_registry_lock() {
+        let context = Context::create().unwrap();
+        let registry = CONTEXT.get().unwrap().lock();
+
+        let cloned = context.clone();
+
+        assert!(Arc::ptr_eq(&context.context_handle, &cloned.context_handle));
+        drop(cloned);
+        drop(registry);
     }
 }
