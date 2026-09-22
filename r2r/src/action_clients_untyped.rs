@@ -589,7 +589,11 @@ impl ActionClient_ for WrappedActionClientUntyped {
         &self.rcl_handle
     }
 
-    fn handle_goal_response(&mut self) -> Result<()> {
+    fn forget_goal(&mut self, uuid: &uuid::Uuid) {
+        WrappedActionClientUntyped::forget_goal(self, uuid);
+    }
+
+    fn handle_goal_response(&mut self) -> Result<Option<ActionClientCompletion>> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg = (self.action_type_support.make_goal_response_msg)()?;
 
@@ -613,13 +617,12 @@ impl ActionClient_ for WrappedActionClientUntyped {
                 if !accept {
                     self.forget_goal(&uuid);
                 }
-                match sender.send((accept, stamp)) {
-                    Ok(()) => {}
-                    Err(e) => {
-                        self.forget_goal(&uuid);
-                        log::debug!("error sending to action client: {:?}", e);
-                    }
-                }
+                return Ok(Some(action_response_completion(
+                    sender,
+                    (accept, stamp),
+                    "untyped action goal response",
+                    Some(uuid),
+                )));
             } else {
                 let we_have: String = self
                     .goal_response_channels
@@ -634,10 +637,10 @@ impl ActionClient_ for WrappedActionClientUntyped {
                 );
             }
         }
-        Ok(())
+        Ok(None)
     }
 
-    fn handle_cancel_response(&mut self) -> Result<()> {
+    fn handle_cancel_response(&mut self) -> Result<Option<ActionClientCompletion>> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg =
             WrappedNativeMsg::<action_msgs::srv::CancelGoal::Response>::try_new()?;
@@ -658,9 +661,12 @@ impl ActionClient_ for WrappedActionClientUntyped {
             {
                 let (_, sender) = self.cancel_response_channels.swap_remove(idx);
                 let response = action_msgs::srv::CancelGoal::Response::from_native(&response_msg);
-                if let Err(e) = sender.send(response) {
-                    log::error!("warning: could not send cancel response msg ({:?})", e)
-                }
+                return Ok(Some(action_response_completion(
+                    sender,
+                    response,
+                    "untyped action cancel response",
+                    None,
+                )));
             } else {
                 let we_have: String = self
                     .cancel_response_channels
@@ -675,7 +681,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
                 );
             }
         }
-        Ok(())
+        Ok(None)
     }
 
     fn handle_feedback_msg(&mut self) -> Result<()> {
@@ -734,7 +740,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
         Ok(())
     }
 
-    fn handle_result_response(&mut self) -> Result<()> {
+    fn handle_result_response(&mut self) -> Result<Option<ActionClientCompletion>> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg = (self.action_type_support.make_result_response_msg)()?;
         let ret = unsafe {
@@ -763,12 +769,12 @@ impl ActionClient_ for WrappedActionClientUntyped {
                         (self.action_type_support.destructure_result_response_msg)(response_msg);
                     let status = GoalStatus::from_rcl(status);
                     self.finish_goal(&uuid, status);
-                    match sender.send((status, result)) {
-                        Ok(()) => {}
-                        Err(e) => {
-                            log::debug!("error sending result to action client: {:?}", e);
-                        }
-                    }
+                    return Ok(Some(action_response_completion(
+                        sender,
+                        (status, result),
+                        "untyped action result",
+                        None,
+                    )));
                 }
             } else {
                 let we_have: String = self
@@ -784,7 +790,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
                 );
             }
         }
-        Ok(())
+        Ok(None)
     }
 
     fn send_result_request(&mut self, uuid: uuid::Uuid) -> Result<()> {
@@ -811,29 +817,20 @@ impl ActionClient_ for WrappedActionClientUntyped {
         self.poll_available_channels.push(s);
     }
 
-    fn poll_available(&mut self, node: &mut rcl_node_t) {
+    fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ActionClientCompletion> {
         self.prune_canceled_requests();
         self.flush_pending_feedback();
         self.poll_available_channels
             .retain(|sender| !sender.is_canceled());
         if self.poll_available_channels.is_empty() {
-            return;
+            return None;
         }
         let available = action_server_available_helper(node, self.handle());
-        match available {
-            Ok(true) => {
-                // send ok and close channels
-                while let Some(sender) = self.poll_available_channels.pop() {
-                    let _res = sender.send(()); // we ignore if receiver dropped.
-                }
-            }
-            Ok(false) => {
-                // not available...
-            }
-            Err(_) => {
-                // error, close all channels
-                self.poll_available_channels.clear();
-            }
+        if matches!(available, Ok(false)) {
+            None
+        } else {
+            let senders = std::mem::take(&mut self.poll_available_channels);
+            action_availability_completion(senders, available)
         }
     }
 

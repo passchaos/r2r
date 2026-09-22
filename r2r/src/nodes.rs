@@ -2874,7 +2874,16 @@ impl Node {
         }
 
         for c in &mut self.action_clients {
-            c.lock().poll_available(self.node_handle.as_mut());
+            complete_action_client_operation(
+                c,
+                |client| {
+                    Ok(client
+                        .poll_available(self.node_handle.as_mut())
+                        .into_iter()
+                        .collect())
+                },
+                |client, uuid| client.forget_goal(uuid),
+            )?;
         }
 
         for p in &self.pubs {
@@ -3094,48 +3103,51 @@ impl Node {
         }
 
         for ac in &self.action_clients {
-            let mut ac = ac.lock();
-            let mut is_feedback_ready = false;
-            let mut is_status_ready = false;
-            let mut is_goal_response_ready = false;
-            let mut is_cancel_response_ready = false;
-            let mut is_result_response_ready = false;
+            complete_action_client_operation(
+                ac,
+                |ac| {
+                    let mut is_feedback_ready = false;
+                    let mut is_status_ready = false;
+                    let mut is_goal_response_ready = false;
+                    let mut is_cancel_response_ready = false;
+                    let mut is_result_response_ready = false;
 
-            let ret = unsafe {
-                rcl_action_client_wait_set_get_entities_ready(
-                    ws,
-                    ac.handle(),
-                    &mut is_feedback_ready,
-                    &mut is_status_ready,
-                    &mut is_goal_response_ready,
-                    &mut is_cancel_response_ready,
-                    &mut is_result_response_ready,
-                )
-            };
+                    let ret = unsafe {
+                        rcl_action_client_wait_set_get_entities_ready(
+                            ws,
+                            ac.handle(),
+                            &mut is_feedback_ready,
+                            &mut is_status_ready,
+                            &mut is_goal_response_ready,
+                            &mut is_cancel_response_ready,
+                            &mut is_result_response_ready,
+                        )
+                    };
 
-            if ret != RCL_RET_OK as i32 {
-                return Err(Error::from_rcl_error(ret));
-            }
+                    if ret != RCL_RET_OK as i32 {
+                        return Err(Error::from_rcl_error(ret));
+                    }
 
-            if is_feedback_ready {
-                ac.handle_feedback_msg()?;
-            }
-
-            if is_status_ready {
-                ac.handle_status_msg()?;
-            }
-
-            if is_goal_response_ready {
-                ac.handle_goal_response()?;
-            }
-
-            if is_cancel_response_ready {
-                ac.handle_cancel_response()?;
-            }
-
-            if is_result_response_ready {
-                ac.handle_result_response()?;
-            }
+                    let mut completions = Vec::new();
+                    if is_feedback_ready {
+                        ac.handle_feedback_msg()?;
+                    }
+                    if is_status_ready {
+                        ac.handle_status_msg()?;
+                    }
+                    if is_goal_response_ready {
+                        completions.extend(ac.handle_goal_response()?);
+                    }
+                    if is_cancel_response_ready {
+                        completions.extend(ac.handle_cancel_response()?);
+                    }
+                    if is_result_response_ready {
+                        completions.extend(ac.handle_result_response()?);
+                    }
+                    Ok(completions)
+                },
+                |client, uuid| client.forget_goal(uuid),
+            )?;
         }
 
         for s in &self.action_servers {

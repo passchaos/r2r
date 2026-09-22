@@ -26,6 +26,71 @@ use crate::{
 use r2r_actions::*;
 use r2r_rcl::*;
 
+pub(crate) struct ActionClientCompletion {
+    notify: Box<dyn FnOnce() -> bool + Send>,
+    cleanup_goal_on_failure: Option<uuid::Uuid>,
+}
+
+pub(crate) fn complete_action_client_operation<T: ?Sized>(
+    client: &Mutex<T>, operation: impl FnOnce(&mut T) -> Result<Vec<ActionClientCompletion>>,
+    mut cleanup_goal: impl FnMut(&mut T, &uuid::Uuid),
+) -> Result<()> {
+    let completions = { operation(&mut *client.lock())? };
+    for completion in completions {
+        let ActionClientCompletion {
+            notify,
+            cleanup_goal_on_failure,
+        } = completion;
+        if !notify() {
+            if let Some(uuid) = cleanup_goal_on_failure {
+                cleanup_goal(&mut *client.lock(), &uuid);
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn action_response_completion<T: Send + 'static>(
+    sender: oneshot::Sender<T>, response: T, description: &'static str,
+    cleanup_goal_on_failure: Option<uuid::Uuid>,
+) -> ActionClientCompletion {
+    ActionClientCompletion {
+        notify: Box::new(move || {
+            if sender.send(response).is_err() {
+                log::debug!("could not deliver {description}");
+                false
+            } else {
+                true
+            }
+        }),
+        cleanup_goal_on_failure,
+    }
+}
+
+pub(crate) fn action_availability_completion(
+    senders: Vec<oneshot::Sender<()>>, available: Result<bool>,
+) -> Option<ActionClientCompletion> {
+    match available {
+        Ok(false) => None,
+        Ok(true) => Some(ActionClientCompletion {
+            notify: Box::new(move || {
+                for sender in senders {
+                    let _ = sender.send(());
+                }
+                true
+            }),
+            cleanup_goal_on_failure: None,
+        }),
+        Err(_) => Some(ActionClientCompletion {
+            notify: Box::new(move || {
+                drop(senders);
+                true
+            }),
+            cleanup_goal_on_failure: None,
+        }),
+    }
+}
+
 unsafe impl<T> Send for ActionClient<T> where T: WrappedActionTypeSupport {}
 
 /// Action client
@@ -485,17 +550,18 @@ pub trait ActionClient_ {
     fn handle(&self) -> &rcl_action_client_t;
     fn destroy(&mut self, node: &mut rcl_node_t);
     fn has_pending_work(&mut self) -> bool;
+    fn forget_goal(&mut self, uuid: &uuid::Uuid);
 
-    fn handle_goal_response(&mut self) -> Result<()>;
-    fn handle_cancel_response(&mut self) -> Result<()>;
+    fn handle_goal_response(&mut self) -> Result<Option<ActionClientCompletion>>;
+    fn handle_cancel_response(&mut self) -> Result<Option<ActionClientCompletion>>;
     fn handle_feedback_msg(&mut self) -> Result<()>;
     fn handle_status_msg(&mut self) -> Result<()>;
-    fn handle_result_response(&mut self) -> Result<()>;
+    fn handle_result_response(&mut self) -> Result<Option<ActionClientCompletion>>;
 
     fn send_result_request(&mut self, uuid: uuid::Uuid) -> Result<()>;
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>);
-    fn poll_available(&mut self, node: &mut rcl_node_t);
+    fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ActionClientCompletion>;
 }
 
 impl<T> WrappedActionClient<T>
@@ -660,7 +726,11 @@ where
         &self.rcl_handle
     }
 
-    fn handle_goal_response(&mut self) -> Result<()> {
+    fn forget_goal(&mut self, uuid: &uuid::Uuid) {
+        WrappedActionClient::forget_goal(self, uuid);
+    }
+
+    fn handle_goal_response(&mut self) -> Result<Option<ActionClientCompletion>> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
@@ -686,13 +756,12 @@ where
                 if !accept {
                     self.forget_goal(&uuid);
                 }
-                match sender.send((accept, stamp)) {
-                    Ok(()) => {}
-                    Err(e) => {
-                        self.forget_goal(&uuid);
-                        log::debug!("error sending to action client: {:?}", e);
-                    }
-                }
+                return Ok(Some(action_response_completion(
+                    sender,
+                    (accept, stamp),
+                    "action goal response",
+                    Some(uuid),
+                )));
             } else {
                 let we_have: String = self
                     .goal_response_channels
@@ -707,10 +776,10 @@ where
                 );
             }
         }
-        Ok(())
+        Ok(None)
     }
 
-    fn handle_cancel_response(&mut self) -> Result<()> {
+    fn handle_cancel_response(&mut self) -> Result<Option<ActionClientCompletion>> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg =
             WrappedNativeMsg::<action_msgs::srv::CancelGoal::Response>::try_new()?;
@@ -731,9 +800,12 @@ where
             {
                 let (_, sender) = self.cancel_response_channels.swap_remove(idx);
                 let response = action_msgs::srv::CancelGoal::Response::from_native(&response_msg);
-                if let Err(e) = sender.send(response) {
-                    log::error!("warning: could not send cancel response msg ({:?})", e)
-                }
+                return Ok(Some(action_response_completion(
+                    sender,
+                    response,
+                    "action cancel response",
+                    None,
+                )));
             } else {
                 let we_have: String = self
                     .cancel_response_channels
@@ -748,7 +820,7 @@ where
                 );
             }
         }
-        Ok(())
+        Ok(None)
     }
 
     fn handle_feedback_msg(&mut self) -> Result<()> {
@@ -807,7 +879,7 @@ where
         Ok(())
     }
 
-    fn handle_result_response(&mut self) -> Result<()> {
+    fn handle_result_response(&mut self) -> Result<Option<ActionClientCompletion>> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
@@ -839,12 +911,12 @@ where
                     let (status, result) = T::destructure_result_response_msg(response);
                     let status = GoalStatus::from_rcl(status);
                     self.finish_goal(&uuid, status);
-                    match sender.send((status, result)) {
-                        Ok(()) => {}
-                        Err(e) => {
-                            log::debug!("error sending result to action client: {:?}", e);
-                        }
-                    }
+                    return Ok(Some(action_response_completion(
+                        sender,
+                        (status, result),
+                        "action result",
+                        None,
+                    )));
                 }
             } else {
                 let we_have: String = self
@@ -860,7 +932,7 @@ where
                 );
             }
         }
-        Ok(())
+        Ok(None)
     }
 
     fn send_result_request(&mut self, uuid: uuid::Uuid) -> Result<()> {
@@ -890,29 +962,20 @@ where
         self.poll_available_channels.push(s);
     }
 
-    fn poll_available(&mut self, node: &mut rcl_node_t) {
+    fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ActionClientCompletion> {
         self.prune_canceled_requests();
         self.flush_pending_feedback();
         self.poll_available_channels
             .retain(|sender| !sender.is_canceled());
         if self.poll_available_channels.is_empty() {
-            return;
+            return None;
         }
         let available = action_server_available_helper(node, self.handle());
-        match available {
-            Ok(true) => {
-                // send ok and close channels
-                while let Some(sender) = self.poll_available_channels.pop() {
-                    let _res = sender.send(()); // we ignore if receiver dropped.
-                }
-            }
-            Ok(false) => {
-                // not available...
-            }
-            Err(_) => {
-                // error, close all channels
-                self.poll_available_channels.clear();
-            }
+        if matches!(available, Ok(false)) {
+            None
+        } else {
+            let senders = std::mem::take(&mut self.poll_available_channels);
+            action_availability_completion(senders, available)
         }
     }
 
@@ -1076,6 +1139,99 @@ pub(crate) fn action_client_name(client: &rcl_action_client_t) -> Result<String>
 mod tests {
     use super::*;
     use crate::example_interfaces::action::Fibonacci;
+    use futures::{
+        task::{waker_ref, ArcWake},
+        Future,
+    };
+    use std::{
+        pin::Pin,
+        sync::atomic::{AtomicBool, Ordering},
+        task::{Context, Poll},
+    };
+
+    struct LockingWake {
+        client: Arc<Mutex<()>>,
+        woke: AtomicBool,
+    }
+
+    impl ArcWake for LockingWake {
+        fn wake_by_ref(arc_self: &Arc<Self>) {
+            let _client = arc_self.client.lock();
+            arc_self.woke.store(true, Ordering::SeqCst);
+        }
+    }
+
+    #[test]
+    fn action_completions_wake_after_releasing_the_client_lock() {
+        let client = Arc::new(Mutex::new(()));
+        let (sender, mut receiver) = oneshot::channel();
+        let wake = Arc::new(LockingWake {
+            client: Arc::clone(&client),
+            woke: AtomicBool::new(false),
+        });
+        let waker = waker_ref(&wake);
+        let mut context = Context::from_waker(&waker);
+        assert!(matches!(Pin::new(&mut receiver).poll(&mut context), Poll::Pending));
+
+        complete_action_client_operation(
+            &client,
+            |_| {
+                Ok(vec![action_response_completion(
+                    sender,
+                    (),
+                    "test response",
+                    None,
+                )])
+            },
+            |_, _| {},
+        )
+        .unwrap();
+
+        assert!(wake.woke.load(Ordering::SeqCst));
+        assert!(matches!(Pin::new(&mut receiver).poll(&mut context), Poll::Ready(Ok(()))));
+    }
+
+    #[test]
+    fn failed_goal_completion_cleans_registration_after_relocking() {
+        let target = uuid::Uuid::new_v4();
+        let (feedback_sender, _feedback_receiver) = mpsc::channel(1);
+        let (result_sender, _result_receiver) = oneshot::channel();
+        let client = Mutex::new(WrappedActionClient::<Fibonacci::Action> {
+            rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
+            goal_response_channels: Vec::new(),
+            cancel_response_channels: Vec::new(),
+            feedback_senders: vec![(target, feedback_sender)],
+            pending_feedback: Some((target, Fibonacci::Feedback::default())),
+            result_requests: vec![(1, target)],
+            result_senders: vec![(target, result_sender)],
+            goal_status: HashMap::from([(target, GoalStatus::Accepted)]),
+            feedback_channel_capacity: 1,
+            poll_available_channels: Vec::new(),
+        });
+        let (sender, receiver) = oneshot::channel();
+        drop(receiver);
+
+        complete_action_client_operation(
+            &client,
+            |_| {
+                Ok(vec![action_response_completion(
+                    sender,
+                    (),
+                    "test goal response",
+                    Some(target),
+                )])
+            },
+            |client, uuid| client.forget_goal(uuid),
+        )
+        .unwrap();
+
+        let client = client.lock();
+        assert!(client.feedback_senders.is_empty());
+        assert!(client.pending_feedback.is_none());
+        assert!(client.result_requests.is_empty());
+        assert!(client.result_senders.is_empty());
+        assert!(!client.goal_status.contains_key(&target));
+    }
 
     #[test]
     fn classifies_action_client_take_results() {
