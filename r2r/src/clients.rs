@@ -1,5 +1,7 @@
 use futures::channel::oneshot;
 use parking_lot::Mutex;
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{
     collections::{HashMap, VecDeque},
     ffi::{CStr, CString},
@@ -154,13 +156,14 @@ pub struct Client<T>
 where
     T: WrappedServiceTypeSupport,
 {
-    client: Weak<Mutex<TypedClient<T>>>,
+    pub(crate) client: Weak<Mutex<TypedClient<T>>>,
     lifecycle: Arc<ClientHandleLifecycle>,
 }
 
 pub(crate) struct ClientHandleLifecycle {
     identity: usize,
     dropped_clients: Arc<Mutex<VecDeque<usize>>>,
+    active_availability_clients: Arc<Mutex<VecDeque<usize>>>,
 }
 
 impl Drop for ClientHandleLifecycle {
@@ -363,6 +366,7 @@ fn client_response_subscription_actual_qos(handle: &rcl_client_t) -> Result<QosP
 pub(crate) fn make_client<T>(
     client: Weak<Mutex<TypedClient<T>>>, identity: usize,
     dropped_clients: Arc<Mutex<VecDeque<usize>>>,
+    active_availability_clients: Arc<Mutex<VecDeque<usize>>>,
 ) -> Client<T>
 where
     T: WrappedServiceTypeSupport,
@@ -372,6 +376,7 @@ where
         lifecycle: Arc::new(ClientHandleLifecycle {
             identity,
             dropped_clients,
+            active_availability_clients,
         }),
     }
 }
@@ -379,12 +384,14 @@ where
 pub(crate) fn make_untyped_client(
     client: Weak<Mutex<UntypedClient_>>, identity: usize,
     dropped_clients: Arc<Mutex<VecDeque<usize>>>,
+    active_availability_clients: Arc<Mutex<VecDeque<usize>>>,
 ) -> ClientUntyped {
     ClientUntyped {
         client,
         lifecycle: Arc::new(ClientHandleLifecycle {
             identity,
             dropped_clients,
+            active_availability_clients,
         }),
     }
 }
@@ -444,6 +451,9 @@ pub trait Client_ {
     fn handle_response(&mut self) -> Result<ClientResponseAction>;
     fn register_poll_available(&mut self, s: oneshot::Sender<()>);
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ClientCompletion>;
+    fn has_pending_availability(&mut self) -> bool;
+    #[cfg(test)]
+    fn availability_poll_count(&self) -> usize;
     fn has_pending_work(&mut self) -> bool;
     fn destroy(&mut self, node: &mut rcl_node_t);
 }
@@ -455,6 +465,8 @@ where
     pub rcl_handle: rcl_client_t,
     pub response_channels: HashMap<i64, oneshot::Sender<T::Response>>,
     pub poll_available_channels: AvailabilityWaiters,
+    #[cfg(test)]
+    pub(crate) availability_poll_count: AtomicUsize,
 }
 
 impl<T> ClientResponseRegistry for TypedClient<T>
@@ -520,6 +532,8 @@ where
     }
 
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ClientCompletion> {
+        #[cfg(test)]
+        self.availability_poll_count.fetch_add(1, Ordering::Relaxed);
         self.poll_available_channels.prune_canceled();
         if self.poll_available_channels.is_empty() {
             return None;
@@ -531,6 +545,16 @@ where
             let senders = self.poll_available_channels.take_all();
             availability_completion(senders, available)
         }
+    }
+
+    fn has_pending_availability(&mut self) -> bool {
+        self.poll_available_channels.prune_canceled();
+        !self.poll_available_channels.is_empty()
+    }
+
+    #[cfg(test)]
+    fn availability_poll_count(&self) -> usize {
+        self.availability_poll_count.load(Ordering::Relaxed)
     }
 
     fn has_pending_work(&mut self) -> bool {
@@ -550,6 +574,8 @@ pub struct UntypedClient_ {
     pub rcl_handle: rcl_client_t,
     pub response_channels: HashMap<i64, oneshot::Sender<Result<serde_json::Value>>>,
     pub poll_available_channels: AvailabilityWaiters,
+    #[cfg(test)]
+    pub(crate) availability_poll_count: AtomicUsize,
 }
 
 impl ClientResponseRegistry for UntypedClient_ {
@@ -609,6 +635,8 @@ impl Client_ for UntypedClient_ {
     }
 
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ClientCompletion> {
+        #[cfg(test)]
+        self.availability_poll_count.fetch_add(1, Ordering::Relaxed);
         self.poll_available_channels.prune_canceled();
         if self.poll_available_channels.is_empty() {
             return None;
@@ -620,6 +648,16 @@ impl Client_ for UntypedClient_ {
             let senders = self.poll_available_channels.take_all();
             availability_completion(senders, available)
         }
+    }
+
+    fn has_pending_availability(&mut self) -> bool {
+        self.poll_available_channels.prune_canceled();
+        !self.poll_available_channels.is_empty()
+    }
+
+    #[cfg(test)]
+    fn availability_poll_count(&self) -> usize {
+        self.availability_poll_count.load(Ordering::Relaxed)
     }
 
     fn has_pending_work(&mut self) -> bool {
@@ -681,6 +719,10 @@ where
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
         let mut client = client.lock();
         client.register_poll_available(sender);
+        self.lifecycle
+            .active_availability_clients
+            .lock()
+            .push_back(self.lifecycle.identity);
         Ok(())
     }
 }
@@ -690,6 +732,10 @@ impl IsAvailablePollable for ClientUntyped {
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
         let mut client = client.lock();
         client.register_poll_available(sender);
+        self.lifecycle
+            .active_availability_clients
+            .lock()
+            .push_back(self.lifecycle.identity);
         Ok(())
     }
 }
@@ -726,9 +772,15 @@ mod tests {
             rcl_handle: unsafe { rcl_get_zero_initialized_client() },
             response_channels: HashMap::new(),
             poll_available_channels: AvailabilityWaiters::default(),
+            availability_poll_count: AtomicUsize::new(0),
         }));
         let identity = Arc::as_ptr(&client).cast::<()>() as usize;
-        let handle = make_client(Arc::downgrade(&client), identity, Arc::clone(&dropped_clients));
+        let handle = make_client(
+            Arc::downgrade(&client),
+            identity,
+            Arc::clone(&dropped_clients),
+            Arc::new(Mutex::new(VecDeque::new())),
+        );
         let clone = handle.clone();
 
         drop(handle);
@@ -746,6 +798,7 @@ mod tests {
             rcl_handle: unsafe { rcl_get_zero_initialized_client() },
             response_channels: HashMap::from([(10, target_sender), (11, other_sender)]),
             poll_available_channels: AvailabilityWaiters::default(),
+            availability_poll_count: AtomicUsize::new(0),
         }));
         let future = client_response_future(Arc::downgrade(&client), 10, target_receiver);
 
@@ -763,6 +816,7 @@ mod tests {
             rcl_handle: unsafe { rcl_get_zero_initialized_client() },
             response_channels: HashMap::from([(10, sender)]),
             poll_available_channels: AvailabilityWaiters::default(),
+            availability_poll_count: AtomicUsize::new(0),
         }));
         let mut future = Box::pin(client_response_future(Arc::downgrade(&client), 10, receiver));
         let sender = client.lock().response_channels.remove(&10).unwrap();
@@ -786,6 +840,7 @@ mod tests {
             rcl_handle: unsafe { rcl_get_zero_initialized_client() },
             response_channels: HashMap::from([(10, old_sender)]),
             poll_available_channels: AvailabilityWaiters::default(),
+            availability_poll_count: AtomicUsize::new(0),
         }));
         let future = client_response_future(Arc::downgrade(&client), 10, old_receiver);
         let old_sender = client.lock().response_channels.remove(&10).unwrap();
@@ -804,6 +859,7 @@ mod tests {
             rcl_handle: unsafe { rcl_get_zero_initialized_client() },
             response_channels: HashMap::new(),
             poll_available_channels: AvailabilityWaiters::default(),
+            availability_poll_count: AtomicUsize::new(0),
         };
         let (sender, receiver) = oneshot::channel();
         client.register_poll_available(sender);
@@ -822,6 +878,7 @@ mod tests {
             rcl_handle: unsafe { rcl_get_zero_initialized_client() },
             response_channels: HashMap::new(),
             poll_available_channels: AvailabilityWaiters::default(),
+            availability_poll_count: AtomicUsize::new(0),
         };
         let (sender, receiver) = oneshot::channel();
         client.register_poll_available(sender);

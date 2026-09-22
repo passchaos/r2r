@@ -647,6 +647,8 @@ pub struct Node {
     client_identities: HashMap<usize, usize>,
     dropped_clients: Arc<Mutex<VecDeque<usize>>>,
     pending_client_removals: HashSet<usize>,
+    active_availability_clients: Arc<Mutex<VecDeque<usize>>>,
+    clients_with_active_availability: HashSet<usize>,
     // action clients
     action_clients: Vec<Arc<Mutex<dyn ActionClient_>>>,
     action_client_identities: HashMap<usize, usize>,
@@ -1278,6 +1280,8 @@ impl Node {
                 client_identities: HashMap::new(),
                 dropped_clients: Arc::new(Mutex::new(VecDeque::new())),
                 pending_client_removals: HashSet::new(),
+                active_availability_clients: Arc::new(Mutex::new(VecDeque::new())),
+                clients_with_active_availability: HashSet::new(),
                 action_clients: Vec::new(),
                 action_client_identities: HashMap::new(),
                 dropped_action_clients: Arc::new(Mutex::new(VecDeque::new())),
@@ -2990,12 +2994,18 @@ impl Node {
             rcl_handle: client_handle,
             response_channels: HashMap::new(),
             poll_available_channels: AvailabilityWaiters::default(),
+            #[cfg(test)]
+            availability_poll_count: std::sync::atomic::AtomicUsize::new(0),
         };
 
         let client_arc = Arc::new(Mutex::new(ws));
         let identity = Self::client_identity(&client_arc);
-        let c =
-            make_client(Arc::downgrade(&client_arc), identity, Arc::clone(&self.dropped_clients));
+        let c = make_client(
+            Arc::downgrade(&client_arc),
+            identity,
+            Arc::clone(&self.dropped_clients),
+            Arc::clone(&self.active_availability_clients),
+        );
         self.client_identities.insert(identity, self.clients.len());
         self.clients.push(client_arc);
         Ok(c)
@@ -3050,6 +3060,8 @@ impl Node {
             rcl_handle: client_handle,
             response_channels: HashMap::new(),
             poll_available_channels: AvailabilityWaiters::default(),
+            #[cfg(test)]
+            availability_poll_count: std::sync::atomic::AtomicUsize::new(0),
         };
 
         let client_arc = Arc::new(Mutex::new(client));
@@ -3058,6 +3070,7 @@ impl Node {
             Arc::downgrade(&client_arc),
             identity,
             Arc::clone(&self.dropped_clients),
+            Arc::clone(&self.active_availability_clients),
         );
         self.client_identities.insert(identity, self.clients.len());
         self.clients.push(client_arc);
@@ -3594,13 +3607,27 @@ impl Node {
             }
         }
 
-        // as well as polling any services/action servers for availability
-        for c in &mut self.clients {
-            complete_client_operation(c, |client| {
+        {
+            let mut active = self.active_availability_clients.lock();
+            self.clients_with_active_availability
+                .extend(active.drain(..));
+        }
+        let clients_with_active_availability =
+            std::mem::take(&mut self.clients_with_active_availability);
+        for identity in clients_with_active_availability {
+            let Some(index) = self.client_identities.get(&identity).copied() else {
+                continue;
+            };
+            let client = &self.clients[index];
+            complete_client_operation(client, |client| {
                 Ok(client.poll_available(self.node_handle.as_mut()))
             })?;
+            if client.lock().has_pending_availability() {
+                self.clients_with_active_availability.insert(identity);
+            }
         }
 
+        // Poll action clients for cleanup work and availability.
         for c in &mut self.action_clients {
             complete_action_client_operation(
                 c,
@@ -10065,6 +10092,51 @@ mod tests {
         }
         assert!(action_client.is_available(&node).unwrap());
         assert!(untyped_action_client.is_available(&node).unwrap());
+    }
+
+    #[test]
+    fn service_availability_waiters_poll_only_the_active_client() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "client_sparse_availability_test", "").unwrap();
+        let active = node
+            .create_client::<AddTwoInts::Service>(
+                "/active_client_availability",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let _idle = node
+            .create_client::<AddTwoInts::Service>(
+                "/idle_client_availability",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let active_state = active.client.upgrade().unwrap();
+        let active_identity = Node::client_identity(&active_state);
+        let active_index = node.client_identities[&active_identity];
+        let idle_index = usize::from(active_index == 0);
+
+        let wait = Node::is_available(&active).unwrap();
+        assert_eq!(
+            node.active_availability_clients
+                .lock()
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            [active_identity]
+        );
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(node.clients_with_active_availability, HashSet::from([active_identity]));
+        assert_eq!(node.clients[active_index].lock().availability_poll_count(), 1);
+        assert_eq!(node.clients[idle_index].lock().availability_poll_count(), 0);
+
+        drop(wait);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.clients_with_active_availability.is_empty());
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(node.clients[active_index].lock().availability_poll_count(), 2);
+        assert_eq!(node.clients[idle_index].lock().availability_poll_count(), 0);
     }
 
     #[test]
