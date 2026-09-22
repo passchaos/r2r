@@ -6,7 +6,7 @@ use futures::{
 use indexmap::IndexMap;
 use parking_lot::Mutex;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     ffi::{CStr, CString},
     future::Future,
     marker::PhantomPinned,
@@ -137,21 +137,71 @@ impl ParameterEventChanges {
 
 #[derive(Clone)]
 struct ParameterEventSink {
-    sender: Arc<Mutex<mpsc::Sender<(String, ParameterValue)>>>,
+    channel: Arc<Mutex<ParameterEventChannel>>,
     publisher: Publisher<rcl_interfaces::msg::ParameterEvent>,
     clock: Arc<Mutex<Clock>>,
     node_name: String,
 }
 
+type LocalParameterEvent = (String, ParameterValue);
+
+struct ParameterEventChannel {
+    sender: Option<mpsc::Sender<LocalParameterEvent>>,
+    pending: VecDeque<LocalParameterEvent>,
+}
+
+struct ParameterEventSenderLease {
+    channel: Arc<Mutex<ParameterEventChannel>>,
+    sender: Option<mpsc::Sender<LocalParameterEvent>>,
+}
+
+impl Drop for ParameterEventSenderLease {
+    fn drop(&mut self) {
+        if let Some(sender) = self.sender.take() {
+            self.channel.lock().sender = Some(sender);
+        }
+    }
+}
+
+fn deliver_local_parameter_events(
+    channel: &Arc<Mutex<ParameterEventChannel>>, events: Vec<LocalParameterEvent>,
+) {
+    let sender = {
+        let mut channel = channel.lock();
+        channel.pending.extend(events);
+        channel.sender.take()
+    };
+    let Some(sender) = sender else {
+        return;
+    };
+    let mut lease = ParameterEventSenderLease {
+        channel: Arc::clone(channel),
+        sender: Some(sender),
+    };
+
+    loop {
+        let event = {
+            let mut channel = lease.channel.lock();
+            match channel.pending.pop_front() {
+                Some(event) => Some(event),
+                None => {
+                    channel.sender = lease.sender.take();
+                    None
+                }
+            }
+        };
+        let Some(event) = event else {
+            return;
+        };
+        if let Err(err) = lease.sender.as_mut().unwrap().try_send(event) {
+            log::debug!("Warning: could not send parameter event ({err}).");
+        }
+    }
+}
+
 impl ParameterEventSink {
     fn notify(&self, changed: Vec<(String, ParameterValue)>, ros_events: ParameterEventChanges) {
-        let mut sender = self.sender.lock();
-        for event in changed {
-            if let Err(err) = sender.try_send(event) {
-                log::debug!("Warning: could not send parameter event ({err}).");
-            }
-        }
-        drop(sender);
+        deliver_local_parameter_events(&self.channel, changed);
         ros_events.publish(&self.publisher, &self.clock, &self.node_name);
     }
 }
@@ -1078,7 +1128,10 @@ impl Node {
             )?;
         let parameter_event_clock = self.ros_clock.clone();
         let parameter_event_sink = ParameterEventSink {
-            sender: Arc::new(Mutex::new(set_event_tx)),
+            channel: Arc::new(Mutex::new(ParameterEventChannel {
+                sender: Some(set_event_tx),
+                pending: VecDeque::new(),
+            })),
             publisher: parameter_event_publisher,
             clock: parameter_event_clock,
             node_name: fully_qualified_node_name,
@@ -4235,7 +4288,63 @@ fn convert_info_array_to_vec(
 mod tests {
     use super::*;
     use crate::{ActionGoalOptions, GoalStatus};
-    use futures::{executor::LocalPool, task::LocalSpawnExt};
+    use futures::{
+        executor::LocalPool,
+        task::{waker_ref, ArcWake, LocalSpawnExt},
+    };
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::task::Poll;
+
+    struct ReentrantParameterEventWake {
+        channel: Arc<Mutex<ParameterEventChannel>>,
+        woke: AtomicBool,
+    }
+
+    impl ArcWake for ReentrantParameterEventWake {
+        fn wake_by_ref(arc_self: &Arc<Self>) {
+            assert!(arc_self.channel.try_lock().is_some());
+            if !arc_self.woke.swap(true, Ordering::SeqCst) {
+                deliver_local_parameter_events(
+                    &arc_self.channel,
+                    vec![("nested".into(), ParameterValue::Integer(2))],
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn parameter_events_wake_and_reenter_after_releasing_the_sender_lock() {
+        let (sender, mut receiver) = mpsc::channel(2);
+        let channel = Arc::new(Mutex::new(ParameterEventChannel {
+            sender: Some(sender),
+            pending: VecDeque::new(),
+        }));
+        let wake = Arc::new(ReentrantParameterEventWake {
+            channel: Arc::clone(&channel),
+            woke: AtomicBool::new(false),
+        });
+        let waker = waker_ref(&wake);
+        let mut context = std::task::Context::from_waker(&waker);
+        assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Pending));
+
+        deliver_local_parameter_events(
+            &channel,
+            vec![("outer".into(), ParameterValue::Integer(1))],
+        );
+
+        assert!(wake.woke.load(Ordering::SeqCst));
+        assert_eq!(
+            receiver.next().now_or_never().flatten(),
+            Some(("outer".into(), ParameterValue::Integer(1)))
+        );
+        assert_eq!(
+            receiver.next().now_or_never().flatten(),
+            Some(("nested".into(), ParameterValue::Integer(2)))
+        );
+        let channel = channel.lock();
+        assert!(channel.sender.is_some());
+        assert!(channel.pending.is_empty());
+    }
 
     #[derive(Debug)]
     struct LocalSetParams {
