@@ -1,6 +1,6 @@
 use crate::{
     rcl_interfaces::{msg, srv},
-    Client, Error, Node, ParameterValue, QosProfile, Result,
+    Client, Error, Node, ParameterType, ParameterValue, QosProfile, Result,
 };
 use futures::{future::try_join_all, Future, FutureExt, TryFutureExt};
 use std::time::Duration;
@@ -95,7 +95,7 @@ impl ParameterClient {
 
     pub fn get_parameter_types<I, S>(
         &self, names: I,
-    ) -> Result<impl Future<Output = Result<Vec<u8>>>>
+    ) -> Result<impl Future<Output = Result<Vec<ParameterType>>>>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
@@ -104,7 +104,13 @@ impl ParameterClient {
             names: strings(names),
         };
         let response = self.get_parameter_types.request(&request)?;
-        Ok(response.map(|response| response.map(|response| response.types)))
+        Ok(response.and_then(|response| async move {
+            response
+                .types
+                .into_iter()
+                .map(ParameterType::try_from)
+                .collect()
+        }))
     }
 
     pub fn describe_parameters<I, S>(
@@ -268,10 +274,7 @@ mod tests {
         );
         assert_eq!(
             drive(&mut node, &mut pool, client.get_parameter_types(names).unwrap(),),
-            vec![
-                msg::ParameterType::PARAMETER_INTEGER as u8,
-                msg::ParameterType::PARAMETER_NOT_SET as u8,
-            ]
+            vec![ParameterType::Integer, ParameterType::NotSet]
         );
         let descriptors = drive(&mut node, &mut pool, client.describe_parameters(names).unwrap());
         assert_eq!(descriptors[0].description, "even answer");
@@ -333,6 +336,12 @@ mod tests {
                 QosProfile::parameters(),
             )
             .unwrap();
+        let mut type_requests = node
+            .create_service::<srv::GetParameterTypes::Service>(
+                "/malformed_target/get_parameter_types",
+                QosProfile::parameters(),
+            )
+            .unwrap();
         let client = node.create_parameter_client("/malformed_target").unwrap();
         let mut response = Box::pin(client.get_parameters(["bad"]).unwrap());
 
@@ -345,6 +354,22 @@ mod tests {
                             type_: u8::MAX,
                             ..Default::default()
                         }],
+                    })
+                    .unwrap();
+            }
+            if let Some(result) = response.as_mut().now_or_never() {
+                assert!(matches!(result, Err(Error::UnknownParameterType { type_: u8::MAX })));
+                break;
+            }
+        }
+
+        let mut response = Box::pin(client.get_parameter_types(["bad"]).unwrap());
+        loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(request) = type_requests.next().now_or_never().flatten() {
+                request
+                    .respond(srv::GetParameterTypes::Response {
+                        types: vec![u8::MAX],
                     })
                     .unwrap();
             }

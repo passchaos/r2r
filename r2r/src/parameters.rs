@@ -89,6 +89,48 @@ pub enum ParameterValue {
     StringArray(Vec<String>),
 }
 
+/// Strongly typed identifier used by ROS parameter values and type queries.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ParameterType {
+    NotSet = 0,
+    Bool = 1,
+    Integer = 2,
+    Double = 3,
+    String = 4,
+    ByteArray = 5,
+    BoolArray = 6,
+    IntegerArray = 7,
+    DoubleArray = 8,
+    StringArray = 9,
+}
+
+impl TryFrom<u8> for ParameterType {
+    type Error = Error;
+
+    fn try_from(type_: u8) -> Result<Self> {
+        match type_ {
+            0 => Ok(Self::NotSet),
+            1 => Ok(Self::Bool),
+            2 => Ok(Self::Integer),
+            3 => Ok(Self::Double),
+            4 => Ok(Self::String),
+            5 => Ok(Self::ByteArray),
+            6 => Ok(Self::BoolArray),
+            7 => Ok(Self::IntegerArray),
+            8 => Ok(Self::DoubleArray),
+            9 => Ok(Self::StringArray),
+            type_ => Err(Error::UnknownParameterType { type_ }),
+        }
+    }
+}
+
+impl From<ParameterType> for u8 {
+    fn from(type_: ParameterType) -> Self {
+        type_ as u8
+    }
+}
+
 #[derive(Debug)]
 pub struct WrongParameterType {
     pub expected_type_name: &'static str,
@@ -232,82 +274,72 @@ impl ParameterValue {
     pub(crate) fn try_from_parameter_value_msg(
         msg: rcl_interfaces::msg::ParameterValue,
     ) -> Result<Self> {
-        // todo: use constants from ParameterType message
-        let value = match msg.type_ {
-            0 => ParameterValue::NotSet,
-            1 => ParameterValue::Bool(msg.bool_value),
-            2 => ParameterValue::Integer(msg.integer_value),
-            3 => ParameterValue::Double(msg.double_value),
-            4 => ParameterValue::String(msg.string_value),
-            5 => ParameterValue::ByteArray(msg.byte_array_value),
-            6 => ParameterValue::BoolArray(msg.bool_array_value),
-            7 => ParameterValue::IntegerArray(msg.integer_array_value),
-            8 => ParameterValue::DoubleArray(msg.double_array_value),
-            9 => ParameterValue::StringArray(msg.string_array_value),
-            type_ => return Err(Error::UnknownParameterType { type_ }),
+        let value = match ParameterType::try_from(msg.type_)? {
+            ParameterType::NotSet => ParameterValue::NotSet,
+            ParameterType::Bool => ParameterValue::Bool(msg.bool_value),
+            ParameterType::Integer => ParameterValue::Integer(msg.integer_value),
+            ParameterType::Double => ParameterValue::Double(msg.double_value),
+            ParameterType::String => ParameterValue::String(msg.string_value),
+            ParameterType::ByteArray => ParameterValue::ByteArray(msg.byte_array_value),
+            ParameterType::BoolArray => ParameterValue::BoolArray(msg.bool_array_value),
+            ParameterType::IntegerArray => ParameterValue::IntegerArray(msg.integer_array_value),
+            ParameterType::DoubleArray => ParameterValue::DoubleArray(msg.double_array_value),
+            ParameterType::StringArray => ParameterValue::StringArray(msg.string_array_value),
         };
         Ok(value)
     }
 
     pub(crate) fn into_parameter_value_msg(self) -> rcl_interfaces::msg::ParameterValue {
-        let mut ret = rcl_interfaces::msg::ParameterValue::default();
+        let mut ret = rcl_interfaces::msg::ParameterValue {
+            type_: self.parameter_type().into(),
+            ..Default::default()
+        };
 
         match self {
-            ParameterValue::NotSet => {
-                ret.type_ = 0; // uint8 PARAMETER_NOT_SET=0
-            }
+            ParameterValue::NotSet => {}
             ParameterValue::Bool(b) => {
-                ret.type_ = 1; // uint8 PARAMETER_BOOL=1
                 ret.bool_value = b;
             }
             ParameterValue::Integer(i) => {
-                ret.type_ = 2; // uint8 PARAMETER_INTEGER=2
                 ret.integer_value = i;
             }
             ParameterValue::Double(d) => {
-                ret.type_ = 3; // uint8 PARAMETER_DOUBLE=3
                 ret.double_value = d;
             }
             ParameterValue::String(s) => {
-                ret.type_ = 4; // uint8 PARAMETER_STRING=4
                 ret.string_value = s;
             }
             ParameterValue::ByteArray(ba) => {
-                ret.type_ = 5; // uint8 PARAMETER_BYTE_ARRAY=5
                 ret.byte_array_value = ba;
             }
             ParameterValue::BoolArray(ba) => {
-                ret.type_ = 6; // uint8 PARAMETER_BOOL_ARRAY=6
                 ret.bool_array_value = ba;
             }
             ParameterValue::IntegerArray(ia) => {
-                ret.type_ = 7; // uint8 PARAMETER_INTEGER_ARRAY=7
                 ret.integer_array_value = ia;
             }
             ParameterValue::DoubleArray(da) => {
-                ret.type_ = 8; // uint8 PARAMETER_DOUBLE_ARRAY=8
                 ret.double_array_value = da;
             }
             ParameterValue::StringArray(sa) => {
-                ret.type_ = 9; // int PARAMETER_STRING_ARRAY=9
                 ret.string_array_value = sa;
             }
         }
         ret
     }
 
-    pub(crate) fn parameter_type(&self) -> u8 {
+    pub const fn parameter_type(&self) -> ParameterType {
         match self {
-            ParameterValue::NotSet => 0,          // uint8 PARAMETER_NOT_SET=0
-            ParameterValue::Bool(_) => 1,         // uint8 PARAMETER_BOOL=1
-            ParameterValue::Integer(_) => 2,      // uint8 PARAMETER_INTEGER=2
-            ParameterValue::Double(_) => 3,       // uint8 PARAMETER_DOUBLE=3
-            ParameterValue::String(_) => 4,       // uint8 PARAMETER_STRING=4
-            ParameterValue::ByteArray(_) => 5,    // uint8 PARAMETER_BYTE_ARRAY=5
-            ParameterValue::BoolArray(_) => 6,    // uint8 PARAMETER_BOOL_ARRAY=6
-            ParameterValue::IntegerArray(_) => 7, // uint8 PARAMETER_INTEGER_ARRAY=7
-            ParameterValue::DoubleArray(_) => 8,  // uint8 PARAMETER_DOUBLE_ARRAY=8
-            ParameterValue::StringArray(_) => 9,  // int PARAMETER_STRING_ARRAY=9
+            ParameterValue::NotSet => ParameterType::NotSet,
+            ParameterValue::Bool(_) => ParameterType::Bool,
+            ParameterValue::Integer(_) => ParameterType::Integer,
+            ParameterValue::Double(_) => ParameterType::Double,
+            ParameterValue::String(_) => ParameterType::String,
+            ParameterValue::ByteArray(_) => ParameterType::ByteArray,
+            ParameterValue::BoolArray(_) => ParameterType::BoolArray,
+            ParameterValue::IntegerArray(_) => ParameterType::IntegerArray,
+            ParameterValue::DoubleArray(_) => ParameterType::DoubleArray,
+            ParameterValue::StringArray(_) => ParameterType::StringArray,
         }
     }
 }
@@ -394,7 +426,7 @@ pub(crate) fn validate_parameter_update(
         });
     }
 
-    let actual_type = value.parameter_type();
+    let actual_type = u8::from(value.parameter_type());
     if !descriptor.dynamic_typing {
         if actual_type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET as u8 {
             return Err(Error::ParameterConstraintViolation {
@@ -844,7 +876,7 @@ mod tests {
     fn descriptor_for(value: &ParameterValue) -> ParameterDescriptor {
         ParameterDescriptor {
             name: "value".into(),
-            type_: value.parameter_type(),
+            type_: value.parameter_type().into(),
             ..Default::default()
         }
     }
@@ -964,6 +996,54 @@ mod tests {
 
     #[test]
     fn unknown_wire_parameter_types_are_rejected() {
+        let known_types = [
+            (
+                ParameterType::NotSet,
+                rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET as u8,
+            ),
+            (ParameterType::Bool, rcl_interfaces::msg::ParameterType::PARAMETER_BOOL as u8),
+            (
+                ParameterType::Integer,
+                rcl_interfaces::msg::ParameterType::PARAMETER_INTEGER as u8,
+            ),
+            (
+                ParameterType::Double,
+                rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE as u8,
+            ),
+            (
+                ParameterType::String,
+                rcl_interfaces::msg::ParameterType::PARAMETER_STRING as u8,
+            ),
+            (
+                ParameterType::ByteArray,
+                rcl_interfaces::msg::ParameterType::PARAMETER_BYTE_ARRAY as u8,
+            ),
+            (
+                ParameterType::BoolArray,
+                rcl_interfaces::msg::ParameterType::PARAMETER_BOOL_ARRAY as u8,
+            ),
+            (
+                ParameterType::IntegerArray,
+                rcl_interfaces::msg::ParameterType::PARAMETER_INTEGER_ARRAY as u8,
+            ),
+            (
+                ParameterType::DoubleArray,
+                rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE_ARRAY as u8,
+            ),
+            (
+                ParameterType::StringArray,
+                rcl_interfaces::msg::ParameterType::PARAMETER_STRING_ARRAY as u8,
+            ),
+        ];
+        for (parameter_type, wire_type) in known_types {
+            assert_eq!(u8::from(parameter_type), wire_type);
+            assert_eq!(ParameterType::try_from(wire_type).unwrap(), parameter_type);
+        }
+
+        assert!(matches!(
+            ParameterType::try_from(u8::MAX),
+            Err(Error::UnknownParameterType { type_: u8::MAX })
+        ));
         let malformed = rcl_interfaces::msg::ParameterValue {
             type_: u8::MAX,
             integer_value: 42,

@@ -361,15 +361,13 @@ fn describe_parameter_values(
         .collect()
 }
 
-fn parameter_types(names: &[String], params: &IndexMap<String, Parameter>) -> Vec<u8> {
+fn parameter_types(names: &[String], params: &IndexMap<String, Parameter>) -> Vec<ParameterType> {
     names
         .iter()
         .map(|name| {
             params
                 .get(name)
-                .map_or(rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET as u8, |parameter| {
-                    parameter.value.parameter_type()
-                })
+                .map_or(ParameterType::NotSet, |parameter| parameter.value.parameter_type())
         })
         .collect()
 }
@@ -859,7 +857,7 @@ impl Node {
             return Err(Error::InvalidParameterName { name });
         }
         descriptor.name = name.clone();
-        descriptor.type_ = default_value.parameter_type();
+        descriptor.type_ = default_value.parameter_type().into();
         validate_parameter_descriptor(&name, &descriptor)?;
 
         let (value, fallback_description) = self.params.lock().get(&name).map_or_else(
@@ -873,7 +871,7 @@ impl Node {
             }
         }
         if descriptor.dynamic_typing {
-            descriptor.type_ = value.parameter_type();
+            descriptor.type_ = value.parameter_type().into();
         }
 
         validate_parameter_callbacks(
@@ -926,7 +924,7 @@ impl Node {
             });
         }
         descriptor.name = name.clone();
-        descriptor.type_ = value.parameter_type();
+        descriptor.type_ = value.parameter_type().into();
         validate_parameter_descriptor(&name, &descriptor)?;
         validate_parameter_update(&name, &value, &descriptor, false)?;
         descriptors.insert(name, descriptor);
@@ -1208,7 +1206,10 @@ impl Node {
         let get_param_types_future = get_param_types_request_stream.for_each(
             move |req: ServiceRequest<GetParameterTypes::Service>| {
                 let params = params.lock();
-                let types = parameter_types(&req.message.names, &params);
+                let types = parameter_types(&req.message.names, &params)
+                    .into_iter()
+                    .map(Into::into)
+                    .collect();
                 if let Err(err) = req.respond(GetParameterTypes::Response { types }) {
                     log::warn!("could not send reply to get parameter types request: {err}");
                 }
@@ -1317,7 +1318,7 @@ impl Node {
     ) -> ParameterDescriptor {
         ParameterDescriptor {
             name: name.to_owned(),
-            type_: parameter.value.parameter_type(),
+            type_: parameter.value.parameter_type().into(),
             description: parameter.description.to_owned(),
             dynamic_typing,
             ..Default::default()
@@ -1336,7 +1337,7 @@ impl Node {
                 )
             });
             descriptor.name = name.clone();
-            descriptor.type_ = parameter.value.parameter_type();
+            descriptor.type_ = parameter.value.parameter_type().into();
             if name == "use_sim_time" {
                 descriptor.dynamic_typing = false;
             }
@@ -1358,7 +1359,7 @@ impl Node {
         }
         if let Some(descriptor) = descriptors.get_mut(name) {
             if descriptor.dynamic_typing {
-                descriptor.type_ = value.parameter_type();
+                descriptor.type_ = value.parameter_type().into();
             }
         } else {
             let dynamic_typing = name != "use_sim_time";
@@ -1366,7 +1367,7 @@ impl Node {
                 name.to_owned(),
                 ParameterDescriptor {
                     name: name.to_owned(),
-                    type_: value.parameter_type(),
+                    type_: value.parameter_type().into(),
                     dynamic_typing,
                     ..Default::default()
                 },
@@ -1486,8 +1487,8 @@ impl Node {
         describe_parameter_values(&names, &self.params.lock(), &self.parameter_descriptors.lock())
     }
 
-    /// Returns ROS parameter type identifiers in the same order as `names`.
-    pub fn get_parameter_types<I, S>(&self, names: I) -> Vec<u8>
+    /// Returns parameter types in the same order as `names`.
+    pub fn get_parameter_types<I, S>(&self, names: I) -> Vec<ParameterType>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
@@ -4405,7 +4406,11 @@ mod tests {
                 })
                 .unwrap(),
         )
-        .types;
+        .types
+        .into_iter()
+        .map(ParameterType::try_from)
+        .collect::<Result<Vec<_>>>()
+        .unwrap();
         let remote_descriptors = drive(
             &mut node,
             &mut pool,

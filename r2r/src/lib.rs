@@ -137,7 +137,7 @@ pub use context::{Context, ContextOptions};
 mod parameters;
 pub use parameters::{
     FloatingPointRange, IntegerRange, Parameter, ParameterDescriptor, ParameterEventChange,
-    ParameterEventKind, ParameterValue, RosParams, WrongParameterType,
+    ParameterEventKind, ParameterType, ParameterValue, RosParams, WrongParameterType,
 };
 
 pub use r2r_macros::RosParams;
