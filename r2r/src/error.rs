@@ -76,6 +76,8 @@ pub enum Error {
     RCL_RET_INVALID_PARAM_RULE,
     #[error("RCL_RET_INVALID_LOG_LEVEL_RULE")]
     RCL_RET_INVALID_LOG_LEVEL_RULE,
+    #[error("RCL_RET_INVALID_ROS_ARGS")]
+    RCL_RET_INVALID_ROS_ARGS,
     #[error("RCL_RET_EVENT_INVALID")]
     RCL_RET_EVENT_INVALID,
     #[error("RCL_RET_EVENT_TAKE_FAILED")]
@@ -217,6 +219,7 @@ impl Error {
             _ if e == RCL_RET_WRONG_LEXEME => Error::RCL_RET_WRONG_LEXEME,
             _ if e == RCL_RET_INVALID_PARAM_RULE => Error::RCL_RET_INVALID_PARAM_RULE,
             _ if e == RCL_RET_INVALID_LOG_LEVEL_RULE => Error::RCL_RET_INVALID_LOG_LEVEL_RULE,
+            _ if e == RCL_RET_INVALID_ROS_ARGS => Error::RCL_RET_INVALID_ROS_ARGS,
             _ if e == RCL_RET_EVENT_INVALID => Error::RCL_RET_EVENT_INVALID,
             _ if e == RCL_RET_EVENT_TAKE_FAILED => Error::RCL_RET_EVENT_TAKE_FAILED,
             _ if e == r2r_actions::RCL_RET_ACTION_NAME_INVALID => {

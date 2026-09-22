@@ -56,17 +56,19 @@ impl Drop for RclParams {
     }
 }
 
-fn parameter_overrides(context: &Mutex<ContextHandle>) -> Result<RclParams> {
+fn parameter_overrides_from_arguments(arguments: &rcl_arguments_t) -> Result<RclParams> {
     let mut params = RclParams(std::ptr::null_mut());
-    let ret = {
-        let context = context.lock();
-        unsafe { rcl_arguments_get_param_overrides(&context.global_arguments, &mut params.0) }
-    };
+    let ret = unsafe { rcl_arguments_get_param_overrides(arguments, &mut params.0) };
     if ret == RCL_RET_OK as i32 {
         Ok(params)
     } else {
         Err(Error::from_rcl_error(ret))
     }
+}
+
+fn parameter_overrides(context: &Mutex<ContextHandle>) -> Result<RclParams> {
+    let context = context.lock();
+    parameter_overrides_from_arguments(&context.global_arguments)
 }
 
 struct NodeOptionsNative(rcl_node_options_t);
@@ -79,14 +81,33 @@ impl NodeOptionsNative {
         if let Some(qos) = &config.rosout_qos {
             options.rosout_qos = qos.clone().into();
         }
-        if !config.use_global_arguments {
-            let ret = unsafe {
-                rcl_parse_arguments(0, std::ptr::null(), options.allocator, &mut options.arguments)
-            };
-            if ret != RCL_RET_OK as i32 {
-                unsafe { rcl_node_options_fini(&mut options) };
-                return Err(Error::from_rcl_error(ret));
-            }
+        let arguments = config
+            .arguments
+            .iter()
+            .map(|argument| {
+                CString::new(argument.as_str()).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let argument_ptrs = arguments
+            .iter()
+            .map(|argument| argument.as_ptr())
+            .collect::<Vec<_>>();
+        let argc =
+            i32::try_from(argument_ptrs.len()).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
+        let argv = if argument_ptrs.is_empty() {
+            std::ptr::null()
+        } else {
+            argument_ptrs.as_ptr()
+        };
+        let ret =
+            unsafe { rcl_parse_arguments(argc, argv, options.allocator, &mut options.arguments) };
+        if ret != RCL_RET_OK as i32 {
+            unsafe { rcl_node_options_fini(&mut options) };
+            return Err(Error::from_rcl_error(ret));
+        }
+        if unsafe { rcl_arguments_get_count_unparsed_ros(&options.arguments) } != 0 {
+            unsafe { rcl_node_options_fini(&mut options) };
+            return Err(Error::RCL_RET_INVALID_ROS_ARGS);
         }
         Ok(Self(options))
     }
@@ -630,6 +651,8 @@ pub struct Node {
 /// Options applied while creating a [`Node`].
 #[derive(Debug, Clone)]
 pub struct NodeOptions {
+    /// ROS-specific arguments applied only to this node.
+    pub arguments: Vec<String>,
     /// Whether the node consumes global ROS arguments from its [`Context`].
     pub use_global_arguments: bool,
     /// Programmatic parameter overrides. These take precedence over global CLI/YAML overrides.
@@ -647,6 +670,7 @@ pub struct NodeOptions {
 impl Default for NodeOptions {
     fn default() -> Self {
         Self {
+            arguments: Vec::new(),
             use_global_arguments: true,
             parameter_overrides: IndexMap::new(),
             automatically_declare_parameters_from_overrides: true,
@@ -658,6 +682,18 @@ impl Default for NodeOptions {
 }
 
 impl NodeOptions {
+    /// Replaces the ROS arguments applied only to this node.
+    ///
+    /// Include an executable name as the first item when matching normal process argv semantics.
+    pub fn arguments<I, S>(mut self, arguments: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.arguments = arguments.into_iter().map(Into::into).collect();
+        self
+    }
+
     pub fn use_global_arguments(mut self, enabled: bool) -> Self {
         self.use_global_arguments = enabled;
         self
@@ -1070,20 +1106,16 @@ impl Node {
         c_str_to_owned(unsafe { CStr::from_ptr(output.output) }, "resolved ROS name")
     }
 
-    fn load_parameter_overrides(&self) -> Result<IndexMap<String, ParameterValue>> {
-        let params = parameter_overrides(&self.context.context_handle).map_err(|err| {
-            log::error!("could not read parameters: {err}");
-            err
-        })?;
-        let mut overrides = IndexMap::new();
-
+    fn append_matching_parameter_overrides(
+        &self, params: RclParams, overrides: &mut IndexMap<String, ParameterValue>,
+    ) -> Result<()> {
         if params.0.is_null() {
-            return Ok(overrides);
+            return Ok(());
         }
 
         let num_nodes = unsafe { (*params.0).num_nodes };
         if num_nodes == 0 {
-            return Ok(overrides);
+            return Ok(());
         }
         unsafe {
             if (*params.0).node_names.is_null() || (*params.0).params.is_null() {
@@ -1092,9 +1124,7 @@ impl Node {
         }
 
         let node_names = unsafe { std::slice::from_raw_parts((*params.0).node_names, num_nodes) };
-
         let node_params = unsafe { std::slice::from_raw_parts((*params.0).params, num_nodes) };
-
         let qualified_name = self.fully_qualified_name()?;
         let name = self.name()?;
 
@@ -1104,10 +1134,6 @@ impl Node {
             }
             let node_name_cstr = unsafe { CStr::from_ptr(*nn) };
             let node_name = c_str_to_str(node_name_cstr, "parameter override node name")?;
-
-            // This is copied from rclcpp, but there is a comment there suggesting
-            // that more wildcards will be added in the future. Take note and mimic
-            // their behavior.
             if !(node_name == "/**"
                 || node_name == "**"
                 || qualified_name == node_name
@@ -1115,7 +1141,6 @@ impl Node {
             {
                 continue;
             }
-
             if np.num_params == 0 {
                 continue;
             }
@@ -1124,21 +1149,36 @@ impl Node {
             }
             let param_names =
                 unsafe { std::slice::from_raw_parts(np.parameter_names, np.num_params) };
-
             let param_values =
                 unsafe { std::slice::from_raw_parts(np.parameter_values, np.num_params) };
-
-            for (s, v) in param_names.iter().zip(param_values) {
-                if s.is_null() {
+            for (name, value) in param_names.iter().zip(param_values) {
+                if name.is_null() {
                     return Err(Error::RCL_RET_ERROR);
                 }
-                let s = unsafe { CStr::from_ptr(*s) };
-                let key = c_str_to_str(s, "parameter override name")?;
-                let val = ParameterValue::from_rcl(v)?;
-                overrides.insert(key.to_owned(), val);
+                let name = unsafe { CStr::from_ptr(*name) };
+                let name = c_str_to_str(name, "parameter override name")?;
+                overrides.insert(name.to_owned(), ParameterValue::from_rcl(value)?);
             }
         }
+        Ok(())
+    }
 
+    fn load_parameter_overrides(
+        &self, local_arguments: &rcl_arguments_t, use_global_arguments: bool,
+    ) -> Result<IndexMap<String, ParameterValue>> {
+        let mut overrides = IndexMap::new();
+        if use_global_arguments {
+            let params = parameter_overrides(&self.context.context_handle).map_err(|err| {
+                log::error!("could not read global parameters: {err}");
+                err
+            })?;
+            self.append_matching_parameter_overrides(params, &mut overrides)?;
+        }
+        let params = parameter_overrides_from_arguments(local_arguments).map_err(|err| {
+            log::error!("could not read parameters: {err}");
+            err
+        })?;
+        self.append_matching_parameter_overrides(params, &mut overrides)?;
         Ok(overrides)
     }
 
@@ -1236,11 +1276,10 @@ impl Node {
             #[cfg(r2r__rosgraph_msgs__msg__Clock)]
             node.time_source
                 .attach_ros_clock(Arc::downgrade(&node.ros_clock))?;
-            let mut parameter_overrides = if options.use_global_arguments {
-                node.load_parameter_overrides()?
-            } else {
-                IndexMap::new()
-            };
+            let mut parameter_overrides = node.load_parameter_overrides(
+                &node_options.0.arguments,
+                options.use_global_arguments,
+            )?;
             parameter_overrides.extend(options.parameter_overrides);
             if options.automatically_declare_parameters_from_overrides {
                 node.params.lock().extend(
@@ -6698,16 +6737,26 @@ mod tests {
         const CHILD_ENV: &str = "R2R_NODE_OPTIONS_CHILD";
         if let Ok(mode) = std::env::var(CHILD_ENV) {
             let context = Context::create().unwrap();
-            let options =
-                match mode.as_str() {
-                    "global" => NodeOptions::default(),
-                    "isolated" => NodeOptions::default().use_global_arguments(false),
-                    "override" => NodeOptions::default()
-                        .parameter_override("answer", ParameterValue::Integer(43)),
-                    "deferred" => NodeOptions::default()
-                        .automatically_declare_parameters_from_overrides(false),
-                    _ => unreachable!(),
-                };
+            let options = match mode.as_str() {
+                "global" => NodeOptions::default(),
+                "isolated" => NodeOptions::default().use_global_arguments(false),
+                "override" => {
+                    NodeOptions::default().parameter_override("answer", ParameterValue::Integer(43))
+                }
+                "local" => {
+                    NodeOptions::default().arguments(["r2r-node", "--ros-args", "-p", "answer:=43"])
+                }
+                "local_isolated" => NodeOptions::default()
+                    .use_global_arguments(false)
+                    .arguments(["r2r-node", "--ros-args", "-p", "answer:=44"]),
+                "programmatic" => NodeOptions::default()
+                    .arguments(["r2r-node", "--ros-args", "-p", "answer:=43"])
+                    .parameter_override("answer", ParameterValue::Integer(44)),
+                "deferred" => {
+                    NodeOptions::default().automatically_declare_parameters_from_overrides(false)
+                }
+                _ => unreachable!(),
+            };
             let node =
                 Node::create_with_options(context, "node_options_cli_test", "", options).unwrap();
             match mode.as_str() {
@@ -6729,6 +6778,27 @@ mod tests {
                         Some(&ParameterValue::Integer(43))
                     );
                 }
+                "local" => {
+                    assert_eq!(node.get_parameter::<i64>("answer").unwrap(), 43);
+                    assert_eq!(
+                        node.parameter_overrides().get("answer"),
+                        Some(&ParameterValue::Integer(43))
+                    );
+                }
+                "local_isolated" => {
+                    assert_eq!(node.get_parameter::<i64>("answer").unwrap(), 44);
+                    assert_eq!(
+                        node.parameter_overrides().get("answer"),
+                        Some(&ParameterValue::Integer(44))
+                    );
+                }
+                "programmatic" => {
+                    assert_eq!(node.get_parameter::<i64>("answer").unwrap(), 44);
+                    assert_eq!(
+                        node.parameter_overrides().get("answer"),
+                        Some(&ParameterValue::Integer(44))
+                    );
+                }
                 "deferred" => {
                     assert!(!node.has_parameter("answer"));
                     assert_eq!(
@@ -6746,7 +6816,15 @@ mod tests {
         }
 
         let test_binary = std::env::current_exe().unwrap();
-        for mode in ["global", "isolated", "override", "deferred"] {
+        for mode in [
+            "global",
+            "isolated",
+            "override",
+            "local",
+            "local_isolated",
+            "programmatic",
+            "deferred",
+        ] {
             let status = std::process::Command::new(&test_binary)
                 .arg("nodes::tests::node_options_control_global_parameter_arguments")
                 .arg("--exact")
@@ -6761,6 +6839,55 @@ mod tests {
                 .unwrap();
             assert!(status.success(), "child mode {mode} failed");
         }
+    }
+
+    #[test]
+    fn node_options_apply_local_name_and_namespace_remaps() {
+        let context = Context::create().unwrap();
+        let node = Node::create_with_options(
+            context,
+            "original_name",
+            "/original_namespace",
+            NodeOptions::default()
+                .use_global_arguments(false)
+                .arguments([
+                    "r2r-node",
+                    "--ros-args",
+                    "-r",
+                    "__node:=remapped_name",
+                    "-r",
+                    "__ns:=/remapped_namespace",
+                ]),
+        )
+        .unwrap();
+
+        assert_eq!(node.name().unwrap(), "remapped_name");
+        assert_eq!(node.namespace().unwrap(), "/remapped_namespace");
+        assert_eq!(node.fully_qualified_name().unwrap(), "/remapped_namespace/remapped_name");
+    }
+
+    #[test]
+    fn node_options_reject_invalid_local_ros_arguments() {
+        let context = Context::create().unwrap();
+
+        assert!(matches!(
+            Node::create_with_options(
+                context.clone(),
+                "invalid_local_argument_test",
+                "",
+                NodeOptions::default().arguments(["r2r-node", "--ros-args", "--unknown"]),
+            ),
+            Err(Error::RCL_RET_INVALID_ROS_ARGS)
+        ));
+        assert!(matches!(
+            Node::create_with_options(
+                context,
+                "nul_local_argument_test",
+                "",
+                NodeOptions::default().arguments(["r2r-node", "bad\0argument"]),
+            ),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
     }
 
     #[test]
