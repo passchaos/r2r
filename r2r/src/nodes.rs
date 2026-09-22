@@ -156,6 +156,7 @@ impl ParameterEventSink {
 }
 
 struct AppliedParameterChanges {
+    updates: Vec<(String, ParameterValue)>,
     changed: Vec<(String, ParameterValue)>,
     ros_events: ParameterEventChanges,
     #[cfg(r2r__rosgraph_msgs__msg__Clock)]
@@ -165,6 +166,7 @@ struct AppliedParameterChanges {
 type ParameterValidationCallback =
     dyn Fn(&[(String, ParameterValue)]) -> Result<()> + Send + Sync + 'static;
 type ParameterPostSetCallback = dyn Fn(&[(String, ParameterValue)]) + Send + Sync + 'static;
+type ParameterPreSetCallback = dyn Fn(&mut Vec<(String, ParameterValue)>) + Send + Sync + 'static;
 
 struct ParameterValidationCallbackEntry {
     id: uuid::Uuid,
@@ -174,6 +176,33 @@ struct ParameterValidationCallbackEntry {
 struct ParameterPostSetCallbackEntry {
     id: uuid::Uuid,
     callback: Arc<ParameterPostSetCallback>,
+}
+
+struct ParameterPreSetCallbackEntry {
+    id: uuid::Uuid,
+    callback: Arc<ParameterPreSetCallback>,
+}
+
+fn transform_parameter_updates(
+    updates: &mut Vec<(String, ParameterValue)>,
+    callbacks: &Arc<Mutex<Vec<ParameterPreSetCallbackEntry>>>,
+) -> Result<()> {
+    let callbacks = callbacks
+        .lock()
+        .iter()
+        .rev()
+        .map(|entry| entry.callback.clone())
+        .collect::<Vec<_>>();
+    let transformed = !callbacks.is_empty();
+    for callback in callbacks {
+        callback(updates);
+    }
+    if transformed && updates.is_empty() {
+        return Err(Error::ParameterUpdateRejected {
+            reason: "pre-set callbacks produced an empty parameter list".into(),
+        });
+    }
+    Ok(())
 }
 
 fn validate_parameter_callbacks(
@@ -228,6 +257,20 @@ pub struct ParameterPostSetCallbackHandle {
 }
 
 impl Drop for ParameterPostSetCallbackHandle {
+    fn drop(&mut self) {
+        if let Some(callbacks) = self.callbacks.upgrade() {
+            callbacks.lock().retain(|entry| entry.id != self.id);
+        }
+    }
+}
+
+/// Keeps a pre-set parameter callback registered until dropped.
+pub struct ParameterPreSetCallbackHandle {
+    id: uuid::Uuid,
+    callbacks: std::sync::Weak<Mutex<Vec<ParameterPreSetCallbackEntry>>>,
+}
+
+impl Drop for ParameterPreSetCallbackHandle {
     fn drop(&mut self) {
         if let Some(callbacks) = self.callbacks.upgrade() {
             callbacks.lock().retain(|entry| entry.id != self.id);
@@ -331,14 +374,16 @@ fn parameter_types(names: &[String], params: &IndexMap<String, Parameter>) -> Ve
 }
 
 fn apply_parameter_updates(
-    updates: &[(String, ParameterValue)], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
+    mut updates: Vec<(String, ParameterValue)>, params: &Arc<Mutex<IndexMap<String, Parameter>>>,
     descriptors: &Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
     provider: Option<&Arc<Mutex<dyn RosParams + Send>>>,
+    pre_callbacks: &Arc<Mutex<Vec<ParameterPreSetCallbackEntry>>>,
     callbacks: &Arc<Mutex<Vec<ParameterValidationCallbackEntry>>>,
 ) -> Result<AppliedParameterChanges> {
+    transform_parameter_updates(&mut updates, pre_callbacks)?;
     {
         let descriptors = descriptors.lock();
-        for (name, value) in updates {
+        for (name, value) in &updates {
             if name == "use_sim_time" && !matches!(value, ParameterValue::Bool(_)) {
                 return Err(Error::InvalidParameterType {
                     name: name.clone(),
@@ -351,7 +396,7 @@ fn apply_parameter_updates(
         }
     }
 
-    validate_parameter_callbacks(updates, callbacks)?;
+    validate_parameter_callbacks(&updates, callbacks)?;
 
     if let Some(provider) = provider {
         let derived_updates = updates
@@ -370,7 +415,7 @@ fn apply_parameter_updates(
     let mut ros_events = ParameterEventChanges::default();
     let mut params = params.lock();
     let mut descriptors = descriptors.lock();
-    for (name, value) in updates {
+    for (name, value) in &updates {
         let previous = params.get(name).map(|parameter| parameter.value.clone());
         if parameter_value_changed(previous.as_ref(), value) {
             changed.push((name.clone(), value.clone()));
@@ -392,6 +437,7 @@ fn apply_parameter_updates(
                 _ => None,
             });
     Ok(AppliedParameterChanges {
+        updates,
         changed,
         ros_events,
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
@@ -410,6 +456,7 @@ pub struct Node {
     parameter_descriptors: Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
     parameter_provider: Option<Arc<Mutex<dyn RosParams + Send>>>,
     parameter_transaction: Arc<Mutex<()>>,
+    parameter_pre_set_callbacks: Arc<Mutex<Vec<ParameterPreSetCallbackEntry>>>,
     parameter_validation_callbacks: Arc<Mutex<Vec<ParameterValidationCallbackEntry>>>,
     parameter_post_set_callbacks: Arc<Mutex<Vec<ParameterPostSetCallbackEntry>>>,
     parameter_event_sink: Option<ParameterEventSink>,
@@ -733,6 +780,7 @@ impl Node {
                 parameter_descriptors: Arc::new(Mutex::new(IndexMap::new())),
                 parameter_provider: None,
                 parameter_transaction: Arc::new(Mutex::new(())),
+                parameter_pre_set_callbacks: Arc::new(Mutex::new(Vec::new())),
                 parameter_validation_callbacks: Arc::new(Mutex::new(Vec::new())),
                 parameter_post_set_callbacks: Arc::new(Mutex::new(Vec::new())),
                 parameter_event_sink: None,
@@ -1008,6 +1056,7 @@ impl Node {
         let params = self.params.clone();
         let parameter_descriptors = self.parameter_descriptors.clone();
         let parameter_transaction = self.parameter_transaction.clone();
+        let parameter_pre_set_callbacks = self.parameter_pre_set_callbacks.clone();
         let parameter_validation_callbacks = self.parameter_validation_callbacks.clone();
         let parameter_post_set_callbacks = self.parameter_post_set_callbacks.clone();
         let params_struct_clone = params_struct.clone();
@@ -1034,10 +1083,11 @@ impl Node {
                     let applied = {
                         let _transaction = parameter_transaction.lock();
                         apply_parameter_updates(
-                            &update,
+                            update,
                             &params,
                             &parameter_descriptors,
                             params_struct_clone.as_ref(),
+                            &parameter_pre_set_callbacks,
                             &parameter_validation_callbacks,
                         )
                     };
@@ -1049,7 +1099,7 @@ impl Node {
                             }
                             set_parameter_event_sink.notify(applied.changed, applied.ros_events);
                             notify_parameter_post_set_callbacks(
-                                &update,
+                                &applied.updates,
                                 &parameter_post_set_callbacks,
                             );
                             result
@@ -1171,6 +1221,7 @@ impl Node {
         let params = self.params.clone();
         let parameter_descriptors = self.parameter_descriptors.clone();
         let parameter_transaction = self.parameter_transaction.clone();
+        let parameter_pre_set_callbacks = self.parameter_pre_set_callbacks.clone();
         let parameter_validation_callbacks = self.parameter_validation_callbacks.clone();
         let parameter_post_set_callbacks = self.parameter_post_set_callbacks.clone();
         let params_struct_clone = params_struct.clone();
@@ -1207,10 +1258,11 @@ impl Node {
                 let update_result = {
                     let _transaction = parameter_transaction.lock();
                     apply_parameter_updates(
-                        &updates,
+                        updates,
                         &params,
                         &parameter_descriptors,
                         params_struct_clone.as_ref(),
+                        &parameter_pre_set_callbacks,
                         &parameter_validation_callbacks,
                     )
                 };
@@ -1224,7 +1276,7 @@ impl Node {
                         }
                         atomic_parameter_event_sink.notify(applied.changed, applied.ros_events);
                         notify_parameter_post_set_callbacks(
-                            &updates,
+                            &applied.updates,
                             &parameter_post_set_callbacks,
                         );
                     }
@@ -1531,6 +1583,29 @@ impl Node {
         }
     }
 
+    /// Registers a callback that may transform a parameter batch before validation.
+    ///
+    /// Callbacks run in reverse registration order and each sees the batch produced by the
+    /// previous callback. The final batch is then validated and committed atomically. Producing
+    /// an empty batch rejects the update. Keep the returned handle alive to keep the callback
+    /// registered. Parameter declaration and explicit undeclaration do not invoke this callback.
+    pub fn add_pre_set_parameters_callback<F>(&self, callback: F) -> ParameterPreSetCallbackHandle
+    where
+        F: Fn(&mut Vec<(String, ParameterValue)>) + Send + Sync + 'static,
+    {
+        let id = uuid::Uuid::new_v4();
+        self.parameter_pre_set_callbacks
+            .lock()
+            .push(ParameterPreSetCallbackEntry {
+                id,
+                callback: Arc::new(callback),
+            });
+        ParameterPreSetCallbackHandle {
+            id,
+            callbacks: Arc::downgrade(&self.parameter_pre_set_callbacks),
+        }
+    }
+
     /// Registers a callback invoked after a parameter transaction succeeds.
     ///
     /// Callbacks run in reverse registration order. They receive the complete successful input
@@ -1566,10 +1641,11 @@ impl Node {
         let applied = {
             let _transaction = self.parameter_transaction.lock();
             apply_parameter_updates(
-                &updates,
+                updates,
                 &self.params,
                 &self.parameter_descriptors,
                 self.parameter_provider.as_ref(),
+                &self.parameter_pre_set_callbacks,
                 &self.parameter_validation_callbacks,
             )?
         };
@@ -1580,7 +1656,7 @@ impl Node {
         if let Some(sink) = &self.parameter_event_sink {
             sink.notify(applied.changed, applied.ros_events);
         }
-        notify_parameter_post_set_callbacks(&updates, &self.parameter_post_set_callbacks);
+        notify_parameter_post_set_callbacks(&applied.updates, &self.parameter_post_set_callbacks);
         Ok(())
     }
 
@@ -4609,6 +4685,125 @@ mod tests {
         );
         drop(first);
         drop(reject);
+    }
+
+    #[test]
+    fn pre_set_callbacks_transform_the_final_transaction_batch() {
+        use rcl_interfaces::{msg, srv::SetParametersAtomically};
+
+        fn drive<T>(
+            node: &mut Node, pool: &mut LocalPool, future: impl Future<Output = Result<T>>,
+        ) -> T {
+            let mut future = Box::pin(future);
+            loop {
+                node.try_spin_once(Duration::from_millis(10)).unwrap();
+                pool.run_until_stalled();
+                if let Some(result) = future.as_mut().now_or_never() {
+                    return result.unwrap();
+                }
+            }
+        }
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "pre_parameter_callback_test", "").unwrap();
+        node.params
+            .lock()
+            .insert("source".into(), Parameter::new(ParameterValue::Integer(0)));
+        node.params
+            .lock()
+            .insert("derived".into(), Parameter::new(ParameterValue::Integer(0)));
+        let (handler, mut events) = node.make_parameter_handler().unwrap();
+        let client = node
+            .create_client::<SetParametersAtomically::Service>(
+                "pre_parameter_callback_test/set_parameters_atomically",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let mut pool = LocalPool::new();
+        pool.spawner().spawn_local(handler).unwrap();
+
+        let order = Arc::new(Mutex::new(Vec::new()));
+        let first_order = order.clone();
+        let first = node.add_pre_set_parameters_callback(move |updates| {
+            first_order.lock().push("first");
+            if let Some((_, value)) = updates.iter_mut().find(|(name, _)| name == "derived") {
+                *value = ParameterValue::Integer(20);
+            }
+        });
+        let second_order = order.clone();
+        let second = node.add_pre_set_parameters_callback(move |updates| {
+            second_order.lock().push("second");
+            updates.push(("derived".into(), ParameterValue::Integer(10)));
+        });
+        let validated = Arc::new(Mutex::new(Vec::new()));
+        let validated_callback = validated.clone();
+        let validation = node.add_on_set_parameters_callback(move |updates| {
+            *validated_callback.lock() = updates.to_vec();
+            Ok(())
+        });
+        let posted = Arc::new(Mutex::new(Vec::new()));
+        let posted_callback = posted.clone();
+        let post = node.add_post_set_parameters_callback(move |updates| {
+            *posted_callback.lock() = updates.to_vec();
+        });
+
+        node.set_parameter("source", ParameterValue::Integer(1))
+            .unwrap();
+        assert_eq!(*order.lock(), vec!["second", "first"]);
+        let expected = vec![
+            ("source".into(), ParameterValue::Integer(1)),
+            ("derived".into(), ParameterValue::Integer(20)),
+        ];
+        assert_eq!(*validated.lock(), expected);
+        assert_eq!(*posted.lock(), expected);
+        assert_eq!(node.get_parameter::<i64>("source").unwrap(), 1);
+        assert_eq!(node.get_parameter::<i64>("derived").unwrap(), 20);
+        assert_eq!(events.next().now_or_never().flatten(), Some(expected[0].clone()));
+        assert_eq!(events.next().now_or_never().flatten(), Some(expected[1].clone()));
+
+        order.lock().clear();
+        let response = drive(
+            &mut node,
+            &mut pool,
+            client
+                .request(&SetParametersAtomically::Request {
+                    parameters: vec![msg::Parameter {
+                        name: "source".into(),
+                        value: ParameterValue::Integer(2).into_parameter_value_msg(),
+                    }],
+                })
+                .unwrap(),
+        );
+        assert!(response.result.successful);
+        assert_eq!(*order.lock(), vec!["second", "first"]);
+        assert_eq!(node.get_parameter::<i64>("source").unwrap(), 2);
+        assert_eq!(node.get_parameter::<i64>("derived").unwrap(), 20);
+
+        drop(second);
+        drop(first);
+        order.lock().clear();
+        node.set_parameters_atomically(Vec::<(String, ParameterValue)>::new())
+            .unwrap();
+        assert!(order.lock().is_empty());
+
+        let empty = node.add_pre_set_parameters_callback(Vec::clear);
+        assert!(matches!(
+            node.set_parameter("source", ParameterValue::Integer(3)),
+            Err(Error::ParameterUpdateRejected { .. })
+        ));
+        assert_eq!(node.get_parameter::<i64>("source").unwrap(), 2);
+        drop(empty);
+
+        let declaration_calls = Arc::new(Mutex::new(0));
+        let calls = declaration_calls.clone();
+        let declaration_guard = node.add_pre_set_parameters_callback(move |_| *calls.lock() += 1);
+        node.declare_parameter("declared", ParameterValue::Bool(true))
+            .unwrap();
+        node.undeclare_parameter("declared").unwrap_err();
+        assert_eq!(*declaration_calls.lock(), 0);
+        drop(declaration_guard);
+        drop(validation);
+        drop(post);
     }
 
     #[test]
