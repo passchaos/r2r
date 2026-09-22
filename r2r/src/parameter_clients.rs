@@ -261,16 +261,24 @@ mod tests {
             .create_parameter_client("parameter_client_server/")
             .unwrap();
         assert_eq!(client.remote_node_name(), "parameter_client_server");
+        let self_client = node.create_parameter_client_for_self().unwrap();
+        assert_eq!(self_client.remote_node_name(), "/scope/parameter_client_server");
         let mut pool = LocalPool::new();
         pool.spawner().spawn_local(handler).unwrap();
 
         drive(&mut node, &mut pool, client.wait_for_services().unwrap());
         assert!(client.services_ready(&node).unwrap());
+        drive(&mut node, &mut pool, self_client.wait_for_services().unwrap());
+        assert!(self_client.services_ready(&node).unwrap());
 
         let names = ["answer", "missing"];
         assert_eq!(
             drive(&mut node, &mut pool, client.get_parameters(names).unwrap()),
             vec![ParameterValue::Integer(2), ParameterValue::NotSet]
+        );
+        assert_eq!(
+            drive(&mut node, &mut pool, self_client.get_parameters(["answer"]).unwrap()),
+            vec![ParameterValue::Integer(2)]
         );
         assert_eq!(
             drive(&mut node, &mut pool, client.get_parameter_types(names).unwrap(),),
