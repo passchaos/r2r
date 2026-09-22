@@ -438,11 +438,16 @@ fn apply_parameter_updates(
     provider: Option<&Arc<Mutex<dyn RosParams + Send>>>,
     pre_callbacks: &Arc<Mutex<ParameterCallbackRegistry<ParameterPreSetCallback>>>,
     callbacks: &Arc<Mutex<ParameterCallbackRegistry<ParameterValidationCallback>>>,
+    allow_undeclared_parameters: bool,
 ) -> Result<AppliedParameterChanges> {
     transform_parameter_updates(&mut updates, pre_callbacks)?;
     {
+        let params = params.lock();
         let descriptors = descriptors.lock();
         for (name, value) in &updates {
+            if !allow_undeclared_parameters && !params.contains_key(name) {
+                return Err(Error::ParameterNotDeclared { name: name.clone() });
+            }
             if name == "use_sim_time" && !matches!(value, ParameterValue::Bool(_)) {
                 return Err(Error::InvalidParameterType {
                     name: name.clone(),
@@ -514,6 +519,7 @@ pub struct Node {
     pub params: Arc<Mutex<IndexMap<String, Parameter>>>,
     parameter_overrides: IndexMap<String, ParameterValue>,
     automatically_declare_parameters_from_overrides: bool,
+    allow_undeclared_parameters: bool,
     parameter_descriptors: Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
     parameter_provider: Option<Arc<Mutex<dyn RosParams + Send>>>,
     parameter_transaction: Arc<Mutex<()>>,
@@ -568,6 +574,8 @@ pub struct NodeOptions {
     pub parameter_overrides: IndexMap<String, ParameterValue>,
     /// Whether parameter overrides are immediately exposed as declared parameters.
     pub automatically_declare_parameters_from_overrides: bool,
+    /// Whether setting an undeclared parameter implicitly declares it.
+    pub allow_undeclared_parameters: bool,
     /// Whether the node publishes logs on `/rosout`.
     pub enable_rosout: bool,
     /// Optional override for the `/rosout` publisher QoS.
@@ -580,6 +588,7 @@ impl Default for NodeOptions {
             use_global_arguments: true,
             parameter_overrides: IndexMap::new(),
             automatically_declare_parameters_from_overrides: true,
+            allow_undeclared_parameters: true,
             enable_rosout: true,
             rosout_qos: None,
         }
@@ -620,6 +629,16 @@ impl NodeOptions {
     /// compatibility with r2r's historical behavior.
     pub fn automatically_declare_parameters_from_overrides(mut self, enabled: bool) -> Self {
         self.automatically_declare_parameters_from_overrides = enabled;
+        self
+    }
+
+    /// Controls whether setting an undeclared parameter implicitly declares it.
+    ///
+    /// Disable this to catch misspelled or missing declarations before callbacks, providers, or
+    /// parameter state are changed. The default is `true` for compatibility with r2r's historical
+    /// behavior.
+    pub fn allow_undeclared_parameters(mut self, enabled: bool) -> Self {
+        self.allow_undeclared_parameters = enabled;
         self
     }
 
@@ -1043,6 +1062,7 @@ impl Node {
                 parameter_overrides: IndexMap::new(),
                 automatically_declare_parameters_from_overrides: options
                     .automatically_declare_parameters_from_overrides,
+                allow_undeclared_parameters: options.allow_undeclared_parameters,
                 parameter_descriptors: Arc::new(Mutex::new(IndexMap::new())),
                 parameter_provider: None,
                 parameter_transaction: Arc::new(Mutex::new(())),
@@ -1550,6 +1570,7 @@ impl Node {
         let parameter_validation_callbacks = self.parameter_validation_callbacks.clone();
         let parameter_post_set_callbacks = self.parameter_post_set_callbacks.clone();
         let params_struct_clone = params_struct.clone();
+        let allow_undeclared_parameters = self.allow_undeclared_parameters;
         let set_parameter_event_sink = parameter_event_sink.clone();
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
         let set_params_time_source = self.time_source.clone();
@@ -1579,6 +1600,7 @@ impl Node {
                             params_struct_clone.as_ref(),
                             &parameter_pre_set_callbacks,
                             &parameter_validation_callbacks,
+                            allow_undeclared_parameters,
                         )
                     };
                     match applied {
@@ -1717,6 +1739,7 @@ impl Node {
         let parameter_validation_callbacks = self.parameter_validation_callbacks.clone();
         let parameter_post_set_callbacks = self.parameter_post_set_callbacks.clone();
         let params_struct_clone = params_struct.clone();
+        let allow_undeclared_parameters = self.allow_undeclared_parameters;
         let atomic_parameter_event_sink = parameter_event_sink.clone();
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
         let atomic_time_source = self.time_source.clone();
@@ -1756,6 +1779,7 @@ impl Node {
                         params_struct_clone.as_ref(),
                         &parameter_pre_set_callbacks,
                         &parameter_validation_callbacks,
+                        allow_undeclared_parameters,
                     )
                 };
 
@@ -2132,6 +2156,7 @@ impl Node {
                 self.parameter_provider.as_ref(),
                 &self.parameter_pre_set_callbacks,
                 &self.parameter_validation_callbacks,
+                self.allow_undeclared_parameters,
             )?
         };
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
@@ -5832,6 +5857,66 @@ mod tests {
             .unwrap();
         assert_eq!(node.get_parameter::<i64>("count").unwrap(), 5);
         assert_eq!(node.get_parameter::<i64>("other").unwrap(), 6);
+    }
+
+    #[test]
+    fn strict_parameter_mode_rejects_undeclared_updates() {
+        let context = Context::create().unwrap();
+        let node = Node::create_with_options(
+            context,
+            "strict_parameter_test",
+            "",
+            NodeOptions::default()
+                .use_global_arguments(false)
+                .allow_undeclared_parameters(false),
+        )
+        .unwrap();
+        node.declare_parameter("declared", 1_i64).unwrap();
+        let validation_calls = Arc::new(Mutex::new(0));
+        let calls = validation_calls.clone();
+        let _validation = node.add_on_set_parameters_callback(move |_| {
+            *calls.lock() += 1;
+            Ok(())
+        });
+
+        node.set_parameter("declared", 2_i64).unwrap();
+        assert!(matches!(
+            node.set_parameter("misspelled", 3_i64),
+            Err(Error::ParameterNotDeclared { name }) if name == "misspelled"
+        ));
+        assert!(matches!(
+            node.set_parameters_atomically([("declared", 4_i64), ("missing", 5_i64)]),
+            Err(Error::ParameterNotDeclared { name }) if name == "missing"
+        ));
+        assert_eq!(node.get_parameter::<i64>("declared").unwrap(), 2);
+        assert!(!node.has_parameter("misspelled"));
+        assert!(!node.has_parameter("missing"));
+        assert_eq!(*validation_calls.lock(), 1);
+    }
+
+    #[test]
+    fn strict_parameter_mode_checks_names_added_by_pre_set_callbacks() {
+        let context = Context::create().unwrap();
+        let node = Node::create_with_options(
+            context,
+            "strict_pre_set_parameter_test",
+            "",
+            NodeOptions::default()
+                .use_global_arguments(false)
+                .allow_undeclared_parameters(false),
+        )
+        .unwrap();
+        node.declare_parameter("declared", 1_i64).unwrap();
+        let _pre = node.add_pre_set_parameters_callback(|updates| {
+            updates.push(("injected".into(), ParameterValue::Integer(2)));
+        });
+
+        assert!(matches!(
+            node.set_parameter("declared", 3_i64),
+            Err(Error::ParameterNotDeclared { name }) if name == "injected"
+        ));
+        assert_eq!(node.get_parameter::<i64>("declared").unwrap(), 1);
+        assert!(!node.has_parameter("injected"));
     }
 
     #[test]

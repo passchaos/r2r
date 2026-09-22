@@ -132,6 +132,9 @@ pub enum Error {
     #[error("Parameter {name} has already been declared")]
     ParameterAlreadyDeclared { name: String },
 
+    #[error("Parameter {name} has not been declared")]
+    ParameterNotDeclared { name: String },
+
     #[error("Invalid type for parameter {name} (should be {ty})")]
     InvalidParameterType { name: String, ty: &'static str },
 
