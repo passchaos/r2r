@@ -452,6 +452,7 @@ pub struct WrappedActionClientUntyped {
     pub cancel_response_channels:
         HashMap<i64, oneshot::Sender<action_msgs::srv::CancelGoal::Response>>,
     pub feedback_senders: HashMap<uuid::Uuid, FeedbackSender<Result<serde_json::Value>>>,
+    pub pending_feedback_goals: Arc<Mutex<PendingFeedbackQueue>>,
     pub result_requests: HashMap<i64, uuid::Uuid>,
     pub result_request_sequences: HashMap<uuid::Uuid, i64>,
     pub result_senders: HashMap<uuid::Uuid, ResultSender>,
@@ -587,10 +588,13 @@ impl WrappedActionClientUntyped {
         let feedback = feedback
             .downcast::<Result<serde_json::Value>>()
             .map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID)?;
-        Ok(self
-            .feedback_senders
-            .get(uuid)
-            .and_then(|channel| feedback_completion(Arc::clone(channel), *feedback)))
+        Ok(self.feedback_senders.get(uuid).and_then(|channel| {
+            feedback_completion_with_queue(
+                Arc::clone(channel),
+                *feedback,
+                Some((*uuid, Arc::clone(&self.pending_feedback_goals))),
+            )
+        }))
     }
 
     fn prune_canceled_requests(&mut self) -> Vec<ActionClientCompletion> {
@@ -619,7 +623,7 @@ impl WrappedActionClientUntyped {
     }
 
     fn pending_feedback_completion(&mut self) -> PendingFeedbackAction {
-        take_ready_pending_feedback(self.feedback_senders.values())
+        take_ready_pending_feedback(&self.pending_feedback_goals, &self.feedback_senders)
     }
 
     fn finish_result_request_send(
@@ -971,6 +975,7 @@ mod tests {
                 (target, Arc::new(Mutex::new(FeedbackChannel::new(target_sender)))),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_sender)))),
             ]),
+            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::new(),
@@ -1016,6 +1021,7 @@ mod tests {
             goal_response_sequences: HashMap::from([(target, 10), (other, 11)]),
             cancel_response_channels: HashMap::new(),
             feedback_senders: HashMap::new(),
+            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::new(),
@@ -1069,6 +1075,7 @@ mod tests {
                 ),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),
             ]),
+            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::from([(10, target), (11, other)]),
             result_request_sequences: HashMap::from([(target, 10), (other, 11)]),
             result_senders: HashMap::from([(target, target_result), (other, other_result)]),
@@ -1132,6 +1139,7 @@ mod tests {
                 ),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),
             ]),
+            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::from([(target, target_result), (other, other_result)]),

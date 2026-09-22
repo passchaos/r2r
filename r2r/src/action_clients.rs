@@ -6,7 +6,7 @@ use futures::{
 use parking_lot::Mutex;
 use std::{
     any::Any,
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     ffi::{CStr, CString},
     future::Future,
     mem::MaybeUninit,
@@ -43,6 +43,34 @@ pub(crate) enum PendingFeedbackAction {
     None,
     Backpressured,
     Deliver(ActionClientCompletion),
+}
+
+#[derive(Default)]
+pub(crate) struct PendingFeedbackQueue {
+    goals: VecDeque<uuid::Uuid>,
+    queued: HashSet<uuid::Uuid>,
+}
+
+impl PendingFeedbackQueue {
+    fn push(&mut self, uuid: uuid::Uuid) {
+        if self.queued.insert(uuid) {
+            self.goals.push_back(uuid);
+        }
+    }
+
+    fn pop(&mut self) -> Option<uuid::Uuid> {
+        let uuid = self.goals.pop_front()?;
+        self.queued.remove(&uuid);
+        Some(uuid)
+    }
+
+    fn len(&self) -> usize {
+        self.goals.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.goals.is_empty()
+    }
 }
 
 const MAX_ACTION_RESPONSES_PER_SPIN: usize = 16;
@@ -275,54 +303,86 @@ impl<T> FeedbackChannel<T> {
     }
 }
 
-pub(crate) fn feedback_completion<T: Send + 'static>(
+#[cfg(test)]
+fn feedback_completion<T: Send + 'static>(
     channel: Arc<Mutex<FeedbackChannel<T>>>, feedback: T,
+) -> Option<ActionClientCompletion> {
+    feedback_completion_with_queue(channel, feedback, None)
+}
+
+pub(crate) fn feedback_completion_with_queue<T: Send + 'static>(
+    channel: Arc<Mutex<FeedbackChannel<T>>>, feedback: T,
+    pending_queue: Option<(uuid::Uuid, Arc<Mutex<PendingFeedbackQueue>>)>,
 ) -> Option<ActionClientCompletion> {
     let mut channel_guard = channel.lock();
     let Some(sender) = channel_guard.sender.take() else {
         debug_assert!(channel_guard.pending.is_none());
+        let queued = channel_guard.pending.is_none();
         channel_guard.pending.get_or_insert(feedback);
+        drop(channel_guard);
+        if queued {
+            if let Some((uuid, queue)) = pending_queue {
+                queue.lock().push(uuid);
+            }
+        }
         return None;
     };
     drop(channel_guard);
-    Some(detached_feedback_completion(channel, sender, feedback))
+    Some(detached_feedback_completion_with_queue(
+        channel,
+        sender,
+        feedback,
+        pending_queue,
+    ))
 }
 
-pub(crate) fn take_ready_pending_feedback<'a, T: Send + 'static>(
-    channels: impl IntoIterator<Item = &'a FeedbackSender<T>>,
+pub(crate) fn take_ready_pending_feedback<T: Send + 'static>(
+    pending_queue: &Arc<Mutex<PendingFeedbackQueue>>,
+    channels: &HashMap<uuid::Uuid, FeedbackSender<T>>,
 ) -> PendingFeedbackAction {
-    let mut saw_pending = false;
-    for channel in channels {
+    let scan_count = pending_queue.lock().len().min(MAX_ACTION_FEEDBACK_PER_SPIN);
+    for _ in 0..scan_count {
+        let Some(uuid) = pending_queue.lock().pop() else {
+            break;
+        };
+        let Some(channel) = channels.get(&uuid) else {
+            continue;
+        };
         let mut channel_guard = channel.lock();
         if channel_guard.pending.is_none() {
             continue;
         }
-        saw_pending = true;
         let Some(sender) = channel_guard.sender.as_mut() else {
+            drop(channel_guard);
+            pending_queue.lock().push(uuid);
             continue;
         };
         let mut context = Context::from_waker(futures::task::noop_waker_ref());
         if matches!(sender.poll_ready(&mut context), Poll::Pending) {
+            drop(channel_guard);
+            pending_queue.lock().push(uuid);
             continue;
         }
         let feedback = channel_guard.pending.take().unwrap();
         let sender = channel_guard.sender.take().unwrap();
         drop(channel_guard);
-        return PendingFeedbackAction::Deliver(detached_feedback_completion(
+        return PendingFeedbackAction::Deliver(detached_feedback_completion_with_queue(
             Arc::clone(channel),
             sender,
             feedback,
+            Some((uuid, Arc::clone(pending_queue))),
         ));
     }
-    if saw_pending {
-        PendingFeedbackAction::Backpressured
-    } else {
+    if pending_queue.lock().is_empty() {
         PendingFeedbackAction::None
+    } else {
+        PendingFeedbackAction::Backpressured
     }
 }
 
-pub(crate) fn detached_feedback_completion<T: Send + 'static>(
+fn detached_feedback_completion_with_queue<T: Send + 'static>(
     channel: Arc<Mutex<FeedbackChannel<T>>>, mut sender: mpsc::Sender<T>, feedback: T,
+    pending_queue: Option<(uuid::Uuid, Arc<Mutex<PendingFeedbackQueue>>)>,
 ) -> ActionClientCompletion {
     ActionClientCompletion {
         notify: Box::new(move || {
@@ -339,6 +399,13 @@ pub(crate) fn detached_feedback_completion<T: Send + 'static>(
             } else {
                 channel.sender = Some(sender);
                 channel.pending = pending;
+                let enqueue = channel.pending.is_some();
+                drop(channel);
+                if enqueue {
+                    if let Some((uuid, queue)) = pending_queue {
+                        queue.lock().push(uuid);
+                    }
+                }
             }
             Ok(true)
         }),
@@ -850,6 +917,7 @@ where
     pub cancel_response_channels:
         HashMap<i64, oneshot::Sender<action_msgs::srv::CancelGoal::Response>>,
     pub feedback_senders: HashMap<uuid::Uuid, FeedbackSender<T::Feedback>>,
+    pub pending_feedback_goals: Arc<Mutex<PendingFeedbackQueue>>,
     pub result_requests: HashMap<i64, uuid::Uuid>,
     pub result_request_sequences: HashMap<uuid::Uuid, i64>,
     pub result_senders: HashMap<uuid::Uuid, ResultSender<T::Result>>,
@@ -1023,10 +1091,13 @@ where
         let feedback = feedback
             .downcast::<T::Feedback>()
             .map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID)?;
-        Ok(self
-            .feedback_senders
-            .get(uuid)
-            .and_then(|channel| feedback_completion(Arc::clone(channel), *feedback)))
+        Ok(self.feedback_senders.get(uuid).and_then(|channel| {
+            feedback_completion_with_queue(
+                Arc::clone(channel),
+                *feedback,
+                Some((*uuid, Arc::clone(&self.pending_feedback_goals))),
+            )
+        }))
     }
 
     fn prune_canceled_requests(&mut self) -> Vec<ActionClientCompletion> {
@@ -1055,7 +1126,7 @@ where
     }
 
     fn pending_feedback_completion(&mut self) -> PendingFeedbackAction {
-        take_ready_pending_feedback(self.feedback_senders.values())
+        take_ready_pending_feedback(&self.pending_feedback_goals, &self.feedback_senders)
     }
 
     fn finish_result_request_send(
@@ -1996,6 +2067,7 @@ mod tests {
                 (target, Arc::new(Mutex::new(FeedbackChannel::new(target_sender)))),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_sender)))),
             ]),
+            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::new(),
@@ -2043,6 +2115,8 @@ mod tests {
 
     #[test]
     fn pending_feedback_skips_a_blocked_goal_for_a_ready_goal() {
+        let blocked_uuid = uuid::Uuid::from_u128(1);
+        let ready_uuid = uuid::Uuid::from_u128(2);
         let (blocked_sender, mut blocked_receiver) = mpsc::channel(0);
         let blocked = Arc::new(Mutex::new(FeedbackChannel::new(blocked_sender)));
         let waker = futures::task::noop_waker_ref();
@@ -2061,16 +2135,24 @@ mod tests {
             closing: false,
         }));
         assert!(matches!(Pin::new(&mut ready_receiver).poll_next(&mut context), Poll::Pending));
+        let channels = HashMap::from([(blocked_uuid, blocked), (ready_uuid, ready)]);
+        let pending = Arc::new(Mutex::new(PendingFeedbackQueue::default()));
+        {
+            let mut pending = pending.lock();
+            pending.push(blocked_uuid);
+            pending.push(ready_uuid);
+        }
 
-        let action = take_ready_pending_feedback([&blocked, &ready]);
+        let action = take_ready_pending_feedback(&pending, &channels);
         let PendingFeedbackAction::Deliver(completion) = action else {
             panic!("a ready goal should be selected after a blocked goal");
         };
         assert!(matches!((completion.notify)(), Ok(true)));
 
         assert_eq!(ready_receiver.next().now_or_never().flatten(), Some(52));
-        assert!(ready.lock().pending.is_none());
-        assert_eq!(blocked.lock().pending, Some(42));
+        assert!(channels[&ready_uuid].lock().pending.is_none());
+        assert_eq!(channels[&blocked_uuid].lock().pending, Some(42));
+        assert_eq!(pending.lock().goals, [blocked_uuid]);
         assert_eq!(blocked_receiver.next().now_or_never().flatten(), Some(41));
     }
 
@@ -2092,17 +2174,122 @@ mod tests {
             (channel, receiver)
         }
 
+        let first_uuid = uuid::Uuid::from_u128(1);
+        let second_uuid = uuid::Uuid::from_u128(2);
         let (first, mut first_receiver) = blocked_feedback_channel(41, 42);
         let (second, mut second_receiver) = blocked_feedback_channel(51, 52);
+        let channels = HashMap::from([(first_uuid, first), (second_uuid, second)]);
+        let pending = Arc::new(Mutex::new(PendingFeedbackQueue::default()));
+        {
+            let mut pending = pending.lock();
+            pending.push(first_uuid);
+            pending.push(second_uuid);
+        }
 
         assert!(matches!(
-            take_ready_pending_feedback([&first, &second]),
+            take_ready_pending_feedback(&pending, &channels),
             PendingFeedbackAction::Backpressured
         ));
-        assert_eq!(first.lock().pending, Some(42));
-        assert_eq!(second.lock().pending, Some(52));
+        assert_eq!(channels[&first_uuid].lock().pending, Some(42));
+        assert_eq!(channels[&second_uuid].lock().pending, Some(52));
+        assert_eq!(pending.lock().goals, [first_uuid, second_uuid]);
         assert_eq!(first_receiver.next().now_or_never().flatten(), Some(41));
         assert_eq!(second_receiver.next().now_or_never().flatten(), Some(51));
+    }
+
+    #[test]
+    fn pending_feedback_scans_are_bounded_and_deduplicated() {
+        let pending = Arc::new(Mutex::new(PendingFeedbackQueue::default()));
+        let mut channels = HashMap::new();
+        for value in 1..=20_u128 {
+            let uuid = uuid::Uuid::from_u128(value);
+            channels.insert(
+                uuid,
+                Arc::new(Mutex::new(FeedbackChannel {
+                    sender: None,
+                    pending: Some(value),
+                    closing: false,
+                })),
+            );
+            pending.lock().push(uuid);
+        }
+        pending.lock().push(uuid::Uuid::from_u128(1));
+
+        assert!(matches!(
+            take_ready_pending_feedback(&pending, &channels),
+            PendingFeedbackAction::Backpressured
+        ));
+        assert_eq!(
+            pending
+                .lock()
+                .goals
+                .iter()
+                .map(uuid::Uuid::as_u128)
+                .collect::<Vec<_>>(),
+            (17..=20).chain(1..=16).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn failed_feedback_delivery_enqueues_the_goal_once() {
+        let uuid = uuid::Uuid::from_u128(1);
+        let pending = Arc::new(Mutex::new(PendingFeedbackQueue::default()));
+        let (sender, mut receiver) = mpsc::channel(0);
+        let channel = Arc::new(Mutex::new(FeedbackChannel::new(sender)));
+        let mut context = Context::from_waker(futures::task::noop_waker_ref());
+        assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Pending));
+
+        let completion = feedback_completion_with_queue(
+            Arc::clone(&channel),
+            41,
+            Some((uuid, Arc::clone(&pending))),
+        )
+        .unwrap();
+        (completion.notify)().unwrap();
+        let completion = feedback_completion_with_queue(
+            Arc::clone(&channel),
+            42,
+            Some((uuid, Arc::clone(&pending))),
+        )
+        .unwrap();
+        (completion.notify)().unwrap();
+
+        assert_eq!(channel.lock().pending, Some(42));
+        assert_eq!(pending.lock().goals, [uuid]);
+        pending.lock().push(uuid);
+        assert_eq!(pending.lock().goals, [uuid]);
+        assert_eq!(receiver.next().now_or_never().flatten(), Some(41));
+    }
+
+    #[test]
+    fn stale_pending_feedback_does_not_block_a_live_goal() {
+        let stale_uuid = uuid::Uuid::from_u128(1);
+        let live_uuid = uuid::Uuid::from_u128(2);
+        let (sender, mut receiver) = mpsc::channel(0);
+        let channel = Arc::new(Mutex::new(FeedbackChannel {
+            sender: Some(sender),
+            pending: Some(42),
+            closing: false,
+        }));
+        let mut context = Context::from_waker(futures::task::noop_waker_ref());
+        assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Pending));
+        let channels = HashMap::from([(live_uuid, channel)]);
+        let pending = Arc::new(Mutex::new(PendingFeedbackQueue::default()));
+        {
+            let mut pending = pending.lock();
+            pending.push(stale_uuid);
+            pending.push(live_uuid);
+        }
+
+        let PendingFeedbackAction::Deliver(completion) =
+            take_ready_pending_feedback(&pending, &channels)
+        else {
+            panic!("a stale goal must not block live pending feedback");
+        };
+        (completion.notify)().unwrap();
+
+        assert_eq!(receiver.next().now_or_never().flatten(), Some(42));
+        assert!(pending.lock().is_empty());
     }
 
     #[test]
@@ -2146,6 +2333,7 @@ mod tests {
                 target,
                 Arc::new(Mutex::new(FeedbackChannel::new(feedback_sender))),
             )]),
+            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::from([(1, target)]),
             result_request_sequences: HashMap::from([(target, 1)]),
             result_senders: HashMap::from([(target, result_sender)]),
@@ -2200,6 +2388,7 @@ mod tests {
             goal_response_sequences: HashMap::from([(target, 10), (other, 11)]),
             cancel_response_channels: HashMap::new(),
             feedback_senders: HashMap::new(),
+            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::new(),
@@ -2243,6 +2432,7 @@ mod tests {
                     closing: false,
                 })),
             )]),
+            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::from([(1, target)]),
             result_request_sequences: HashMap::from([(target, 1)]),
             result_senders: HashMap::from([(target, result_sender)]),
@@ -2386,6 +2576,7 @@ mod tests {
                 ),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),
             ]),
+            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::from([(10, target), (11, other)]),
             result_request_sequences: HashMap::from([(target, 10), (other, 11)]),
             result_senders: HashMap::from([(target, target_result), (other, other_result)]),
@@ -2445,6 +2636,7 @@ mod tests {
                 ),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),
             ]),
+            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::from([(target, target_result), (other, other_result)]),
