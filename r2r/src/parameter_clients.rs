@@ -1,7 +1,7 @@
 use crate::{
     rcl_interfaces::{msg, srv},
     Client, Error, Node, ParameterEventChange, ParameterType, ParameterValue, QosProfile, Result,
-    SubscriptionOptions,
+    SubscriptionOptions, WrongParameterType,
 };
 use futures::{future::try_join_all, Future, FutureExt, Stream, TryFutureExt};
 use std::time::Duration;
@@ -145,6 +145,98 @@ impl ParameterClient {
         S: AsRef<str>,
     {
         let response = self.get_parameters(names)?;
+        node.with_timeout(response, timeout)
+    }
+
+    /// Returns whether a parameter is declared on the target node.
+    pub fn has_parameter(
+        &self, name: impl Into<String>,
+    ) -> Result<impl Future<Output = Result<bool>>> {
+        let response = self.get_parameter_types([name.into()])?;
+        Ok(response.map_ok(|types| {
+            types
+                .first()
+                .is_some_and(|type_| *type_ != ParameterType::NotSet)
+        }))
+    }
+
+    /// Checks whether a parameter is declared, failing after `timeout`.
+    pub fn has_parameter_with_timeout(
+        &self, node: &mut Node, name: impl Into<String>, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<bool>>> {
+        let response = self.has_parameter(name)?;
+        node.with_timeout(response, timeout)
+    }
+
+    /// Gets and converts one parameter from the target node.
+    pub fn get_parameter<T>(
+        &self, name: impl Into<String>,
+    ) -> Result<impl Future<Output = Result<T>>>
+    where
+        ParameterValue: TryInto<T, Error = WrongParameterType>,
+    {
+        let name = name.into();
+        let response = self.get_parameters([name.clone()])?;
+        Ok(response.and_then(move |values| {
+            let result = single_parameter_value(values).and_then(|value| {
+                value
+                    .try_into()
+                    .map_err(|error: WrongParameterType| Error::ParameterWrongType {
+                        name,
+                        expected_type: error.expected_type_name,
+                        actual_type: error.actual_type_name,
+                    })
+            });
+            futures::future::ready(result)
+        }))
+    }
+
+    /// Gets one parameter, failing after `timeout`.
+    pub fn get_parameter_with_timeout<T>(
+        &self, node: &mut Node, name: impl Into<String>, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<T>>>
+    where
+        ParameterValue: TryInto<T, Error = WrongParameterType>,
+    {
+        let response = self.get_parameter(name)?;
+        node.with_timeout(response, timeout)
+    }
+
+    /// Gets one parameter or returns `alternative` when it is not declared.
+    pub fn get_parameter_or<T>(
+        &self, name: impl Into<String>, alternative: T,
+    ) -> Result<impl Future<Output = Result<T>>>
+    where
+        ParameterValue: TryInto<T, Error = WrongParameterType>,
+    {
+        let name = name.into();
+        let response = self.get_parameters([name.clone()])?;
+        Ok(response.and_then(move |values| {
+            let result = single_parameter_value(values).and_then(|value| {
+                if matches!(value, ParameterValue::NotSet) {
+                    Ok(alternative)
+                } else {
+                    value.try_into().map_err(|error: WrongParameterType| {
+                        Error::ParameterWrongType {
+                            name,
+                            expected_type: error.expected_type_name,
+                            actual_type: error.actual_type_name,
+                        }
+                    })
+                }
+            });
+            futures::future::ready(result)
+        }))
+    }
+
+    /// Gets one parameter or an alternative, failing after `timeout`.
+    pub fn get_parameter_or_with_timeout<T>(
+        &self, node: &mut Node, name: impl Into<String>, alternative: T, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<T>>>
+    where
+        ParameterValue: TryInto<T, Error = WrongParameterType>,
+    {
+        let response = self.get_parameter_or(name, alternative)?;
         node.with_timeout(response, timeout)
     }
 
@@ -327,6 +419,14 @@ fn check_response_length(operation: &'static str, expected: usize, actual: usize
     }
 }
 
+fn single_parameter_value(mut values: Vec<ParameterValue>) -> Result<ParameterValue> {
+    values.pop().ok_or(Error::ParameterResponseLengthMismatch {
+        operation: "get_parameters",
+        expected: 1,
+        actual: 0,
+    })
+}
+
 fn normalize_remote_node_name(name: &str) -> Result<String> {
     if name.is_empty() || name.as_bytes().contains(&0) {
         return Err(Error::RCL_RET_INVALID_ARGUMENT);
@@ -456,6 +556,22 @@ mod tests {
             drive(&mut node, &mut pool, self_client.get_parameters(["answer"]).unwrap()),
             vec![ParameterValue::Integer(2)]
         );
+        assert!(drive(&mut node, &mut pool, client.has_parameter("answer").unwrap()));
+        assert!(!drive(&mut node, &mut pool, client.has_parameter("missing").unwrap()));
+        assert_eq!(drive(&mut node, &mut pool, client.get_parameter::<i64>("answer").unwrap()), 2);
+        assert_eq!(
+            drive(&mut node, &mut pool, client.get_parameter_or("missing", 42_i64).unwrap(),),
+            42
+        );
+        let wrong_type = client.get_parameter::<String>("answer").unwrap();
+        assert!(matches!(
+            drive_result(&mut node, &mut pool, wrong_type),
+            Err(Error::ParameterWrongType {
+                name,
+                expected_type: "string",
+                actual_type: "integer",
+            }) if name == "answer"
+        ));
         assert_eq!(
             drive(&mut node, &mut pool, client.get_parameter_types(names).unwrap(),),
             vec![ParameterType::Integer, ParameterType::NotSet]
@@ -668,6 +784,15 @@ mod tests {
 
         assert_times_out!(client
             .get_parameters_with_timeout(&mut node, ["value"], timeout)
+            .unwrap());
+        assert_times_out!(client
+            .has_parameter_with_timeout(&mut node, "value", timeout)
+            .unwrap());
+        assert_times_out!(client
+            .get_parameter_with_timeout::<i64>(&mut node, "value", timeout)
+            .unwrap());
+        assert_times_out!(client
+            .get_parameter_or_with_timeout(&mut node, "value", 42_i64, timeout)
             .unwrap());
         assert_times_out!(client
             .get_parameter_types_with_timeout(&mut node, ["value"], timeout)
