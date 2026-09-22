@@ -12,7 +12,7 @@ use std::{
     future::Future,
     marker::PhantomPinned,
     pin::Pin,
-    sync::Arc,
+    sync::{Arc, OnceLock},
     time::{Duration, Instant},
 };
 
@@ -251,6 +251,27 @@ struct PreparedParameterDeclaration {
     uses_existing_override: bool,
 }
 
+#[derive(Clone)]
+struct ParameterProviderState {
+    provider: Arc<Mutex<dyn RosParams + Send>>,
+    parameter_names: Arc<OnceLock<HashSet<String>>>,
+}
+
+impl ParameterProviderState {
+    fn new(provider: Arc<Mutex<dyn RosParams + Send>>) -> Self {
+        Self {
+            provider,
+            parameter_names: Arc::new(OnceLock::new()),
+        }
+    }
+
+    fn parameter_names(&self) -> &HashSet<String> {
+        self.parameter_names
+            .get()
+            .expect("parameter provider names are initialized before use")
+    }
+}
+
 struct ParameterTransactionGuard<'a> {
     guard: Option<MutexGuard<'a, ()>>,
     identity: usize,
@@ -436,7 +457,7 @@ fn parameter_name_matches(name: &str, prefixes: &[String], depth: u64) -> bool {
 
 fn read_parameter_values(
     names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
-    provider: Option<&Arc<Mutex<dyn RosParams + Send>>>,
+    provider: Option<&ParameterProviderState>,
 ) -> Vec<ParameterValue> {
     read_parameter_values_with_policy(names, params, provider, true)
         .expect("permissive parameter reads cannot reject an undeclared name")
@@ -444,13 +465,19 @@ fn read_parameter_values(
 
 fn read_parameter_values_with_policy(
     names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
-    provider: Option<&Arc<Mutex<dyn RosParams + Send>>>, allow_undeclared_parameters: bool,
+    provider: Option<&ParameterProviderState>, allow_undeclared_parameters: bool,
 ) -> Result<Vec<ParameterValue>> {
     let provider_values = provider.map(|provider| {
-        let mut provider = provider.lock();
+        let parameter_names = provider.parameter_names();
+        let mut implementation = provider.provider.lock();
         names
             .iter()
-            .map(|name| provider.get_parameter(name).ok())
+            .map(|name| {
+                parameter_names
+                    .contains(name)
+                    .then(|| implementation.get_parameter(name).ok())
+                    .flatten()
+            })
             .collect::<Vec<_>>()
     });
     let params = params.lock();
@@ -582,7 +609,7 @@ fn read_parameter_types_with_policy(
 fn apply_parameter_updates(
     mut updates: Vec<(String, ParameterValue)>, params: &Arc<Mutex<IndexMap<String, Parameter>>>,
     descriptors: &Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
-    provider: Option<&Arc<Mutex<dyn RosParams + Send>>>,
+    provider: Option<&ParameterProviderState>,
     pre_callbacks: &Arc<Mutex<ParameterCallbackRegistry<ParameterPreSetCallback>>>,
     callbacks: &Arc<Mutex<ParameterCallbackRegistry<ParameterValidationCallback>>>,
     allow_undeclared_parameters: bool,
@@ -616,11 +643,12 @@ fn apply_parameter_updates(
     if let Some(provider) = provider {
         let derived_updates = updates
             .iter()
-            .filter(|(name, _)| name != "use_sim_time")
+            .filter(|(name, _)| provider.parameter_names().contains(name))
             .cloned()
             .collect::<Vec<_>>();
         if !derived_updates.is_empty() {
             provider
+                .provider
                 .lock()
                 .set_parameters_atomically(&derived_updates)?;
         }
@@ -672,7 +700,7 @@ pub struct Node {
     automatically_declare_parameters_from_overrides: bool,
     allow_undeclared_parameters: bool,
     parameter_descriptors: Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
-    parameter_provider: Option<Arc<Mutex<dyn RosParams + Send>>>,
+    parameter_provider: Option<ParameterProviderState>,
     parameter_transaction: Arc<Mutex<()>>,
     parameter_pre_set_callbacks: Arc<Mutex<ParameterCallbackRegistry<ParameterPreSetCallback>>>,
     parameter_validation_callbacks:
@@ -1848,6 +1876,7 @@ impl Node {
         if self.parameter_handler_started {
             return Err(Error::ParameterHandlerAlreadyCreated);
         }
+        let parameter_provider = params_struct.map(ParameterProviderState::new);
         let original_params = self
             .params
             .lock()
@@ -1904,7 +1933,7 @@ impl Node {
                 let parameter_pre_set_callbacks = self.parameter_pre_set_callbacks.clone();
                 let parameter_validation_callbacks = self.parameter_validation_callbacks.clone();
                 let parameter_post_set_callbacks = self.parameter_post_set_callbacks.clone();
-                let params_struct_clone = params_struct.clone();
+                let parameter_provider_clone = parameter_provider.clone();
                 let allow_undeclared_parameters = self.allow_undeclared_parameters;
                 let set_parameter_event_sink = parameter_event_sink.clone();
                 #[cfg(r2r__rosgraph_msgs__msg__Clock)]
@@ -1945,7 +1974,7 @@ impl Node {
                                 update,
                                 &params,
                                 &parameter_descriptors,
-                                params_struct_clone.as_ref(),
+                                parameter_provider_clone.as_ref(),
                                 &parameter_pre_set_callbacks,
                                 &parameter_validation_callbacks,
                                 allow_undeclared_parameters,
@@ -1997,13 +2026,13 @@ impl Node {
                     )?;
 
                 let params = self.params.clone();
-                let params_struct_clone = params_struct.clone();
+                let parameter_provider_clone = parameter_provider.clone();
                 let get_params_future = get_params_request_stream.for_each(
                     move |req: ServiceRequest<rcl_interfaces::srv::GetParameters::Service>| {
                         let values = read_parameter_values(
                             &req.message.names,
                             &params,
-                            params_struct_clone.as_ref(),
+                            parameter_provider_clone.as_ref(),
                         )
                         .into_iter()
                         .map(|v| v.into_parameter_value_msg())
@@ -2092,7 +2121,7 @@ impl Node {
                 let parameter_pre_set_callbacks = self.parameter_pre_set_callbacks.clone();
                 let parameter_validation_callbacks = self.parameter_validation_callbacks.clone();
                 let parameter_post_set_callbacks = self.parameter_post_set_callbacks.clone();
-                let params_struct_clone = params_struct.clone();
+                let parameter_provider_clone = parameter_provider.clone();
                 let allow_undeclared_parameters = self.allow_undeclared_parameters;
                 let atomic_parameter_event_sink = parameter_event_sink.clone();
                 #[cfg(r2r__rosgraph_msgs__msg__Clock)]
@@ -2149,7 +2178,7 @@ impl Node {
                             updates,
                             &params,
                             &parameter_descriptors,
-                            params_struct_clone.as_ref(),
+                            parameter_provider_clone.as_ref(),
                             &parameter_pre_set_callbacks,
                             &parameter_validation_callbacks,
                             allow_undeclared_parameters,
@@ -2188,8 +2217,8 @@ impl Node {
                 handlers.push(Box::pin(set_params_atomically_future));
             }
 
-            if let Some(ps) = &params_struct {
-                let mut provider = ps.lock();
+            if let Some(provider_state) = &parameter_provider {
+                let mut provider = provider_state.provider.lock();
                 let mut params = self.params.lock();
                 let mut deferred_overrides = Vec::new();
                 if !self.automatically_declare_parameters_from_overrides {
@@ -2206,6 +2235,13 @@ impl Node {
                         params.shift_remove(&name);
                     }
                 }
+                let parameter_names = params
+                    .keys()
+                    .filter(|name| name.as_str() != "use_sim_time")
+                    .filter(|name| provider.get_parameter(name).is_ok())
+                    .cloned()
+                    .collect();
+                debug_assert!(provider_state.parameter_names.set(parameter_names).is_ok());
             }
             #[cfg(r2r__rosgraph_msgs__msg__Clock)]
             let use_sim_time = {
@@ -2240,7 +2276,7 @@ impl Node {
                     }
                 }
             };
-            self.initialize_parameter_descriptors(params_struct.is_none())?;
+            self.initialize_parameter_descriptors(parameter_provider.is_none())?;
 
             #[cfg(r2r__rosgraph_msgs__msg__Clock)]
             if use_sim_time {
@@ -2255,7 +2291,7 @@ impl Node {
         match setup {
             Ok((handler, event_rx, parameter_event_sink)) => {
                 self.parameter_handler_started = true;
-                self.parameter_provider = params_struct;
+                self.parameter_provider = parameter_provider;
                 self.parameter_event_sink = Some(parameter_event_sink);
                 Ok((handler, event_rx))
             }
@@ -5958,6 +5994,47 @@ mod tests {
         assert_eq!(provider.lock().ratio, 0.6);
         assert_eq!(node.get_parameter::<i64>("count").unwrap(), 6);
         assert_eq!(node.get_parameter::<f64>("ratio").unwrap(), 0.6);
+    }
+
+    #[test]
+    fn derived_and_runtime_parameters_can_be_updated_together() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "mixed_parameter_provider_test", "").unwrap();
+        let provider = Arc::new(Mutex::new(LocalSetParams {
+            count: 2,
+            ratio: 0.2,
+        }));
+        let provider_for_handler: Arc<Mutex<dyn RosParams + Send>> = provider.clone();
+        let (_handler, mut events) = node
+            .make_derived_parameter_handler_with_options(
+                provider_for_handler,
+                ParameterHandlerOptions::default()
+                    .start_parameter_services(false)
+                    .start_parameter_event_publisher(false),
+            )
+            .unwrap();
+        node.declare_parameter("runtime", 1_i64).unwrap();
+        assert_eq!(
+            events.next().now_or_never().flatten(),
+            Some(("runtime".into(), ParameterValue::Integer(1)))
+        );
+
+        node.set_parameters_atomically([
+            ("count", ParameterValue::Integer(4)),
+            ("runtime", ParameterValue::Integer(3)),
+        ])
+        .unwrap();
+
+        assert_eq!(provider.lock().count, 4);
+        assert_eq!(node.get_parameter::<i64>("runtime").unwrap(), 3);
+        assert_eq!(
+            events.next().now_or_never().flatten(),
+            Some(("count".into(), ParameterValue::Integer(4)))
+        );
+        assert_eq!(
+            events.next().now_or_never().flatten(),
+            Some(("runtime".into(), ParameterValue::Integer(3)))
+        );
     }
 
     #[test]
