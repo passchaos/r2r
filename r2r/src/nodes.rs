@@ -2610,7 +2610,7 @@ impl Node {
         let server = WrappedActionServer::<T> {
             rcl_handle: server_handle,
             clock,
-            goal_request_sender,
+            goal_request_sender: Arc::new(Mutex::new(goal_request_sender)),
             pending_cancel_request: None,
             active_cancel_requests: Vec::new(),
             cancel_senders: HashMap::new(),
@@ -3150,42 +3150,43 @@ impl Node {
         }
 
         for s in &self.action_servers {
-            let mut server = s.lock();
-            let mut is_goal_request_ready = false;
-            let mut is_cancel_request_ready = false;
-            let mut is_result_request_ready = false;
-            let mut is_goal_expired = false;
+            complete_action_server_operation(s, |server| {
+                let mut is_goal_request_ready = false;
+                let mut is_cancel_request_ready = false;
+                let mut is_result_request_ready = false;
+                let mut is_goal_expired = false;
 
-            let ret = unsafe {
-                rcl_action_server_wait_set_get_entities_ready(
-                    ws,
-                    server.handle(),
-                    &mut is_goal_request_ready,
-                    &mut is_cancel_request_ready,
-                    &mut is_result_request_ready,
-                    &mut is_goal_expired,
-                )
-            };
+                let ret = unsafe {
+                    rcl_action_server_wait_set_get_entities_ready(
+                        ws,
+                        server.handle(),
+                        &mut is_goal_request_ready,
+                        &mut is_cancel_request_ready,
+                        &mut is_result_request_ready,
+                        &mut is_goal_expired,
+                    )
+                };
 
-            if ret != RCL_RET_OK as i32 {
-                return Err(Error::from_rcl_error(ret));
-            }
+                if ret != RCL_RET_OK as i32 {
+                    return Err(Error::from_rcl_error(ret));
+                }
 
-            if is_goal_request_ready {
-                server.handle_goal_request(s.clone())?;
-            }
-
-            if is_cancel_request_ready {
-                server.handle_cancel_request()?;
-            }
-
-            if is_result_request_ready {
-                server.handle_result_request()?;
-            }
-
-            if is_goal_expired {
-                server.handle_goal_expired()?;
-            }
+                let completion = if is_goal_request_ready {
+                    server.handle_goal_request(s.clone())?
+                } else {
+                    None
+                };
+                if is_cancel_request_ready {
+                    server.handle_cancel_request()?;
+                }
+                if is_result_request_ready {
+                    server.handle_result_request()?;
+                }
+                if is_goal_expired {
+                    server.handle_goal_expired()?;
+                }
+                Ok(completion)
+            })?;
         }
 
         Ok(())

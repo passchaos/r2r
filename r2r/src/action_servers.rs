@@ -27,6 +27,31 @@ use crate::{
 use r2r_actions::*;
 use r2r_rcl::*;
 
+pub(crate) type ActionServerCompletion = Box<dyn FnOnce() -> Result<()> + Send>;
+
+pub(crate) fn complete_action_server_operation<S: ?Sized>(
+    server: &Mutex<S>, operation: impl FnOnce(&mut S) -> Result<Option<ActionServerCompletion>>,
+) -> Result<()> {
+    let completion = {
+        let mut server = server.lock();
+        operation(&mut *server)?
+    };
+    if let Some(completion) = completion {
+        completion()?;
+    }
+    Ok(())
+}
+
+fn request_delivery<T: Send + 'static>(
+    sender: Arc<Mutex<mpsc::Sender<T>>>, request: T,
+    on_failed: impl FnOnce(T) -> Result<()> + Send + 'static,
+) -> ActionServerCompletion {
+    Box::new(move || match sender.lock().try_send(request) {
+        Ok(()) => Ok(()),
+        Err(err) => on_failed(err.into_inner()),
+    })
+}
+
 fn with_prepared_action_server<S: ?Sized, P, T>(
     server: &Mutex<S>, prepare: impl FnOnce() -> Result<P>,
     operation: impl FnOnce(&mut S, P) -> Result<T>,
@@ -42,7 +67,9 @@ pub trait ActionServer_ {
     fn reject_goal_request(
         &mut self, uuid: &uuid::Uuid, request_id: &mut rmw_request_id_t,
     ) -> Result<()>;
-    fn handle_goal_request(&mut self, server: Arc<Mutex<dyn ActionServer_>>) -> Result<()>;
+    fn handle_goal_request(
+        &mut self, server: Arc<Mutex<dyn ActionServer_>>,
+    ) -> Result<Option<ActionServerCompletion>>;
     fn send_completed_cancel_requests(&mut self) -> Result<()>;
     fn handle_cancel_request(&mut self) -> Result<()>;
     fn handle_result_request(&mut self) -> Result<()>;
@@ -592,7 +619,7 @@ where
 {
     pub rcl_handle: rcl_action_server_t,
     pub clock: Arc<Mutex<Clock>>,
-    pub goal_request_sender: mpsc::Sender<ActionServerGoalRequest<T>>,
+    pub goal_request_sender: Arc<Mutex<mpsc::Sender<ActionServerGoalRequest<T>>>>,
     pub cancel_senders: HashMap<uuid::Uuid, mpsc::Sender<ActionServerCancelRequest>>,
     pub(crate) pending_cancel_request: Option<PendingCancelRequest>,
     pub active_cancel_requests: Vec<ActiveCancelRequest>,
@@ -875,14 +902,18 @@ where
         first_error.map_or(Ok(()), Err)
     }
 
-    fn handle_goal_request(&mut self, server: Arc<Mutex<dyn ActionServer_>>) -> Result<()> {
-        let request_stream_closed = self.goal_request_sender.is_closed();
+    fn handle_goal_request(
+        &mut self, server: Arc<Mutex<dyn ActionServer_>>,
+    ) -> Result<Option<ActionServerCompletion>> {
+        let mut goal_request_sender = self.goal_request_sender.lock();
+        let request_stream_closed = goal_request_sender.is_closed();
         if !request_stream_closed {
             let mut cx = Context::from_waker(noop_waker_ref());
-            if self.goal_request_sender.poll_ready(&mut cx) == Poll::Pending {
-                return Ok(());
+            if goal_request_sender.poll_ready(&mut cx) == Poll::Pending {
+                return Ok(None);
             }
         }
+        drop(goal_request_sender);
 
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut request_msg = WrappedNativeMsg::<
@@ -897,7 +928,7 @@ where
         };
 
         if !action_server_take_succeeded(ret)? {
-            return Ok(());
+            return Ok(None);
         }
         let mut request_id = unsafe { request_id.assume_init() };
         let msg = <<<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Request>::from_native(&request_msg);
@@ -930,15 +961,19 @@ where
             },
         };
 
-        // send out request.
-        if let Err(e) = self.goal_request_sender.try_send(gr) {
-            // We already hold this server's mutex while polling. Disarm the drop guard and
-            // reject directly to avoid trying to lock the same non-reentrant mutex again.
-            let mut request = e.into_inner();
+        let sender = Arc::clone(&self.goal_request_sender);
+        Ok(Some(request_delivery(sender, gr, move |mut request| {
             request.response.response_sent = true;
-            self.reject_goal_request(&request.uuid, &mut request.response.request_id)?;
-        }
-        Ok(())
+            let server = request
+                .response
+                .server
+                .upgrade()
+                .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
+            let result = server
+                .lock()
+                .reject_goal_request(&request.uuid, &mut request.response.request_id);
+            result
+        })))
     }
 
     fn handle_cancel_request(&mut self) -> Result<()> {
@@ -1062,7 +1097,7 @@ where
     }
 
     fn should_remove(&self) -> bool {
-        self.goal_request_sender.is_closed()
+        self.goal_request_sender.lock().is_closed()
             && self.pending_cancel_request.is_none()
             && self.active_cancel_requests.is_empty()
             && self.cancel_senders.is_empty()
@@ -1528,8 +1563,15 @@ pub fn action_server_get_num_waits(
 mod tests {
     use super::*;
     use crate::{example_interfaces::action::Fibonacci, Context, Node};
-    use futures::{executor::LocalPool, task::LocalSpawnExt, StreamExt};
-    use std::time::Duration;
+    use futures::{
+        executor::LocalPool,
+        task::{waker_ref, ArcWake, LocalSpawnExt},
+        StreamExt,
+    };
+    use std::{
+        sync::atomic::{AtomicBool, Ordering},
+        time::Duration,
+    };
 
     struct DummyResult;
 
@@ -1587,7 +1629,9 @@ mod tests {
             unreachable!()
         }
 
-        fn handle_goal_request(&mut self, _server: Arc<Mutex<dyn ActionServer_>>) -> Result<()> {
+        fn handle_goal_request(
+            &mut self, _server: Arc<Mutex<dyn ActionServer_>>,
+        ) -> Result<Option<ActionServerCompletion>> {
             unreachable!()
         }
 
@@ -1800,6 +1844,41 @@ mod tests {
         .unwrap();
 
         assert_eq!(prepared, 42);
+    }
+
+    struct LockingWake {
+        server: Arc<Mutex<()>>,
+        woke: AtomicBool,
+    }
+
+    impl ArcWake for LockingWake {
+        fn wake_by_ref(arc_self: &Arc<Self>) {
+            let _server = arc_self.server.lock();
+            arc_self.woke.store(true, Ordering::SeqCst);
+        }
+    }
+
+    #[test]
+    fn action_server_requests_wake_streams_after_releasing_the_server_lock() {
+        let server = Arc::new(Mutex::new(()));
+        let (sender, mut receiver) = mpsc::channel(1);
+        let sender = Arc::new(Mutex::new(sender));
+        let wake = Arc::new(LockingWake {
+            server: Arc::clone(&server),
+            woke: AtomicBool::new(false),
+        });
+        let waker = waker_ref(&wake);
+        let mut context = std::task::Context::from_waker(&waker);
+        assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Pending));
+        assert!(matches!(sender.lock().poll_ready(&mut context), Poll::Ready(Ok(()))));
+
+        complete_action_server_operation(&server, |_| {
+            Ok(Some(request_delivery(Arc::clone(&sender), 42, |_| Ok(()))))
+        })
+        .unwrap();
+
+        assert!(wake.woke.load(Ordering::SeqCst));
+        assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Ready(Some(42))));
     }
 
     #[test]
