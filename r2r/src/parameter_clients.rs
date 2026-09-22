@@ -273,6 +273,28 @@ impl ParameterClient {
         node.with_timeout(response, timeout)
     }
 
+    /// Gets the type of one parameter. Undeclared parameters return [`ParameterType::NotSet`].
+    pub fn get_parameter_type(
+        &self, name: impl Into<String>,
+    ) -> Result<impl Future<Output = Result<ParameterType>>> {
+        let response = self.get_parameter_types([name.into()])?;
+        Ok(response.and_then(|mut types| {
+            futures::future::ready(types.pop().ok_or(Error::ParameterResponseLengthMismatch {
+                operation: "get_parameter_types",
+                expected: 1,
+                actual: 0,
+            }))
+        }))
+    }
+
+    /// Gets one parameter type, failing after `timeout`.
+    pub fn get_parameter_type_with_timeout(
+        &self, node: &mut Node, name: impl Into<String>, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<ParameterType>>> {
+        let response = self.get_parameter_type(name)?;
+        node.with_timeout(response, timeout)
+    }
+
     pub fn describe_parameters<I, S>(
         &self, names: I,
     ) -> Result<impl Future<Output = Result<Vec<msg::ParameterDescriptor>>>>
@@ -299,6 +321,30 @@ impl ParameterClient {
         S: AsRef<str>,
     {
         let response = self.describe_parameters(names)?;
+        node.with_timeout(response, timeout)
+    }
+
+    /// Describes one parameter on the target node.
+    pub fn describe_parameter(
+        &self, name: impl Into<String>,
+    ) -> Result<impl Future<Output = Result<msg::ParameterDescriptor>>> {
+        let response = self.describe_parameters([name.into()])?;
+        Ok(response.and_then(|mut descriptors| {
+            futures::future::ready(descriptors.pop().ok_or(
+                Error::ParameterResponseLengthMismatch {
+                    operation: "describe_parameters",
+                    expected: 1,
+                    actual: 0,
+                },
+            ))
+        }))
+    }
+
+    /// Describes one parameter, failing after `timeout`.
+    pub fn describe_parameter_with_timeout(
+        &self, node: &mut Node, name: impl Into<String>, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<msg::ParameterDescriptor>>> {
+        let response = self.describe_parameter(name)?;
         node.with_timeout(response, timeout)
     }
 
@@ -358,6 +404,28 @@ impl ParameterClient {
         node.with_timeout(response, timeout)
     }
 
+    /// Sets one parameter and returns the remote node's validation result.
+    pub fn set_parameter(
+        &self, name: impl Into<String>, value: ParameterValue,
+    ) -> Result<impl Future<Output = Result<msg::SetParametersResult>>> {
+        let response = self.set_parameters([(name.into(), value)])?;
+        Ok(response.and_then(|mut results| {
+            futures::future::ready(results.pop().ok_or(Error::ParameterResponseLengthMismatch {
+                operation: "set_parameters",
+                expected: 1,
+                actual: 0,
+            }))
+        }))
+    }
+
+    /// Sets one parameter, failing after `timeout`.
+    pub fn set_parameter_with_timeout(
+        &self, node: &mut Node, name: impl Into<String>, value: ParameterValue, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<msg::SetParametersResult>>> {
+        let response = self.set_parameter(name, value)?;
+        node.with_timeout(response, timeout)
+    }
+
     pub fn set_parameters_atomically<I, S>(
         &self, parameters: I,
     ) -> Result<impl Future<Output = Result<msg::SetParametersResult>>>
@@ -403,6 +471,21 @@ impl ParameterClient {
         S: Into<String>,
     {
         let response = self.delete_parameters(names)?;
+        node.with_timeout(response, timeout)
+    }
+
+    /// Deletes one dynamically typed parameter and returns the remote validation result.
+    pub fn delete_parameter(
+        &self, name: impl Into<String>,
+    ) -> Result<impl Future<Output = Result<msg::SetParametersResult>>> {
+        self.set_parameter(name, ParameterValue::NotSet)
+    }
+
+    /// Deletes one parameter, failing after `timeout`.
+    pub fn delete_parameter_with_timeout(
+        &self, node: &mut Node, name: impl Into<String>, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<msg::SetParametersResult>>> {
+        let response = self.delete_parameter(name)?;
         node.with_timeout(response, timeout)
     }
 }
@@ -576,9 +659,19 @@ mod tests {
             drive(&mut node, &mut pool, client.get_parameter_types(names).unwrap(),),
             vec![ParameterType::Integer, ParameterType::NotSet]
         );
+        assert_eq!(
+            drive(&mut node, &mut pool, client.get_parameter_type("answer").unwrap()),
+            ParameterType::Integer
+        );
+        assert_eq!(
+            drive(&mut node, &mut pool, client.get_parameter_type("missing").unwrap()),
+            ParameterType::NotSet
+        );
         let descriptors = drive(&mut node, &mut pool, client.describe_parameters(names).unwrap());
         assert_eq!(descriptors[0].description, "even answer");
         assert_eq!(descriptors[1].type_, msg::ParameterType::PARAMETER_NOT_SET as u8);
+        let descriptor = drive(&mut node, &mut pool, client.describe_parameter("answer").unwrap());
+        assert_eq!(descriptor.description, "even answer");
         let listed = drive(
             &mut node,
             &mut pool,
@@ -590,6 +683,24 @@ mod tests {
                 .unwrap(),
         );
         assert!(listed.names.iter().any(|name| name == "answer"));
+
+        let set = drive(
+            &mut node,
+            &mut pool,
+            client
+                .set_parameter("answer", ParameterValue::Integer(4))
+                .unwrap(),
+        );
+        assert!(set.successful);
+        let rejected = drive(
+            &mut node,
+            &mut pool,
+            client
+                .set_parameter("answer", ParameterValue::Integer(3))
+                .unwrap(),
+        );
+        assert!(!rejected.successful);
+        assert_eq!(node.get_parameter::<i64>("answer").unwrap(), 4);
 
         let results = drive(
             &mut node,
@@ -624,6 +735,18 @@ mod tests {
         let deleted = drive(&mut node, &mut pool, client.delete_parameters(["temporary"]).unwrap());
         assert!(deleted[0].successful);
         assert!(!node.has_parameter("temporary"));
+        let set = drive(
+            &mut node,
+            &mut pool,
+            client
+                .set_parameter("single_temporary", ParameterValue::Bool(true))
+                .unwrap(),
+        );
+        assert!(set.successful);
+        let deleted =
+            drive(&mut node, &mut pool, client.delete_parameter("single_temporary").unwrap());
+        assert!(deleted.successful);
+        assert!(!node.has_parameter("single_temporary"));
     }
 
     #[test]
@@ -798,7 +921,13 @@ mod tests {
             .get_parameter_types_with_timeout(&mut node, ["value"], timeout)
             .unwrap());
         assert_times_out!(client
+            .get_parameter_type_with_timeout(&mut node, "value", timeout)
+            .unwrap());
+        assert_times_out!(client
             .describe_parameters_with_timeout(&mut node, ["value"], timeout)
+            .unwrap());
+        assert_times_out!(client
+            .describe_parameter_with_timeout(&mut node, "value", timeout)
             .unwrap());
         assert_times_out!(client
             .list_parameters_with_timeout(&mut node, ["prefix"], 1, timeout)
@@ -811,6 +940,9 @@ mod tests {
             )
             .unwrap());
         assert_times_out!(client
+            .set_parameter_with_timeout(&mut node, "value", ParameterValue::Integer(1), timeout,)
+            .unwrap());
+        assert_times_out!(client
             .set_parameters_atomically_with_timeout(
                 &mut node,
                 [("value", ParameterValue::Integer(1))],
@@ -819,6 +951,9 @@ mod tests {
             .unwrap());
         assert_times_out!(client
             .delete_parameters_with_timeout(&mut node, ["value"], timeout)
+            .unwrap());
+        assert_times_out!(client
+            .delete_parameter_with_timeout(&mut node, "value", timeout)
             .unwrap());
     }
 
