@@ -27,6 +27,14 @@ use crate::{
 use r2r_actions::*;
 use r2r_rcl::*;
 
+fn with_prepared_action_server<S: ?Sized, P, T>(
+    server: &Mutex<S>, prepare: impl FnOnce() -> Result<P>,
+    operation: impl FnOnce(&mut S, P) -> Result<T>,
+) -> Result<T> {
+    let prepared = prepare()?;
+    operation(&mut *server.lock(), prepared)
+}
+
 pub trait ActionServer_ {
     fn handle(&self) -> &rcl_action_server_t;
     fn handle_mut(&mut self) -> &mut rcl_action_server_t;
@@ -1384,19 +1392,23 @@ where
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
-        let mut action_server = action_server.lock();
-
-        // create result message
-        let result_msg =
-            T::make_result_response_msg(action_msgs::msg::GoalStatus::STATUS_CANCELED as i8, msg);
-        let native_msg = WrappedNativeMsg::<
-            <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
-        >::try_from(&result_msg)?;
-        complete_goal(
-            &mut *action_server,
-            self.uuid,
-            rcl_action_goal_event_t::GOAL_EVENT_CANCELED,
-            Box::new(native_msg),
+        with_prepared_action_server(
+            &action_server,
+            || {
+                let result_msg = T::make_result_response_msg(
+                    action_msgs::msg::GoalStatus::STATUS_CANCELED as i8,
+                    msg,
+                );
+                WrappedNativeMsg::try_from(&result_msg)
+            },
+            |action_server, native_msg| {
+                complete_goal(
+                    action_server,
+                    self.uuid,
+                    rcl_action_goal_event_t::GOAL_EVENT_CANCELED,
+                    Box::new(native_msg),
+                )
+            },
         )
     }
 
@@ -1407,19 +1419,23 @@ where
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
-        let mut action_server = action_server.lock();
-
-        // create result message
-        let result_msg =
-            T::make_result_response_msg(action_msgs::msg::GoalStatus::STATUS_ABORTED as i8, msg);
-        let native_msg = WrappedNativeMsg::<
-            <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
-        >::try_from(&result_msg)?;
-        complete_goal(
-            &mut *action_server,
-            self.uuid,
-            rcl_action_goal_event_t::GOAL_EVENT_ABORT,
-            Box::new(native_msg),
+        with_prepared_action_server(
+            &action_server,
+            || {
+                let result_msg = T::make_result_response_msg(
+                    action_msgs::msg::GoalStatus::STATUS_ABORTED as i8,
+                    msg,
+                );
+                WrappedNativeMsg::try_from(&result_msg)
+            },
+            |action_server, native_msg| {
+                complete_goal(
+                    action_server,
+                    self.uuid,
+                    rcl_action_goal_event_t::GOAL_EVENT_ABORT,
+                    Box::new(native_msg),
+                )
+            },
         )
     }
 
@@ -1433,19 +1449,23 @@ where
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
-        let mut action_server = action_server.lock();
-
-        // create result message
-        let result_msg =
-            T::make_result_response_msg(action_msgs::msg::GoalStatus::STATUS_SUCCEEDED as i8, msg);
-        let native_msg = WrappedNativeMsg::<
-            <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
-        >::try_from(&result_msg)?;
-        complete_goal(
-            &mut *action_server,
-            self.uuid,
-            rcl_action_goal_event_t::GOAL_EVENT_SUCCEED,
-            Box::new(native_msg),
+        with_prepared_action_server(
+            &action_server,
+            || {
+                let result_msg = T::make_result_response_msg(
+                    action_msgs::msg::GoalStatus::STATUS_SUCCEEDED as i8,
+                    msg,
+                );
+                WrappedNativeMsg::try_from(&result_msg)
+            },
+            |action_server, native_msg| {
+                complete_goal(
+                    action_server,
+                    self.uuid,
+                    rcl_action_goal_event_t::GOAL_EVENT_SUCCEED,
+                    Box::new(native_msg),
+                )
+            },
         )
     }
 }
@@ -1758,6 +1778,23 @@ mod tests {
 
         assert!(matches!(result, Err(Error::RCL_RET_ACTION_GOAL_EVENT_INVALID)));
         assert_eq!(*server.calls.lock(), ["state"]);
+    }
+
+    #[test]
+    fn action_server_results_are_prepared_before_locking_the_server() {
+        let server = Mutex::new(());
+
+        let prepared = with_prepared_action_server(
+            &server,
+            || {
+                assert!(server.try_lock().is_some());
+                Ok(41)
+            },
+            |_server, value| Ok(value + 1),
+        )
+        .unwrap();
+
+        assert_eq!(prepared, 42);
     }
 
     #[test]
