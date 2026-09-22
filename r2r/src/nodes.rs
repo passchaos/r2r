@@ -134,6 +134,34 @@ impl ParameterEventChanges {
     }
 }
 
+#[derive(Clone)]
+struct ParameterEventSink {
+    sender: Arc<Mutex<mpsc::Sender<(String, ParameterValue)>>>,
+    publisher: Publisher<rcl_interfaces::msg::ParameterEvent>,
+    clock: Arc<Mutex<Clock>>,
+    node_name: String,
+}
+
+impl ParameterEventSink {
+    fn notify(&self, changed: Vec<(String, ParameterValue)>, ros_events: ParameterEventChanges) {
+        let mut sender = self.sender.lock();
+        for event in changed {
+            if let Err(err) = sender.try_send(event) {
+                log::debug!("Warning: could not send parameter event ({err}).");
+            }
+        }
+        drop(sender);
+        ros_events.publish(&self.publisher, &self.clock, &self.node_name);
+    }
+}
+
+struct AppliedParameterChanges {
+    changed: Vec<(String, ParameterValue)>,
+    ros_events: ParameterEventChanges,
+    #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+    sim_time_update: Option<bool>,
+}
+
 fn parameter_value_changed(previous: Option<&ParameterValue>, value: &ParameterValue) -> bool {
     previous != Some(value) && !(previous.is_none() && matches!(value, ParameterValue::NotSet))
 }
@@ -229,6 +257,70 @@ fn parameter_types(names: &[String], params: &IndexMap<String, Parameter>) -> Ve
         .collect()
 }
 
+fn apply_parameter_updates(
+    updates: &[(String, ParameterValue)], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
+    descriptors: &Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
+    provider: Option<&Arc<Mutex<dyn RosParams + Send>>>,
+) -> Result<AppliedParameterChanges> {
+    {
+        let descriptors = descriptors.lock();
+        for (name, value) in updates {
+            if name == "use_sim_time" && !matches!(value, ParameterValue::Bool(_)) {
+                return Err(Error::InvalidParameterType {
+                    name: name.clone(),
+                    ty: "boolean",
+                });
+            }
+            if let Some(descriptor) = descriptors.get(name) {
+                validate_parameter_update(name, value, descriptor, true)?;
+            }
+        }
+    }
+
+    if let Some(provider) = provider {
+        let derived_updates = updates
+            .iter()
+            .filter(|(name, _)| name != "use_sim_time")
+            .cloned()
+            .collect::<Vec<_>>();
+        provider
+            .lock()
+            .set_parameters_atomically(&derived_updates)?;
+    }
+
+    let mut changed = Vec::new();
+    let mut ros_events = ParameterEventChanges::default();
+    let mut params = params.lock();
+    let mut descriptors = descriptors.lock();
+    for (name, value) in updates {
+        let previous = params.get(name).map(|parameter| parameter.value.clone());
+        if parameter_value_changed(previous.as_ref(), value) {
+            changed.push((name.clone(), value.clone()));
+            ros_events.record(name, previous.as_ref(), value);
+            Node::store_dynamic_parameter(&mut params, name, value);
+            Node::record_successful_parameter_descriptor(&mut descriptors, name, value);
+        }
+    }
+    drop(descriptors);
+    drop(params);
+
+    #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+    let sim_time_update =
+        updates
+            .iter()
+            .rev()
+            .find_map(|(name, value)| match (name.as_str(), value) {
+                ("use_sim_time", ParameterValue::Bool(enabled)) => Some(*enabled),
+                _ => None,
+            });
+    Ok(AppliedParameterChanges {
+        changed,
+        ros_events,
+        #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+        sim_time_update,
+    })
+}
+
 /// A ROS Node.
 ///
 /// This struct owns all subscribes, publishers, etc.  To get events
@@ -239,6 +331,8 @@ pub struct Node {
     pub params: Arc<Mutex<IndexMap<String, Parameter>>>,
     parameter_descriptors: Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
     parameter_provider: Option<Arc<Mutex<dyn RosParams + Send>>>,
+    parameter_transaction: Arc<Mutex<()>>,
+    parameter_event_sink: Option<ParameterEventSink>,
     pub(crate) node_handle: Box<rcl_node_t>,
     // the node owns the subscribers
     pub(crate) subscribers: Vec<Box<dyn Subscriber_>>,
@@ -558,6 +652,8 @@ impl Node {
                 params: Arc::new(Mutex::new(IndexMap::new())),
                 parameter_descriptors: Arc::new(Mutex::new(IndexMap::new())),
                 parameter_provider: None,
+                parameter_transaction: Arc::new(Mutex::new(())),
+                parameter_event_sink: None,
                 node_handle,
                 subscribers: Vec::new(),
                 services: Vec::new(),
@@ -624,6 +720,7 @@ impl Node {
         &self, name: impl Into<String>, default_value: ParameterValue,
         mut descriptor: ParameterDescriptor,
     ) -> Result<ParameterValue> {
+        let _transaction = self.parameter_transaction.lock();
         let name = name.into();
         if name.is_empty() {
             return Err(Error::InvalidParameterName { name });
@@ -666,6 +763,7 @@ impl Node {
     pub fn set_parameter_descriptor(
         &self, name: impl Into<String>, mut descriptor: ParameterDescriptor,
     ) -> Result<()> {
+        let _transaction = self.parameter_transaction.lock();
         let name = name.into();
         let params = self.params.lock();
         let value = params
@@ -713,6 +811,7 @@ impl Node {
     /// may be backed by a [`RosParams`] field. Parameter service clients can perform the same
     /// operation by assigning [`ParameterValue::NotSet`] to a dynamic parameter.
     pub fn undeclare_parameter(&self, name: &str) -> Result<ParameterValue> {
+        let _transaction = self.parameter_transaction.lock();
         let mut params = self.params.lock();
         let mut descriptors = self.parameter_descriptors.lock();
         if let Some(descriptor) = descriptors.get(name) {
@@ -788,8 +887,7 @@ impl Node {
         self.initialize_parameter_descriptors(params_struct.is_none())?;
         let mut handlers: Vec<std::pin::Pin<Box<dyn Future<Output = ()> + Send>>> = Vec::new();
 
-        let (mut set_event_tx, event_rx) = mpsc::channel::<(String, ParameterValue)>(10);
-        let mut set_atomically_event_tx = set_event_tx.clone();
+        let (set_event_tx, event_rx) = mpsc::channel::<(String, ParameterValue)>(10);
 
         let node_name = self.name()?;
         let fully_qualified_node_name = self.fully_qualified_name()?;
@@ -799,6 +897,12 @@ impl Node {
                 QosProfile::parameter_events(),
             )?;
         let parameter_event_clock = self.ros_clock.clone();
+        let parameter_event_sink = ParameterEventSink {
+            sender: Arc::new(Mutex::new(set_event_tx)),
+            publisher: parameter_event_publisher,
+            clock: parameter_event_clock,
+            node_name: fully_qualified_node_name,
+        };
 
         // rcl_interfaces/srv/SetParameters
         let set_params_request_stream = self
@@ -809,16 +913,14 @@ impl Node {
 
         let params = self.params.clone();
         let parameter_descriptors = self.parameter_descriptors.clone();
+        let parameter_transaction = self.parameter_transaction.clone();
         let params_struct_clone = params_struct.clone();
-        let set_parameter_event_publisher = parameter_event_publisher.clone();
-        let set_parameter_event_clock = parameter_event_clock.clone();
-        let set_parameter_event_node = fully_qualified_node_name.clone();
+        let set_parameter_event_sink = parameter_event_sink.clone();
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
         let set_params_time_source = self.time_source.clone();
         let set_params_future = set_params_request_stream.for_each(
             move |req: ServiceRequest<rcl_interfaces::srv::SetParameters::Service>| {
                 let mut result = rcl_interfaces::srv::SetParameters::Response::default();
-                let mut ros_events = ParameterEventChanges::default();
                 for p in &req.message.parameters {
                     let val = match ParameterValue::try_from_parameter_value_msg(p.value.clone()) {
                         Ok(value) => value,
@@ -832,81 +934,40 @@ impl Node {
                             continue;
                         }
                     };
-                    let previous = params.lock().get(&p.name).map(|v| v.value.clone());
-                    let changed = parameter_value_changed(previous.as_ref(), &val);
-                    let descriptor_result = parameter_descriptors
-                        .lock()
-                        .get(&p.name)
-                        .map_or(Ok(()), |descriptor| {
-                            validate_parameter_update(&p.name, &val, descriptor, true)
-                        });
-                    let r = if let Err(err) = descriptor_result {
-                        rcl_interfaces::msg::SetParametersResult {
-                            successful: false,
-                            reason: err.to_string(),
-                        }
-                    } else if p.name == "use_sim_time" {
-                        match val {
-                            ParameterValue::Bool(enabled) => {
-                                let _ = enabled;
-                                params
-                                    .lock()
-                                    .entry(p.name.clone())
-                                    .and_modify(|parameter| parameter.value = val.clone())
-                                    .or_insert_with(|| Parameter::new(val.clone()));
-                                #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+                    let update = vec![(p.name.clone(), val)];
+                    let applied = {
+                        let _transaction = parameter_transaction.lock();
+                        apply_parameter_updates(
+                            &update,
+                            &params,
+                            &parameter_descriptors,
+                            params_struct_clone.as_ref(),
+                        )
+                    };
+                    match applied {
+                        Ok(applied) => {
+                            #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+                            if let Some(enabled) = applied.sim_time_update {
                                 set_params_time_source.request_sim_time(enabled);
-                                rcl_interfaces::msg::SetParametersResult {
+                            }
+                            set_parameter_event_sink.notify(applied.changed, applied.ros_events);
+                            result
+                                .results
+                                .push(rcl_interfaces::msg::SetParametersResult {
                                     successful: true,
                                     reason: String::new(),
-                                }
-                            }
-                            _ => rcl_interfaces::msg::SetParametersResult {
-                                successful: false,
-                                reason: "use_sim_time must be a boolean".into(),
-                            },
+                                });
                         }
-                    } else if let Some(ps) = &params_struct_clone {
-                        // Update parameter structure
-                        let result = ps.lock().set_parameter(&p.name, &val);
-                        if result.is_ok() {
-                            // Also update Node::params
-                            params
-                                .lock()
-                                .entry(p.name.clone())
-                                .and_modify(|p| p.value = val.clone());
-                        }
-                        rcl_interfaces::msg::SetParametersResult {
-                            successful: result.is_ok(),
-                            reason: result.err().map_or("".into(), |e| e.to_string()),
-                        }
-                    } else {
-                        // No parameter structure - update only Node::params
-                        Self::store_dynamic_parameter(&mut params.lock(), &p.name, &val);
-                        rcl_interfaces::msg::SetParametersResult {
-                            successful: true,
-                            reason: "".into(),
-                        }
-                    };
-                    // if the value changed, send out new value on parameter event stream
-                    if changed && r.successful {
-                        Self::record_successful_parameter_descriptor(
-                            &parameter_descriptors,
-                            &p.name,
-                            &val,
-                        );
-                        ros_events.record(&p.name, previous.as_ref(), &val);
-                        if let Err(e) = set_event_tx.try_send((p.name.clone(), val)) {
-                            log::debug!("Warning: could not send parameter event ({}).", e);
+                        Err(err) => {
+                            result
+                                .results
+                                .push(rcl_interfaces::msg::SetParametersResult {
+                                    successful: false,
+                                    reason: err.to_string(),
+                                });
                         }
                     }
-                    result.results.push(r);
                 }
-                ros_events.publish(
-                    &set_parameter_event_publisher,
-                    &set_parameter_event_clock,
-                    &set_parameter_event_node,
-                );
                 if let Err(err) = req.respond(result) {
                     log::warn!("could not send reply to set parameter request: {err}");
                 }
@@ -924,9 +985,6 @@ impl Node {
 
         let params = self.params.clone();
         let params_struct_clone = params_struct.clone();
-        let atomic_parameter_event_publisher = parameter_event_publisher;
-        let atomic_parameter_event_clock = parameter_event_clock;
-        let atomic_parameter_event_node = fully_qualified_node_name;
         let get_params_future = get_params_request_stream.for_each(
             move |req: ServiceRequest<rcl_interfaces::srv::GetParameters::Service>| {
                 let values = read_parameter_values(
@@ -1011,7 +1069,9 @@ impl Node {
 
         let params = self.params.clone();
         let parameter_descriptors = self.parameter_descriptors.clone();
+        let parameter_transaction = self.parameter_transaction.clone();
         let params_struct_clone = params_struct.clone();
+        let atomic_parameter_event_sink = parameter_event_sink.clone();
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
         let atomic_time_source = self.time_source.clone();
         let set_params_atomically_future = set_params_atomically_request_stream.for_each(
@@ -1041,80 +1101,24 @@ impl Node {
                         return future::ready(());
                     }
                 };
-                let sim_time_update = updates
-                    .iter()
-                    .rev()
-                    .find_map(|(name, value)| (name == "use_sim_time").then_some(value));
-                let invalid_sim_time = updates.iter().any(|(name, value)| {
-                    name == "use_sim_time" && !matches!(value, ParameterValue::Bool(_))
-                });
-                let derived_updates = updates
-                    .iter()
-                    .filter(|(name, _)| name != "use_sim_time")
-                    .cloned()
-                    .collect::<Vec<_>>();
-
-                let descriptor_result = {
-                    let descriptors = parameter_descriptors.lock();
-                    updates.iter().try_for_each(|(name, value)| {
-                        descriptors.get(name).map_or(Ok(()), |descriptor| {
-                            validate_parameter_update(name, value, descriptor, true)
-                        })
-                    })
-                };
-                let update_result = if invalid_sim_time {
-                    Err(Error::InvalidParameterType {
-                        name: "use_sim_time".into(),
-                        ty: "boolean",
-                    })
-                } else if let Err(err) = descriptor_result {
-                    Err(err)
-                } else {
-                    params_struct_clone
-                        .as_ref()
-                        .map_or(Ok(()), |ps| ps.lock().set_parameters_atomically(&derived_updates))
+                let update_result = {
+                    let _transaction = parameter_transaction.lock();
+                    apply_parameter_updates(
+                        &updates,
+                        &params,
+                        &parameter_descriptors,
+                        params_struct_clone.as_ref(),
+                    )
                 };
 
                 match update_result {
-                    Ok(()) => {
+                    Ok(applied) => {
                         result.result.successful = true;
-                        let (changed, ros_events) = {
-                            let mut params = params.lock();
-                            let mut local_events = Vec::new();
-                            let mut ros_events = ParameterEventChanges::default();
-                            for (name, value) in &updates {
-                                let previous = params.get(name).map(|parameter| &parameter.value);
-                                if parameter_value_changed(previous, value) {
-                                    local_events.push((name.clone(), value.clone()));
-                                    ros_events.record(name, previous, value);
-                                    Self::store_dynamic_parameter(&mut params, name, value);
-                                }
-                            }
-                            drop(params);
-                            for (name, value) in &updates {
-                                Self::record_successful_parameter_descriptor(
-                                    &parameter_descriptors,
-                                    name,
-                                    value,
-                                );
-                            }
-                            (local_events, ros_events)
-                        };
-                        for event in changed {
-                            if let Err(e) = set_atomically_event_tx.try_send(event) {
-                                log::debug!("Warning: could not send parameter event ({}).", e);
-                            }
+                        #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+                        if let Some(enabled) = applied.sim_time_update {
+                            atomic_time_source.request_sim_time(enabled);
                         }
-                        if let Some(ParameterValue::Bool(enabled)) = sim_time_update {
-                            let _ = enabled;
-                            #[cfg(r2r__rosgraph_msgs__msg__Clock)]
-                            atomic_time_source.request_sim_time(*enabled);
-                        }
-                        ros_events.publish(
-                            &atomic_parameter_event_publisher,
-                            &atomic_parameter_event_clock,
-                            &atomic_parameter_event_node,
-                        );
+                        atomic_parameter_event_sink.notify(applied.changed, applied.ros_events);
                     }
                     Err(err) => {
                         result.result.successful = false;
@@ -1135,6 +1139,7 @@ impl Node {
             ts.enable_sim_time(self)?;
         }
         self.parameter_provider = params_struct;
+        self.parameter_event_sink = Some(parameter_event_sink);
 
         // we don't care about the result, the futures will not complete anyway.
         Ok((join_all(handlers).map(|_| ()), event_rx))
@@ -1175,10 +1180,8 @@ impl Node {
     }
 
     fn record_successful_parameter_descriptor(
-        descriptors: &Arc<Mutex<IndexMap<String, ParameterDescriptor>>>, name: &str,
-        value: &ParameterValue,
+        descriptors: &mut IndexMap<String, ParameterDescriptor>, name: &str, value: &ParameterValue,
     ) {
-        let mut descriptors = descriptors.lock();
         if matches!(value, ParameterValue::NotSet) {
             descriptors.shift_remove(name);
             return;
@@ -1368,6 +1371,58 @@ impl Node {
                 expected_type: error.expected_type_name,
                 actual_type: error.actual_type_name,
             })
+    }
+
+    /// Sets one parameter synchronously.
+    ///
+    /// Descriptor constraints and a registered [`RosParams`] provider are applied before the
+    /// cached value changes. Parameter events are emitted when a parameter handler is active.
+    pub fn set_parameter(&self, name: impl Into<String>, value: ParameterValue) -> Result<()> {
+        self.set_parameters_atomically([(name.into(), value)])
+    }
+
+    /// Sets parameters independently and returns one result for each input item.
+    ///
+    /// A failed item does not prevent later items from being attempted. Use
+    /// [`Node::set_parameters_atomically`] when the whole batch must succeed or fail together.
+    pub fn set_parameters<I, N>(&self, parameters: I) -> Vec<Result<()>>
+    where
+        I: IntoIterator<Item = (N, ParameterValue)>,
+        N: Into<String>,
+    {
+        parameters
+            .into_iter()
+            .map(|(name, value)| self.set_parameter(name, value))
+            .collect()
+    }
+
+    /// Validates and sets a batch of parameters as one transaction.
+    pub fn set_parameters_atomically<I, N>(&self, parameters: I) -> Result<()>
+    where
+        I: IntoIterator<Item = (N, ParameterValue)>,
+        N: Into<String>,
+    {
+        let updates = parameters
+            .into_iter()
+            .map(|(name, value)| (name.into(), value))
+            .collect::<Vec<_>>();
+        let applied = {
+            let _transaction = self.parameter_transaction.lock();
+            apply_parameter_updates(
+                &updates,
+                &self.params,
+                &self.parameter_descriptors,
+                self.parameter_provider.as_ref(),
+            )?
+        };
+        #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+        if let Some(enabled) = applied.sim_time_update {
+            self.time_source.request_sim_time(enabled);
+        }
+        if let Some(sink) = &self.parameter_event_sink {
+            sink.notify(applied.changed, applied.ros_events);
+        }
+        Ok(())
     }
 
     /// Subscribe to a ROS topic.
@@ -3800,6 +3855,65 @@ mod tests {
     use super::*;
     use futures::{executor::LocalPool, task::LocalSpawnExt};
 
+    #[derive(Debug)]
+    struct LocalSetParams {
+        count: i64,
+        ratio: f64,
+    }
+
+    impl RosParams for LocalSetParams {
+        fn register_parameters(
+            &mut self, prefix: &str, _parameter: Option<Parameter>,
+            parameters: &mut IndexMap<String, Parameter>,
+        ) -> Result<()> {
+            let prefix = if prefix.is_empty() { "" } else { prefix };
+            parameters.insert(
+                format!("{prefix}count"),
+                Parameter::new(ParameterValue::Integer(self.count)),
+            );
+            parameters.insert(
+                format!("{prefix}ratio"),
+                Parameter::new(ParameterValue::Double(self.ratio)),
+            );
+            Ok(())
+        }
+
+        fn get_parameter(&mut self, name: &str) -> Result<ParameterValue> {
+            match name {
+                "count" => Ok(ParameterValue::Integer(self.count)),
+                "ratio" => Ok(ParameterValue::Double(self.ratio)),
+                _ => Err(Error::InvalidParameterName { name: name.into() }),
+            }
+        }
+
+        fn set_parameter(&mut self, name: &str, value: &ParameterValue) -> Result<()> {
+            self.check_parameter(name, value)?;
+            match (name, value) {
+                ("count", ParameterValue::Integer(value)) => self.count = *value,
+                ("ratio", ParameterValue::Double(value)) => self.ratio = *value,
+                _ => unreachable!("check_parameter accepted an invalid update"),
+            }
+            Ok(())
+        }
+
+        fn check_parameter(&self, name: &str, value: &ParameterValue) -> Result<()> {
+            match (name, value) {
+                ("count", ParameterValue::Integer(_)) | ("ratio", ParameterValue::Double(_)) => {
+                    Ok(())
+                }
+                ("count", _) => Err(Error::InvalidParameterType {
+                    name: name.into(),
+                    ty: "integer",
+                }),
+                ("ratio", _) => Err(Error::InvalidParameterType {
+                    name: name.into(),
+                    ty: "double",
+                }),
+                _ => Err(Error::InvalidParameterName { name: name.into() }),
+            }
+        }
+    }
+
     #[test]
     fn converts_rcl_durations_without_wrapping() {
         assert_eq!(duration_to_rcl_nanos(Duration::from_nanos(i64::MAX as u64)).unwrap(), i64::MAX);
@@ -4018,6 +4132,98 @@ mod tests {
         assert_eq!(remote_types, local_types);
         assert_eq!(remote_descriptors, local_descriptors);
         assert_eq!(remote_list, local_list);
+    }
+
+    #[test]
+    fn local_parameter_updates_share_service_validation_and_events() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "local_parameter_update_test", "").unwrap();
+        let provider = Arc::new(Mutex::new(LocalSetParams {
+            count: 2,
+            ratio: 0.2,
+        }));
+        let provider_for_handler: Arc<Mutex<dyn RosParams + Send>> = provider.clone();
+        let (handler, mut local_events) = node
+            .make_derived_parameter_handler(provider_for_handler)
+            .unwrap();
+        node.set_parameter_descriptor(
+            "count",
+            ParameterDescriptor {
+                integer_range: vec![IntegerRange {
+                    from_value: 0,
+                    to_value: 10,
+                    step: 2,
+                }],
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mut ros_events = node
+            .subscribe_parameter_events(
+                Some("/local_parameter_update_test".into()),
+                Some("count".into()),
+            )
+            .unwrap();
+        let pool = LocalPool::new();
+        pool.spawner().spawn_local(handler).unwrap();
+        for _ in 0..100 {
+            if node
+                .get_subscriptions_info_by_topic("/parameter_events", false)
+                .unwrap()
+                .iter()
+                .any(|endpoint| endpoint.node_name == "local_parameter_update_test")
+            {
+                break;
+            }
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+        }
+
+        node.set_parameter("count", ParameterValue::Integer(4))
+            .unwrap();
+        assert_eq!(provider.lock().count, 4);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 4);
+        assert_eq!(
+            local_events.next().now_or_never().flatten(),
+            Some(("count".into(), ParameterValue::Integer(4)))
+        );
+        let event = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(event) = ros_events.next().now_or_never().flatten() {
+                break event;
+            }
+        };
+        assert_eq!(event.kind, ParameterEventKind::Changed);
+        assert_eq!(event.value, ParameterValue::Integer(4));
+
+        let results = node.set_parameters([
+            ("count", ParameterValue::Integer(3)),
+            ("ratio", ParameterValue::Double(0.4)),
+        ]);
+        assert!(results[0].is_err());
+        assert!(results[1].is_ok());
+        assert_eq!(provider.lock().count, 4);
+        assert_eq!(provider.lock().ratio, 0.4);
+
+        assert!(node
+            .set_parameters_atomically([
+                ("count", ParameterValue::Integer(6)),
+                ("ratio", ParameterValue::String("wrong".into())),
+            ])
+            .is_err());
+        assert_eq!(provider.lock().count, 4);
+        assert_eq!(provider.lock().ratio, 0.4);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 4);
+        assert_eq!(node.get_parameter::<f64>("ratio").unwrap(), 0.4);
+
+        node.set_parameters_atomically([
+            ("count", ParameterValue::Integer(6)),
+            ("ratio", ParameterValue::Double(0.6)),
+        ])
+        .unwrap();
+        assert_eq!(provider.lock().count, 6);
+        assert_eq!(provider.lock().ratio, 0.6);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 6);
+        assert_eq!(node.get_parameter::<f64>("ratio").unwrap(), 0.6);
     }
 
     #[test]
