@@ -15,6 +15,13 @@ use r2r_rcl::*;
 
 pub(crate) type ClientCompletion = Box<dyn FnOnce()>;
 
+pub(crate) enum ClientResponseAction {
+    Idle,
+    Taken(Option<ClientCompletion>),
+}
+
+const MAX_CLIENT_RESPONSES_PER_SPIN: usize = 16;
+
 fn response_conversion_completion<N, T>(
     sender: oneshot::Sender<T>, native: N, convert: impl FnOnce(N) -> T + Send + 'static,
 ) -> ClientCompletion
@@ -50,6 +57,23 @@ pub(crate) fn complete_client_operation<T: ?Sized>(
     let completion = { operation(&mut *client.lock())? };
     if let Some(completion) = completion {
         completion();
+    }
+    Ok(())
+}
+
+pub(crate) fn complete_client_responses<T: ?Sized>(
+    client: &Mutex<T>, mut operation: impl FnMut(&mut T) -> Result<ClientResponseAction>,
+) -> Result<()> {
+    for _ in 0..MAX_CLIENT_RESPONSES_PER_SPIN {
+        let action = { operation(&mut *client.lock())? };
+        match action {
+            ClientResponseAction::Idle => return Ok(()),
+            ClientResponseAction::Taken(completion) => {
+                if let Some(completion) = completion {
+                    completion();
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -315,7 +339,7 @@ impl UntypedClient_ {
 
 pub trait Client_ {
     fn handle(&self) -> &rcl_client_t;
-    fn handle_response(&mut self) -> Result<Option<ClientCompletion>>;
+    fn handle_response(&mut self) -> Result<ClientResponseAction>;
     fn register_poll_available(&mut self, s: oneshot::Sender<()>);
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ClientCompletion>;
     fn has_pending_work(&mut self) -> bool;
@@ -339,7 +363,7 @@ where
         &self.rcl_handle
     }
 
-    fn handle_response(&mut self) -> Result<Option<ClientCompletion>> {
+    fn handle_response(&mut self) -> Result<ClientResponseAction> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg = WrappedNativeMsg::<T::Response>::try_new()?;
 
@@ -351,7 +375,7 @@ where
             )
         };
         if ret == RCL_RET_CLIENT_TAKE_FAILED as i32 {
-            return Ok(None);
+            return Ok(ClientResponseAction::Idle);
         }
         if ret != RCL_RET_OK as i32 {
             return Err(Error::from_rcl_error(ret));
@@ -359,9 +383,11 @@ where
 
         let request_id = unsafe { request_id.assume_init() };
         if let Some(sender) = self.response_channels.remove(&request_id.sequence_number) {
-            Ok(Some(response_conversion_completion(sender, response_msg, |response_msg| {
-                T::Response::from_native(&response_msg)
-            })))
+            Ok(ClientResponseAction::Taken(Some(response_conversion_completion(
+                sender,
+                response_msg,
+                |response_msg| T::Response::from_native(&response_msg),
+            ))))
         } else {
             let we_have: String = self
                 .response_channels
@@ -374,7 +400,7 @@ where
                 request_id.sequence_number,
                 we_have
             );
-            Ok(None)
+            Ok(ClientResponseAction::Taken(None))
         }
     }
 
@@ -426,7 +452,7 @@ impl Client_ for UntypedClient_ {
         &self.rcl_handle
     }
 
-    fn handle_response(&mut self) -> Result<Option<ClientCompletion>> {
+    fn handle_response(&mut self) -> Result<ClientResponseAction> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg = (self.service_type.make_response_msg)()?;
 
@@ -438,7 +464,7 @@ impl Client_ for UntypedClient_ {
             )
         };
         if ret == RCL_RET_CLIENT_TAKE_FAILED as i32 {
-            return Ok(None);
+            return Ok(ClientResponseAction::Idle);
         }
         if ret != RCL_RET_OK as i32 {
             return Err(Error::from_rcl_error(ret));
@@ -446,9 +472,11 @@ impl Client_ for UntypedClient_ {
 
         let request_id = unsafe { request_id.assume_init() };
         if let Some(sender) = self.response_channels.remove(&request_id.sequence_number) {
-            Ok(Some(response_conversion_completion(sender, response_msg, |response_msg| {
-                response_msg.to_json()
-            })))
+            Ok(ClientResponseAction::Taken(Some(response_conversion_completion(
+                sender,
+                response_msg,
+                |response_msg| response_msg.to_json(),
+            ))))
         } else {
             let we_have: String = self
                 .response_channels
@@ -461,7 +489,7 @@ impl Client_ for UntypedClient_ {
                 request_id.sequence_number,
                 we_have
             );
-            Ok(None)
+            Ok(ClientResponseAction::Taken(None))
         }
     }
 
@@ -596,6 +624,31 @@ mod tests {
             let _client = arc_self.client.lock();
             arc_self.woke.store(true, Ordering::SeqCst);
         }
+    }
+
+    #[test]
+    fn client_response_batches_stop_at_idle_and_fairness_limit() {
+        let client = Mutex::new(0usize);
+        let calls = std::cell::Cell::new(0);
+        complete_client_responses(&client, |_| {
+            let call = calls.get();
+            calls.set(call + 1);
+            if call == 2 {
+                Ok(ClientResponseAction::Idle)
+            } else {
+                Ok(ClientResponseAction::Taken(None))
+            }
+        })
+        .unwrap();
+        assert_eq!(calls.get(), 3);
+
+        calls.set(0);
+        complete_client_responses(&client, |_| {
+            calls.set(calls.get() + 1);
+            Ok(ClientResponseAction::Taken(None))
+        })
+        .unwrap();
+        assert_eq!(calls.get(), MAX_CLIENT_RESPONSES_PER_SPIN);
     }
 
     #[test]

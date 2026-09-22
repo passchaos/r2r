@@ -3148,7 +3148,7 @@ impl Node {
             let ws_clients = unsafe { std::slice::from_raw_parts(ws.clients, self.clients.len()) };
             for (s, ws_s) in self.clients.iter_mut().zip(ws_clients) {
                 if ws_s != &std::ptr::null() {
-                    complete_client_operation(s, Client_::handle_response)?;
+                    complete_client_responses(s, Client_::handle_response)?;
                 }
             }
         }
@@ -6355,6 +6355,52 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(received, vec![1, 2, 3]);
         drop(responses);
+    }
+
+    #[test]
+    fn client_drains_response_bursts_in_one_spin() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "client_response_batch_test", "").unwrap();
+        let service_name = format!("/client_batch_{}", uuid::Uuid::new_v4().simple());
+        let mut service = node
+            .create_service_with_options::<AddTwoInts::Service>(
+                &service_name,
+                QosProfile::default().keep_last(8),
+                ServiceOptions::default().request_channel_capacity(8),
+            )
+            .unwrap();
+        let client = node
+            .create_client::<AddTwoInts::Service>(&service_name, QosProfile::default().keep_last(8))
+            .unwrap();
+        let available = Node::is_available(&client).unwrap();
+        node.spin_until_future_complete(available, Duration::from_secs(1))
+            .unwrap();
+
+        let mut responses = (1..=3)
+            .map(|value| {
+                Box::pin(
+                    client
+                        .request(&AddTwoInts::Request { a: value, b: 0 })
+                        .unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        std::thread::sleep(Duration::from_millis(20));
+        node.try_spin_once(Duration::from_millis(100)).unwrap();
+        while let Some(request) = service.next().now_or_never().flatten() {
+            let sum = request.message.a;
+            request.respond(AddTwoInts::Response { sum }).unwrap();
+        }
+        std::thread::sleep(Duration::from_millis(20));
+        node.try_spin_once(Duration::from_millis(100)).unwrap();
+
+        let values = responses
+            .iter_mut()
+            .map(|response| response.as_mut().now_or_never().unwrap().unwrap().sum)
+            .collect::<Vec<_>>();
+        assert_eq!(values, vec![1, 2, 3]);
     }
 
     #[test]
