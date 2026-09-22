@@ -24,6 +24,21 @@ pub enum ParameterEventKind {
     Deleted,
 }
 
+/// Options controlling how parameters are declared.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ParameterDeclarationOptions {
+    /// Ignore CLI, YAML, and programmatic overrides and use the supplied default value.
+    pub ignore_override: bool,
+}
+
+impl ParameterDeclarationOptions {
+    /// Selects whether declaration-time parameter overrides are ignored.
+    pub const fn ignore_override(mut self, ignore_override: bool) -> Self {
+        self.ignore_override = ignore_override;
+        self
+    }
+}
+
 /// A single parameter change flattened from `rcl_interfaces/msg/ParameterEvent`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParameterEventChange {

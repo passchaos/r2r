@@ -191,6 +191,7 @@ struct PreparedParameterDeclaration {
     name: String,
     value: ParameterValue,
     descriptor: ParameterDescriptor,
+    uses_existing_override: bool,
 }
 
 type ParameterValidationCallback =
@@ -1108,7 +1109,23 @@ impl Node {
         &self, name: impl Into<String>, default_value: impl Into<ParameterValue>,
         descriptor: ParameterDescriptor,
     ) -> Result<ParameterValue> {
-        self.declare_parameters_impl("", [(name.into(), default_value.into(), descriptor)])
+        self.declare_parameter_with_options(
+            name,
+            default_value,
+            descriptor,
+            ParameterDeclarationOptions::default(),
+        )
+    }
+
+    /// Declares a parameter with explicit override behavior.
+    ///
+    /// Set [`ParameterDeclarationOptions::ignore_override`] to use `default_value` even when the
+    /// node was created with a matching CLI, YAML, or programmatic override.
+    pub fn declare_parameter_with_options(
+        &self, name: impl Into<String>, default_value: impl Into<ParameterValue>,
+        descriptor: ParameterDescriptor, options: ParameterDeclarationOptions,
+    ) -> Result<ParameterValue> {
+        self.declare_parameters_impl("", [(name.into(), default_value.into(), descriptor)], options)
             .and_then(|mut values| values.pop().ok_or(Error::RCL_RET_ERROR))
     }
 
@@ -1131,6 +1148,25 @@ impl Node {
             parameters
                 .into_iter()
                 .map(|(name, value)| (name.into(), value.into(), ParameterDescriptor::default())),
+            ParameterDeclarationOptions::default(),
+        )
+    }
+
+    /// Declares several parameters under `namespace` with explicit override behavior.
+    pub fn declare_parameters_with_options<I, N, V>(
+        &self, namespace: &str, parameters: I, options: ParameterDeclarationOptions,
+    ) -> Result<Vec<ParameterValue>>
+    where
+        I: IntoIterator<Item = (N, V)>,
+        N: Into<String>,
+        V: Into<ParameterValue>,
+    {
+        self.declare_parameters_impl(
+            namespace,
+            parameters
+                .into_iter()
+                .map(|(name, value)| (name.into(), value.into(), ParameterDescriptor::default())),
+            options,
         )
     }
 
@@ -1152,12 +1188,32 @@ impl Node {
             parameters
                 .into_iter()
                 .map(|(name, value, descriptor)| (name.into(), value.into(), descriptor)),
+            ParameterDeclarationOptions::default(),
+        )
+    }
+
+    /// Declares several parameters and descriptors with explicit override behavior.
+    pub fn declare_parameters_with_descriptors_and_options<I, N, V>(
+        &self, namespace: &str, parameters: I, options: ParameterDeclarationOptions,
+    ) -> Result<Vec<ParameterValue>>
+    where
+        I: IntoIterator<Item = (N, V, ParameterDescriptor)>,
+        N: Into<String>,
+        V: Into<ParameterValue>,
+    {
+        self.declare_parameters_impl(
+            namespace,
+            parameters
+                .into_iter()
+                .map(|(name, value, descriptor)| (name.into(), value.into(), descriptor)),
+            options,
         )
     }
 
     fn declare_parameters_impl(
         &self, namespace: &str,
         parameters: impl IntoIterator<Item = (String, ParameterValue, ParameterDescriptor)>,
+        options: ParameterDeclarationOptions,
     ) -> Result<Vec<ParameterValue>> {
         let _transaction = self.parameter_transaction.lock();
         let prefix = if namespace.is_empty() {
@@ -1182,12 +1238,15 @@ impl Node {
             descriptor.type_ = default_value.parameter_type().into();
             validate_parameter_descriptor(&name, &descriptor)?;
 
-            let value = params
-                .get(&name)
-                .map_or(default_value, |parameter| parameter.value.clone());
+            let override_parameter = (!options.ignore_override)
+                .then(|| params.get(&name))
+                .flatten();
+            let uses_existing_override = override_parameter.is_some();
+            let value =
+                override_parameter.map_or(default_value, |parameter| parameter.value.clone());
             validate_parameter_update(&name, &value, &descriptor, false)?;
             if descriptor.description.is_empty() {
-                if let Some(parameter) = params.get(&name) {
+                if let Some(parameter) = override_parameter {
                     descriptor.description = parameter.description.to_owned();
                 }
             }
@@ -1198,6 +1257,7 @@ impl Node {
                 name,
                 value,
                 descriptor,
+                uses_existing_override,
             });
         }
         drop(descriptors);
@@ -1214,9 +1274,9 @@ impl Node {
         let mut descriptors = self.parameter_descriptors.lock();
         for declaration in &prepared {
             descriptors.insert(declaration.name.clone(), declaration.descriptor.clone());
-            params
-                .entry(declaration.name.clone())
-                .or_insert_with(|| Parameter::new(declaration.value.clone()));
+            if !declaration.uses_existing_override {
+                params.insert(declaration.name.clone(), Parameter::new(declaration.value.clone()));
+            }
         }
         drop(descriptors);
         drop(params);
@@ -5749,6 +5809,66 @@ mod tests {
         assert_eq!(post_calls.lock().len(), 2);
         assert_eq!(post_calls.lock()[0][0].0, "robot.speed");
         assert_eq!(post_calls.lock()[1][0].0, "robot.limit");
+    }
+
+    #[test]
+    fn parameter_declaration_options_can_ignore_overrides() {
+        let context = Context::create().unwrap();
+        let node = Node::create_with_options(
+            context,
+            "ignore_parameter_override_test",
+            "",
+            NodeOptions::default()
+                .use_global_arguments(false)
+                .parameter_override("single", 41_i64)
+                .parameter_override("group.first", 42_i64)
+                .parameter_override("group.even", 3_i64),
+        )
+        .unwrap();
+        let ignore = ParameterDeclarationOptions::default().ignore_override(true);
+
+        assert_eq!(
+            node.declare_parameter_with_options(
+                "single",
+                1_i64,
+                ParameterDescriptor::default(),
+                ignore,
+            )
+            .unwrap(),
+            ParameterValue::Integer(1)
+        );
+        assert_eq!(
+            node.declare_parameters_with_options(
+                "group",
+                [("first", 2_i64), ("second", 4_i64)],
+                ignore,
+            )
+            .unwrap(),
+            [ParameterValue::Integer(2), ParameterValue::Integer(4)]
+        );
+        assert_eq!(
+            node.declare_parameters_with_descriptors_and_options(
+                "group",
+                [(
+                    "even",
+                    6_i64,
+                    ParameterDescriptor {
+                        integer_range: vec![IntegerRange {
+                            from_value: 0,
+                            to_value: 10,
+                            step: 2,
+                        }],
+                        ..Default::default()
+                    },
+                )],
+                ignore,
+            )
+            .unwrap(),
+            [ParameterValue::Integer(6)]
+        );
+        assert_eq!(node.get_parameter::<i64>("single").unwrap(), 1);
+        assert_eq!(node.get_parameter::<i64>("group.first").unwrap(), 2);
+        assert_eq!(node.get_parameter::<i64>("group.even").unwrap(), 6);
     }
 
     #[test]
