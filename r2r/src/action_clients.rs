@@ -27,7 +27,7 @@ use r2r_actions::*;
 use r2r_rcl::*;
 
 pub(crate) struct ActionClientCompletion {
-    notify: Box<dyn FnOnce() -> bool>,
+    notify: Box<dyn FnOnce() -> Result<bool>>,
     cleanup_goal_on_failure: Option<uuid::Uuid>,
 }
 
@@ -59,33 +59,43 @@ pub(crate) fn complete_action_client_operation<T: ?Sized>(
 ) -> Result<()> {
     let mut completions = Vec::new();
     let operation_result = { operation(&mut *client.lock(), &mut completions) };
-    run_action_client_completions(client, completions, cleanup_goal);
-    operation_result
+    let completion_result = run_action_client_completions(client, completions, cleanup_goal);
+    operation_result.and(completion_result)
 }
 
 fn run_action_client_completions<T: ?Sized>(
     client: &Mutex<T>, completions: Vec<ActionClientCompletion>,
     mut cleanup_goal: impl FnMut(&mut T, &uuid::Uuid) -> Vec<ActionClientCompletion>,
-) {
+) -> Result<()> {
     let mut completions = VecDeque::from(completions);
+    let mut first_error = None;
     while let Some(completion) = completions.pop_front() {
         let ActionClientCompletion {
             notify,
             cleanup_goal_on_failure,
         } = completion;
-        if !notify() {
-            if let Some(uuid) = cleanup_goal_on_failure {
-                let cleanup = { cleanup_goal(&mut *client.lock(), &uuid) };
-                completions.extend(cleanup);
+        match notify() {
+            Ok(false) => {
+                if let Some(uuid) = cleanup_goal_on_failure {
+                    let cleanup = { cleanup_goal(&mut *client.lock(), &uuid) };
+                    completions.extend(cleanup);
+                }
+            }
+            Ok(true) => {}
+            Err(err) => {
+                first_error.get_or_insert(err);
             }
         }
     }
+    first_error.map_or(Ok(()), Err)
 }
 
 pub(crate) fn run_detached_action_client_completions(completions: Vec<ActionClientCompletion>) {
     for completion in completions {
         debug_assert!(completion.cleanup_goal_on_failure.is_none());
-        (completion.notify)();
+        if let Err(err) = (completion.notify)() {
+            log::error!("could not complete detached action client cleanup: {err}");
+        }
     }
 }
 
@@ -100,8 +110,11 @@ pub(crate) fn complete_action_feedback_batch<T: ?Sized>(
     for _ in 0..MAX_ACTION_FEEDBACK_PER_SPIN {
         let mut completions = Vec::new();
         let take_result = { operation(&mut *client.lock(), &mut completions) };
-        run_action_client_completions(client, completions, &mut cleanup_goal);
-        if take_result? == ActionClientTakeResult::Idle {
+        let completion_result =
+            run_action_client_completions(client, completions, &mut cleanup_goal);
+        let take_result = take_result?;
+        completion_result?;
+        if take_result == ActionClientTakeResult::Idle {
             break;
         }
     }
@@ -123,9 +136,9 @@ where
             run_detached_action_client_completions(cleanup);
             if sender.send(response).is_err() {
                 log::debug!("could not deliver {description}");
-                false
+                Ok(false)
             } else {
-                true
+                Ok(true)
             }
         }),
         cleanup_goal_on_failure,
@@ -145,9 +158,9 @@ where
             let response = convert(native);
             if sender.send(response).is_err() {
                 log::debug!("could not deliver {description}");
-                false
+                Ok(false)
             } else {
-                true
+                Ok(true)
             }
         }),
         cleanup_goal_on_failure,
@@ -164,14 +177,14 @@ pub(crate) fn action_availability_completion(
                 for sender in senders {
                     let _ = sender.send(());
                 }
-                true
+                Ok(true)
             }),
             cleanup_goal_on_failure: None,
         }),
         Err(_) => Some(ActionClientCompletion {
             notify: Box::new(move || {
                 drop(senders);
-                true
+                Ok(true)
             }),
             cleanup_goal_on_failure: None,
         }),
@@ -232,7 +245,7 @@ pub(crate) fn detached_feedback_completion<T: Send + 'static>(
                 channel.sender = Some(sender);
                 channel.pending = pending;
             }
-            true
+            Ok(true)
         }),
         cleanup_goal_on_failure: None,
     }
@@ -250,7 +263,7 @@ pub(crate) fn close_feedback_completion<T: Send + 'static>(
             };
             drop(sender);
             drop(pending);
-            true
+            Ok(true)
         }),
         cleanup_goal_on_failure: None,
     }
@@ -262,7 +275,7 @@ pub(crate) fn drop_action_client_resources_completion<T: Send + 'static>(
     ActionClientCompletion {
         notify: Box::new(move || {
             drop(resources);
-            true
+            Ok(true)
         }),
         cleanup_goal_on_failure: None,
     }
@@ -1575,6 +1588,39 @@ mod tests {
     }
 
     #[test]
+    fn action_completion_errors_do_not_skip_later_completions() {
+        let client = Mutex::new(());
+        let completed = Arc::new(Mutex::new(Vec::new()));
+        let first = Arc::clone(&completed);
+        let second = Arc::clone(&completed);
+
+        let result = complete_action_client_operation(
+            &client,
+            |_, completions| {
+                completions.push(ActionClientCompletion {
+                    notify: Box::new(move || {
+                        first.lock().push("first");
+                        Err(Error::RCL_RET_ERROR)
+                    }),
+                    cleanup_goal_on_failure: None,
+                });
+                completions.push(ActionClientCompletion {
+                    notify: Box::new(move || {
+                        second.lock().push("second");
+                        Ok(true)
+                    }),
+                    cleanup_goal_on_failure: None,
+                });
+                Ok(())
+            },
+            |_, _| Vec::new(),
+        );
+
+        assert!(matches!(result, Err(Error::RCL_RET_ERROR)));
+        assert_eq!(*completed.lock(), ["first", "second"]);
+    }
+
+    #[test]
     fn action_response_batches_stop_at_idle_and_fairness_limit() {
         let calls = std::cell::Cell::new(0);
         let mut client = ();
@@ -1690,17 +1736,20 @@ mod tests {
         assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Pending));
         (feedback_completion(Arc::clone(&channel), 41)
             .unwrap()
-            .notify)();
+            .notify)()
+        .unwrap();
         (feedback_completion(Arc::clone(&channel), 42)
             .unwrap()
-            .notify)();
+            .notify)()
+        .unwrap();
         assert_eq!(channel.lock().pending, Some(42));
 
         assert_eq!(receiver.next().now_or_never().flatten(), Some(41));
         let pending = channel.lock().pending.take().unwrap();
         (feedback_completion(Arc::clone(&channel), pending)
             .unwrap()
-            .notify)();
+            .notify)()
+        .unwrap();
         assert_eq!(receiver.next().now_or_never().flatten(), Some(42));
         assert!(channel.lock().pending.is_none());
     }
