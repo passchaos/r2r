@@ -6,7 +6,7 @@ use futures::{
 use indexmap::IndexMap;
 use parking_lot::Mutex;
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     ffi::{CStr, CString},
     future::Future,
     marker::PhantomPinned,
@@ -3088,7 +3088,7 @@ impl Node {
             }
         }
 
-        let mut subs_to_remove = vec![];
+        let mut subs_to_remove = HashSet::new();
         let mut subscriber_error = None;
         if !ws.subscriptions.is_null() {
             let ws_subs =
@@ -3097,7 +3097,7 @@ impl Node {
                 if ws_s != &std::ptr::null() {
                     match s.handle_ready() {
                         Ok(true) => {
-                            subs_to_remove.push(s.handle() as *const rcl_subscription_t);
+                            subs_to_remove.insert(s.handle() as *const rcl_subscription_t);
                         }
                         Ok(false) => {}
                         Err(err) => {
@@ -3120,7 +3120,7 @@ impl Node {
             return Err(err);
         }
 
-        let mut timers_to_remove = vec![];
+        let mut timers_to_remove = HashSet::new();
         let mut timer_error = None;
         if !ws.timers.is_null() {
             let ws_timers = unsafe { std::slice::from_raw_parts(ws.timers, self.timers.len()) };
@@ -3128,7 +3128,9 @@ impl Node {
                 if ws_s != &std::ptr::null() {
                     // TODO: move this to impl Timer
                     match s.handle_incoming() {
-                        Ok(true) => timers_to_remove.push(s.get_handle()),
+                        Ok(true) => {
+                            timers_to_remove.insert(s.get_handle());
+                        }
                         Ok(false) => {}
                         Err(err) => {
                             timer_error.get_or_insert(err);
@@ -3153,7 +3155,7 @@ impl Node {
             }
         }
 
-        let mut services_to_remove = vec![];
+        let mut services_to_remove = HashSet::new();
         let mut service_error = None;
         if !ws.services.is_null() {
             let ws_services =
@@ -3162,7 +3164,7 @@ impl Node {
                 if ws_s != &std::ptr::null() {
                     match complete_ready_service(s) {
                         Ok(ServiceHandleResult::Remove) => {
-                            services_to_remove.push(s.lock().handle() as *const rcl_service_t);
+                            services_to_remove.insert(s.lock().handle() as *const rcl_service_t);
                         }
                         Ok(ServiceHandleResult::Taken | ServiceHandleResult::Idle) => {}
                         Err(err) => {
