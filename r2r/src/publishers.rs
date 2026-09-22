@@ -184,6 +184,91 @@ pub(crate) struct Publisher_ {
     poll_ack_channels: Mutex<Vec<oneshot::Sender<Result<()>>>>,
 }
 
+fn take_active_waiters<T>(waiters: &Mutex<Vec<oneshot::Sender<T>>>) -> Vec<oneshot::Sender<T>> {
+    let mut waiters = waiters.lock();
+    waiters.retain(|sender| !sender.is_canceled());
+    std::mem::take(&mut *waiters)
+}
+
+fn restore_active_waiters<T>(
+    waiters: &Mutex<Vec<oneshot::Sender<T>>>, mut pending: Vec<oneshot::Sender<T>>,
+) {
+    pending.retain(|sender| !sender.is_canceled());
+    if pending.is_empty() {
+        return;
+    }
+    waiters.lock().extend(pending);
+}
+
+fn complete_waiters<T: Clone>(waiters: Vec<oneshot::Sender<T>>, value: T) {
+    for sender in waiters {
+        let _ = sender.send(value.clone());
+    }
+}
+
+#[cfg(test)]
+mod waiter_tests {
+    use super::*;
+    use futures::{
+        task::{waker_ref, ArcWake},
+        Future,
+    };
+    use std::{
+        pin::Pin,
+        sync::atomic::{AtomicBool, Ordering},
+        task::{Context, Poll},
+    };
+
+    struct RegisteringWake {
+        waiters: Arc<Mutex<Vec<oneshot::Sender<()>>>>,
+        woke: AtomicBool,
+    }
+
+    impl ArcWake for RegisteringWake {
+        fn wake_by_ref(arc_self: &Arc<Self>) {
+            let (sender, _receiver) = oneshot::channel();
+            arc_self.waiters.lock().push(sender);
+            arc_self.woke.store(true, Ordering::SeqCst);
+        }
+    }
+
+    #[test]
+    fn completing_waiters_allows_reentrant_registration() {
+        let waiters = Arc::new(Mutex::new(Vec::new()));
+        let (sender, mut receiver) = oneshot::channel();
+        waiters.lock().push(sender);
+        let wake = Arc::new(RegisteringWake {
+            waiters: Arc::clone(&waiters),
+            woke: AtomicBool::new(false),
+        });
+        let waker = waker_ref(&wake);
+        let mut context = Context::from_waker(&waker);
+        assert!(matches!(Pin::new(&mut receiver).poll(&mut context), Poll::Pending));
+
+        let detached = take_active_waiters(&waiters);
+        assert!(waiters.try_lock().is_some());
+        complete_waiters(detached, ());
+
+        assert!(wake.woke.load(Ordering::SeqCst));
+        assert_eq!(waiters.lock().len(), 1);
+        assert!(matches!(Pin::new(&mut receiver).poll(&mut context), Poll::Ready(Ok(()))));
+    }
+
+    #[test]
+    fn restoring_waiters_preserves_concurrent_registrations() {
+        let waiters = Mutex::new(Vec::new());
+        let (first, _first_receiver) = oneshot::channel::<()>();
+        waiters.lock().push(first);
+        let detached = take_active_waiters(&waiters);
+        let (second, _second_receiver) = oneshot::channel::<()>();
+        waiters.lock().push(second);
+
+        restore_active_waiters(&waiters, detached);
+
+        assert_eq!(waiters.lock().len(), 2);
+    }
+}
+
 struct PublisherHandle {
     publisher: Option<rcl_publisher_t>,
     offered_incompatible_qos: Option<PublisherEvent>,
@@ -423,44 +508,33 @@ impl Publisher_ {
     }
 
     pub(crate) fn poll_has_subscribers(&self) {
-        let mut poll_subscriber_channels = self.poll_subscriber_channels.lock();
-        poll_subscriber_channels.retain(|sender| !sender.is_canceled());
-
-        if poll_subscriber_channels.is_empty() {
+        let waiters = take_active_waiters(&self.poll_subscriber_channels);
+        if waiters.is_empty() {
             return;
         }
         match self.get_subscription_count() {
             Ok(0) => {
-                // not available...
+                restore_active_waiters(&self.poll_subscriber_channels, waiters);
             }
-            Ok(_) => {
-                // send ok and close channels
-                while let Some(sender) = poll_subscriber_channels.pop() {
-                    let _res = sender.send(()); // we ignore if receiver dropped.
-                }
-            }
-            Err(_) => {
-                // error, close all channels
-                poll_subscriber_channels.clear();
-            }
+            Ok(_) => complete_waiters(waiters, ()),
+            // Dropping the detached senders reports an invalid publisher to the receivers.
+            Err(_) => {}
         }
     }
 
     #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     pub(crate) fn poll_all_acked(&self) {
-        let mut waiters = self.poll_ack_channels.lock();
-        waiters.retain(|sender| !sender.is_canceled());
+        let waiters = take_active_waiters(&self.poll_ack_channels);
         if waiters.is_empty() {
             return;
         }
 
         let result = self.wait_for_all_acked(Duration::ZERO);
         if matches!(result, Err(Error::RCL_RET_TIMEOUT)) {
+            restore_active_waiters(&self.poll_ack_channels, waiters);
             return;
         }
-        while let Some(sender) = waiters.pop() {
-            let _ = sender.send(result.clone());
-        }
+        complete_waiters(waiters, result);
     }
 
     pub(crate) fn has_pending_waits(&self) -> bool {
