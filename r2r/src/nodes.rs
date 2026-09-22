@@ -162,6 +162,44 @@ struct AppliedParameterChanges {
     sim_time_update: Option<bool>,
 }
 
+type ParameterValidationCallback =
+    dyn Fn(&[(String, ParameterValue)]) -> Result<()> + Send + Sync + 'static;
+
+struct ParameterValidationCallbackEntry {
+    id: uuid::Uuid,
+    callback: Arc<ParameterValidationCallback>,
+}
+
+fn validate_parameter_callbacks(
+    updates: &[(String, ParameterValue)],
+    callbacks: &Arc<Mutex<Vec<ParameterValidationCallbackEntry>>>,
+) -> Result<()> {
+    let callbacks = callbacks
+        .lock()
+        .iter()
+        .rev()
+        .map(|entry| entry.callback.clone())
+        .collect::<Vec<_>>();
+    for callback in callbacks {
+        callback(updates)?;
+    }
+    Ok(())
+}
+
+/// Keeps a parameter validation callback registered until dropped.
+pub struct ParameterCallbackHandle {
+    id: uuid::Uuid,
+    callbacks: std::sync::Weak<Mutex<Vec<ParameterValidationCallbackEntry>>>,
+}
+
+impl Drop for ParameterCallbackHandle {
+    fn drop(&mut self) {
+        if let Some(callbacks) = self.callbacks.upgrade() {
+            callbacks.lock().retain(|entry| entry.id != self.id);
+        }
+    }
+}
+
 fn parameter_value_changed(previous: Option<&ParameterValue>, value: &ParameterValue) -> bool {
     previous != Some(value) && !(previous.is_none() && matches!(value, ParameterValue::NotSet))
 }
@@ -261,6 +299,7 @@ fn apply_parameter_updates(
     updates: &[(String, ParameterValue)], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
     descriptors: &Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
     provider: Option<&Arc<Mutex<dyn RosParams + Send>>>,
+    callbacks: &Arc<Mutex<Vec<ParameterValidationCallbackEntry>>>,
 ) -> Result<AppliedParameterChanges> {
     {
         let descriptors = descriptors.lock();
@@ -276,6 +315,8 @@ fn apply_parameter_updates(
             }
         }
     }
+
+    validate_parameter_callbacks(updates, callbacks)?;
 
     if let Some(provider) = provider {
         let derived_updates = updates
@@ -332,6 +373,7 @@ pub struct Node {
     parameter_descriptors: Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
     parameter_provider: Option<Arc<Mutex<dyn RosParams + Send>>>,
     parameter_transaction: Arc<Mutex<()>>,
+    parameter_validation_callbacks: Arc<Mutex<Vec<ParameterValidationCallbackEntry>>>,
     parameter_event_sink: Option<ParameterEventSink>,
     pub(crate) node_handle: Box<rcl_node_t>,
     // the node owns the subscribers
@@ -653,6 +695,7 @@ impl Node {
                 parameter_descriptors: Arc::new(Mutex::new(IndexMap::new())),
                 parameter_provider: None,
                 parameter_transaction: Arc::new(Mutex::new(())),
+                parameter_validation_callbacks: Arc::new(Mutex::new(Vec::new())),
                 parameter_event_sink: None,
                 node_handle,
                 subscribers: Vec::new(),
@@ -729,21 +772,26 @@ impl Node {
         descriptor.type_ = default_value.parameter_type();
         validate_parameter_descriptor(&name, &descriptor)?;
 
-        let mut params = self.params.lock();
-        let value = params
-            .get(&name)
-            .map(|parameter| parameter.value.clone())
-            .unwrap_or(default_value);
+        let (value, fallback_description) = self.params.lock().get(&name).map_or_else(
+            || (default_value, None),
+            |parameter| (parameter.value.clone(), Some(parameter.description)),
+        );
         validate_parameter_update(&name, &value, &descriptor, false)?;
         if descriptor.description.is_empty() {
-            if let Some(parameter) = params.get(&name) {
-                descriptor.description = parameter.description.to_owned();
+            if let Some(description) = fallback_description {
+                descriptor.description = description.to_owned();
             }
         }
         if descriptor.dynamic_typing {
             descriptor.type_ = value.parameter_type();
         }
 
+        validate_parameter_callbacks(
+            &[(name.clone(), value.clone())],
+            &self.parameter_validation_callbacks,
+        )?;
+
+        let mut params = self.params.lock();
         let mut descriptors = self.parameter_descriptors.lock();
         if descriptors.contains_key(&name) {
             return Err(Error::ParameterAlreadyDeclared { name });
@@ -914,6 +962,7 @@ impl Node {
         let params = self.params.clone();
         let parameter_descriptors = self.parameter_descriptors.clone();
         let parameter_transaction = self.parameter_transaction.clone();
+        let parameter_validation_callbacks = self.parameter_validation_callbacks.clone();
         let params_struct_clone = params_struct.clone();
         let set_parameter_event_sink = parameter_event_sink.clone();
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
@@ -942,6 +991,7 @@ impl Node {
                             &params,
                             &parameter_descriptors,
                             params_struct_clone.as_ref(),
+                            &parameter_validation_callbacks,
                         )
                     };
                     match applied {
@@ -1070,6 +1120,7 @@ impl Node {
         let params = self.params.clone();
         let parameter_descriptors = self.parameter_descriptors.clone();
         let parameter_transaction = self.parameter_transaction.clone();
+        let parameter_validation_callbacks = self.parameter_validation_callbacks.clone();
         let params_struct_clone = params_struct.clone();
         let atomic_parameter_event_sink = parameter_event_sink.clone();
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
@@ -1108,6 +1159,7 @@ impl Node {
                         &params,
                         &parameter_descriptors,
                         params_struct_clone.as_ref(),
+                        &parameter_validation_callbacks,
                     )
                 };
 
@@ -1400,6 +1452,29 @@ impl Node {
             .collect()
     }
 
+    /// Registers a callback that can reject parameter updates before any value is changed.
+    ///
+    /// Callbacks run in reverse registration order and stop at the first error. Keep the returned
+    /// handle alive for as long as the callback should remain active; dropping it unregisters the
+    /// callback. A callback may inspect parameter state, but must not initiate another parameter
+    /// mutation because updates are serialized.
+    pub fn add_on_set_parameters_callback<F>(&self, callback: F) -> ParameterCallbackHandle
+    where
+        F: Fn(&[(String, ParameterValue)]) -> Result<()> + Send + Sync + 'static,
+    {
+        let id = uuid::Uuid::new_v4();
+        self.parameter_validation_callbacks
+            .lock()
+            .push(ParameterValidationCallbackEntry {
+                id,
+                callback: Arc::new(callback),
+            });
+        ParameterCallbackHandle {
+            id,
+            callbacks: Arc::downgrade(&self.parameter_validation_callbacks),
+        }
+    }
+
     /// Validates and sets a batch of parameters as one transaction.
     pub fn set_parameters_atomically<I, N>(&self, parameters: I) -> Result<()>
     where
@@ -1417,6 +1492,7 @@ impl Node {
                 &self.params,
                 &self.parameter_descriptors,
                 self.parameter_provider.as_ref(),
+                &self.parameter_validation_callbacks,
             )?
         };
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
@@ -4228,6 +4304,126 @@ mod tests {
         assert_eq!(provider.lock().ratio, 0.6);
         assert_eq!(node.get_parameter::<i64>("count").unwrap(), 6);
         assert_eq!(node.get_parameter::<f64>("ratio").unwrap(), 0.6);
+    }
+
+    #[test]
+    fn parameter_validation_callbacks_are_ordered_scoped_and_shared_with_services() {
+        use rcl_interfaces::{msg, srv::SetParameters};
+
+        fn drive<T>(
+            node: &mut Node, pool: &mut LocalPool, future: impl Future<Output = Result<T>>,
+        ) -> T {
+            let mut future = Box::pin(future);
+            loop {
+                node.try_spin_once(Duration::from_millis(10)).unwrap();
+                pool.run_until_stalled();
+                if let Some(result) = future.as_mut().now_or_never() {
+                    return result.unwrap();
+                }
+            }
+        }
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "parameter_callback_test", "").unwrap();
+        node.params
+            .lock()
+            .insert("count".into(), Parameter::new(ParameterValue::Integer(2)));
+        let (handler, mut events) = node.make_parameter_handler().unwrap();
+        let client = node
+            .create_client::<SetParameters::Service>(
+                "parameter_callback_test/set_parameters",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let mut pool = LocalPool::new();
+        pool.spawner().spawn_local(handler).unwrap();
+
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let first_calls = calls.clone();
+        let first = node.add_on_set_parameters_callback(move |_| {
+            first_calls.lock().push("first");
+            Ok(())
+        });
+        let second_calls = calls.clone();
+        let second = node.add_on_set_parameters_callback(move |updates| {
+            second_calls.lock().push("second");
+            if updates
+                .iter()
+                .any(|(name, value)| name == "count" && value == &ParameterValue::Integer(3))
+            {
+                Err(Error::ParameterConstraintViolation {
+                    name: "count".into(),
+                    reason: "three is reserved".into(),
+                })
+            } else {
+                Ok(())
+            }
+        });
+
+        assert!(node
+            .set_parameter("count", ParameterValue::Integer(3))
+            .is_err());
+        assert_eq!(*calls.lock(), vec!["second"]);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 2);
+        assert!(events.next().now_or_never().is_none());
+
+        calls.lock().clear();
+        node.set_parameter("count", ParameterValue::Integer(4))
+            .unwrap();
+        assert_eq!(*calls.lock(), vec!["second", "first"]);
+        assert_eq!(
+            events.next().now_or_never().flatten(),
+            Some(("count".into(), ParameterValue::Integer(4)))
+        );
+
+        drop(second);
+        calls.lock().clear();
+        let response = drive(
+            &mut node,
+            &mut pool,
+            client
+                .request(&SetParameters::Request {
+                    parameters: vec![msg::Parameter {
+                        name: "count".into(),
+                        value: ParameterValue::Integer(6).into_parameter_value_msg(),
+                    }],
+                })
+                .unwrap(),
+        );
+        assert!(response.results[0].successful);
+        assert_eq!(*calls.lock(), vec!["first"]);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 6);
+
+        calls.lock().clear();
+        assert!(node
+            .declare_parameter("declared_by_callback", ParameterValue::Integer(5))
+            .is_ok());
+        assert_eq!(*calls.lock(), vec!["first"]);
+        let reject_declaration = node.add_on_set_parameters_callback(|updates| {
+            if updates
+                .iter()
+                .any(|(name, _)| name == "rejected_declaration")
+            {
+                Err(Error::ParameterConstraintViolation {
+                    name: "rejected_declaration".into(),
+                    reason: "declaration rejected".into(),
+                })
+            } else {
+                Ok(())
+            }
+        });
+        assert!(node
+            .declare_parameter("rejected_declaration", ParameterValue::Integer(1))
+            .is_err());
+        assert!(!node.has_parameter("rejected_declaration"));
+        drop(reject_declaration);
+
+        drop(first);
+        calls.lock().clear();
+        node.set_parameter("count", ParameterValue::Integer(8))
+            .unwrap();
+        assert!(calls.lock().is_empty());
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 8);
     }
 
     #[test]
