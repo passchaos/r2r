@@ -502,6 +502,7 @@ pub struct Node {
     service_indexes: HashMap<uuid::Uuid, usize>,
     // service clients
     clients: Vec<Arc<Mutex<dyn Client_>>>,
+    client_identities: HashSet<usize>,
     // action clients
     action_clients: Vec<Arc<Mutex<dyn ActionClient_>>>,
     // action servers
@@ -711,6 +712,18 @@ impl Node {
         }
     }
 
+    fn client_identity<T: ?Sized>(client: &Arc<Mutex<T>>) -> usize {
+        Arc::as_ptr(client).cast::<()>() as usize
+    }
+
+    fn rebuild_client_identities(
+        clients: &[Arc<Mutex<dyn Client_>>], identities: &mut HashSet<usize>,
+    ) {
+        identities.clear();
+        identities.reserve(clients.len());
+        identities.extend(clients.iter().map(Self::client_identity));
+    }
+
     pub(crate) fn owns_publisher(&self, publisher: &Arc<Publisher_>) -> bool {
         self.publisher_indexes
             .contains_key(&Self::publisher_identity(publisher))
@@ -720,10 +733,8 @@ impl Node {
     where
         T: Client_ + ?Sized,
     {
-        let client = Arc::as_ptr(client).cast::<()>();
-        self.clients
-            .iter()
-            .any(|candidate| Arc::as_ptr(candidate).cast::<()>() == client)
+        self.client_identities
+            .contains(&Self::client_identity(client))
     }
 
     pub(crate) fn owns_action_client<T>(&self, client: &Arc<Mutex<T>>) -> bool
@@ -958,6 +969,7 @@ impl Node {
                 services: Vec::new(),
                 service_indexes: HashMap::new(),
                 clients: Vec::new(),
+                client_identities: HashSet::new(),
                 action_clients: Vec::new(),
                 action_servers: Vec::new(),
                 action_wait_set_capacities: WaitSetCapacities::default(),
@@ -2433,6 +2445,8 @@ impl Node {
 
         let client_arc = Arc::new(Mutex::new(ws));
         let c = make_client(Arc::downgrade(&client_arc));
+        self.client_identities
+            .insert(Self::client_identity(&client_arc));
         self.clients.push(client_arc);
         Ok(c)
     }
@@ -2490,6 +2504,8 @@ impl Node {
 
         let client_arc = Arc::new(Mutex::new(client));
         let c = make_untyped_client(Arc::downgrade(&client_arc));
+        self.client_identities
+            .insert(Self::client_identity(&client_arc));
         self.clients.push(client_arc);
         Ok(c)
     }
@@ -2901,6 +2917,7 @@ impl Node {
         // any request or availability future is still live, then release it once both the public
         // handle and all asynchronous work have gone away.
         let node_handle = self.node_handle.as_mut();
+        let previous_client_count = self.clients.len();
         self.clients.retain(|client| {
             let mut handle = client.lock();
             if Arc::weak_count(client) == 0 && !handle.has_pending_work() {
@@ -2910,6 +2927,9 @@ impl Node {
                 true
             }
         });
+        if self.clients.len() != previous_client_count {
+            Self::rebuild_client_identities(&self.clients, &mut self.client_identities);
+        }
 
         // A publisher handle is represented by a Weak reference, while the node owns the native
         // publisher. Release the native resource after the final public handle and any matching
@@ -9339,6 +9359,7 @@ mod tests {
         drop(availability);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.clients.is_empty());
+        assert!(node.client_identities.is_empty());
 
         let untyped = node
             .create_client_untyped(
@@ -9350,6 +9371,7 @@ mod tests {
         drop(untyped);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.clients.is_empty());
+        assert!(node.client_identities.is_empty());
 
         let service_name = "/pending_request_client_drop_cleanup";
         let mut requests = node
@@ -9382,6 +9404,39 @@ mod tests {
         assert_eq!(response.sum, 42);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.clients.is_empty());
+        assert!(node.client_identities.is_empty());
+    }
+
+    #[test]
+    fn client_identities_follow_middle_removal() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context.clone(), "client_identity_test", "").unwrap();
+        let other = Node::create(context, "client_identity_other", "").unwrap();
+        let first = node
+            .create_client::<AddTwoInts::Service>("/indexed_first_client", QosProfile::default())
+            .unwrap();
+        let removed = node
+            .create_client::<AddTwoInts::Service>("/indexed_removed_client", QosProfile::default())
+            .unwrap();
+        let last = node
+            .create_client_untyped(
+                "/indexed_last_client",
+                "example_interfaces/srv/AddTwoInts",
+                QosProfile::default(),
+            )
+            .unwrap();
+
+        assert_eq!(node.client_identities.len(), 3);
+        drop(removed);
+        node.try_spin_once(Duration::ZERO).unwrap();
+
+        assert_eq!(node.clients.len(), 2);
+        assert_eq!(node.client_identities.len(), 2);
+        assert!(!first.is_available(&node).unwrap());
+        assert!(!last.is_available(&node).unwrap());
+        assert!(matches!(last.is_available(&other), Err(Error::RCL_RET_INVALID_ARGUMENT)));
     }
 
     #[test]
