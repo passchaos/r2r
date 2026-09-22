@@ -2840,7 +2840,11 @@ impl Node {
 
         // first handle any completed action cancellation responses
         for a in &mut self.action_servers {
-            a.lock().send_completed_cancel_requests()?;
+            complete_action_server_operation(a, |server, completions| {
+                completions.extend(server.take_pending_cancel_delivery(a.clone()));
+                server.send_completed_cancel_requests()?;
+                Ok(())
+            })?;
         }
 
         let node_handle = self.node_handle.as_mut();
@@ -3150,7 +3154,7 @@ impl Node {
         }
 
         for s in &self.action_servers {
-            complete_action_server_operation(s, |server| {
+            complete_action_server_operation(s, |server, completions| {
                 let mut is_goal_request_ready = false;
                 let mut is_cancel_request_ready = false;
                 let mut is_result_request_ready = false;
@@ -3171,13 +3175,11 @@ impl Node {
                     return Err(Error::from_rcl_error(ret));
                 }
 
-                let completion = if is_goal_request_ready {
-                    server.handle_goal_request(s.clone())?
-                } else {
-                    None
-                };
+                if is_goal_request_ready {
+                    completions.extend(server.handle_goal_request(s.clone())?);
+                }
                 if is_cancel_request_ready {
-                    server.handle_cancel_request()?;
+                    completions.extend(server.handle_cancel_request(s.clone())?);
                 }
                 if is_result_request_ready {
                     server.handle_result_request()?;
@@ -3185,7 +3187,7 @@ impl Node {
                 if is_goal_expired {
                     server.handle_goal_expired()?;
                 }
-                Ok(completion)
+                Ok(())
             })?;
         }
 
