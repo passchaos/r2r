@@ -9,6 +9,56 @@ use std::{
 use crate::{error::*, log_guard};
 use r2r_rcl::*;
 
+/// Options used to initialize the process-wide ROS context.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ContextOptions {
+    arguments: Option<Vec<String>>,
+    domain_id: Option<usize>,
+}
+
+impl ContextOptions {
+    /// Replaces the process command-line arguments passed to `rcl_init`.
+    ///
+    /// Include an executable name as the first item when matching normal process argv semantics.
+    pub fn arguments<I, S>(mut self, arguments: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.arguments = Some(arguments.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Overrides the ROS domain id for this context.
+    pub const fn domain_id(mut self, domain_id: usize) -> Self {
+        self.domain_id = Some(domain_id);
+        self
+    }
+
+    fn resolve(self) -> Result<ContextConfiguration> {
+        let arguments = match self.arguments {
+            Some(arguments) => arguments,
+            None => std::env::args_os()
+                .map(|argument| {
+                    argument
+                        .into_string()
+                        .map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)
+                })
+                .collect::<Result<Vec<_>>>()?,
+        };
+        Ok(ContextConfiguration {
+            arguments,
+            domain_id: self.domain_id,
+        })
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ContextConfiguration {
+    arguments: Vec<String>,
+    domain_id: Option<usize>,
+}
+
 /// A ROS context. Needed to create nodes etc.
 #[derive(Debug)]
 pub struct Context {
@@ -28,17 +78,28 @@ type WeakContextHandle = std::sync::Weak<Mutex<ContextHandle>>;
 impl Context {
     /// Create a ROS context.
     pub fn create() -> Result<Context> {
+        Self::create_with_options(ContextOptions::default())
+    }
+
+    /// Creates a ROS context with explicit process arguments and initialization options.
+    pub fn create_with_options(options: ContextOptions) -> Result<Context> {
+        let configuration = options.resolve()?;
         let mut shared = CONTEXT
             .get_or_init(|| Mutex::new(WeakContextHandle::new()))
             .lock();
         if let Some(context_handle) = shared.upgrade() {
-            if !unsafe { rcl_context_is_valid(context_handle.lock().as_mut()) } {
+            let context = context_handle.lock();
+            if !unsafe { rcl_context_is_valid(context.handle.as_ref()) } {
                 return Err(Error::RCL_RET_ALREADY_SHUTDOWN);
             }
+            if context.configuration != configuration {
+                return Err(Error::RCL_RET_ALREADY_INIT);
+            }
+            drop(context);
             return Ok(Context { context_handle });
         }
 
-        let context_handle = Arc::new(Mutex::new(ContextHandle::create()?));
+        let context_handle = Arc::new(Mutex::new(ContextHandle::create(configuration)?));
         *shared = Arc::downgrade(&context_handle);
         Ok(Context { context_handle })
     }
@@ -91,44 +152,89 @@ impl Drop for Context {
 pub struct ContextHandle {
     handle: Box<rcl_context_t>,
     initialized: bool,
+    configuration: ContextConfiguration,
+}
+
+struct InitOptions {
+    value: rcl_init_options_t,
+    initialized: bool,
+}
+
+impl InitOptions {
+    fn new(domain_id: Option<usize>) -> Result<Self> {
+        let allocator = unsafe { rcutils_get_default_allocator() };
+        let mut result = Self {
+            value: unsafe { rcl_get_zero_initialized_init_options() },
+            initialized: false,
+        };
+        let ret = unsafe { rcl_init_options_init(&mut result.value, allocator) };
+        if ret != RCL_RET_OK as i32 {
+            return Err(Error::from_rcl_error(ret));
+        }
+        result.initialized = true;
+        if let Some(domain_id) = domain_id {
+            let ret = unsafe { rcl_init_options_set_domain_id(&mut result.value, domain_id) };
+            if ret != RCL_RET_OK as i32 {
+                return Err(Error::from_rcl_error(ret));
+            }
+        }
+        Ok(result)
+    }
+
+    fn fini(&mut self) -> Result<()> {
+        if !self.initialized {
+            return Ok(());
+        }
+        self.initialized = false;
+        let ret = unsafe { rcl_init_options_fini(&mut self.value) };
+        if ret == RCL_RET_OK as i32 {
+            Ok(())
+        } else {
+            Err(Error::from_rcl_error(ret))
+        }
+    }
+}
+
+impl Drop for InitOptions {
+    fn drop(&mut self) {
+        if let Err(err) = self.fini() {
+            log::error!("could not finalize ROS context options: {err}");
+        }
+    }
 }
 
 // SAFETY: all access to a shared ContextHandle is serialized by Context's mutex.
 unsafe impl Send for ContextHandle {}
 
 impl ContextHandle {
-    fn create() -> Result<Self> {
+    fn create(configuration: ContextConfiguration) -> Result<Self> {
         let mut context = unsafe { Box::new(rcl_get_zero_initialized_context()) };
-        let args = std::env::args()
-            .map(|arg| CString::new(arg).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT))
+        let args = configuration
+            .arguments
+            .iter()
+            .map(|arg| CString::new(arg.as_str()).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT))
             .collect::<Result<Vec<_>>>()?;
         let c_args = args.iter().map(|arg| arg.as_ptr()).collect::<Vec<_>>();
-
-        let allocator = unsafe { rcutils_get_default_allocator() };
-        let mut options = unsafe { rcl_get_zero_initialized_init_options() };
-        let ret = unsafe { rcl_init_options_init(&mut options, allocator) };
-        if ret != RCL_RET_OK as i32 {
-            return Err(Error::from_rcl_error(ret));
-        }
-
-        let ret = unsafe {
-            rcl_init(
-                c_args.len() as std::os::raw::c_int,
-                c_args.as_ptr(),
-                &options,
-                context.as_mut(),
-            )
+        let argc = std::os::raw::c_int::try_from(c_args.len())
+            .map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
+        let argv = if c_args.is_empty() {
+            std::ptr::null()
+        } else {
+            c_args.as_ptr()
         };
-        let fini_ret = unsafe { rcl_init_options_fini(&mut options) };
+
+        let mut options = InitOptions::new(configuration.domain_id)?;
+        let ret = unsafe { rcl_init(argc, argv, &options.value, context.as_mut()) };
+        let fini_result = options.fini();
         if ret != RCL_RET_OK as i32 {
             return Err(Error::from_rcl_error(ret));
         }
-        if fini_ret != RCL_RET_OK as i32 {
+        if let Err(err) = fini_result {
             unsafe {
                 rcl_shutdown(context.as_mut());
                 rcl_context_fini(context.as_mut());
             }
-            return Err(Error::from_rcl_error(fini_ret));
+            return Err(err);
         }
         if !unsafe { rcl_context_is_valid(context.as_mut()) } {
             unsafe {
@@ -156,6 +262,7 @@ impl ContextHandle {
         Ok(Self {
             handle: context,
             initialized: true,
+            configuration,
         })
     }
 

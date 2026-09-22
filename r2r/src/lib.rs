@@ -128,7 +128,7 @@ pub use action_servers::{
 };
 
 mod context;
-pub use context::Context;
+pub use context::{Context, ContextOptions};
 
 mod parameters;
 pub use parameters::{
