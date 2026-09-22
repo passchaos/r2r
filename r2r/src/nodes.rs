@@ -25,6 +25,7 @@ use crate::{
     action_clients_untyped::*,
     action_common::{ActionClientOptions, ActionServerOptions},
     action_servers::*,
+    availability::AvailabilityWaiters,
     clients::*,
     clocks::*,
     context::*,
@@ -2469,7 +2470,7 @@ impl Node {
         let ws = TypedClient::<T> {
             rcl_handle: client_handle,
             response_channels: HashMap::new(),
-            poll_available_channels: Vec::new(),
+            poll_available_channels: AvailabilityWaiters::default(),
         };
 
         let client_arc = Arc::new(Mutex::new(ws));
@@ -2528,7 +2529,7 @@ impl Node {
             service_type,
             rcl_handle: client_handle,
             response_channels: HashMap::new(),
-            poll_available_channels: Vec::new(),
+            poll_available_channels: AvailabilityWaiters::default(),
         };
 
         let client_arc = Arc::new(Mutex::new(client));
@@ -2622,7 +2623,7 @@ impl Node {
             result_request_sequences: HashMap::new(),
             goal_status: HashMap::new(),
             feedback_channel_capacity: options.feedback_channel_capacity,
-            poll_available_channels: ActionAvailabilityWaiters::default(),
+            poll_available_channels: AvailabilityWaiters::default(),
         };
 
         let client_arc = Arc::new(Mutex::new(client));
@@ -2687,7 +2688,7 @@ impl Node {
             result_request_sequences: HashMap::new(),
             goal_status: HashMap::new(),
             feedback_channel_capacity: options.feedback_channel_capacity,
-            poll_available_channels: ActionAvailabilityWaiters::default(),
+            poll_available_channels: AvailabilityWaiters::default(),
         };
 
         let client_arc = Arc::new(Mutex::new(client));

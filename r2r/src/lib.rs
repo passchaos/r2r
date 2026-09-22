@@ -109,6 +109,7 @@ pub use services::{
     Service, ServiceOptions, ServiceRequest, ServiceRequestUntyped, ServiceUntyped,
 };
 
+mod availability;
 mod clients;
 pub use clients::{Client, ClientUntyped};
 

@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 
-use crate::{error::*, msg_types::*, nodes::Node, QosProfile};
+use crate::{availability::AvailabilityWaiters, error::*, msg_types::*, nodes::Node, QosProfile};
 use r2r_rcl::*;
 
 pub(crate) type ClientCompletion = Box<dyn FnOnce()>;
@@ -414,7 +414,7 @@ where
 {
     pub rcl_handle: rcl_client_t,
     pub response_channels: HashMap<i64, oneshot::Sender<T::Response>>,
-    pub poll_available_channels: Vec<oneshot::Sender<()>>,
+    pub poll_available_channels: AvailabilityWaiters,
 }
 
 impl<T> ClientResponseRegistry for TypedClient<T>
@@ -476,12 +476,11 @@ where
     }
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>) {
-        self.poll_available_channels.push(s);
+        self.poll_available_channels.register(s);
     }
 
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ClientCompletion> {
-        self.poll_available_channels
-            .retain(|sender| !sender.is_canceled());
+        self.poll_available_channels.prune_canceled();
         if self.poll_available_channels.is_empty() {
             return None;
         }
@@ -489,14 +488,13 @@ where
         if matches!(available, Ok(false)) {
             None
         } else {
-            let senders = std::mem::take(&mut self.poll_available_channels);
+            let senders = self.poll_available_channels.take_all();
             availability_completion(senders, available)
         }
     }
 
     fn has_pending_work(&mut self) -> bool {
-        self.poll_available_channels
-            .retain(|sender| !sender.is_canceled());
+        self.poll_available_channels.prune_canceled();
         !self.response_channels.is_empty() || !self.poll_available_channels.is_empty()
     }
 
@@ -511,7 +509,7 @@ pub struct UntypedClient_ {
     pub service_type: UntypedServiceSupport,
     pub rcl_handle: rcl_client_t,
     pub response_channels: HashMap<i64, oneshot::Sender<Result<serde_json::Value>>>,
-    pub poll_available_channels: Vec<oneshot::Sender<()>>,
+    pub poll_available_channels: AvailabilityWaiters,
 }
 
 impl ClientResponseRegistry for UntypedClient_ {
@@ -567,12 +565,11 @@ impl Client_ for UntypedClient_ {
     }
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>) {
-        self.poll_available_channels.push(s);
+        self.poll_available_channels.register(s);
     }
 
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ClientCompletion> {
-        self.poll_available_channels
-            .retain(|sender| !sender.is_canceled());
+        self.poll_available_channels.prune_canceled();
         if self.poll_available_channels.is_empty() {
             return None;
         }
@@ -580,14 +577,13 @@ impl Client_ for UntypedClient_ {
         if matches!(available, Ok(false)) {
             None
         } else {
-            let senders = std::mem::take(&mut self.poll_available_channels);
+            let senders = self.poll_available_channels.take_all();
             availability_completion(senders, available)
         }
     }
 
     fn has_pending_work(&mut self) -> bool {
-        self.poll_available_channels
-            .retain(|sender| !sender.is_canceled());
+        self.poll_available_channels.prune_canceled();
         !self.response_channels.is_empty() || !self.poll_available_channels.is_empty()
     }
 
@@ -690,7 +686,7 @@ mod tests {
         let client = Arc::new(Mutex::new(TypedClient::<AddTwoInts::Service> {
             rcl_handle: unsafe { rcl_get_zero_initialized_client() },
             response_channels: HashMap::from([(10, target_sender), (11, other_sender)]),
-            poll_available_channels: Vec::new(),
+            poll_available_channels: AvailabilityWaiters::default(),
         }));
         let future = client_response_future(Arc::downgrade(&client), 10, target_receiver);
 
@@ -707,7 +703,7 @@ mod tests {
         let client = Arc::new(Mutex::new(TypedClient::<AddTwoInts::Service> {
             rcl_handle: unsafe { rcl_get_zero_initialized_client() },
             response_channels: HashMap::from([(10, sender)]),
-            poll_available_channels: Vec::new(),
+            poll_available_channels: AvailabilityWaiters::default(),
         }));
         let mut future = Box::pin(client_response_future(Arc::downgrade(&client), 10, receiver));
         let sender = client.lock().response_channels.remove(&10).unwrap();
@@ -730,7 +726,7 @@ mod tests {
         let client = Arc::new(Mutex::new(TypedClient::<AddTwoInts::Service> {
             rcl_handle: unsafe { rcl_get_zero_initialized_client() },
             response_channels: HashMap::from([(10, old_sender)]),
-            poll_available_channels: Vec::new(),
+            poll_available_channels: AvailabilityWaiters::default(),
         }));
         let future = client_response_future(Arc::downgrade(&client), 10, old_receiver);
         let old_sender = client.lock().response_channels.remove(&10).unwrap();
@@ -741,6 +737,40 @@ mod tests {
         drop(future);
 
         assert!(client.lock().response_channels.contains_key(&10));
+    }
+
+    #[test]
+    fn typed_client_pending_work_prunes_dropped_availability_waiter() {
+        let mut client = TypedClient::<AddTwoInts::Service> {
+            rcl_handle: unsafe { rcl_get_zero_initialized_client() },
+            response_channels: HashMap::new(),
+            poll_available_channels: AvailabilityWaiters::default(),
+        };
+        let (sender, receiver) = oneshot::channel();
+        client.register_poll_available(sender);
+
+        drop(receiver);
+
+        assert!(!client.has_pending_work());
+        assert!(client.poll_available_channels.is_empty());
+    }
+
+    #[test]
+    fn untyped_client_pending_work_prunes_dropped_availability_waiter() {
+        let mut client = UntypedClient_ {
+            service_type: UntypedServiceSupport::new_from("example_interfaces/srv/AddTwoInts")
+                .unwrap(),
+            rcl_handle: unsafe { rcl_get_zero_initialized_client() },
+            response_channels: HashMap::new(),
+            poll_available_channels: AvailabilityWaiters::default(),
+        };
+        let (sender, receiver) = oneshot::channel();
+        client.register_poll_available(sender);
+
+        drop(receiver);
+
+        assert!(!client.has_pending_work());
+        assert!(client.poll_available_channels.is_empty());
     }
 
     struct LockingWake {
