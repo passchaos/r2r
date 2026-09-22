@@ -183,11 +183,7 @@ fn normalize_remote_node_name(name: &str) -> Result<String> {
     if normalized.is_empty() {
         return Err(Error::RCL_RET_INVALID_ARGUMENT);
     }
-    Ok(if normalized.starts_with('/') {
-        normalized.to_owned()
-    } else {
-        format!("/{normalized}")
-    })
+    Ok(normalized.to_owned())
 }
 
 fn strings<I, S>(values: I) -> Vec<String>
@@ -237,7 +233,7 @@ mod tests {
     #[test]
     fn parameter_client_interoperates_with_standard_services() {
         let context = Context::create().unwrap();
-        let mut node = Node::create(context, "parameter_client_server", "").unwrap();
+        let mut node = Node::create(context, "parameter_client_server", "/scope").unwrap();
         node.declare_parameter_with_descriptor(
             "answer",
             ParameterValue::Integer(2),
@@ -258,7 +254,7 @@ mod tests {
         let client = node
             .create_parameter_client("parameter_client_server/")
             .unwrap();
-        assert_eq!(client.remote_node_name(), "/parameter_client_server");
+        assert_eq!(client.remote_node_name(), "parameter_client_server");
         let mut pool = LocalPool::new();
         pool.spawner().spawn_local(handler).unwrap();
 
@@ -364,7 +360,8 @@ mod tests {
         assert!(normalize_remote_node_name("").is_err());
         assert!(normalize_remote_node_name("/").is_err());
         assert!(normalize_remote_node_name("bad\0node").is_err());
-        assert_eq!(normalize_remote_node_name("node/").unwrap(), "/node");
+        assert_eq!(normalize_remote_node_name("node/").unwrap(), "node");
+        assert_eq!(normalize_remote_node_name("/scope/node/").unwrap(), "/scope/node");
     }
 
     #[test]
