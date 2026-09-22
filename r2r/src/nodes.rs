@@ -3301,9 +3301,12 @@ impl Node {
                 if is_cancel_request_ready {
                     completions.extend(server.handle_cancel_request(s.clone())?);
                 }
-                if is_result_request_ready {
-                    server.handle_result_request()?;
-                }
+                Ok(())
+            })?;
+            if is_result_request_ready {
+                complete_action_server_take_batch(s, ActionServer_::handle_result_request)?;
+            }
+            complete_action_server_operation(s, |server, completions| {
                 if is_goal_expired {
                     server.handle_goal_expired(completions)?;
                 }
@@ -8163,6 +8166,102 @@ mod tests {
             .map(|_| feedback.next().now_or_never().flatten().unwrap().sequence[0])
             .collect::<Vec<_>>();
         assert_eq!(values, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn action_server_drains_result_request_bursts_in_one_spin() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        let context = Context::create().unwrap();
+        let mut server_node =
+            Node::create(context.clone(), "action_result_batch_server", "").unwrap();
+        let mut client_node = Node::create(context, "action_result_batch_client", "").unwrap();
+        let action_name = format!("/action_result_batch_{}", uuid::Uuid::new_v4().simple());
+        let qos = QosProfile::default().keep_last(8);
+        let mut server = server_node
+            .create_action_server_with_options::<Fibonacci::Action>(
+                &action_name,
+                ActionServerOptions::default()
+                    .goal_service_qos(qos.clone())
+                    .result_service_qos(qos.clone())
+                    .goal_request_channel_capacity(8),
+            )
+            .unwrap();
+        let client = client_node
+            .create_action_client_with_options::<Fibonacci::Action>(
+                &action_name,
+                ActionClientOptions::default()
+                    .goal_service_qos(qos.clone())
+                    .result_service_qos(qos),
+            )
+            .unwrap();
+        for _ in 0..200 {
+            server_node.try_spin_once(Duration::ZERO).unwrap();
+            client_node
+                .try_spin_once(Duration::from_millis(10))
+                .unwrap();
+            if client.is_available(&client_node).unwrap() {
+                break;
+            }
+        }
+
+        let mut responses = (1..=3)
+            .map(|order| {
+                Box::pin(
+                    client
+                        .send_goal_request_with_options(
+                            Fibonacci::Goal { order },
+                            ActionGoalOptions::default().track_feedback(false),
+                        )
+                        .unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        std::thread::sleep(Duration::from_millis(20));
+        let mut server_goals = Vec::new();
+        while server_goals.len() < 3 {
+            server_node.try_spin_once(Duration::ZERO).unwrap();
+            while let Some(request) = server.next().now_or_never().flatten() {
+                server_goals.push(request.accept().unwrap().0);
+            }
+        }
+        std::thread::sleep(Duration::from_millis(20));
+        client_node
+            .try_spin_once(Duration::from_millis(100))
+            .unwrap();
+        let mut results = responses
+            .iter_mut()
+            .map(|response| {
+                response
+                    .as_mut()
+                    .now_or_never()
+                    .unwrap()
+                    .unwrap()
+                    .result
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        std::thread::sleep(Duration::from_millis(20));
+        server_node
+            .try_spin_once(Duration::from_millis(100))
+            .unwrap();
+        for (index, goal) in server_goals.iter_mut().enumerate() {
+            goal.succeed(Fibonacci::Result {
+                sequence: vec![index as i32],
+            })
+            .unwrap();
+        }
+        std::thread::sleep(Duration::from_millis(20));
+        client_node
+            .try_spin_once(Duration::from_millis(100))
+            .unwrap();
+
+        let values = results
+            .iter_mut()
+            .map(|result| result.now_or_never().unwrap().unwrap().1.sequence[0])
+            .collect::<Vec<_>>();
+        assert_eq!(values, vec![0, 1, 2]);
     }
 
     #[test]

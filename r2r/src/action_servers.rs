@@ -31,6 +31,12 @@ pub(crate) type ActionServerCompletion = Box<dyn FnOnce() -> Result<()>>;
 
 const MAX_ACTION_SERVER_REQUESTS_PER_SPIN: usize = 16;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ActionServerTakeResult {
+    Idle,
+    Taken,
+}
+
 fn finish_action_server_operation(
     operation_result: Result<()>, completions: Vec<ActionServerCompletion>,
 ) -> Result<()> {
@@ -64,6 +70,17 @@ pub(crate) fn complete_action_server_request_batch<S: ?Sized>(
             break;
         };
         completion()?;
+    }
+    Ok(())
+}
+
+pub(crate) fn complete_action_server_take_batch<S: ?Sized>(
+    server: &Mutex<S>, mut operation: impl FnMut(&mut S) -> Result<ActionServerTakeResult>,
+) -> Result<()> {
+    for _ in 0..MAX_ACTION_SERVER_REQUESTS_PER_SPIN {
+        if operation(&mut *server.lock())? == ActionServerTakeResult::Idle {
+            break;
+        }
     }
     Ok(())
 }
@@ -119,7 +136,7 @@ pub trait ActionServer_ {
     fn handle_cancel_request(
         &mut self, server: Arc<Mutex<dyn ActionServer_>>,
     ) -> Result<Option<ActionServerCompletion>>;
-    fn handle_result_request(&mut self) -> Result<()>;
+    fn handle_result_request(&mut self) -> Result<ActionServerTakeResult>;
     fn handle_goal_expired(&mut self, completions: &mut Vec<ActionServerCompletion>) -> Result<()>;
     fn action_name(&self) -> Result<String>;
     fn publish_status(&self) -> Result<()>;
@@ -1242,7 +1259,7 @@ where
         first_error.map_or(Ok(()), Err)
     }
 
-    fn handle_result_request(&mut self) -> Result<()> {
+    fn handle_result_request(&mut self) -> Result<ActionServerTakeResult> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut request_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
@@ -1256,7 +1273,7 @@ where
         };
 
         if !action_server_take_succeeded(ret)? {
-            return Ok(());
+            return Ok(ActionServerTakeResult::Idle);
         }
         let mut request_id = unsafe { request_id.assume_init() };
 
@@ -1310,7 +1327,7 @@ where
                 .or_default()
                 .push(request_id);
         }
-        Ok(())
+        Ok(ActionServerTakeResult::Taken)
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -1768,7 +1785,7 @@ mod tests {
             unreachable!()
         }
 
-        fn handle_result_request(&mut self) -> Result<()> {
+        fn handle_result_request(&mut self) -> Result<ActionServerTakeResult> {
             unreachable!()
         }
 
@@ -2050,6 +2067,29 @@ mod tests {
         complete_action_server_request_batch(&server, |calls| {
             *calls += 1;
             Ok(Some(Box::new(|| Ok(()))))
+        })
+        .unwrap();
+        assert_eq!(*server.lock(), MAX_ACTION_SERVER_REQUESTS_PER_SPIN);
+    }
+
+    #[test]
+    fn action_server_take_batches_stop_at_idle_and_fairness_limit() {
+        let server = Mutex::new(0usize);
+        complete_action_server_take_batch(&server, |calls| {
+            *calls += 1;
+            if *calls == 3 {
+                Ok(ActionServerTakeResult::Idle)
+            } else {
+                Ok(ActionServerTakeResult::Taken)
+            }
+        })
+        .unwrap();
+        assert_eq!(*server.lock(), 3);
+
+        *server.lock() = 0;
+        complete_action_server_take_batch(&server, |calls| {
+            *calls += 1;
+            Ok(ActionServerTakeResult::Taken)
         })
         .unwrap();
         assert_eq!(*server.lock(), MAX_ACTION_SERVER_REQUESTS_PER_SPIN);
