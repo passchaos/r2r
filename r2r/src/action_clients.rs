@@ -177,7 +177,8 @@ where
             .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
         let mut client = client.lock();
 
-        client.send_cancel_request(&self.uuid)
+        let response = client.send_cancel_request(&self.uuid)?;
+        Ok(response.map_ok(|_| ()))
     }
 
     /// Send a cancel request and wait up to `timeout` for the server response.
@@ -193,6 +194,42 @@ impl<T: 'static> ActionClient<T>
 where
     T: WrappedActionTypeSupport,
 {
+    /// Requests cancellation of every cancelable goal known to the action server.
+    pub fn cancel_all(&self) -> Result<impl Future<Output = Result<Vec<uuid::Uuid>>>> {
+        let client = self
+            .client
+            .upgrade()
+            .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+        let mut client = client.lock();
+        client.send_cancel_request_for(batch_cancel_goal_info(Default::default()))
+    }
+
+    /// Requests cancellation of every goal accepted at or before the supplied stamp.
+    pub fn cancel_before(
+        &self, stamp: builtin_interfaces::msg::Time,
+    ) -> Result<impl Future<Output = Result<Vec<uuid::Uuid>>>> {
+        let client = self
+            .client
+            .upgrade()
+            .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+        let mut client = client.lock();
+        client.send_cancel_request_for(batch_cancel_goal_info(stamp))
+    }
+
+    pub fn cancel_all_with_timeout(
+        &self, node: &mut Node, timeout: std::time::Duration,
+    ) -> Result<impl Future<Output = Result<Vec<uuid::Uuid>>>> {
+        let response = self.cancel_all()?;
+        node.with_timeout(response, timeout)
+    }
+
+    pub fn cancel_before_with_timeout(
+        &self, node: &mut Node, stamp: builtin_interfaces::msg::Time, timeout: std::time::Duration,
+    ) -> Result<impl Future<Output = Result<Vec<uuid::Uuid>>>> {
+        let response = self.cancel_before(stamp)?;
+        node.with_timeout(response, timeout)
+    }
+
     /// Make a new goal request.
     ///
     /// If the server accepts the new goal, the future resolves to a triple of:
@@ -491,18 +528,22 @@ where
 
     pub fn send_cancel_request(
         &mut self, goal: &uuid::Uuid,
-    ) -> Result<impl Future<Output = Result<()>>>
+    ) -> Result<impl Future<Output = Result<Vec<uuid::Uuid>>>>
     where
         T: WrappedActionTypeSupport,
     {
-        let msg = action_msgs::srv::CancelGoal::Request {
-            goal_info: action_msgs::msg::GoalInfo {
-                goal_id: unique_identifier_msgs::msg::UUID {
-                    uuid: goal.as_bytes().to_vec(),
-                },
-                ..action_msgs::msg::GoalInfo::default()
+        self.send_cancel_request_for(action_msgs::msg::GoalInfo {
+            goal_id: unique_identifier_msgs::msg::UUID {
+                uuid: goal.as_bytes().to_vec(),
             },
-        };
+            ..Default::default()
+        })
+    }
+
+    fn send_cancel_request_for(
+        &mut self, goal_info: action_msgs::msg::GoalInfo,
+    ) -> Result<impl Future<Output = Result<Vec<uuid::Uuid>>>> {
+        let msg = action_msgs::srv::CancelGoal::Request { goal_info };
         let native_msg = WrappedNativeMsg::<action_msgs::srv::CancelGoal::Request>::try_from(&msg)?;
         let mut seq_no = 0i64;
         let result = unsafe {
@@ -792,6 +833,15 @@ where
     }
 }
 
+pub(crate) fn batch_cancel_goal_info(
+    stamp: builtin_interfaces::msg::Time,
+) -> action_msgs::msg::GoalInfo {
+    action_msgs::msg::GoalInfo {
+        goal_id: unique_identifier_msgs::msg::UUID { uuid: vec![0; 16] },
+        stamp,
+    }
+}
+
 pub(crate) fn action_client_take_succeeded(ret: rcl_ret_t) -> Result<bool> {
     if ret == RCL_RET_OK as i32 {
         Ok(true)
@@ -804,12 +854,16 @@ pub(crate) fn action_client_take_succeeded(ret: rcl_ret_t) -> Result<bool> {
 
 pub(crate) async fn cancel_response_future(
     receiver: oneshot::Receiver<action_msgs::srv::CancelGoal::Response>,
-) -> Result<()> {
+) -> Result<Vec<uuid::Uuid>> {
     let response = receiver
         .await
         .map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID)?;
     match response.return_code {
-        code if code == action_msgs::srv::CancelGoal::Response::ERROR_NONE as i8 => Ok(()),
+        code if code == action_msgs::srv::CancelGoal::Response::ERROR_NONE as i8 => response
+            .goals_canceling
+            .into_iter()
+            .map(|goal| uuid_msg_to_uuid(&goal.goal_id))
+            .collect(),
         code if code == action_msgs::srv::CancelGoal::Response::ERROR_REJECTED as i8 => {
             Err(Error::GoalCancelRejected)
         }
@@ -939,6 +993,54 @@ mod tests {
             futures::executor::block_on(cancel_response_future(receiver)),
             Err(Error::RCL_RET_ACTION_CLIENT_INVALID)
         ));
+    }
+
+    #[test]
+    fn batch_cancel_response_decodes_all_goal_ids_strictly() {
+        let first = uuid::Uuid::from_u128(1);
+        let second = uuid::Uuid::from_u128(2);
+        let (sender, receiver) = oneshot::channel();
+        sender
+            .send(action_msgs::srv::CancelGoal::Response {
+                return_code: action_msgs::srv::CancelGoal::Response::ERROR_NONE as i8,
+                goals_canceling: [first, second]
+                    .into_iter()
+                    .map(|uuid| action_msgs::msg::GoalInfo {
+                        goal_id: unique_identifier_msgs::msg::UUID {
+                            uuid: uuid.as_bytes().to_vec(),
+                        },
+                        ..Default::default()
+                    })
+                    .collect(),
+            })
+            .unwrap();
+        assert_eq!(
+            futures::executor::block_on(cancel_response_future(receiver)).unwrap(),
+            vec![first, second]
+        );
+
+        let (sender, receiver) = oneshot::channel();
+        sender
+            .send(action_msgs::srv::CancelGoal::Response {
+                return_code: action_msgs::srv::CancelGoal::Response::ERROR_NONE as i8,
+                goals_canceling: vec![action_msgs::msg::GoalInfo {
+                    goal_id: unique_identifier_msgs::msg::UUID { uuid: vec![0; 15] },
+                    ..Default::default()
+                }],
+            })
+            .unwrap();
+        assert!(matches!(
+            futures::executor::block_on(cancel_response_future(receiver)),
+            Err(Error::InvalidActionUuidLength { actual: 15 })
+        ));
+
+        let stamp = builtin_interfaces::msg::Time {
+            sec: 42,
+            nanosec: 7,
+        };
+        let request = batch_cancel_goal_info(stamp.clone());
+        assert_eq!(request.goal_id.uuid, vec![0; 16]);
+        assert_eq!(request.stamp, stamp);
     }
 
     #[test]

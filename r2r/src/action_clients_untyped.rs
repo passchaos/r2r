@@ -154,7 +154,8 @@ impl ActionClientGoalUntyped {
             .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
         let mut client = client.lock();
 
-        client.send_cancel_request(&self.uuid)
+        let response = client.send_cancel_request(&self.uuid)?;
+        Ok(response.map_ok(|_| ()))
     }
 
     /// Send a cancel request and wait up to `timeout` for the server response.
@@ -167,6 +168,42 @@ impl ActionClientGoalUntyped {
 }
 
 impl ActionClientUntyped {
+    /// Requests cancellation of every cancelable goal known to the action server.
+    pub fn cancel_all(&self) -> Result<impl Future<Output = Result<Vec<uuid::Uuid>>>> {
+        let client = self
+            .client
+            .upgrade()
+            .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+        let mut client = client.lock();
+        client.send_cancel_request_for(batch_cancel_goal_info(Default::default()))
+    }
+
+    /// Requests cancellation of every goal accepted at or before the supplied stamp.
+    pub fn cancel_before(
+        &self, stamp: builtin_interfaces::msg::Time,
+    ) -> Result<impl Future<Output = Result<Vec<uuid::Uuid>>>> {
+        let client = self
+            .client
+            .upgrade()
+            .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+        let mut client = client.lock();
+        client.send_cancel_request_for(batch_cancel_goal_info(stamp))
+    }
+
+    pub fn cancel_all_with_timeout(
+        &self, node: &mut Node, timeout: std::time::Duration,
+    ) -> Result<impl Future<Output = Result<Vec<uuid::Uuid>>>> {
+        let response = self.cancel_all()?;
+        node.with_timeout(response, timeout)
+    }
+
+    pub fn cancel_before_with_timeout(
+        &self, node: &mut Node, stamp: builtin_interfaces::msg::Time, timeout: std::time::Duration,
+    ) -> Result<impl Future<Output = Result<Vec<uuid::Uuid>>>> {
+        let response = self.cancel_before(stamp)?;
+        node.with_timeout(response, timeout)
+    }
+
     /// Make a new goal request.
     ///
     /// If the server accepts the new goal, the future resolves to a triple of:
@@ -440,15 +477,19 @@ impl WrappedActionClientUntyped {
 
     pub fn send_cancel_request(
         &mut self, goal: &uuid::Uuid,
-    ) -> Result<impl Future<Output = Result<()>>> {
-        let msg = action_msgs::srv::CancelGoal::Request {
-            goal_info: action_msgs::msg::GoalInfo {
-                goal_id: unique_identifier_msgs::msg::UUID {
-                    uuid: goal.as_bytes().to_vec(),
-                },
-                ..action_msgs::msg::GoalInfo::default()
+    ) -> Result<impl Future<Output = Result<Vec<uuid::Uuid>>>> {
+        self.send_cancel_request_for(action_msgs::msg::GoalInfo {
+            goal_id: unique_identifier_msgs::msg::UUID {
+                uuid: goal.as_bytes().to_vec(),
             },
-        };
+            ..Default::default()
+        })
+    }
+
+    fn send_cancel_request_for(
+        &mut self, goal_info: action_msgs::msg::GoalInfo,
+    ) -> Result<impl Future<Output = Result<Vec<uuid::Uuid>>>> {
+        let msg = action_msgs::srv::CancelGoal::Request { goal_info };
         let native_msg = WrappedNativeMsg::<action_msgs::srv::CancelGoal::Request>::try_from(&msg)?;
         let mut seq_no = 0i64;
         let result = unsafe {

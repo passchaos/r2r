@@ -7309,7 +7309,7 @@ mod tests {
                 break (goal, result);
             }
         };
-        let cancel = cancel_client_goal.cancel().unwrap();
+        let cancel = cancel_client.cancel_all().unwrap();
         let mut cancel = Box::pin(cancel);
         let mut cancel_request = None;
         for _ in 0..100 {
@@ -7348,7 +7348,7 @@ mod tests {
                 break;
             }
         }
-        cancel_response.unwrap().unwrap();
+        assert_eq!(cancel_response.unwrap().unwrap(), vec![cancel_client_goal.uuid]);
         let (status, result) = result_response.unwrap().unwrap();
         assert_eq!(status, GoalStatus::Canceled);
         assert_eq!(result.unwrap(), serde_json::json!({ "sequence": [0, 1, 1] }));
@@ -7806,6 +7806,21 @@ mod tests {
             )
             .unwrap();
         assert!(matches!(drive(&mut node, timeout), Err(Error::RCL_RET_TIMEOUT)));
+        let cancel_all = missing
+            .cancel_all_with_timeout(&mut node, Duration::from_millis(1))
+            .unwrap();
+        assert!(matches!(drive(&mut node, cancel_all), Err(Error::RCL_RET_TIMEOUT)));
+        let cancel_before = missing
+            .cancel_before_with_timeout(
+                &mut node,
+                crate::builtin_interfaces::msg::Time {
+                    sec: 42,
+                    nanosec: 7,
+                },
+                Duration::from_millis(1),
+            )
+            .unwrap();
+        assert!(matches!(drive(&mut node, cancel_before), Err(Error::RCL_RET_TIMEOUT)));
         drop(missing);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.action_clients.is_empty());
@@ -7868,6 +7883,76 @@ mod tests {
         assert!(matches!(drive(&mut node, result), Err(Error::RCL_RET_TIMEOUT)));
         drop(server_goal);
         drop(cancel_requests);
+    }
+
+    #[test]
+    fn action_clients_cancel_goals_at_or_before_a_stamp() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "action_cancel_before_test", "").unwrap();
+        let mut requests = node
+            .create_action_server::<Fibonacci::Action>("/action_cancel_before")
+            .unwrap();
+        let client = node
+            .create_action_client::<Fibonacci::Action>("/action_cancel_before")
+            .unwrap();
+        let response = client
+            .send_goal_request(Fibonacci::Goal { order: 1 })
+            .unwrap();
+        let mut response = Box::pin(response);
+        let mut server_goal = None;
+        let mut server_cancels = None;
+        let (client_goal, _result, _feedback) = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if server_goal.is_none() {
+                if let Some(request) = requests.next().now_or_never().flatten() {
+                    let (goal, cancels) = request.accept().unwrap();
+                    server_goal = Some(goal);
+                    server_cancels = Some(cancels);
+                }
+            }
+            if let Some(response) = response.as_mut().now_or_never() {
+                break response.unwrap();
+            }
+        };
+
+        let accepted_at = client_goal.accepted_at();
+        let cutoff = crate::builtin_interfaces::msg::Time {
+            sec: accepted_at.sec + 1,
+            nanosec: accepted_at.nanosec,
+        };
+        let cancel = client.cancel_before(cutoff).unwrap();
+        let mut cancel = Box::pin(cancel);
+        let mut cancel_request = None;
+        let canceled = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            cancel_request = cancel_request.or_else(|| {
+                server_cancels
+                    .as_mut()
+                    .unwrap()
+                    .next()
+                    .now_or_never()
+                    .flatten()
+            });
+            if let Some(request) = cancel_request.take() {
+                request.accept();
+            }
+            if let Some(response) = cancel.as_mut().now_or_never() {
+                break response.unwrap();
+            }
+        };
+
+        assert_eq!(canceled, vec![client_goal.uuid]);
+        let mut server_goal = server_goal.unwrap();
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if server_goal.is_cancelling().unwrap() {
+                break;
+            }
+        }
+        assert!(server_goal.is_cancelling().unwrap());
+        server_goal.cancel(Fibonacci::Result::default()).unwrap();
     }
 
     #[test]
