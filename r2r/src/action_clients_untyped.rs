@@ -177,8 +177,8 @@ impl ActionClientGoalUntyped {
         let client = client.lock();
         Ok(client
             .result_senders
-            .iter()
-            .any(|(uuid, sender)| uuid == &self.uuid && !sender.is_canceled()))
+            .get(&self.uuid)
+            .is_some_and(|sender| !sender.is_canceled()))
     }
 
     /// Send a cancel request for this goal to the server.
@@ -335,7 +335,7 @@ impl ActionClientUntyped {
                 let result = options.track_result.then(|| {
                     let (sender, receiver) =
                         oneshot::channel::<(GoalStatus, Result<serde_json::Value>)>();
-                    client.result_senders.push((uuid, sender));
+                    client.result_senders.insert(uuid, sender);
                     ActionResultFutureUntyped { receiver }
                 });
                 client
@@ -445,7 +445,7 @@ pub fn make_action_client_untyped(
     ActionClientUntyped { client }
 }
 
-pub type ResultSender = (uuid::Uuid, oneshot::Sender<(GoalStatus, Result<serde_json::Value>)>);
+pub type ResultSender = oneshot::Sender<(GoalStatus, Result<serde_json::Value>)>;
 pub struct WrappedActionClientUntyped {
     pub action_type_support: UntypedActionSupport,
     pub rcl_handle: rcl_action_client_t,
@@ -454,7 +454,7 @@ pub struct WrappedActionClientUntyped {
         HashMap<i64, oneshot::Sender<action_msgs::srv::CancelGoal::Response>>,
     pub feedback_senders: Vec<FeedbackSender<Result<serde_json::Value>>>,
     pub result_requests: HashMap<i64, uuid::Uuid>,
-    pub result_senders: Vec<ResultSender>,
+    pub result_senders: HashMap<uuid::Uuid, ResultSender>,
     pub goal_status: HashMap<uuid::Uuid, GoalStatus>,
     pub feedback_channel_capacity: usize,
 
@@ -496,12 +496,8 @@ impl WrappedActionClientUntyped {
         if let Some((_, channel)) = self.take_feedback_sender(uuid) {
             completions.push(close_feedback_completion(channel));
         }
-        let (removed, retained) = std::mem::take(&mut self.result_senders)
-            .into_iter()
-            .partition(|(id, _)| id == uuid);
-        self.result_senders = retained;
-        if !removed.is_empty() {
-            completions.push(drop_action_client_resources_completion(removed));
+        if let Some(sender) = self.result_senders.remove(uuid) {
+            completions.push(drop_action_client_resources_completion(vec![sender]));
         }
         self.result_requests.retain(|_, id| id != uuid);
         self.goal_status.remove(uuid);
@@ -509,7 +505,7 @@ impl WrappedActionClientUntyped {
     }
 
     fn forget_result(&mut self, uuid: &uuid::Uuid) -> Option<ActionClientCompletion> {
-        self.result_senders.retain(|(id, _)| id != uuid);
+        self.result_senders.remove(uuid);
         self.result_requests.retain(|_, id| id != uuid);
         if self.get_goal_status(uuid).is_terminal() {
             return self
@@ -527,7 +523,7 @@ impl WrappedActionClientUntyped {
             .map(|(_, channel)| close_feedback_completion(channel))
             .into_iter()
             .collect();
-        self.result_senders.retain(|(id, _)| id != uuid);
+        self.result_senders.remove(uuid);
         self.result_requests.retain(|_, id| id != uuid);
         if let Some(tracked_status) = self.goal_status.get_mut(uuid) {
             *tracked_status = status;
@@ -545,8 +541,8 @@ impl WrappedActionClientUntyped {
             }
             let result_is_tracked = self
                 .result_senders
-                .iter()
-                .any(|(id, sender)| id == uuid && !sender.is_canceled());
+                .get(uuid)
+                .is_some_and(|sender| !sender.is_canceled());
             if status.is_terminal() && !result_is_tracked {
                 completions.extend(
                     self.take_feedback_sender(uuid)
@@ -848,12 +844,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
         if action_client_take_succeeded(ret)? {
             let request_id = unsafe { request_id.assume_init() };
             if let Some(uuid) = self.result_requests.remove(&request_id.sequence_number) {
-                if let Some(idx) = self
-                    .result_senders
-                    .iter()
-                    .position(|(suuid, _)| suuid == &uuid)
-                {
-                    let (_, sender) = self.result_senders.swap_remove(idx);
+                if let Some(sender) = self.result_senders.remove(&uuid) {
                     let destructure = self.action_type_support.destructure_result_response_msg;
                     completions.push(action_stateful_response_completion(
                         sender,
@@ -922,8 +913,8 @@ impl ActionClient_ for WrappedActionClientUntyped {
                 .any(|(_, channel)| !channel.lock().is_closed())
             || self
                 .result_senders
-                .iter()
-                .any(|(_, sender)| !sender.is_canceled())
+                .values()
+                .any(|sender| !sender.is_canceled())
             || self
                 .poll_available_channels
                 .iter()
@@ -983,7 +974,7 @@ mod tests {
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),
             ],
             result_requests: HashMap::from([(10, target), (11, other)]),
-            result_senders: vec![(target, target_result), (other, other_result)],
+            result_senders: HashMap::from([(target, target_result), (other, other_result)]),
             goal_status: HashMap::from([
                 (target, GoalStatus::Accepted),
                 (other, GoalStatus::Executing),
@@ -1012,11 +1003,8 @@ mod tests {
             .result_requests
             .iter()
             .any(|(_, uuid)| uuid == &other));
-        assert!(!client
-            .result_senders
-            .iter()
-            .any(|(uuid, _)| uuid == &target));
-        assert!(client.result_senders.iter().any(|(uuid, _)| uuid == &other));
+        assert!(!client.result_senders.contains_key(&target));
+        assert!(client.result_senders.contains_key(&other));
         assert!(!client.goal_status.contains_key(&target));
         assert_eq!(client.goal_status.get(&other), Some(&GoalStatus::Executing));
     }
@@ -1051,7 +1039,7 @@ mod tests {
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),
             ],
             result_requests: HashMap::new(),
-            result_senders: vec![(target, target_result), (other, other_result)],
+            result_senders: HashMap::from([(target, target_result), (other, other_result)]),
             goal_status: HashMap::from([
                 (target, GoalStatus::Accepted),
                 (other, GoalStatus::Unknown),
@@ -1076,11 +1064,8 @@ mod tests {
             .feedback_senders
             .iter()
             .any(|(uuid, _)| uuid == &other));
-        assert!(!client
-            .result_senders
-            .iter()
-            .any(|(uuid, _)| uuid == &target));
-        assert!(client.result_senders.iter().any(|(uuid, _)| uuid == &other));
+        assert!(!client.result_senders.contains_key(&target));
+        assert!(client.result_senders.contains_key(&other));
         assert!(!client.goal_status.contains_key(&target));
         assert!(client.goal_status.contains_key(&other));
         assert_eq!(client.goal_response_channels.len(), 1);
