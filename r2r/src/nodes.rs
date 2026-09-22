@@ -6,7 +6,7 @@ use futures::{
 use indexmap::IndexMap;
 use parking_lot::Mutex;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     ffi::{CStr, CString},
     future::Future,
     marker::PhantomPinned,
@@ -533,6 +533,7 @@ pub struct Node {
     // timers,
     timers: Vec<Timer_>,
     timer_indexes: HashMap<uuid::Uuid, usize>,
+    canceled_timers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
     // and the publishers, whom we allow to be shared.. hmm.
     pub(crate) pubs: Vec<Arc<Publisher_>>,
     publisher_indexes: HashMap<usize, usize>,
@@ -691,12 +692,16 @@ impl Node {
         self.timers.push(timer);
     }
 
-    fn rebuild_timer_indexes(timers: &[Timer_], indexes: &mut HashMap<uuid::Uuid, usize>) {
-        indexes.clear();
-        indexes.reserve(timers.len());
-        for (index, timer) in timers.iter().enumerate() {
-            debug_assert!(indexes.insert(timer.id, index).is_none());
+    fn remove_timer(
+        timers: &mut Vec<Timer_>, timer_indexes: &mut HashMap<uuid::Uuid, usize>, id: uuid::Uuid,
+    ) -> Option<Timer_> {
+        let index = timer_indexes.remove(&id)?;
+        let removed = timers.swap_remove(index);
+        debug_assert_eq!(removed.id, id);
+        if let Some(moved) = timers.get(index) {
+            timer_indexes.insert(moved.id, index);
         }
+        Some(removed)
     }
 
     fn publisher_identity(publisher: &Arc<Publisher_>) -> usize {
@@ -1003,6 +1008,7 @@ impl Node {
                 action_wait_set_capacities: WaitSetCapacities::default(),
                 timers: Vec::new(),
                 timer_indexes: HashMap::new(),
+                canceled_timers: Arc::new(Mutex::new(VecDeque::new())),
                 pubs: Vec::new(),
                 publisher_indexes: HashMap::new(),
                 ros_clock,
@@ -2988,11 +2994,13 @@ impl Node {
         }
 
         // Do not wait for a long-period timer to become ready before noticing that its public
-        // handle has gone away. Dropping Timer closes the receiver immediately.
-        let previous_timer_count = self.timers.len();
-        self.timers.retain(|timer| !timer.sender.is_closed());
-        if self.timers.len() != previous_timer_count {
-            Self::rebuild_timer_indexes(&self.timers, &mut self.timer_indexes);
+        // handle has gone away. Timer::drop reports the exact UUID, avoiding a full timer scan.
+        let canceled_timers = {
+            let mut canceled_timers = self.canceled_timers.lock();
+            canceled_timers.drain(..).collect::<Vec<_>>()
+        };
+        for id in canceled_timers {
+            Self::remove_timer(&mut self.timers, &mut self.timer_indexes, id);
         }
 
         let node_handle = self.node_handle.as_mut();
@@ -3228,7 +3236,7 @@ impl Node {
             return Err(err);
         }
 
-        let mut timers_to_remove = HashSet::new();
+        let mut timers_to_remove = Vec::new();
         let mut timer_error = None;
         if !ws.timers.is_null() {
             let ws_timers = unsafe { std::slice::from_raw_parts(ws.timers, self.timers.len()) };
@@ -3237,7 +3245,7 @@ impl Node {
                     // TODO: move this to impl Timer
                     match s.handle_incoming() {
                         Ok(true) => {
-                            timers_to_remove.insert(s.get_handle());
+                            timers_to_remove.push(s.id);
                         }
                         Ok(false) => {}
                         Err(err) => {
@@ -3247,12 +3255,8 @@ impl Node {
                 }
             }
         }
-        // drop timers scheduled for deletion
-        let previous_timer_count = self.timers.len();
-        self.timers
-            .retain(|t| !timers_to_remove.contains(&t.get_handle()));
-        if self.timers.len() != previous_timer_count {
-            Self::rebuild_timer_indexes(&self.timers, &mut self.timer_indexes);
+        for id in timers_to_remove {
+            Self::remove_timer(&mut self.timers, &mut self.timer_indexes, id);
         }
         if let Some(err) = timer_error {
             return Err(err);
@@ -3784,7 +3788,11 @@ impl Node {
         let id = timer.id;
         self.add_timer(timer);
 
-        let out_timer = Timer { receiver: rx, id };
+        let out_timer = Timer {
+            receiver: rx,
+            id,
+            canceled_timers: Arc::clone(&self.canceled_timers),
+        };
 
         Ok(out_timer)
     }
@@ -3811,7 +3819,11 @@ impl Node {
         let id = timer.id;
         self.add_timer(timer);
 
-        let out_timer = Timer { receiver: rx, id };
+        let out_timer = Timer {
+            receiver: rx,
+            id,
+            canceled_timers: Arc::clone(&self.canceled_timers),
+        };
 
         Ok(out_timer)
     }
@@ -4107,6 +4119,14 @@ impl Drop for Timer_ {
 pub struct Timer {
     receiver: mpsc::Receiver<Duration>,
     id: uuid::Uuid,
+    canceled_timers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+}
+
+impl Drop for Timer {
+    fn drop(&mut self) {
+        self.receiver.close();
+        self.canceled_timers.lock().push_back(self.id);
+    }
 }
 
 impl Timer {
@@ -9728,13 +9748,23 @@ mod tests {
         let context = Context::create().unwrap();
         let mut node = Node::create(context, "timer_drop_cleanup_test", "").unwrap();
         let timer = node.create_wall_timer(Duration::from_secs(60)).unwrap();
+        let id = timer.id;
         assert_eq!(node.timers.len(), 1);
 
         drop(timer);
+        assert_eq!(
+            node.canceled_timers
+                .lock()
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            [id]
+        );
         node.try_spin_once(Duration::ZERO).unwrap();
 
         assert!(node.timers.is_empty());
         assert!(node.timer_indexes.is_empty());
+        assert!(node.canceled_timers.lock().is_empty());
     }
 
     #[test]
