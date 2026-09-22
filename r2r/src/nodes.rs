@@ -12,7 +12,7 @@ use std::{
     marker::PhantomPinned,
     pin::Pin,
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use r2r_actions::*;
@@ -2797,6 +2797,30 @@ impl Node {
         }
     }
 
+    /// Spins this node until `future` completes or `timeout` elapses.
+    ///
+    /// This is a runtime-independent counterpart to repeatedly calling [`Node::try_spin_once`]
+    /// and polling a service, action, timer, graph, or matching future. A future that is already
+    /// ready is returned even when `timeout` is zero. The timeout uses steady wall-clock time,
+    /// so it is not affected by ROS simulated time.
+    pub fn spin_until_future_complete<T>(
+        &mut self, future: impl Future<Output = Result<T>>, timeout: Duration,
+    ) -> Result<T> {
+        futures::pin_mut!(future);
+        let started = Instant::now();
+        loop {
+            if let Some(result) = future.as_mut().now_or_never() {
+                return result;
+            }
+
+            let remaining = timeout.saturating_sub(started.elapsed());
+            if remaining.is_zero() {
+                return Err(Error::RCL_RET_TIMEOUT);
+            }
+            self.try_spin_once(remaining)?;
+        }
+    }
+
     /// Spin the ROS node and report errors from the underlying RCL wait set.
     pub fn try_spin_once(&mut self, timeout: Duration) -> Result<()> {
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
@@ -5103,6 +5127,44 @@ mod tests {
         node.try_spin_once(timeout).unwrap();
 
         assert!(started.elapsed() >= timeout);
+    }
+
+    #[test]
+    fn spin_until_future_complete_handles_ready_timeout_and_ros_waits() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "spin_until_future_test", "").unwrap();
+
+        assert_eq!(
+            node.spin_until_future_complete(future::ready(Ok(42)), Duration::ZERO)
+                .unwrap(),
+            42
+        );
+        assert!(matches!(
+            node.spin_until_future_complete(
+                future::pending::<Result<()>>(),
+                Duration::from_millis(1),
+            ),
+            Err(Error::RCL_RET_TIMEOUT)
+        ));
+
+        let service = node
+            .create_service::<AddTwoInts::Service>(
+                "/spin_until_future_service",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let client = node
+            .create_client::<AddTwoInts::Service>(
+                "/spin_until_future_service",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let available = Node::is_available(&client).unwrap();
+        node.spin_until_future_complete(available, Duration::from_secs(1))
+            .unwrap();
+        drop(service);
     }
 
     #[test]
