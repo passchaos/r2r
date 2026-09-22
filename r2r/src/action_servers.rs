@@ -113,6 +113,17 @@ pub(crate) fn complete_action_server_take_batch<S: ?Sized>(
     Ok(())
 }
 
+fn drain_action_server_expirations<S>(
+    server: &mut S, mut expire_one: impl FnMut(&mut S) -> Result<bool>,
+) -> Result<()> {
+    for _ in 0..MAX_ACTION_SERVER_REQUESTS_PER_SPIN {
+        if !expire_one(server)? {
+            break;
+        }
+    }
+    Ok(())
+}
+
 fn request_delivery<T: 'static>(
     sender_slot: Arc<Mutex<Option<mpsc::Sender<T>>>>, mut sender: mpsc::Sender<T>, request: T,
     on_failed: impl FnOnce(T) -> Result<()> + 'static,
@@ -1282,26 +1293,27 @@ where
     fn handle_goal_expired(&mut self, completions: &mut Vec<ActionServerCompletion>) -> Result<()> {
         let mut goal_info = WrappedNativeMsg::<action_msgs::msg::GoalInfo>::try_new()?;
 
-        loop {
+        drain_action_server_expirations(self, |server| {
             let mut num_expired = 0;
             let ret = unsafe {
-                rcl_action_expire_goals(&self.rcl_handle, &mut *goal_info, 1, &mut num_expired)
+                rcl_action_expire_goals(&server.rcl_handle, &mut *goal_info, 1, &mut num_expired)
             };
             if ret != RCL_RET_OK as i32 {
                 return Err(Error::from_rcl_error(ret));
             }
             if num_expired == 0 {
-                return Ok(());
+                return Ok(false);
             }
 
             let gi = action_msgs::msg::GoalInfo::from_native(&goal_info);
             let uuid = uuid_msg_to_uuid(&gi.goal_id)?;
             log::debug!("goal expired: {} - {}", uuid, num_expired);
-            self.goals.remove(&uuid);
-            self.forget_cancel_sender(&uuid, completions);
-            self.result_msgs.remove(&uuid);
-            self.result_requests.remove(&uuid);
-        }
+            server.goals.remove(&uuid);
+            server.forget_cancel_sender(&uuid, completions);
+            server.result_msgs.remove(&uuid);
+            server.result_requests.remove(&uuid);
+            Ok(true)
+        })
     }
 
     fn action_name(&self) -> Result<String> {
@@ -2359,6 +2371,25 @@ mod tests {
         .unwrap();
 
         assert_eq!(*server.lock(), 2);
+    }
+
+    #[test]
+    fn action_server_expiration_batches_stop_at_idle_and_fairness_limit() {
+        let mut calls = 0usize;
+        drain_action_server_expirations(&mut calls, |calls| {
+            *calls += 1;
+            Ok(*calls < 3)
+        })
+        .unwrap();
+        assert_eq!(calls, 3);
+
+        calls = 0;
+        drain_action_server_expirations(&mut calls, |calls| {
+            *calls += 1;
+            Ok(true)
+        })
+        .unwrap();
+        assert_eq!(calls, MAX_ACTION_SERVER_REQUESTS_PER_SPIN);
     }
 
     #[test]
