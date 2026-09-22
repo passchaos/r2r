@@ -328,6 +328,13 @@ where
         self.feedback_senders.retain(|(id, _)| id != uuid);
         self.result_senders.retain(|(id, _)| id != uuid);
         self.result_requests.retain(|(_, id)| id != uuid);
+        if self
+            .pending_feedback
+            .as_ref()
+            .is_some_and(|(id, _)| id == uuid)
+        {
+            self.pending_feedback = None;
+        }
         self.goal_status.remove(uuid);
     }
 
@@ -398,6 +405,19 @@ where
                 false
             }
             Err(_) => true,
+        }
+    }
+
+    fn finish_result_request_send(&mut self, uuid: uuid::Uuid, result: Result<i64>) -> Result<()> {
+        match result {
+            Ok(seq_no) => {
+                self.result_requests.push((seq_no, uuid));
+                Ok(())
+            }
+            Err(err) => {
+                self.forget_goal(&uuid);
+                Err(err)
+            }
         }
     }
 
@@ -632,26 +652,26 @@ where
     }
 
     fn send_result_request(&mut self, uuid: uuid::Uuid) -> Result<()> {
-        let uuid_msg = unique_identifier_msgs::msg::UUID {
-            uuid: uuid.as_bytes().to_vec(),
-        };
-        let request_msg = T::make_result_request_msg(uuid_msg);
-        let native_msg = WrappedNativeMsg::<
-            <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
-        >::try_from(&request_msg)?;
-        let mut seq_no = 0i64;
-        let result = unsafe {
-            rcl_action_send_result_request(&self.rcl_handle, native_msg.void_ptr(), &mut seq_no)
-        };
-
-        if result == RCL_RET_OK as i32 {
-            self.result_requests.push((seq_no, uuid));
-            Ok(())
-        } else {
-            log::error!("could not send request {}", result);
-            self.forget_goal(&uuid);
-            Err(Error::from_rcl_error(result))
-        }
+        let result = (|| {
+            let uuid_msg = unique_identifier_msgs::msg::UUID {
+                uuid: uuid.as_bytes().to_vec(),
+            };
+            let request_msg = T::make_result_request_msg(uuid_msg);
+            let native_msg = WrappedNativeMsg::<
+                <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
+            >::try_from(&request_msg)?;
+            let mut seq_no = 0i64;
+            let ret = unsafe {
+                rcl_action_send_result_request(&self.rcl_handle, native_msg.void_ptr(), &mut seq_no)
+            };
+            if ret == RCL_RET_OK as i32 {
+                Ok(seq_no)
+            } else {
+                log::error!("could not send request {}", ret);
+                Err(Error::from_rcl_error(ret))
+            }
+        })();
+        self.finish_result_request_send(uuid, result)
     }
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>) {
@@ -830,6 +850,7 @@ pub(crate) fn action_client_name(client: &rcl_action_client_t) -> Result<String>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::example_interfaces::action::Fibonacci;
 
     #[test]
     fn classifies_action_client_take_results() {
@@ -850,5 +871,59 @@ mod tests {
             futures::executor::block_on(cancel_response_future(receiver)),
             Err(Error::RCL_RET_ACTION_CLIENT_INVALID)
         ));
+    }
+
+    #[test]
+    fn failed_result_request_clears_only_the_affected_goal() {
+        let target = uuid::Uuid::new_v4();
+        let other = uuid::Uuid::new_v4();
+        let (target_feedback, _) = mpsc::channel(1);
+        let (other_feedback, _) = mpsc::channel(1);
+        let (target_result, _) = oneshot::channel();
+        let (other_result, _) = oneshot::channel();
+        let mut client = WrappedActionClient::<Fibonacci::Action> {
+            rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
+            goal_response_channels: Vec::new(),
+            cancel_response_channels: Vec::new(),
+            feedback_senders: vec![(target, target_feedback), (other, other_feedback)],
+            pending_feedback: Some((target, Fibonacci::Feedback::default())),
+            result_requests: vec![(10, target), (11, other)],
+            result_senders: vec![(target, target_result), (other, other_result)],
+            goal_status: HashMap::from([
+                (target, GoalStatus::Accepted),
+                (other, GoalStatus::Executing),
+            ]),
+            feedback_channel_capacity: 1,
+            poll_available_channels: Vec::new(),
+        };
+
+        assert!(matches!(
+            client.finish_result_request_send(target, Err(Error::RCL_RET_BAD_ALLOC)),
+            Err(Error::RCL_RET_BAD_ALLOC)
+        ));
+        assert!(!client
+            .feedback_senders
+            .iter()
+            .any(|(uuid, _)| uuid == &target));
+        assert!(client
+            .feedback_senders
+            .iter()
+            .any(|(uuid, _)| uuid == &other));
+        assert!(client.pending_feedback.is_none());
+        assert!(!client
+            .result_requests
+            .iter()
+            .any(|(_, uuid)| uuid == &target));
+        assert!(client
+            .result_requests
+            .iter()
+            .any(|(_, uuid)| uuid == &other));
+        assert!(!client
+            .result_senders
+            .iter()
+            .any(|(uuid, _)| uuid == &target));
+        assert!(client.result_senders.iter().any(|(uuid, _)| uuid == &other));
+        assert!(!client.goal_status.contains_key(&target));
+        assert_eq!(client.goal_status.get(&other), Some(&GoalStatus::Executing));
     }
 }
