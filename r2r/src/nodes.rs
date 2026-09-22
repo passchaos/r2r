@@ -3799,6 +3799,18 @@ mod tests {
     }
 
     #[test]
+    fn primitive_derived_parameter_handler_returns_an_error_instead_of_panicking() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "primitive_parameter_handler_test", "").unwrap();
+        let params: Arc<Mutex<dyn RosParams + Send>> = Arc::new(Mutex::new(42_i64));
+
+        assert!(matches!(
+            node.make_derived_parameter_handler(params),
+            Err(Error::InvalidParameterName { name }) if name.is_empty()
+        ));
+    }
+
+    #[test]
     fn node_options_control_global_parameter_arguments() {
         const CHILD_ENV: &str = "R2R_NODE_OPTIONS_CHILD";
         if let Ok(mode) = std::env::var(CHILD_ENV) {

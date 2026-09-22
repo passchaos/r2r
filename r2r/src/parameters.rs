@@ -548,6 +548,19 @@ macro_rules! impl_ros_params {
                 &mut self, prefix: &str, param: Option<Parameter>,
                 params: &mut IndexMap<String, Parameter>,
             ) -> Result<()> {
+                // A leaf reached directly at the root has no legal ROS parameter name. Derived
+                // structs always supply metadata for their named fields, while hand-written
+                // implementations may omit it for a non-empty prefix. Validate this before
+                // applying an override so an error cannot partially mutate user state.
+                let mut param = match param {
+                    Some(param) => param,
+                    None if !prefix.is_empty() => Parameter::empty(),
+                    None => {
+                        return Err(Error::InvalidParameterName {
+                            name: prefix.to_owned(),
+                        });
+                    }
+                };
                 if let Some(cli_param) = params.get(prefix) {
                     // Apply parameter value if set from command line or launch file
                     self.set_parameter("", &cli_param.value)
@@ -555,8 +568,6 @@ macro_rules! impl_ros_params {
                     // Remove the parameter (will be re-inserted below with deterministic order)
                     params.shift_remove(prefix);
                 }
-                // Insert the parameter with filled-in description etc.
-                let mut param = param.unwrap();
                 param.value = $param_value_type($to_param_conv(self)?);
                 params.insert(prefix.to_owned(), param);
                 Ok(())
@@ -760,6 +771,32 @@ mod tests {
         assert!(strings
             .check_parameter("", &ParameterValue::IntegerArray(vec![1]))
             .is_err());
+    }
+
+    #[test]
+    fn leaf_parameter_registration_never_panics_without_metadata() {
+        let mut value = 42_i64;
+        let mut registered = IndexMap::new();
+        registered.insert("".into(), Parameter::new(ParameterValue::Integer(99)));
+
+        assert!(matches!(
+            value.register_parameters("", None, &mut registered),
+            Err(Error::InvalidParameterName { name }) if name.is_empty()
+        ));
+        assert_eq!(value, 42);
+        assert_eq!(
+            registered.get("").map(|parameter| &parameter.value),
+            Some(&ParameterValue::Integer(99))
+        );
+        registered.clear();
+
+        value
+            .register_parameters("answer", None, &mut registered)
+            .unwrap();
+        assert_eq!(
+            registered.get("answer").map(|parameter| &parameter.value),
+            Some(&ParameterValue::Integer(42))
+        );
     }
 
     #[test]
