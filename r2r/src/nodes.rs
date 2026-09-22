@@ -1047,7 +1047,6 @@ impl Node {
         if self.parameter_handler_started {
             return Err(Error::ParameterHandlerAlreadyCreated);
         }
-        self.parameter_handler_started = true;
         if let Some(ps) = &params_struct {
             // register all parameters
             ps.lock()
@@ -1081,6 +1080,10 @@ impl Node {
 
         let node_name = self.name()?;
         let fully_qualified_node_name = self.fully_qualified_name()?;
+        // From this point on, failures may leave native endpoints attached to the node. Prevent a
+        // retry from registering duplicate parameter services, while allowing failures before
+        // endpoint creation to be corrected and retried.
+        self.parameter_handler_started = true;
         let parameter_event_publisher = self
             .create_publisher::<rcl_interfaces::msg::ParameterEvent>(
                 "/parameter_events",
@@ -5436,7 +5439,7 @@ mod tests {
     }
 
     #[test]
-    fn failed_parameter_handler_initialization_cannot_leave_a_second_handler() {
+    fn failed_parameter_handler_validation_can_be_retried_before_creating_endpoints() {
         let context = Context::create().unwrap();
         let mut node = Node::create(context, "failed_parameter_handler_test", "").unwrap();
         let params: Arc<Mutex<dyn RosParams + Send>> = Arc::new(Mutex::new(42_i64));
@@ -5445,12 +5448,14 @@ mod tests {
             node.make_derived_parameter_handler(params),
             Err(Error::InvalidParameterName { .. })
         ));
-        assert!(matches!(
-            node.make_parameter_handler(),
-            Err(Error::ParameterHandlerAlreadyCreated)
-        ));
         assert!(node.services.is_empty());
         assert!(node.pubs.is_empty());
+
+        let (handler, _events) = node.make_parameter_handler().unwrap();
+        assert!(node.parameter_handler_started);
+        assert!(!node.services.is_empty());
+        assert!(!node.pubs.is_empty());
+        drop(handler);
     }
 
     #[test]
