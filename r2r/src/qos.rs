@@ -209,8 +209,8 @@ use std::{ffi::CStr, time::Duration};
 
 use r2r_rcl::{
     rmw_qos_compatibility_type_t, rmw_qos_durability_policy_t, rmw_qos_history_policy_t,
-    rmw_qos_liveliness_policy_t, rmw_qos_profile_check_compatible, rmw_qos_reliability_policy_t,
-    rmw_time_t, RMW_RET_OK,
+    rmw_qos_liveliness_policy_t, rmw_qos_policy_kind_t, rmw_qos_profile_check_compatible,
+    rmw_qos_reliability_policy_t, rmw_time_t, RMW_RET_OK,
 };
 
 use crate::{Error, Result};
@@ -229,6 +229,42 @@ pub struct QosCompatibilityResult {
     pub compatibility: QosCompatibility,
     /// Explanation supplied by RMW for warnings and incompatibilities.
     pub reason: String,
+}
+
+/// QoS policy reported by a middleware compatibility event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QosPolicyKind {
+    Invalid,
+    Durability,
+    Deadline,
+    Liveliness,
+    Reliability,
+    History,
+    Lifespan,
+    Depth,
+    LivelinessLeaseDuration,
+    AvoidRosNamespaceConventions,
+}
+
+impl From<rmw_qos_policy_kind_t> for QosPolicyKind {
+    fn from(value: rmw_qos_policy_kind_t) -> Self {
+        match value {
+            rmw_qos_policy_kind_t::RMW_QOS_POLICY_INVALID => Self::Invalid,
+            rmw_qos_policy_kind_t::RMW_QOS_POLICY_DURABILITY => Self::Durability,
+            rmw_qos_policy_kind_t::RMW_QOS_POLICY_DEADLINE => Self::Deadline,
+            rmw_qos_policy_kind_t::RMW_QOS_POLICY_LIVELINESS => Self::Liveliness,
+            rmw_qos_policy_kind_t::RMW_QOS_POLICY_RELIABILITY => Self::Reliability,
+            rmw_qos_policy_kind_t::RMW_QOS_POLICY_HISTORY => Self::History,
+            rmw_qos_policy_kind_t::RMW_QOS_POLICY_LIFESPAN => Self::Lifespan,
+            rmw_qos_policy_kind_t::RMW_QOS_POLICY_DEPTH => Self::Depth,
+            rmw_qos_policy_kind_t::RMW_QOS_POLICY_LIVELINESS_LEASE_DURATION => {
+                Self::LivelinessLeaseDuration
+            }
+            rmw_qos_policy_kind_t::RMW_QOS_POLICY_AVOID_ROS_NAMESPACE_CONVENTIONS => {
+                Self::AvoidRosNamespaceConventions
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

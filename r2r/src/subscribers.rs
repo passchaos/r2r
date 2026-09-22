@@ -7,6 +7,7 @@ use std::{
     any::TypeId,
     ffi::{CStr, CString},
     marker::PhantomData,
+    mem::MaybeUninit,
     pin::Pin,
     ptr::NonNull,
     rc::Rc,
@@ -16,6 +17,7 @@ use std::{
 
 use crate::{
     error::*, msg_types::*, nodes::Node, publishers::UniqueNetworkFlowRequirement, qos::QosProfile,
+    QosPolicyKind,
 };
 use r2r_rcl::*;
 
@@ -39,6 +41,14 @@ pub struct SubscriptionOptions {
 pub struct ContentFilterOptions {
     pub filter_expression: String,
     pub expression_parameters: Vec<String>,
+}
+
+/// Cumulative status from a requested-incompatible-QoS subscription event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RequestedIncompatibleQosStatus {
+    pub total_count: i32,
+    pub total_count_change: i32,
+    pub last_policy_kind: QosPolicyKind,
 }
 
 impl ContentFilterOptions {
@@ -261,6 +271,16 @@ impl<T> Subscription<T> {
         node.get_subscription_content_filter(self.id)
     }
 
+    /// Takes the latest requested-incompatible-QoS status without blocking.
+    ///
+    /// The first call initializes the native event. Call this once before creating potentially
+    /// incompatible publishers when every discovery event must be observed.
+    pub fn take_requested_incompatible_qos(
+        &self, node: &mut Node,
+    ) -> Result<Option<RequestedIncompatibleQosStatus>> {
+        node.take_subscription_requested_incompatible_qos(self.id)
+    }
+
     /// Tries to take a message loaned directly by the middleware without copying it.
     ///
     /// This is a non-blocking operation and returns `Ok(None)` when no message is available. It
@@ -337,6 +357,7 @@ impl<T> Stream for Subscription<T> {
 pub(crate) struct SubscriptionMatchState {
     pub(crate) id: uuid::Uuid,
     pub(crate) waiters: Vec<oneshot::Sender<()>>,
+    requested_incompatible_qos: Option<SubscriptionEvent>,
 }
 
 impl SubscriptionMatchState {
@@ -344,6 +365,80 @@ impl SubscriptionMatchState {
         Self {
             id,
             waiters: Vec::new(),
+            requested_incompatible_qos: None,
+        }
+    }
+
+    fn take_requested_incompatible_qos(
+        &mut self, subscription: *const rcl_subscription_t,
+    ) -> Result<Option<RequestedIncompatibleQosStatus>> {
+        let event = self.requested_incompatible_qos.get_or_insert_with(|| {
+            SubscriptionEvent::uninitialized(
+                rcl_subscription_event_type_t::RCL_SUBSCRIPTION_REQUESTED_INCOMPATIBLE_QOS,
+            )
+        });
+        event.ensure_initialized(subscription)?;
+        event.take_requested_incompatible_qos()
+    }
+
+    fn clear_events(&mut self) {
+        self.requested_incompatible_qos = None;
+    }
+}
+
+struct SubscriptionEvent {
+    handle: rcl_event_t,
+    event_type: rcl_subscription_event_type_t,
+    initialized: bool,
+}
+
+impl SubscriptionEvent {
+    fn uninitialized(event_type: rcl_subscription_event_type_t) -> Self {
+        Self {
+            handle: unsafe { rcl_get_zero_initialized_event() },
+            event_type,
+            initialized: false,
+        }
+    }
+
+    fn ensure_initialized(&mut self, subscription: *const rcl_subscription_t) -> Result<()> {
+        if self.initialized {
+            return Ok(());
+        }
+        let ret =
+            unsafe { rcl_subscription_event_init(&mut self.handle, subscription, self.event_type) };
+        check_subscription_ret(ret)?;
+        self.initialized = true;
+        Ok(())
+    }
+
+    fn take_requested_incompatible_qos(&self) -> Result<Option<RequestedIncompatibleQosStatus>> {
+        let mut status = MaybeUninit::<rmw_requested_qos_incompatible_event_status_t>::uninit();
+        let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
+        if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
+            return Ok(None);
+        }
+        check_subscription_ret(ret)?;
+        let status = unsafe { status.assume_init() };
+        if status.total_count_change == 0 {
+            return Ok(None);
+        }
+        Ok(Some(RequestedIncompatibleQosStatus {
+            total_count: status.total_count,
+            total_count_change: status.total_count_change,
+            last_policy_kind: status.last_policy_kind.into(),
+        }))
+    }
+}
+
+impl Drop for SubscriptionEvent {
+    fn drop(&mut self) {
+        if !self.initialized {
+            return;
+        }
+        let ret = unsafe { rcl_event_fini(&mut self.handle) };
+        if ret != RCL_RET_OK as i32 {
+            log::error!("could not finalize subscription event: {ret}");
         }
     }
 }
@@ -421,6 +516,15 @@ pub(crate) trait Subscriber_ {
         {
             Err(Error::RCL_RET_UNSUPPORTED)
         }
+    }
+    fn take_requested_incompatible_qos(
+        &mut self,
+    ) -> Result<Option<RequestedIncompatibleQosStatus>> {
+        let subscription = self.handle() as *const rcl_subscription_t;
+        let state = self
+            .match_state_mut()
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
+        state.take_requested_incompatible_qos(subscription)
     }
     fn poll_has_publishers(&mut self) {
         {
@@ -687,6 +791,7 @@ where
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
+        self.match_state.clear_events();
         unsafe {
             rcl_subscription_fini(&mut self.rcl_handle, node);
         }
@@ -748,6 +853,7 @@ where
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
+        self.match_state.clear_events();
         unsafe {
             rcl_subscription_fini(&mut self.rcl_handle, node);
         }
@@ -798,6 +904,7 @@ impl<O: 'static> Subscriber_ for UntypedSubscriber<O> {
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
+        self.match_state.clear_events();
         unsafe {
             rcl_subscription_fini(&mut self.rcl_handle, node);
         }
@@ -858,6 +965,7 @@ impl<O: 'static> Subscriber_ for RawSubscriber<O> {
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
+        self.match_state.clear_events();
         unsafe {
             rcl_subscription_fini(&mut self.rcl_handle, node);
             rcutils_uint8_array_fini(&mut self.msg_buf as *mut rcl_serialized_message_t);

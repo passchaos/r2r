@@ -1410,6 +1410,16 @@ impl Node {
             .get_content_filter()
     }
 
+    pub(crate) fn take_subscription_requested_incompatible_qos(
+        &mut self, id: uuid::Uuid,
+    ) -> Result<Option<RequestedIncompatibleQosStatus>> {
+        self.subscribers
+            .iter_mut()
+            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
+            .take_requested_incompatible_qos()
+    }
+
     pub(crate) fn register_subscription_publisher_wait(
         &mut self, id: uuid::Uuid,
     ) -> Result<oneshot::Receiver<()>> {
@@ -4492,6 +4502,52 @@ mod tests {
         assert_eq!(received.data, 42);
         subscription.clear_content_filter(&mut node).unwrap();
         assert!(!subscription.is_content_filter_enabled(&node).unwrap());
+    }
+
+    #[test]
+    fn subscriptions_report_requested_incompatible_qos() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context.clone(), "subscription_qos_event_test", "").unwrap();
+        let mut other = Node::create(context, "subscription_qos_event_other", "").unwrap();
+        let topic = format!("/subscription_qos_event_{}", uuid::Uuid::new_v4().simple());
+        let subscription = node
+            .subscribe::<crate::std_msgs::msg::Int32>(&topic, QosProfile::default().reliable())
+            .unwrap();
+
+        assert!(matches!(
+            subscription.take_requested_incompatible_qos(&mut other),
+            Err(Error::RCL_RET_SUBSCRIPTION_INVALID)
+        ));
+        match subscription.take_requested_incompatible_qos(&mut node) {
+            Err(Error::RCL_RET_UNSUPPORTED) => return,
+            Err(err) => panic!("unexpected QoS event initialization error: {err}"),
+            Ok(None) => {}
+            Ok(Some(status)) => panic!("unexpected initial QoS event: {status:?}"),
+        }
+
+        let _publisher = node
+            .create_publisher::<crate::std_msgs::msg::Int32>(
+                &topic,
+                QosProfile::default().best_effort(),
+            )
+            .unwrap();
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(status) = subscription
+                .take_requested_incompatible_qos(&mut node)
+                .unwrap()
+            {
+                assert!(status.total_count >= 1);
+                assert!(status.total_count_change >= 1);
+                assert_eq!(status.last_policy_kind, crate::QosPolicyKind::Reliability);
+                assert!(subscription
+                    .take_requested_incompatible_qos(&mut node)
+                    .unwrap()
+                    .is_none());
+                return;
+            }
+        }
+        panic!("subscription did not report incompatible QoS");
     }
 
     #[cfg(r2r__rosgraph_msgs__msg__Clock)]
