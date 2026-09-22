@@ -1,4 +1,4 @@
-use futures::{channel::oneshot, TryFutureExt};
+use futures::channel::oneshot;
 use parking_lot::Mutex;
 use std::{
     collections::HashMap,
@@ -6,7 +6,9 @@ use std::{
     fmt::Debug,
     future::Future,
     mem::MaybeUninit,
-    sync::Weak,
+    pin::Pin,
+    sync::{Arc, Weak},
+    task::{Context, Poll},
     time::Duration,
 };
 
@@ -21,6 +23,64 @@ pub(crate) enum ClientResponseAction {
 }
 
 const MAX_CLIENT_RESPONSES_PER_SPIN: usize = 16;
+
+struct ClientResponseFuture<T, C: ClientResponseRegistry> {
+    receiver: oneshot::Receiver<T>,
+    client: Option<Weak<Mutex<C>>>,
+    sequence: i64,
+    completed: bool,
+}
+
+impl<T, C: ClientResponseRegistry> ClientResponseFuture<T, C> {
+    fn new(receiver: oneshot::Receiver<T>, client: Weak<Mutex<C>>, sequence: i64) -> Self {
+        Self {
+            receiver,
+            client: Some(client),
+            sequence,
+            completed: false,
+        }
+    }
+}
+
+impl<T, C: ClientResponseRegistry> Future for ClientResponseFuture<T, C> {
+    type Output = Result<T>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match Pin::new(&mut self.receiver).poll(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(result) => {
+                self.completed = true;
+                self.client = None;
+                Poll::Ready(result.map_err(|_| Error::RCL_RET_CLIENT_INVALID))
+            }
+        }
+    }
+}
+
+impl<T, C: ClientResponseRegistry> Drop for ClientResponseFuture<T, C> {
+    fn drop(&mut self) {
+        if self.completed {
+            return;
+        }
+        self.receiver.close();
+        if let Some(client) = self.client.take().and_then(|client| client.upgrade()) {
+            client.lock().remove_canceled_response(self.sequence);
+        }
+    }
+}
+
+trait ClientResponseRegistry {
+    fn remove_canceled_response(&mut self, sequence: i64);
+}
+
+fn client_response_future<C, T>(
+    client: Weak<Mutex<C>>, sequence: i64, receiver: oneshot::Receiver<T>,
+) -> ClientResponseFuture<T, C>
+where
+    C: ClientResponseRegistry,
+{
+    ClientResponseFuture::new(receiver, client, sequence)
+}
 
 fn response_conversion_completion<N, T>(
     sender: oneshot::Sender<T>, native: N, convert: impl FnOnce(N) -> T + Send + 'static,
@@ -121,11 +181,13 @@ where
     {
         // upgrade to actual ref. if still alive
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
-        with_prepared_client(
+        let client_for_cleanup = Arc::downgrade(&client);
+        let (sequence, receiver) = with_prepared_client(
             &client,
             || WrappedNativeMsg::<T::Request>::try_from(msg),
             TypedClient::request_native,
-        )
+        )?;
+        Ok(client_response_future(client_for_cleanup, sequence, receiver))
     }
 
     /// Make a service request and wait up to `timeout` for its response.
@@ -195,7 +257,8 @@ impl ClientUntyped {
         // upgrade to actual ref. if still alive
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
         let make_request_msg = client.lock().service_type.make_request_msg;
-        with_prepared_client(
+        let client_for_cleanup = Arc::downgrade(&client);
+        let (sequence, receiver) = with_prepared_client(
             &client,
             || {
                 let mut native_msg = make_request_msg()?;
@@ -203,7 +266,8 @@ impl ClientUntyped {
                 Ok(native_msg)
             },
             UntypedClient_::request_native,
-        )
+        )?;
+        Ok(client_response_future(client_for_cleanup, sequence, receiver))
     }
 
     /// Make an untyped service request and wait up to `timeout` for its response.
@@ -293,7 +357,7 @@ where
 {
     fn request_native(
         &mut self, native_msg: WrappedNativeMsg<T::Request>,
-    ) -> Result<impl Future<Output = Result<T::Response>>>
+    ) -> Result<(i64, oneshot::Receiver<T::Response>)>
     where
         T: WrappedServiceTypeSupport,
     {
@@ -305,8 +369,7 @@ where
 
         if result == RCL_RET_OK as i32 {
             self.response_channels.insert(seq_no, sender);
-            // instead of "canceled" we return invalid client.
-            Ok(receiver.map_err(|_| Error::RCL_RET_CLIENT_INVALID))
+            Ok((seq_no, receiver))
         } else {
             log::error!("could not send request {}", result);
             Err(Error::from_rcl_error(result))
@@ -319,7 +382,7 @@ unsafe impl Send for UntypedClient_ {}
 impl UntypedClient_ {
     fn request_native(
         &mut self, native_msg: WrappedNativeMsgUntyped,
-    ) -> Result<impl Future<Output = Result<Result<serde_json::Value>>>> {
+    ) -> Result<(i64, oneshot::Receiver<Result<serde_json::Value>>)> {
         let mut seq_no = 0i64;
         let result =
             unsafe { rcl_send_request(&self.rcl_handle, native_msg.void_ptr(), &mut seq_no) };
@@ -328,8 +391,7 @@ impl UntypedClient_ {
 
         if result == RCL_RET_OK as i32 {
             self.response_channels.insert(seq_no, sender);
-            // instead of "canceled" we return invalid client.
-            Ok(receiver.map_err(|_| Error::RCL_RET_CLIENT_INVALID))
+            Ok((seq_no, receiver))
         } else {
             log::error!("could not send request {}", result);
             Err(Error::from_rcl_error(result))
@@ -353,6 +415,21 @@ where
     pub rcl_handle: rcl_client_t,
     pub response_channels: HashMap<i64, oneshot::Sender<T::Response>>,
     pub poll_available_channels: Vec<oneshot::Sender<()>>,
+}
+
+impl<T> ClientResponseRegistry for TypedClient<T>
+where
+    T: WrappedServiceTypeSupport,
+{
+    fn remove_canceled_response(&mut self, sequence: i64) {
+        if self
+            .response_channels
+            .get(&sequence)
+            .is_some_and(oneshot::Sender::is_canceled)
+        {
+            self.response_channels.remove(&sequence);
+        }
+    }
 }
 
 impl<T: 'static> Client_ for TypedClient<T>
@@ -403,8 +480,6 @@ where
     }
 
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ClientCompletion> {
-        self.response_channels
-            .retain(|_, sender| !sender.is_canceled());
         self.poll_available_channels
             .retain(|sender| !sender.is_canceled());
         if self.poll_available_channels.is_empty() {
@@ -420,8 +495,6 @@ where
     }
 
     fn has_pending_work(&mut self) -> bool {
-        self.response_channels
-            .retain(|_, sender| !sender.is_canceled());
         self.poll_available_channels
             .retain(|sender| !sender.is_canceled());
         !self.response_channels.is_empty() || !self.poll_available_channels.is_empty()
@@ -439,6 +512,18 @@ pub struct UntypedClient_ {
     pub rcl_handle: rcl_client_t,
     pub response_channels: HashMap<i64, oneshot::Sender<Result<serde_json::Value>>>,
     pub poll_available_channels: Vec<oneshot::Sender<()>>,
+}
+
+impl ClientResponseRegistry for UntypedClient_ {
+    fn remove_canceled_response(&mut self, sequence: i64) {
+        if self
+            .response_channels
+            .get(&sequence)
+            .is_some_and(oneshot::Sender::is_canceled)
+        {
+            self.response_channels.remove(&sequence);
+        }
+    }
 }
 
 impl Client_ for UntypedClient_ {
@@ -486,8 +571,6 @@ impl Client_ for UntypedClient_ {
     }
 
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ClientCompletion> {
-        self.response_channels
-            .retain(|_, sender| !sender.is_canceled());
         self.poll_available_channels
             .retain(|sender| !sender.is_canceled());
         if self.poll_available_channels.is_empty() {
@@ -503,8 +586,6 @@ impl Client_ for UntypedClient_ {
     }
 
     fn has_pending_work(&mut self) -> bool {
-        self.response_channels
-            .retain(|_, sender| !sender.is_canceled());
         self.poll_available_channels
             .retain(|sender| !sender.is_canceled());
         !self.response_channels.is_empty() || !self.poll_available_channels.is_empty()
@@ -583,7 +664,7 @@ mod tests {
     use crate::example_interfaces::srv::AddTwoInts;
     use futures::{
         task::{waker_ref, ArcWake},
-        Future,
+        Future, FutureExt,
     };
     use std::{
         pin::Pin,
@@ -600,6 +681,66 @@ mod tests {
     fn service_client_handles_are_cloneable() {
         assert_clone::<Client<AddTwoInts::Service>>();
         assert_clone::<ClientUntyped>();
+    }
+
+    #[test]
+    fn dropping_response_future_removes_only_its_pending_request() {
+        let (target_sender, target_receiver) = oneshot::channel();
+        let (other_sender, _other_receiver) = oneshot::channel();
+        let client = Arc::new(Mutex::new(TypedClient::<AddTwoInts::Service> {
+            rcl_handle: unsafe { rcl_get_zero_initialized_client() },
+            response_channels: HashMap::from([(10, target_sender), (11, other_sender)]),
+            poll_available_channels: Vec::new(),
+        }));
+        let future = client_response_future(Arc::downgrade(&client), 10, target_receiver);
+
+        drop(future);
+
+        let client = client.lock();
+        assert!(!client.response_channels.contains_key(&10));
+        assert!(client.response_channels.contains_key(&11));
+    }
+
+    #[test]
+    fn completed_response_future_disarms_drop_cleanup() {
+        let (sender, receiver) = oneshot::channel();
+        let client = Arc::new(Mutex::new(TypedClient::<AddTwoInts::Service> {
+            rcl_handle: unsafe { rcl_get_zero_initialized_client() },
+            response_channels: HashMap::from([(10, sender)]),
+            poll_available_channels: Vec::new(),
+        }));
+        let mut future = Box::pin(client_response_future(Arc::downgrade(&client), 10, receiver));
+        let sender = client.lock().response_channels.remove(&10).unwrap();
+        sender.send(AddTwoInts::Response { sum: 42 }).unwrap();
+        assert!(matches!(
+            future.as_mut().now_or_never(),
+            Some(Ok(AddTwoInts::Response { sum: 42 }))
+        ));
+        let (replacement, _receiver) = oneshot::channel();
+        client.lock().response_channels.insert(10, replacement);
+
+        drop(future);
+
+        assert!(client.lock().response_channels.contains_key(&10));
+    }
+
+    #[test]
+    fn stale_response_future_does_not_remove_a_reused_sequence() {
+        let (old_sender, old_receiver) = oneshot::channel();
+        let client = Arc::new(Mutex::new(TypedClient::<AddTwoInts::Service> {
+            rcl_handle: unsafe { rcl_get_zero_initialized_client() },
+            response_channels: HashMap::from([(10, old_sender)]),
+            poll_available_channels: Vec::new(),
+        }));
+        let future = client_response_future(Arc::downgrade(&client), 10, old_receiver);
+        let old_sender = client.lock().response_channels.remove(&10).unwrap();
+        old_sender.send(AddTwoInts::Response { sum: 42 }).unwrap();
+        let (replacement, _receiver) = oneshot::channel();
+        client.lock().response_channels.insert(10, replacement);
+
+        drop(future);
+
+        assert!(client.lock().response_channels.contains_key(&10));
     }
 
     struct LockingWake {
