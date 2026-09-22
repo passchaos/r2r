@@ -545,7 +545,9 @@ pub struct Node {
     pending_client_removals: HashSet<usize>,
     // action clients
     action_clients: Vec<Arc<Mutex<dyn ActionClient_>>>,
-    action_client_identities: HashSet<usize>,
+    action_client_identities: HashMap<usize, usize>,
+    dropped_action_clients: Arc<Mutex<VecDeque<usize>>>,
+    pending_action_client_removals: HashSet<usize>,
     // action servers
     action_servers: Vec<Arc<Mutex<dyn ActionServer_>>>,
     action_server_indexes: HashMap<uuid::Uuid, usize>,
@@ -854,12 +856,27 @@ impl Node {
         Arc::as_ptr(client).cast::<()>() as usize
     }
 
-    fn rebuild_action_client_identities(
-        clients: &[Arc<Mutex<dyn ActionClient_>>], identities: &mut HashSet<usize>,
-    ) {
-        identities.clear();
-        identities.reserve(clients.len());
-        identities.extend(clients.iter().map(Self::action_client_identity));
+    fn remove_action_client(&mut self, identity: usize) -> Result<bool> {
+        let Some(index) = self.action_client_identities.get(&identity).copied() else {
+            return Ok(true);
+        };
+        let client = &self.action_clients[index];
+        let mut handle = client.lock();
+        if handle.has_pending_work() {
+            return Ok(false);
+        }
+        let capacities = action_client_wait_set_capacities(handle.handle())?;
+        handle.destroy(self.node_handle.as_mut());
+        drop(handle);
+
+        self.action_client_identities.remove(&identity);
+        self.action_clients.swap_remove(index);
+        if let Some(moved) = self.action_clients.get(index) {
+            self.action_client_identities
+                .insert(Self::action_client_identity(moved), index);
+        }
+        self.action_wait_set_capacities.subtract(capacities);
+        Ok(true)
     }
 
     fn add_action_server(
@@ -912,7 +929,7 @@ impl Node {
         T: ActionClient_ + ?Sized,
     {
         self.action_client_identities
-            .contains(&Self::action_client_identity(client))
+            .contains_key(&Self::action_client_identity(client))
     }
 
     /// Returns the name of the node.
@@ -1141,7 +1158,9 @@ impl Node {
                 dropped_clients: Arc::new(Mutex::new(VecDeque::new())),
                 pending_client_removals: HashSet::new(),
                 action_clients: Vec::new(),
-                action_client_identities: HashSet::new(),
+                action_client_identities: HashMap::new(),
+                dropped_action_clients: Arc::new(Mutex::new(VecDeque::new())),
+                pending_action_client_removals: HashSet::new(),
                 action_servers: Vec::new(),
                 action_server_indexes: HashMap::new(),
                 dropped_action_servers: Arc::new(Mutex::new(VecDeque::new())),
@@ -2981,11 +3000,16 @@ impl Node {
         };
 
         let client_arc = Arc::new(Mutex::new(client));
+        let identity = Self::action_client_identity(&client_arc);
         self.action_client_identities
-            .insert(Self::action_client_identity(&client_arc));
+            .insert(identity, self.action_clients.len());
         self.action_clients.push(client_arc.clone());
         self.action_wait_set_capacities.add(action_capacities);
-        let c = make_action_client(Arc::downgrade(&client_arc));
+        let c = make_action_client(
+            Arc::downgrade(&client_arc),
+            identity,
+            Arc::clone(&self.dropped_action_clients),
+        );
         Ok(c)
     }
 
@@ -3046,11 +3070,16 @@ impl Node {
         };
 
         let client_arc = Arc::new(Mutex::new(client));
+        let identity = Self::action_client_identity(&client_arc);
         self.action_client_identities
-            .insert(Self::action_client_identity(&client_arc));
+            .insert(identity, self.action_clients.len());
         self.action_clients.push(client_arc.clone());
         self.action_wait_set_capacities.add(action_capacities);
-        let c = make_action_client_untyped(Arc::downgrade(&client_arc));
+        let c = make_action_client_untyped(
+            Arc::downgrade(&client_arc),
+            identity,
+            Arc::clone(&self.dropped_action_clients),
+        );
         Ok(c)
     }
 
@@ -3362,35 +3391,25 @@ impl Node {
             Self::remove_timer(&mut self.timers, &mut self.timer_indexes, id);
         }
 
-        let node_handle = self.node_handle.as_mut();
-        let mut removed_action_capacities = WaitSetCapacities::default();
-        let previous_action_client_count = self.action_clients.len();
-        self.action_clients.retain(|client| {
-            let mut handle = client.lock();
-            if Arc::weak_count(client) == 0 && !handle.has_pending_work() {
-                match action_client_wait_set_capacities(handle.handle()) {
-                    Ok(capacities) => {
-                        handle.destroy(node_handle);
-                        removed_action_capacities.add(capacities);
-                        false
-                    }
-                    Err(err) => {
-                        log::warn!("could not inspect dropped action client: {err}");
-                        true
-                    }
-                }
-            } else {
-                true
-            }
-        });
-        if self.action_clients.len() != previous_action_client_count {
-            Self::rebuild_action_client_identities(
-                &self.action_clients,
-                &mut self.action_client_identities,
-            );
+        {
+            let mut dropped = self.dropped_action_clients.lock();
+            self.pending_action_client_removals
+                .extend(dropped.drain(..));
         }
-        self.action_wait_set_capacities
-            .subtract(removed_action_capacities);
+        let pending_action_client_removals =
+            std::mem::take(&mut self.pending_action_client_removals);
+        for identity in pending_action_client_removals {
+            match self.remove_action_client(identity) {
+                Ok(true) => {}
+                Ok(false) => {
+                    self.pending_action_client_removals.insert(identity);
+                }
+                Err(err) => {
+                    log::warn!("could not inspect dropped action client: {err}");
+                    self.pending_action_client_removals.insert(identity);
+                }
+            }
+        }
 
         // first handle any completed action cancellation responses
         for a in &mut self.action_servers {
@@ -10432,6 +10451,9 @@ mod tests {
 
         assert_eq!(node.action_clients.len(), 2);
         assert_eq!(node.action_client_identities.len(), 2);
+        for (identity, index) in &node.action_client_identities {
+            assert_eq!(Node::action_client_identity(&node.action_clients[*index]), *identity);
+        }
         assert!(!first.is_available(&node).unwrap());
         assert!(!last.is_available(&node).unwrap());
         assert!(matches!(last.is_available(&other), Err(Error::RCL_RET_INVALID_ARGUMENT)));
@@ -10666,13 +10688,16 @@ mod tests {
         let availability = Node::is_available(&client).unwrap();
 
         drop(client);
+        assert_eq!(node.dropped_action_clients.lock().len(), 1);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert_eq!(node.action_clients.len(), 1);
+        assert_eq!(node.pending_action_client_removals.len(), 1);
 
         drop(availability);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.action_clients.is_empty());
         assert!(node.action_client_identities.is_empty());
+        assert!(node.pending_action_client_removals.is_empty());
         assert_eq!(node.action_wait_set_capacities, WaitSetCapacities::default());
 
         let client = node

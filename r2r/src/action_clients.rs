@@ -642,12 +642,35 @@ unsafe impl<T> Send for ActionClient<T> where T: WrappedActionTypeSupport {}
 /// Action client
 ///
 /// Use this to make goal requests to an action server.
-#[derive(Clone)]
 pub struct ActionClient<T>
 where
     T: WrappedActionTypeSupport,
 {
     client: Weak<Mutex<WrappedActionClient<T>>>,
+    lifecycle: Arc<ActionClientHandleLifecycle>,
+}
+
+pub(crate) struct ActionClientHandleLifecycle {
+    pub(crate) identity: usize,
+    pub(crate) dropped_action_clients: Arc<Mutex<VecDeque<usize>>>,
+}
+
+impl Drop for ActionClientHandleLifecycle {
+    fn drop(&mut self) {
+        self.dropped_action_clients.lock().push_back(self.identity);
+    }
+}
+
+impl<T> Clone for ActionClient<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+            lifecycle: Arc::clone(&self.lifecycle),
+        }
+    }
 }
 
 unsafe impl<T> Send for ActionClientGoal<T> where T: WrappedActionTypeSupport {}
@@ -1125,11 +1148,20 @@ where
 
 type GoalResponseSender = (uuid::Uuid, oneshot::Sender<(bool, builtin_interfaces::msg::Time)>);
 
-pub fn make_action_client<T>(client: Weak<Mutex<WrappedActionClient<T>>>) -> ActionClient<T>
+pub(crate) fn make_action_client<T>(
+    client: Weak<Mutex<WrappedActionClient<T>>>, identity: usize,
+    dropped_action_clients: Arc<Mutex<VecDeque<usize>>>,
+) -> ActionClient<T>
 where
     T: WrappedActionTypeSupport,
 {
-    ActionClient { client }
+    ActionClient {
+        client,
+        lifecycle: Arc::new(ActionClientHandleLifecycle {
+            identity,
+            dropped_action_clients,
+        }),
+    }
 }
 
 pub type ResultSender<R> = oneshot::Sender<(GoalStatus, R)>;
@@ -1666,6 +1698,7 @@ where
             || !self.cancel_response_channels.is_empty()
             || !self.feedback_senders.is_empty()
             || !self.result_senders.is_empty()
+            || !self.goal_status.is_empty()
             || !self.poll_available_channels.is_empty()
     }
 
@@ -1873,6 +1906,73 @@ mod tests {
         sync::atomic::{AtomicBool, Ordering},
         task::{Context, Poll},
     };
+
+    #[test]
+    fn final_action_client_handle_drop_queues_its_identity_once() {
+        let dropped_action_clients = Arc::new(Mutex::new(VecDeque::new()));
+        let client = Arc::new(Mutex::new(WrappedActionClient::<Fibonacci::Action> {
+            rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
+            goal_response_channels: HashMap::new(),
+            goal_response_sequences: HashMap::new(),
+            cancel_response_channels: HashMap::new(),
+            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
+            feedback_senders: HashMap::new(),
+            canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            pending_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            result_senders: HashMap::new(),
+            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
+            result_requests: HashMap::new(),
+            result_request_sequences: HashMap::new(),
+            goal_status: HashMap::new(),
+            feedback_channel_capacity: 1,
+            poll_available_channels: AvailabilityWaiters::default(),
+        }));
+        let identity = Arc::as_ptr(&client).cast::<()>() as usize;
+        let handle = make_action_client(
+            Arc::downgrade(&client),
+            identity,
+            Arc::clone(&dropped_action_clients),
+        );
+        let clone = handle.clone();
+
+        drop(handle);
+        assert!(dropped_action_clients.lock().is_empty());
+        drop(clone);
+
+        assert_eq!(
+            dropped_action_clients
+                .lock()
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            [identity]
+        );
+    }
+
+    #[test]
+    fn tracked_goal_status_keeps_action_client_work_pending() {
+        let mut client = WrappedActionClient::<Fibonacci::Action> {
+            rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
+            goal_response_channels: HashMap::new(),
+            goal_response_sequences: HashMap::new(),
+            cancel_response_channels: HashMap::new(),
+            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
+            feedback_senders: HashMap::new(),
+            canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            pending_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            result_senders: HashMap::new(),
+            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
+            result_requests: HashMap::new(),
+            result_request_sequences: HashMap::new(),
+            goal_status: HashMap::from([(uuid::Uuid::nil(), GoalStatus::Accepted)]),
+            feedback_channel_capacity: 1,
+            poll_available_channels: AvailabilityWaiters::default(),
+        };
+
+        assert!(client.has_pending_work());
+        client.goal_status.clear();
+        assert!(!client.has_pending_work());
+    }
 
     struct LockingWake {
         client: Arc<Mutex<()>>,

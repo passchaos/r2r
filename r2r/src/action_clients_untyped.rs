@@ -6,7 +6,7 @@ use futures::{
 use parking_lot::Mutex;
 use std::{
     any::Any,
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     future::Future,
     mem::MaybeUninit,
     pin::Pin,
@@ -37,9 +37,18 @@ unsafe impl Send for ActionClientUntyped {}
 ///
 /// Use this to make goal requests to an action server, without having
 /// the concrete types at compile-time.
-#[derive(Clone)]
 pub struct ActionClientUntyped {
     client: Weak<Mutex<WrappedActionClientUntyped>>,
+    lifecycle: Arc<ActionClientHandleLifecycle>,
+}
+
+impl Clone for ActionClientUntyped {
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+            lifecycle: Arc::clone(&self.lifecycle),
+        }
+    }
 }
 
 unsafe impl Send for ActionClientGoalUntyped {}
@@ -472,10 +481,17 @@ impl ActionClientUntyped {
 
 type GoalResponseSender = (uuid::Uuid, oneshot::Sender<(bool, builtin_interfaces::msg::Time)>);
 
-pub fn make_action_client_untyped(
-    client: Weak<Mutex<WrappedActionClientUntyped>>,
+pub(crate) fn make_action_client_untyped(
+    client: Weak<Mutex<WrappedActionClientUntyped>>, identity: usize,
+    dropped_action_clients: Arc<Mutex<VecDeque<usize>>>,
 ) -> ActionClientUntyped {
-    ActionClientUntyped { client }
+    ActionClientUntyped {
+        client,
+        lifecycle: Arc::new(ActionClientHandleLifecycle {
+            identity,
+            dropped_action_clients,
+        }),
+    }
 }
 
 pub type ResultSender = oneshot::Sender<(GoalStatus, Result<serde_json::Value>)>;
@@ -961,6 +977,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
             || !self.cancel_response_channels.is_empty()
             || !self.feedback_senders.is_empty()
             || !self.result_senders.is_empty()
+            || !self.goal_status.is_empty()
             || !self.poll_available_channels.is_empty()
     }
 
