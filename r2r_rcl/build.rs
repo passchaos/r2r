@@ -4,6 +4,7 @@ use std::{
 };
 
 fn main() {
+    println!("cargo:rerun-if-changed=src/rcl_wrapper.h");
     r2r_common::print_cargo_watches();
     r2r_common::print_cargo_ros_distro();
     run_bindgen();
