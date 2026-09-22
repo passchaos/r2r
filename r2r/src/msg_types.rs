@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use std::{
     boxed::Box,
     cell::RefCell,
-    convert::TryInto,
     fmt::Debug,
     ops::{Deref, DerefMut},
 };
@@ -24,16 +23,10 @@ pub mod generated_msgs {
 
 use generated_msgs::{builtin_interfaces, unique_identifier_msgs};
 
-fn vec_to_uuid_bytes<T>(v: Vec<T>) -> [T; 16] {
-    v.try_into().unwrap_or_else(|v: Vec<T>| {
-        panic!("Expected a Vec of length {} but it was {}", 16, v.len())
+pub(crate) fn uuid_msg_to_uuid(msg: &unique_identifier_msgs::msg::UUID) -> Result<uuid::Uuid> {
+    uuid::Uuid::from_slice(&msg.uuid).map_err(|_| Error::InvalidActionUuidLength {
+        actual: msg.uuid.len(),
     })
-}
-
-/// TODO: maybe expose this somewhere.
-pub(crate) fn uuid_msg_to_uuid(msg: &unique_identifier_msgs::msg::UUID) -> uuid::Uuid {
-    let bytes = vec_to_uuid_bytes(msg.uuid.clone());
-    uuid::Uuid::from_bytes(bytes)
 }
 
 struct SerializedMessageBuffer(rcl_serialized_message_t);
@@ -686,6 +679,23 @@ mod tests {
             WrappedNativeMsg::<CopyFailure>::try_from(&CopyFailure),
             Err(Error::RCL_RET_BAD_ALLOC)
         ));
+    }
+
+    #[test]
+    fn action_uuid_conversion_rejects_wrong_lengths() {
+        let short = unique_identifier_msgs::msg::UUID { uuid: vec![0; 15] };
+        let long = unique_identifier_msgs::msg::UUID { uuid: vec![0; 17] };
+        assert!(matches!(
+            uuid_msg_to_uuid(&short),
+            Err(Error::InvalidActionUuidLength { actual: 15 })
+        ));
+        assert!(matches!(
+            uuid_msg_to_uuid(&long),
+            Err(Error::InvalidActionUuidLength { actual: 17 })
+        ));
+
+        let valid = unique_identifier_msgs::msg::UUID { uuid: vec![7; 16] };
+        assert_eq!(uuid_msg_to_uuid(&valid).unwrap().as_bytes(), &[7; 16]);
     }
 
     #[test]

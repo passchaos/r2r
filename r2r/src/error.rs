@@ -123,6 +123,9 @@ pub enum Error {
     #[error("Unknown action cancel response code: {0}")]
     UnknownActionCancelResponse(i8),
 
+    #[error("Invalid action UUID length: expected 16 bytes, got {actual}")]
+    InvalidActionUuidLength { actual: usize },
+
     #[error("Invalid parameter name: {name}")]
     InvalidParameterName { name: String },
 

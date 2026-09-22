@@ -494,7 +494,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
         if action_client_take_succeeded(ret)? {
             let (uuid, feedback) =
                 (self.action_type_support.destructure_feedback_msg)(feedback_msg);
-            let msg_uuid = uuid_msg_to_uuid(&uuid);
+            let msg_uuid = uuid_msg_to_uuid(&uuid)?;
             if let Some((_, sender)) = self
                 .feedback_senders
                 .iter_mut()
@@ -516,7 +516,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
         if action_client_take_succeeded(ret)? {
             let arr = action_msgs::msg::GoalStatusArray::from_native(&status_array);
             for a in &arr.status_list {
-                let uuid = uuid_msg_to_uuid(&a.goal_info.goal_id);
+                let uuid = uuid_msg_to_uuid(&a.goal_info.goal_id)?;
                 if let Some(status) = self.goal_status.get_mut(&uuid) {
                     *status = GoalStatus::from_rcl(a.status);
                 }

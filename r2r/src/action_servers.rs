@@ -554,21 +554,28 @@ impl Drop for CancelResponse {
 fn retain_accepted_cancellations(
     response: &mut action_msgs::srv::CancelGoal::Response,
     decisions: impl IntoIterator<Item = (uuid::Uuid, bool)>,
-) -> Vec<uuid::Uuid> {
+) -> Result<Vec<uuid::Uuid>> {
     let accepted: HashSet<_> = decisions
         .into_iter()
         .filter_map(|(uuid, accept)| accept.then_some(uuid))
         .collect();
 
-    response
-        .goals_canceling
-        .retain(|goal_info| accepted.contains(&uuid_msg_to_uuid(&goal_info.goal_id)));
-
-    response
-        .goals_canceling
-        .iter()
-        .map(|goal_info| uuid_msg_to_uuid(&goal_info.goal_id))
-        .collect()
+    let mut canceled = Vec::new();
+    let mut retain = Vec::with_capacity(response.goals_canceling.len());
+    for goal_info in &response.goals_canceling {
+        let uuid = uuid_msg_to_uuid(&goal_info.goal_id)?;
+        let is_accepted = accepted.contains(&uuid);
+        retain.push(is_accepted);
+        if is_accepted {
+            canceled.push(uuid);
+        }
+    }
+    let mut retain = retain.into_iter();
+    response.goals_canceling.retain(|_| {
+        // The mask was built with exactly one entry per goal above.
+        retain.next().unwrap_or(false)
+    });
+    Ok(canceled)
 }
 
 pub struct WrappedActionServer<T>
@@ -798,7 +805,13 @@ where
                             None
                         }
                     });
-                    canceled.extend(retain_accepted_cancellations(&mut response_msg, decisions));
+                    match retain_accepted_cancellations(&mut response_msg, decisions) {
+                        Ok(accepted) => canceled.extend(accepted),
+                        Err(err) => {
+                            first_error.get_or_insert(err);
+                            return false;
+                        }
+                    }
 
                     // check if all cancels were rejected.
                     if requested_cancels >= 1 && response_msg.goals_canceling.is_empty() {
@@ -878,9 +891,20 @@ where
         if !action_server_take_succeeded(ret)? {
             return Ok(());
         }
+        let mut request_id = unsafe { request_id.assume_init() };
         let msg = <<<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Request>::from_native(&request_msg);
         let (uuid_msg, goal) = T::destructure_goal_request_msg(msg);
-        let uuid = uuid_msg_to_uuid(&uuid_msg);
+        let uuid = match uuid_msg_to_uuid(&uuid_msg) {
+            Ok(uuid) => uuid,
+            Err(err) => {
+                if let Err(reject_err) =
+                    self.reject_goal_request(&uuid::Uuid::nil(), &mut request_id)
+                {
+                    log::error!("could not reject malformed action goal request: {reject_err}");
+                }
+                return Err(err);
+            }
+        };
 
         let (cancel_sender, cancel_receiver) =
             mpsc::channel::<ActionServerCancelRequest>(self.cancel_request_channel_capacity);
@@ -893,7 +917,7 @@ where
             response: GoalRequestResponseGuard {
                 server: Arc::downgrade(&server),
                 uuid,
-                request_id: unsafe { request_id.assume_init() },
+                request_id,
                 response_sent: false,
             },
         };
@@ -946,13 +970,13 @@ where
         let response_msg =
             action_msgs::srv::CancelGoal::Response::from_native(&cancel_response.0.msg);
 
-        let (deliveries, decisions): (Vec<_>, Vec<_>) = response_msg
+        let deliveries_and_decisions = response_msg
             .goals_canceling
             .iter()
             .map(|goal_info| {
-                let uuid = uuid_msg_to_uuid(&goal_info.goal_id);
+                let uuid = uuid_msg_to_uuid(&goal_info.goal_id)?;
                 let (response_sender, response_receiver) = oneshot::channel::<(uuid::Uuid, bool)>();
-                (
+                Ok((
                     PendingCancelDelivery {
                         uuid,
                         request: ActionServerCancelRequest {
@@ -961,9 +985,11 @@ where
                         },
                     },
                     response_receiver,
-                )
+                ))
             })
-            .unzip();
+            .collect::<Result<Vec<_>>>()?;
+        let (deliveries, decisions): (Vec<_>, Vec<_>) =
+            deliveries_and_decisions.into_iter().unzip();
 
         self.pending_cancel_request = Some(PendingCancelRequest {
             request_id,
@@ -991,7 +1017,7 @@ where
             }
 
             let gi = action_msgs::msg::GoalInfo::from_native(&goal_info);
-            let uuid = uuid_msg_to_uuid(&gi.goal_id);
+            let uuid = uuid_msg_to_uuid(&gi.goal_id)?;
             log::debug!("goal expired: {} - {}", uuid, num_expired);
             self.goals.remove(&uuid);
             self.cancel_senders.remove(&uuid);
@@ -1078,14 +1104,13 @@ where
             goal_id: T::destructure_result_request_msg(msg),
             ..action_msgs::msg::GoalInfo::default()
         };
+        let uuid = uuid_msg_to_uuid(&goal_info.goal_id)?;
         let goal_info_native =
             WrappedNativeMsg::<action_msgs::msg::GoalInfo>::try_from(&goal_info)?;
 
         // does this goal exist?
         let goal_exists =
             unsafe { rcl_action_server_goal_exists(&self.rcl_handle, &*goal_info_native) };
-
-        let uuid = uuid_msg_to_uuid(&goal_info.goal_id);
 
         if !goal_exists {
             // Goal does not exists
@@ -1660,10 +1685,31 @@ mod tests {
             [(accepted_a, true), (rejected, false), (accepted_b, true)],
         );
 
-        assert_eq!(canceled, vec![accepted_a, accepted_b]);
+        assert_eq!(canceled.unwrap(), vec![accepted_a, accepted_b]);
         assert_eq!(response.goals_canceling.len(), 2);
-        assert_eq!(uuid_msg_to_uuid(&response.goals_canceling[0].goal_id), accepted_a);
-        assert_eq!(uuid_msg_to_uuid(&response.goals_canceling[1].goal_id), accepted_b);
+        assert_eq!(uuid_msg_to_uuid(&response.goals_canceling[0].goal_id).unwrap(), accepted_a);
+        assert_eq!(uuid_msg_to_uuid(&response.goals_canceling[1].goal_id).unwrap(), accepted_b);
+    }
+
+    #[test]
+    fn malformed_cancel_uuid_does_not_partially_filter_response() {
+        let accepted = uuid::Uuid::from_u128(1);
+        let mut response = action_msgs::srv::CancelGoal::Response {
+            goals_canceling: vec![
+                goal_info(accepted),
+                action_msgs::msg::GoalInfo {
+                    goal_id: unique_identifier_msgs::msg::UUID { uuid: vec![0; 15] },
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+
+        assert!(matches!(
+            retain_accepted_cancellations(&mut response, [(accepted, true)]),
+            Err(Error::InvalidActionUuidLength { actual: 15 })
+        ));
+        assert_eq!(response.goals_canceling.len(), 2);
     }
 
     #[test]
