@@ -315,7 +315,7 @@ impl Subscriber_ for TimeSourceSubscriber {
             .take_subscriber_destruction_request()
     }
 
-    fn handle_incoming(&mut self) -> Result<bool> {
+    fn handle_incoming(&mut self) -> Result<crate::subscribers::SubscriptionHandleResult> {
         // update clock
         let mut msg_info = rmw_message_info_t::default(); // we dont care for now
         let mut clock_msg = WrappedNativeMsg::<rosgraph_msgs::msg::Clock>::try_new()?;
@@ -332,16 +332,24 @@ impl Subscriber_ for TimeSourceSubscriber {
             return Err(Error::from_rcl_error(ret));
         }
 
-        if ret == RCL_RET_OK as i32 {
+        let result = if ret == RCL_RET_OK as i32 {
             self.time_source
                 .set_clock_time(rosgraph_msgs::msg::Clock::from_native(&clock_msg).clock);
-        }
+            crate::subscribers::SubscriptionHandleResult::Taken
+        } else {
+            crate::subscribers::SubscriptionHandleResult::Idle
+        };
 
-        Ok(self
+        if self
             .time_source
             .inner
             .lock()
-            .subscriber_should_remove_after_take())
+            .subscriber_should_remove_after_take()
+        {
+            Ok(crate::subscribers::SubscriptionHandleResult::Remove)
+        } else {
+            Ok(result)
+        }
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {

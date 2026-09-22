@@ -1819,6 +1819,7 @@ impl Node {
             rcl_handle: subscription_handle,
             sender,
             transform,
+            max_messages_per_spin: subscription_batch_size(options.channel_capacity),
             match_state: SubscriptionMatchState::new(id),
         };
         self.subscribers.push(Box::new(ws));
@@ -1935,6 +1936,7 @@ impl Node {
             rcl_handle: subscription_handle,
             sender,
             transform,
+            max_messages_per_spin: subscription_batch_size(options.channel_capacity),
             match_state: SubscriptionMatchState::new(id),
         };
         self.subscribers.push(Box::new(ws));
@@ -2021,6 +2023,7 @@ impl Node {
             topic_type: topic_type.to_string(),
             sender,
             transform,
+            max_messages_per_spin: subscription_batch_size(options.channel_capacity),
             match_state: SubscriptionMatchState::new(id),
         };
         self.subscribers.push(Box::new(ws));
@@ -2139,6 +2142,7 @@ impl Node {
             msg_buf,
             sender,
             transform,
+            max_messages_per_spin: subscription_batch_size(options.channel_capacity),
             match_state: SubscriptionMatchState::new(id),
         };
         self.subscribers.push(Box::new(ws));
@@ -3087,7 +3091,7 @@ impl Node {
                 unsafe { std::slice::from_raw_parts(ws.subscriptions, self.subscribers.len()) };
             for (s, ws_s) in self.subscribers.iter_mut().zip(ws_subs) {
                 if ws_s != &std::ptr::null() {
-                    match s.handle_incoming() {
+                    match s.handle_ready() {
                         Ok(true) => {
                             subs_to_remove.push(s.handle() as *const rcl_subscription_t);
                         }
@@ -5960,6 +5964,42 @@ mod tests {
             SubscriptionOptions::default().channel_capacity(usize::MAX),
         );
         assert!(matches!(invalid, Err(Error::RCL_RET_INVALID_ARGUMENT)));
+    }
+
+    #[test]
+    fn subscription_drains_bursts_in_one_spin() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "subscription_batch_test", "").unwrap();
+        let topic = format!("/subscription_batch_{}", uuid::Uuid::new_v4().simple());
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::Int32>(&topic, QosProfile::default())
+            .unwrap();
+        let mut subscription = node
+            .subscribe_with_options::<crate::std_msgs::msg::Int32>(
+                &topic,
+                QosProfile::default(),
+                SubscriptionOptions::default().channel_capacity(8),
+            )
+            .unwrap();
+
+        let available = publisher
+            .wait_for_subscribers_with_timeout(&mut node, Duration::from_secs(1))
+            .unwrap();
+        node.spin_until_future_complete(available, Duration::from_secs(1))
+            .unwrap();
+
+        for value in 1..=3 {
+            publisher
+                .publish(&crate::std_msgs::msg::Int32 { data: value })
+                .unwrap();
+        }
+        std::thread::sleep(Duration::from_millis(20));
+        node.try_spin_once(Duration::from_millis(100)).unwrap();
+
+        let received = (0..3)
+            .map(|_| subscription.next().now_or_never().flatten().unwrap().data)
+            .collect::<Vec<_>>();
+        assert_eq!(received, vec![1, 2, 3]);
     }
 
     #[test]

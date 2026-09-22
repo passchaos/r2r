@@ -137,6 +137,14 @@ impl SubscriptionOptions {
     }
 }
 
+const MAX_SUBSCRIPTION_BATCH_SIZE: usize = 16;
+
+pub(crate) fn subscription_batch_size(channel_capacity: usize) -> usize {
+    channel_capacity
+        .saturating_add(1)
+        .min(MAX_SUBSCRIPTION_BATCH_SIZE)
+}
+
 /// Metadata reported by the RMW implementation for a received message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MessageInfo {
@@ -734,7 +742,22 @@ pub(crate) trait Subscriber_ {
         false
     }
     /// Returns true if the subscriber stream has been dropped.
-    fn handle_incoming(&mut self) -> Result<bool>;
+    fn max_messages_per_spin(&self) -> usize {
+        1
+    }
+    fn handle_incoming(&mut self) -> Result<SubscriptionHandleResult>;
+    fn handle_ready(&mut self) -> Result<bool> {
+        for _ in 0..self.max_messages_per_spin() {
+            match self.handle_incoming()? {
+                SubscriptionHandleResult::Taken => {}
+                SubscriptionHandleResult::Idle | SubscriptionHandleResult::Backpressured => {
+                    return Ok(false);
+                }
+                SubscriptionHandleResult::Remove => return Ok(true),
+            }
+        }
+        Ok(false)
+    }
     fn destroy(&mut self, node: &mut rcl_node_t);
 }
 
@@ -885,6 +908,7 @@ where
     pub rcl_handle: rcl_subscription_t,
     pub sender: mpsc::Sender<O>,
     pub transform: fn(T, MessageInfo) -> O,
+    pub max_messages_per_spin: usize,
     pub(crate) match_state: SubscriptionMatchState,
 }
 
@@ -895,6 +919,7 @@ where
     pub rcl_handle: rcl_subscription_t,
     pub sender: mpsc::Sender<O>,
     pub transform: fn(WrappedNativeMsg<T>, MessageInfo) -> O,
+    pub max_messages_per_spin: usize,
     pub(crate) match_state: SubscriptionMatchState,
 }
 
@@ -903,6 +928,7 @@ pub struct UntypedSubscriber<O> {
     pub topic_type: String,
     pub sender: mpsc::Sender<O>,
     pub transform: fn(Result<serde_json::Value>, MessageInfo) -> O,
+    pub max_messages_per_spin: usize,
     pub(crate) match_state: SubscriptionMatchState,
 }
 
@@ -911,7 +937,16 @@ pub struct RawSubscriber<O> {
     pub msg_buf: rcl_serialized_message_t,
     pub sender: mpsc::Sender<O>,
     pub transform: fn(Vec<u8>, MessageInfo) -> O,
+    pub max_messages_per_spin: usize,
     pub(crate) match_state: SubscriptionMatchState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SubscriptionHandleResult {
+    Taken,
+    Idle,
+    Backpressured,
+    Remove,
 }
 
 impl<T: 'static, O: 'static> Subscriber_ for TypedSubscriber<T, O>
@@ -938,11 +973,15 @@ where
         self.sender.is_closed()
     }
 
-    fn handle_incoming(&mut self) -> Result<bool> {
+    fn max_messages_per_spin(&self) -> usize {
+        self.max_messages_per_spin
+    }
+
+    fn handle_incoming(&mut self) -> Result<SubscriptionHandleResult> {
         match sender_ready(&mut self.sender) {
             Ok(true) => {}
-            Ok(false) => return Ok(false),
-            Err(_) => return Ok(true),
+            Ok(false) => return Ok(SubscriptionHandleResult::Backpressured),
+            Err(_) => return Ok(SubscriptionHandleResult::Remove),
         }
         let mut msg_info = rmw_message_info_t::default(); // we dont care for now
         let mut msg = WrappedNativeMsg::<T>::try_new()?;
@@ -954,14 +993,17 @@ where
             if let Err(e) = self.sender.try_send(msg) {
                 if e.is_disconnected() {
                     // user dropped the handle to the stream, signal removal.
-                    return Ok(true);
+                    return Ok(SubscriptionHandleResult::Remove);
                 }
-                log::debug!("error {:?}", e)
+                log::debug!("error {:?}", e);
+                return Ok(SubscriptionHandleResult::Backpressured);
             }
         } else if ret != RCL_RET_SUBSCRIPTION_TAKE_FAILED as i32 {
             return Err(Error::from_rcl_error(ret));
+        } else {
+            return Ok(SubscriptionHandleResult::Idle);
         }
-        Ok(false)
+        Ok(SubscriptionHandleResult::Taken)
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -996,11 +1038,15 @@ where
         self.sender.is_closed()
     }
 
-    fn handle_incoming(&mut self) -> Result<bool> {
+    fn max_messages_per_spin(&self) -> usize {
+        self.max_messages_per_spin
+    }
+
+    fn handle_incoming(&mut self) -> Result<SubscriptionHandleResult> {
         match sender_ready(&mut self.sender) {
             Ok(true) => {}
-            Ok(false) => return Ok(false),
-            Err(_) => return Ok(true),
+            Ok(false) => return Ok(SubscriptionHandleResult::Backpressured),
+            Err(_) => return Ok(SubscriptionHandleResult::Remove),
         }
         // The returned stream may outlive the Node. Use caller-owned message storage so
         // dropping an item never has to access an already-finalized subscription handle.
@@ -1010,7 +1056,7 @@ where
             rcl_take(&self.rcl_handle, msg.void_ptr_mut(), &mut msg_info, std::ptr::null_mut())
         };
         if ret == RCL_RET_SUBSCRIPTION_TAKE_FAILED as i32 {
-            return Ok(false);
+            return Ok(SubscriptionHandleResult::Idle);
         }
         if ret != RCL_RET_OK as i32 {
             return Err(Error::from_rcl_error(ret));
@@ -1019,11 +1065,12 @@ where
         if let Err(e) = self.sender.try_send(msg) {
             if e.is_disconnected() {
                 // user dropped the handle to the stream, signal removal.
-                return Ok(true);
+                return Ok(SubscriptionHandleResult::Remove);
             }
-            log::error!("error {:?}", e)
+            log::error!("error {:?}", e);
+            return Ok(SubscriptionHandleResult::Backpressured);
         }
-        Ok(false)
+        Ok(SubscriptionHandleResult::Taken)
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -1051,11 +1098,15 @@ impl<O: 'static> Subscriber_ for UntypedSubscriber<O> {
         self.sender.is_closed()
     }
 
-    fn handle_incoming(&mut self) -> Result<bool> {
+    fn max_messages_per_spin(&self) -> usize {
+        self.max_messages_per_spin
+    }
+
+    fn handle_incoming(&mut self) -> Result<SubscriptionHandleResult> {
         match sender_ready(&mut self.sender) {
             Ok(true) => {}
-            Ok(false) => return Ok(false),
-            Err(_) => return Ok(true),
+            Ok(false) => return Ok(SubscriptionHandleResult::Backpressured),
+            Err(_) => return Ok(SubscriptionHandleResult::Remove),
         }
         let mut msg_info = rmw_message_info_t::default(); // we dont care for now
         let mut msg = WrappedNativeMsgUntyped::new_from(&self.topic_type)?;
@@ -1067,14 +1118,17 @@ impl<O: 'static> Subscriber_ for UntypedSubscriber<O> {
             if let Err(e) = self.sender.try_send(json) {
                 if e.is_disconnected() {
                     // user dropped the handle to the stream, signal removal.
-                    return Ok(true);
+                    return Ok(SubscriptionHandleResult::Remove);
                 }
-                log::debug!("error {:?}", e)
+                log::debug!("error {:?}", e);
+                return Ok(SubscriptionHandleResult::Backpressured);
             }
         } else if ret != RCL_RET_SUBSCRIPTION_TAKE_FAILED as i32 {
             return Err(Error::from_rcl_error(ret));
+        } else {
+            return Ok(SubscriptionHandleResult::Idle);
         }
-        Ok(false)
+        Ok(SubscriptionHandleResult::Taken)
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -1102,11 +1156,15 @@ impl<O: 'static> Subscriber_ for RawSubscriber<O> {
         self.sender.is_closed()
     }
 
-    fn handle_incoming(&mut self) -> Result<bool> {
+    fn max_messages_per_spin(&self) -> usize {
+        self.max_messages_per_spin
+    }
+
+    fn handle_incoming(&mut self) -> Result<SubscriptionHandleResult> {
         match sender_ready(&mut self.sender) {
             Ok(true) => {}
-            Ok(false) => return Ok(false),
-            Err(_) => return Ok(true),
+            Ok(false) => return Ok(SubscriptionHandleResult::Backpressured),
+            Err(_) => return Ok(SubscriptionHandleResult::Remove),
         }
         let mut msg_info = rmw_message_info_t::default(); // we dont care for now
         let ret = unsafe {
@@ -1118,7 +1176,7 @@ impl<O: 'static> Subscriber_ for RawSubscriber<O> {
             )
         };
         if ret == RCL_RET_SUBSCRIPTION_TAKE_FAILED as i32 {
-            return Ok(false);
+            return Ok(SubscriptionHandleResult::Idle);
         }
         if ret != RCL_RET_OK as i32 {
             return Err(Error::from_rcl_error(ret));
@@ -1130,12 +1188,13 @@ impl<O: 'static> Subscriber_ for RawSubscriber<O> {
         if let Err(e) = self.sender.try_send(message) {
             if e.is_disconnected() {
                 // user dropped the handle to the stream, signal removal.
-                return Ok(true);
+                return Ok(SubscriptionHandleResult::Remove);
             }
-            log::debug!("error {:?}", e)
+            log::debug!("error {:?}", e);
+            return Ok(SubscriptionHandleResult::Backpressured);
         }
 
-        Ok(false)
+        Ok(SubscriptionHandleResult::Taken)
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -1189,6 +1248,83 @@ mod tests {
 
     static RETURNED_LOANS: AtomicUsize = AtomicUsize::new(0);
 
+    struct BatchedTestSubscriber {
+        handle: rcl_subscription_t,
+        outcomes: std::collections::VecDeque<SubscriptionHandleResult>,
+        max_messages_per_spin: usize,
+        calls: usize,
+    }
+
+    impl Subscriber_ for BatchedTestSubscriber {
+        fn handle(&self) -> &rcl_subscription_t {
+            &self.handle
+        }
+
+        fn max_messages_per_spin(&self) -> usize {
+            self.max_messages_per_spin
+        }
+
+        fn handle_incoming(&mut self) -> Result<SubscriptionHandleResult> {
+            self.calls += 1;
+            Ok(self
+                .outcomes
+                .pop_front()
+                .unwrap_or(SubscriptionHandleResult::Idle))
+        }
+
+        fn destroy(&mut self, _node: &mut rcl_node_t) {}
+    }
+
+    #[test]
+    fn ready_subscription_drains_a_bounded_batch() {
+        let mut subscriber = BatchedTestSubscriber {
+            handle: unsafe { rcl_get_zero_initialized_subscription() },
+            outcomes: [
+                SubscriptionHandleResult::Taken,
+                SubscriptionHandleResult::Taken,
+                SubscriptionHandleResult::Taken,
+                SubscriptionHandleResult::Taken,
+            ]
+            .into(),
+            max_messages_per_spin: 3,
+            calls: 0,
+        };
+
+        assert!(!subscriber.handle_ready().unwrap());
+        assert_eq!(subscriber.calls, 3);
+        assert_eq!(subscriber.outcomes.len(), 1);
+    }
+
+    #[test]
+    fn ready_subscription_stops_on_idle_backpressure_and_removal() {
+        for terminal in [
+            SubscriptionHandleResult::Idle,
+            SubscriptionHandleResult::Backpressured,
+            SubscriptionHandleResult::Remove,
+        ] {
+            let mut subscriber = BatchedTestSubscriber {
+                handle: unsafe { rcl_get_zero_initialized_subscription() },
+                outcomes: [SubscriptionHandleResult::Taken, terminal].into(),
+                max_messages_per_spin: 8,
+                calls: 0,
+            };
+
+            assert_eq!(
+                subscriber.handle_ready().unwrap(),
+                terminal == SubscriptionHandleResult::Remove
+            );
+            assert_eq!(subscriber.calls, 2);
+        }
+    }
+
+    #[test]
+    fn subscription_batch_size_respects_backpressure_and_fairness_bounds() {
+        assert_eq!(subscription_batch_size(0), 1);
+        assert_eq!(subscription_batch_size(1), 2);
+        assert_eq!(subscription_batch_size(15), MAX_SUBSCRIPTION_BATCH_SIZE);
+        assert_eq!(subscription_batch_size(usize::MAX), MAX_SUBSCRIPTION_BATCH_SIZE);
+    }
+
     struct VanishingMatchSubscriber {
         handle: rcl_subscription_t,
         state: SubscriptionMatchState,
@@ -1210,8 +1346,8 @@ mod tests {
             self.publisher_count.clone()
         }
 
-        fn handle_incoming(&mut self) -> Result<bool> {
-            Ok(false)
+        fn handle_incoming(&mut self) -> Result<SubscriptionHandleResult> {
+            Ok(SubscriptionHandleResult::Idle)
         }
 
         fn destroy(&mut self, _node: &mut rcl_node_t) {}
