@@ -341,6 +341,13 @@ fn list_parameter_values(
     result
 }
 
+fn read_list_parameter_values(
+    params: &Arc<Mutex<IndexMap<String, Parameter>>>, prefixes: &[String], depth: u64,
+) -> rcl_interfaces::msg::ListParametersResult {
+    let params = params.lock();
+    list_parameter_values(&params, prefixes, depth)
+}
+
 fn describe_parameter_values(
     names: &[String], params: &IndexMap<String, Parameter>,
     registered: &IndexMap<String, ParameterDescriptor>,
@@ -361,6 +368,15 @@ fn describe_parameter_values(
         .collect()
 }
 
+fn read_parameter_descriptors(
+    names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
+    registered: &Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
+) -> Vec<ParameterDescriptor> {
+    let params = params.lock();
+    let registered = registered.lock();
+    describe_parameter_values(names, &params, &registered)
+}
+
 fn parameter_types(names: &[String], params: &IndexMap<String, Parameter>) -> Vec<ParameterType> {
     names
         .iter()
@@ -370,6 +386,13 @@ fn parameter_types(names: &[String], params: &IndexMap<String, Parameter>) -> Ve
                 .map_or(ParameterType::NotSet, |parameter| parameter.value.parameter_type())
         })
         .collect()
+}
+
+fn read_parameter_types(
+    names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
+) -> Vec<ParameterType> {
+    let params = params.lock();
+    parameter_types(names, &params)
 }
 
 fn apply_parameter_updates(
@@ -1215,8 +1238,7 @@ impl Node {
         let params = self.params.clone();
         let get_param_types_future = get_param_types_request_stream.for_each(
             move |req: ServiceRequest<GetParameterTypes::Service>| {
-                let params = params.lock();
-                let types = parameter_types(&req.message.names, &params)
+                let types = read_parameter_types(&req.message.names, &params)
                     .into_iter()
                     .map(Into::into)
                     .collect();
@@ -1404,8 +1426,7 @@ impl Node {
     ) -> future::Ready<()> {
         use rcl_interfaces::srv::ListParameters;
 
-        let params = params.lock();
-        let result = list_parameter_values(&params, &req.message.prefixes, req.message.depth);
+        let result = read_list_parameter_values(params, &req.message.prefixes, req.message.depth);
         if let Err(err) = req.respond(ListParameters::Response { result }) {
             log::warn!("could not send reply to list parameter request: {err}");
         }
@@ -1418,9 +1439,8 @@ impl Node {
         parameter_descriptors: &Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
     ) -> future::Ready<()> {
         use rcl_interfaces::srv::DescribeParameters;
-        let params = params.lock();
-        let registered = parameter_descriptors.lock();
-        let descriptors = describe_parameter_values(&req.message.names, &params, &registered);
+        let descriptors =
+            read_parameter_descriptors(&req.message.names, params, parameter_descriptors);
         if let Err(err) = req.respond(DescribeParameters::Response { descriptors }) {
             log::warn!("could not send reply to describe parameters request: {err}");
         }
@@ -1481,7 +1501,7 @@ impl Node {
             .into_iter()
             .map(|prefix| prefix.as_ref().to_owned())
             .collect::<Vec<_>>();
-        list_parameter_values(&self.params.lock(), &prefixes, depth)
+        read_list_parameter_values(&self.params, &prefixes, depth)
     }
 
     /// Returns full ROS descriptors in the same order as `names`.
@@ -1494,7 +1514,7 @@ impl Node {
             .into_iter()
             .map(|name| name.as_ref().to_owned())
             .collect::<Vec<_>>();
-        describe_parameter_values(&names, &self.params.lock(), &self.parameter_descriptors.lock())
+        read_parameter_descriptors(&names, &self.params, &self.parameter_descriptors)
     }
 
     /// Returns parameter types in the same order as `names`.
@@ -1507,7 +1527,7 @@ impl Node {
             .into_iter()
             .map(|name| name.as_ref().to_owned())
             .collect::<Vec<_>>();
-        parameter_types(&names, &self.params.lock())
+        read_parameter_types(&names, &self.params)
     }
 
     /// Fetch a single ROS parameter.
@@ -4301,6 +4321,33 @@ mod tests {
         assert!(parameter_name_matches("top", &[], 1));
         assert!(!parameter_name_matches("top.child", &[], 1));
         assert!(parameter_name_matches("top.child", &[], 0));
+    }
+
+    #[test]
+    fn parameter_read_snapshots_release_their_locks() {
+        let params = Arc::new(Mutex::new(IndexMap::from([(
+            "robot.speed".to_owned(),
+            Parameter::new(ParameterValue::Integer(4)),
+        )])));
+        let descriptors = Arc::new(Mutex::new(IndexMap::from([(
+            "robot.speed".to_owned(),
+            ParameterDescriptor {
+                name: "robot.speed".into(),
+                description: "wheel speed".into(),
+                ..Default::default()
+            },
+        )])));
+        let names = vec!["robot.speed".to_owned()];
+
+        assert_eq!(read_parameter_types(&names, &params), vec![ParameterType::Integer]);
+        assert_eq!(read_list_parameter_values(&params, &["robot".into()], 1).names, names);
+        assert_eq!(
+            read_parameter_descriptors(&names, &params, &descriptors)[0].description,
+            "wheel speed"
+        );
+
+        assert!(params.try_lock().is_some());
+        assert!(descriptors.try_lock().is_some());
     }
 
     #[test]
