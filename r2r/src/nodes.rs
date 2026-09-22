@@ -1381,6 +1381,35 @@ impl Node {
             .can_loan_messages())
     }
 
+    pub(crate) fn get_subscription_content_filter_enabled(&self, id: uuid::Uuid) -> Result<bool> {
+        Ok(self
+            .subscribers
+            .iter()
+            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
+            .is_content_filter_enabled())
+    }
+
+    pub(crate) fn set_subscription_content_filter(
+        &mut self, id: uuid::Uuid, options: &ContentFilterOptions,
+    ) -> Result<()> {
+        self.subscribers
+            .iter()
+            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
+            .set_content_filter(options)
+    }
+
+    pub(crate) fn get_subscription_content_filter(
+        &self, id: uuid::Uuid,
+    ) -> Result<ContentFilterOptions> {
+        self.subscribers
+            .iter()
+            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
+            .get_content_filter()
+    }
+
     pub(crate) fn register_subscription_publisher_wait(
         &mut self, id: uuid::Uuid,
     ) -> Result<oneshot::Receiver<()>> {
@@ -4410,6 +4439,59 @@ mod tests {
             std::thread::sleep(Duration::from_millis(10));
         }
         panic!("subscription did not receive a loaned message");
+    }
+
+    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+    #[test]
+    fn subscriptions_support_runtime_content_filters_when_available() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context.clone(), "content_filter_test", "").unwrap();
+        let mut other = Node::create(context, "content_filter_other", "").unwrap();
+        let topic = format!("/content_filter_{}", uuid::Uuid::new_v4().simple());
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::Int32>(&topic, QosProfile::default())
+            .unwrap();
+        let mut subscription = node
+            .subscribe::<crate::std_msgs::msg::Int32>(&topic, QosProfile::default())
+            .unwrap();
+        let filter = ContentFilterOptions::new("data > %0").expression_parameters(["10"]);
+
+        assert!(matches!(
+            subscription.set_content_filter(&mut other, &filter),
+            Err(Error::RCL_RET_SUBSCRIPTION_INVALID)
+        ));
+        match subscription.set_content_filter(&mut node, &filter) {
+            Err(Error::RCL_RET_UNSUPPORTED) => {
+                assert!(!subscription.is_content_filter_enabled(&node).unwrap());
+                return;
+            }
+            Err(err) => panic!("unexpected content filter error: {err}"),
+            Ok(()) => {}
+        }
+
+        assert!(subscription.is_content_filter_enabled(&node).unwrap());
+        assert_eq!(subscription.get_content_filter(&node).unwrap(), filter);
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if publisher.get_subscription_count().unwrap() > 0 {
+                break;
+            }
+        }
+        publisher
+            .publish(&crate::std_msgs::msg::Int32 { data: 1 })
+            .unwrap();
+        publisher
+            .publish(&crate::std_msgs::msg::Int32 { data: 42 })
+            .unwrap();
+        let received = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(message) = subscription.next().now_or_never().flatten() {
+                break message;
+            }
+        };
+        assert_eq!(received.data, 42);
+        subscription.clear_content_filter(&mut node).unwrap();
+        assert!(!subscription.is_content_filter_enabled(&node).unwrap());
     }
 
     #[cfg(r2r__rosgraph_msgs__msg__Clock)]

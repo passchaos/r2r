@@ -31,6 +31,34 @@ pub struct SubscriptionOptions {
     pub unique_network_flow: UniqueNetworkFlowRequirement,
 }
 
+/// Middleware-side filter applied before samples enter a subscription.
+///
+/// The expression follows the SQL-like syntax supported by the selected RMW implementation.
+/// Placeholders such as `%0` refer to entries in [`Self::expression_parameters`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContentFilterOptions {
+    pub filter_expression: String,
+    pub expression_parameters: Vec<String>,
+}
+
+impl ContentFilterOptions {
+    pub fn new(filter_expression: impl Into<String>) -> Self {
+        Self {
+            filter_expression: filter_expression.into(),
+            expression_parameters: Vec::new(),
+        }
+    }
+
+    pub fn expression_parameters<I, S>(mut self, parameters: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.expression_parameters = parameters.into_iter().map(Into::into).collect();
+        self
+    }
+}
+
 impl Default for SubscriptionOptions {
     fn default() -> Self {
         Self {
@@ -208,6 +236,31 @@ impl<T> Subscription<T> {
         node.get_subscription_can_loan_messages(self.id)
     }
 
+    /// Returns whether middleware-side content filtering is enabled for this subscription.
+    pub fn is_content_filter_enabled(&self, node: &Node) -> Result<bool> {
+        node.get_subscription_content_filter_enabled(self.id)
+    }
+
+    /// Replaces the middleware-side content filter for this subscription.
+    ///
+    /// An empty expression clears the filter. The selected RMW may return
+    /// [`Error::RCL_RET_UNSUPPORTED`].
+    pub fn set_content_filter(
+        &self, node: &mut Node, options: &ContentFilterOptions,
+    ) -> Result<()> {
+        node.set_subscription_content_filter(self.id, options)
+    }
+
+    /// Clears the middleware-side content filter for this subscription.
+    pub fn clear_content_filter(&self, node: &mut Node) -> Result<()> {
+        self.set_content_filter(node, &ContentFilterOptions::default())
+    }
+
+    /// Returns the middleware-side content filter currently configured on this subscription.
+    pub fn get_content_filter(&self, node: &Node) -> Result<ContentFilterOptions> {
+        node.get_subscription_content_filter(self.id)
+    }
+
     /// Tries to take a message loaned directly by the middleware without copying it.
     ///
     /// This is a non-blocking operation and returns `Ok(None)` when no message is available. It
@@ -336,6 +389,39 @@ pub(crate) trait Subscriber_ {
     fn can_loan_messages(&self) -> bool {
         unsafe { rcl_subscription_can_loan_messages(self.handle()) }
     }
+    fn is_content_filter_enabled(&self) -> bool {
+        #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+        {
+            unsafe { rcl_subscription_is_cft_enabled(self.handle()) }
+        }
+        #[cfg(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic))]
+        {
+            false
+        }
+    }
+    fn set_content_filter(&self, options: &ContentFilterOptions) -> Result<()> {
+        #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+        {
+            let native = NativeContentFilterOptions::from_options(self.handle(), options)?;
+            let ret = unsafe { rcl_subscription_set_content_filter(self.handle(), &native.value) };
+            check_subscription_ret(ret)
+        }
+        #[cfg(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic))]
+        {
+            let _ = options;
+            Err(Error::RCL_RET_UNSUPPORTED)
+        }
+    }
+    fn get_content_filter(&self) -> Result<ContentFilterOptions> {
+        #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+        {
+            NativeContentFilterOptions::get(self.handle())?.to_options()
+        }
+        #[cfg(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic))]
+        {
+            Err(Error::RCL_RET_UNSUPPORTED)
+        }
+    }
     fn poll_has_publishers(&mut self) {
         {
             let Some(state) = self.match_state_mut() else {
@@ -372,6 +458,137 @@ pub(crate) trait Subscriber_ {
     /// Returns true if the subscriber stream has been dropped.
     fn handle_incoming(&mut self) -> Result<bool>;
     fn destroy(&mut self, node: &mut rcl_node_t);
+}
+
+#[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+struct NativeContentFilterOptions<'subscription> {
+    subscription: &'subscription rcl_subscription_t,
+    value: rcl_subscription_content_filter_options_t,
+    initialized: bool,
+}
+
+#[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+impl<'subscription> NativeContentFilterOptions<'subscription> {
+    fn from_options(
+        subscription: &'subscription rcl_subscription_t, options: &ContentFilterOptions,
+    ) -> Result<Self> {
+        if options.expression_parameters.len() > 100 {
+            return Err(Error::RCL_RET_INVALID_ARGUMENT);
+        }
+        let expression = CString::new(options.filter_expression.as_str())
+            .map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
+        let parameters = options
+            .expression_parameters
+            .iter()
+            .map(|value| CString::new(value.as_str()).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT))
+            .collect::<Result<Vec<_>>>()?;
+        let mut parameter_ptrs = parameters
+            .iter()
+            .map(|value| value.as_ptr())
+            .collect::<Vec<_>>();
+        let parameter_ptrs = if parameter_ptrs.is_empty() {
+            std::ptr::null_mut()
+        } else {
+            parameter_ptrs.as_mut_ptr()
+        };
+        let mut native = Self {
+            subscription,
+            value: unsafe { rcl_get_zero_initialized_subscription_content_filter_options() },
+            initialized: false,
+        };
+        let ret = unsafe {
+            rcl_subscription_content_filter_options_init(
+                subscription,
+                expression.as_ptr(),
+                parameters.len(),
+                parameter_ptrs,
+                &mut native.value,
+            )
+        };
+        check_subscription_ret(ret)?;
+        native.initialized = true;
+        Ok(native)
+    }
+
+    fn get(subscription: &'subscription rcl_subscription_t) -> Result<Self> {
+        let mut native = Self {
+            subscription,
+            value: unsafe { rcl_get_zero_initialized_subscription_content_filter_options() },
+            initialized: false,
+        };
+        let ret = unsafe { rcl_subscription_get_content_filter(subscription, &mut native.value) };
+        check_subscription_ret(ret)?;
+        native.initialized = true;
+        Ok(native)
+    }
+
+    fn to_options(&self) -> Result<ContentFilterOptions> {
+        let value = &self.value.rmw_subscription_content_filter_options;
+        if value.filter_expression.is_null() {
+            return Err(Error::RCL_RET_ERROR);
+        }
+        let filter_expression = unsafe { CStr::from_ptr(value.filter_expression) }
+            .to_str()
+            .map(str::to_owned)
+            .map_err(|err| Error::InvalidUtf8 {
+                context: "subscription content filter expression",
+                err: err.to_string(),
+            })?;
+        let expression_parameters = if value.expression_parameters.size == 0 {
+            Vec::new()
+        } else {
+            if value.expression_parameters.data.is_null() {
+                return Err(Error::RCL_RET_ERROR);
+            }
+            unsafe {
+                std::slice::from_raw_parts(
+                    value.expression_parameters.data,
+                    value.expression_parameters.size,
+                )
+            }
+            .iter()
+            .map(|value| {
+                if value.is_null() {
+                    return Err(Error::RCL_RET_ERROR);
+                }
+                unsafe { CStr::from_ptr(*value) }
+                    .to_str()
+                    .map(str::to_owned)
+                    .map_err(|err| Error::InvalidUtf8 {
+                        context: "subscription content filter parameter",
+                        err: err.to_string(),
+                    })
+            })
+            .collect::<Result<Vec<_>>>()?
+        };
+        Ok(ContentFilterOptions {
+            filter_expression,
+            expression_parameters,
+        })
+    }
+}
+
+#[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+impl Drop for NativeContentFilterOptions<'_> {
+    fn drop(&mut self) {
+        if !self.initialized {
+            return;
+        }
+        let ret = unsafe {
+            rcl_subscription_content_filter_options_fini(self.subscription, &mut self.value)
+        };
+        if ret != RCL_RET_OK as i32 {
+            log::error!("could not finalize subscription content filter options: {ret}");
+        }
+    }
+}
+
+fn check_subscription_ret(ret: rcl_ret_t) -> Result<()> {
+    if ret == RCL_RET_OK as i32 {
+        Ok(())
+    } else {
+        Err(Error::from_rcl_error(ret))
+    }
 }
 
 fn sender_ready<T>(sender: &mut mpsc::Sender<T>) -> Result<bool> {
@@ -714,5 +931,30 @@ mod tests {
         assert_eq!(loan.data, 0);
         drop(loan);
         assert_eq!(RETURNED_LOANS.load(Ordering::Relaxed), 1);
+    }
+
+    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+    #[test]
+    fn content_filter_options_reject_invalid_strings_and_parameter_counts() {
+        let subscription = unsafe { rcl_get_zero_initialized_subscription() };
+        let invalid_expression = ContentFilterOptions::new("data > \0");
+        assert!(matches!(
+            NativeContentFilterOptions::from_options(&subscription, &invalid_expression),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+
+        let invalid_parameter =
+            ContentFilterOptions::new("data > %0").expression_parameters(["1\0"]);
+        assert!(matches!(
+            NativeContentFilterOptions::from_options(&subscription, &invalid_parameter),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+
+        let too_many_parameters = ContentFilterOptions::new("data > %0")
+            .expression_parameters(std::iter::repeat_n("1", 101));
+        assert!(matches!(
+            NativeContentFilterOptions::from_options(&subscription, &too_many_parameters),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
     }
 }
