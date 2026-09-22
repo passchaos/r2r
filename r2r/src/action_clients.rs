@@ -1,6 +1,6 @@
 use futures::{
     channel::{mpsc, oneshot},
-    future::{FutureExt, TryFutureExt},
+    future::TryFutureExt,
     stream::Stream,
 };
 use parking_lot::Mutex;
@@ -57,6 +57,37 @@ where
 {
     client: Weak<Mutex<WrappedActionClient<T>>>,
     uuid: uuid::Uuid,
+}
+
+struct PendingGoalRegistration<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    client: Weak<Mutex<WrappedActionClient<T>>>,
+    uuid: uuid::Uuid,
+    armed: bool,
+}
+
+impl<T> PendingGoalRegistration<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl<T> Drop for PendingGoalRegistration<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    fn drop(&mut self) {
+        if self.armed {
+            if let Some(client) = self.client.upgrade() {
+                client.lock().forget_goal(&self.uuid);
+            }
+        }
+    }
 }
 
 impl<T> Drop for GoalStatusRegistration<T>
@@ -182,11 +213,14 @@ where
                 .goal_response_channels
                 .push((seq_no, uuid, goal_req_sender));
             client.goal_status.insert(uuid, GoalStatus::Unknown);
-            // instead of "canceled" we return invalid client.
             let fut_client = Weak::clone(&self.client);
-            let future = goal_req_receiver
-                .map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID)
-                .map(move |r| match r {
+            let mut pending_registration = PendingGoalRegistration {
+                client: fut_client.clone(),
+                uuid,
+                armed: true,
+            };
+            let future = async move {
+                match goal_req_receiver.await {
                     Ok((accepted, _stamp)) => {
                         if accepted {
                             // on goal accept we immediately send the result request
@@ -201,6 +235,7 @@ where
                                 client: fut_client.clone(),
                                 uuid,
                             });
+                            pending_registration.disarm();
 
                             Ok((
                                 ActionClientGoal {
@@ -212,14 +247,12 @@ where
                                 feedback_receiver,
                             ))
                         } else {
-                            if let Some(c) = fut_client.upgrade() {
-                                c.lock().forget_goal(&uuid);
-                            }
                             Err(Error::RCL_RET_ACTION_GOAL_REJECTED)
                         }
                     }
-                    Err(e) => Err(e),
-                });
+                    Err(_) => Err(Error::RCL_RET_ACTION_CLIENT_INVALID),
+                }
+            };
             Ok(future)
         } else {
             log::error!("could not send goal request {}", result);
@@ -325,6 +358,7 @@ where
     }
 
     fn forget_goal(&mut self, uuid: &uuid::Uuid) {
+        self.goal_response_channels.retain(|(_, id, _)| id != uuid);
         self.feedback_senders.retain(|(id, _)| id != uuid);
         self.result_senders.retain(|(id, _)| id != uuid);
         self.result_requests.retain(|(_, id)| id != uuid);
@@ -925,5 +959,58 @@ mod tests {
         assert!(client.result_senders.iter().any(|(uuid, _)| uuid == &other));
         assert!(!client.goal_status.contains_key(&target));
         assert_eq!(client.goal_status.get(&other), Some(&GoalStatus::Executing));
+    }
+
+    #[test]
+    fn dropping_unpolled_acceptance_future_cleans_delivered_goal() {
+        let target = uuid::Uuid::new_v4();
+        let other = uuid::Uuid::new_v4();
+        let (other_goal, _) = oneshot::channel();
+        let (target_feedback, _) = mpsc::channel(1);
+        let (other_feedback, _) = mpsc::channel(1);
+        let (target_result, _) = oneshot::channel();
+        let (other_result, _) = oneshot::channel();
+        let client = Arc::new(Mutex::new(WrappedActionClient::<Fibonacci::Action> {
+            rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
+            // The target response has already been delivered, so only the other request remains.
+            goal_response_channels: vec![(12, other, other_goal)],
+            cancel_response_channels: Vec::new(),
+            feedback_senders: vec![(target, target_feedback), (other, other_feedback)],
+            pending_feedback: Some((target, Fibonacci::Feedback::default())),
+            result_requests: Vec::new(),
+            result_senders: vec![(target, target_result), (other, other_result)],
+            goal_status: HashMap::from([
+                (target, GoalStatus::Accepted),
+                (other, GoalStatus::Unknown),
+            ]),
+            feedback_channel_capacity: 1,
+            poll_available_channels: Vec::new(),
+        }));
+        let pending = PendingGoalRegistration {
+            client: Arc::downgrade(&client),
+            uuid: target,
+            armed: true,
+        };
+
+        drop(pending);
+
+        let client = client.lock();
+        assert!(!client
+            .feedback_senders
+            .iter()
+            .any(|(uuid, _)| uuid == &target));
+        assert!(client
+            .feedback_senders
+            .iter()
+            .any(|(uuid, _)| uuid == &other));
+        assert!(client.pending_feedback.is_none());
+        assert!(!client
+            .result_senders
+            .iter()
+            .any(|(uuid, _)| uuid == &target));
+        assert!(client.result_senders.iter().any(|(uuid, _)| uuid == &other));
+        assert!(!client.goal_status.contains_key(&target));
+        assert!(client.goal_status.contains_key(&other));
+        assert_eq!(client.goal_response_channels.len(), 1);
     }
 }
