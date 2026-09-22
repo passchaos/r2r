@@ -291,6 +291,16 @@ fn transform_parameter_updates(
     Ok(())
 }
 
+fn normalize_parameter_updates(
+    updates: Vec<(String, ParameterValue)>,
+) -> Vec<(String, ParameterValue)> {
+    let mut normalized = IndexMap::with_capacity(updates.len());
+    for (name, value) in updates {
+        normalized.insert(name, value);
+    }
+    normalized.into_iter().collect()
+}
+
 fn validate_parameter_callbacks(
     updates: &[(String, ParameterValue)],
     callbacks: &Arc<Mutex<ParameterCallbackRegistry<ParameterValidationCallback>>>,
@@ -480,6 +490,7 @@ fn apply_parameter_updates(
     allow_undeclared_parameters: bool,
 ) -> Result<AppliedParameterChanges> {
     transform_parameter_updates(&mut updates, pre_callbacks)?;
+    updates = normalize_parameter_updates(updates);
     {
         let params = params.lock();
         let descriptors = descriptors.lock();
@@ -5119,6 +5130,23 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_parameter_updates_keep_first_order_and_last_value() {
+        let updates = vec![
+            ("first".into(), ParameterValue::Integer(1)),
+            ("second".into(), ParameterValue::Integer(2)),
+            ("first".into(), ParameterValue::Integer(3)),
+        ];
+
+        assert_eq!(
+            normalize_parameter_updates(updates),
+            [
+                ("first".into(), ParameterValue::Integer(3)),
+                ("second".into(), ParameterValue::Integer(2)),
+            ]
+        );
+    }
+
+    #[test]
     fn parameter_read_snapshots_release_their_locks() {
         let params = Arc::new(Mutex::new(IndexMap::from([(
             "robot.speed".to_owned(),
@@ -5731,6 +5759,44 @@ mod tests {
         );
         drop(first);
         drop(reject);
+    }
+
+    #[test]
+    fn atomic_parameter_updates_expose_only_the_last_duplicate_value() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "duplicate_parameter_update_test", "").unwrap();
+        let (handler, mut events) = node.make_parameter_handler().unwrap();
+        let pool = LocalPool::new();
+        pool.spawner().spawn_local(handler).unwrap();
+        let validated = Arc::new(Mutex::new(Vec::new()));
+        let validated_by_callback = Arc::clone(&validated);
+        let _validation = node.add_on_set_parameters_callback(move |updates| {
+            *validated_by_callback.lock() = updates.to_vec();
+            Ok(())
+        });
+        let posted = Arc::new(Mutex::new(Vec::new()));
+        let posted_by_callback = Arc::clone(&posted);
+        let _post = node.add_post_set_parameters_callback(move |updates| {
+            *posted_by_callback.lock() = updates.to_vec();
+        });
+
+        node.set_parameters_atomically([
+            ("value", ParameterValue::Integer(1)),
+            ("other", ParameterValue::Integer(2)),
+            ("value", ParameterValue::Integer(3)),
+        ])
+        .unwrap();
+
+        let expected = vec![
+            ("value".into(), ParameterValue::Integer(3)),
+            ("other".into(), ParameterValue::Integer(2)),
+        ];
+        assert_eq!(*validated.lock(), expected);
+        assert_eq!(*posted.lock(), expected);
+        assert_eq!(node.get_parameter::<i64>("value").unwrap(), 3);
+        assert_eq!(events.next().now_or_never().flatten(), Some(expected[0].clone()));
+        assert_eq!(events.next().now_or_never().flatten(), Some(expected[1].clone()));
+        assert!(events.next().now_or_never().is_none());
     }
 
     #[test]
