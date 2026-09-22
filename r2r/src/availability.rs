@@ -72,6 +72,11 @@ impl AvailabilityWaiters {
         self.senders.is_empty()
     }
 
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.senders.len()
+    }
+
     pub(crate) fn take_all(&mut self) -> Vec<oneshot::Sender<()>> {
         std::mem::take(&mut self.senders).into_values().collect()
     }

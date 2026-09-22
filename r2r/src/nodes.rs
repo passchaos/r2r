@@ -534,7 +534,7 @@ pub struct Node {
     // time source that provides simulated time
     #[cfg(r2r__rosgraph_msgs__msg__Clock)]
     time_source: TimeSource,
-    graph_change_waiters: Vec<oneshot::Sender<()>>,
+    graph_change_waiters: AvailabilityWaiters,
     wait_set: WaitSet,
     // Keep the ROS context alive until all other node resources have been dropped.
     context: Context,
@@ -1001,7 +1001,7 @@ impl Node {
                 ros_clock,
                 #[cfg(r2r__rosgraph_msgs__msg__Clock)]
                 time_source,
-                graph_change_waiters: Vec::new(),
+                graph_change_waiters: AvailabilityWaiters::default(),
                 wait_set: WaitSet::new(),
                 context: ctx,
             };
@@ -2917,8 +2917,7 @@ impl Node {
             time_source.apply_requested_sim_time(self)?;
         }
 
-        self.graph_change_waiters
-            .retain(|waiter| !waiter.is_canceled());
+        self.graph_change_waiters.prune_canceled();
 
         // Some internal subscriptions, such as `/clock`, can be disabled without another
         // message arriving. Remove them before rebuilding the wait set so teardown does not
@@ -3189,7 +3188,7 @@ impl Node {
             let graph_changed = !ws.guard_conditions.is_null()
                 && unsafe { !(*ws.guard_conditions.add(index)).is_null() };
             if graph_changed {
-                while let Some(waiter) = self.graph_change_waiters.pop() {
+                for waiter in self.graph_change_waiters.take_all() {
                     let _ = waiter.send(());
                 }
             }
@@ -3456,7 +3455,7 @@ impl Node {
     /// are completed together.
     pub fn wait_for_graph_change(&mut self) -> impl Future<Output = Result<()>> {
         let (sender, receiver) = oneshot::channel();
-        self.graph_change_waiters.push(sender);
+        self.graph_change_waiters.register(sender);
         receiver.map_err(|_| Error::RCL_RET_NODE_INVALID)
     }
 
@@ -6775,6 +6774,15 @@ mod tests {
         assert_eq!(observer.graph_change_waiters.len(), 1);
         drop(canceled);
         observer.try_spin_once(Duration::ZERO).unwrap();
+        assert!(observer.graph_change_waiters.is_empty());
+
+        let canceled = (0..20)
+            .map(|_| observer.wait_for_graph_change())
+            .collect::<Vec<_>>();
+        drop(canceled);
+        observer.graph_change_waiters.prune_canceled();
+        assert_eq!(observer.graph_change_waiters.len(), 4);
+        observer.graph_change_waiters.prune_canceled();
         assert!(observer.graph_change_waiters.is_empty());
 
         // The timeout variant composes the graph waiter with the already tested Node timeout
