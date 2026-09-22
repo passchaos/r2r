@@ -4,6 +4,7 @@ use crate::{
     SubscriptionOptions, WrongParameterType,
 };
 use futures::{future::try_join_all, Future, FutureExt, Stream, TryFutureExt};
+use indexmap::IndexMap;
 use std::time::Duration;
 
 /// Runtime-agnostic client for the standard ROS parameter services of another node.
@@ -375,6 +376,48 @@ impl ParameterClient {
         node.with_timeout(response, timeout)
     }
 
+    /// Gets all parameters below `prefix`, keyed by name relative to that prefix.
+    ///
+    /// This performs a recursive list request followed by a value request. If a listed parameter
+    /// is deleted between those requests, its value is returned as [`ParameterValue::NotSet`].
+    pub fn get_parameters_by_prefix(
+        &self, prefix: impl Into<String>,
+    ) -> Result<impl Future<Output = Result<IndexMap<String, ParameterValue>>>> {
+        let prefix = prefix.into();
+        let prefixes = if prefix.is_empty() {
+            Vec::new()
+        } else {
+            vec![prefix.clone()]
+        };
+        let list =
+            self.list_parameters(prefixes, srv::ListParameters::Request::DEPTH_RECURSIVE as u64)?;
+        let client = self.clone();
+        Ok(async move {
+            let mut names = list.await?.names;
+            let trim = if prefix.is_empty() {
+                0
+            } else {
+                let qualified_prefix = format!("{prefix}.");
+                names.retain(|name| name.starts_with(&qualified_prefix));
+                qualified_prefix.len()
+            };
+            let values = client.get_parameters(names.clone())?.await?;
+            Ok(names
+                .into_iter()
+                .map(|name| name[trim..].to_owned())
+                .zip(values)
+                .collect())
+        })
+    }
+
+    /// Gets parameters below `prefix`, failing when the complete two-request operation times out.
+    pub fn get_parameters_by_prefix_with_timeout(
+        &self, node: &mut Node, prefix: impl Into<String>, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<IndexMap<String, ParameterValue>>>> {
+        let response = self.get_parameters_by_prefix(prefix)?;
+        node.with_timeout(response, timeout)
+    }
+
     pub fn set_parameters<I, S>(
         &self, parameters: I,
     ) -> Result<impl Future<Output = Result<Vec<msg::SetParametersResult>>>>
@@ -591,6 +634,12 @@ mod tests {
         .unwrap();
         node.declare_parameter("ratio", ParameterValue::Double(0.2))
             .unwrap();
+        node.declare_parameter("robot", ParameterValue::String("root".into()))
+            .unwrap();
+        node.declare_parameter("robot.speed", ParameterValue::Integer(4))
+            .unwrap();
+        node.declare_parameter("robot.motor.speed", ParameterValue::Integer(6))
+            .unwrap();
         let (handler, _events) = node.make_parameter_handler().unwrap();
         let client = node
             .create_parameter_client("parameter_client_server/")
@@ -683,6 +732,16 @@ mod tests {
                 .unwrap(),
         );
         assert!(listed.names.iter().any(|name| name == "answer"));
+        let prefixed =
+            drive(&mut node, &mut pool, client.get_parameters_by_prefix("robot").unwrap());
+        assert_eq!(
+            prefixed.keys().map(String::as_str).collect::<Vec<_>>(),
+            vec!["speed", "motor.speed"]
+        );
+        assert_eq!(
+            prefixed.values().cloned().collect::<Vec<_>>(),
+            vec![ParameterValue::Integer(4), ParameterValue::Integer(6)]
+        );
 
         let set = drive(
             &mut node,
@@ -931,6 +990,9 @@ mod tests {
             .unwrap());
         assert_times_out!(client
             .list_parameters_with_timeout(&mut node, ["prefix"], 1, timeout)
+            .unwrap());
+        assert_times_out!(client
+            .get_parameters_by_prefix_with_timeout(&mut node, "prefix", timeout)
             .unwrap());
         assert_times_out!(client
             .set_parameters_with_timeout(
