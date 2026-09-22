@@ -160,6 +160,7 @@ pub struct Node {
     // time source that provides simulated time
     #[cfg(r2r__rosgraph_msgs__msg__Clock)]
     time_source: TimeSource,
+    graph_change_waiters: Vec<oneshot::Sender<()>>,
     wait_set: WaitSet,
     // Keep the ROS context alive until all other node resources have been dropped.
     context: Context,
@@ -412,6 +413,7 @@ impl Node {
                 ros_clock,
                 #[cfg(r2r__rosgraph_msgs__msg__Clock)]
                 time_source,
+                graph_change_waiters: Vec::new(),
                 wait_set: WaitSet::new(),
                 context: ctx,
             };
@@ -1788,6 +1790,9 @@ impl Node {
             time_source.apply_requested_sim_time(self)?;
         }
 
+        self.graph_change_waiters
+            .retain(|waiter| !waiter.is_canceled());
+
         // Some internal subscriptions, such as `/clock`, can be disabled without another
         // message arriving. Remove them before rebuilding the wait set so teardown does not
         // depend on readiness from the subscription being removed.
@@ -1925,7 +1930,8 @@ impl Node {
 
         let capacities = WaitSetCapacities {
             subscriptions: self.subscribers.len() + self.action_wait_set_capacities.subscriptions,
-            guard_conditions: self.action_wait_set_capacities.guard_conditions,
+            guard_conditions: self.action_wait_set_capacities.guard_conditions
+                + usize::from(!self.graph_change_waiters.is_empty()),
             timers: self.timers.len() + self.action_wait_set_capacities.timers,
             clients: self.clients.len() + self.action_wait_set_capacities.clients,
             services: self.services.len() + self.action_wait_set_capacities.services,
@@ -1967,6 +1973,21 @@ impl Node {
             })?;
         }
 
+        let graph_guard_index = if self.graph_change_waiters.is_empty() {
+            None
+        } else {
+            let graph_guard =
+                unsafe { rcl_node_get_graph_guard_condition(self.node_handle.as_ref()) };
+            if graph_guard.is_null() {
+                return Err(Error::RCL_RET_NODE_INVALID);
+            }
+            let mut index = 0;
+            check_rcl_ret(unsafe {
+                rcl_wait_set_add_guard_condition(ws, graph_guard, &mut index)
+            })?;
+            Some(index)
+        };
+
         // code (further) below assumes that actions are added last... perhaps a
         // bad assumption.  e.g. we add subscriptions and timers of
         // the node before ones created automatically by actions. we
@@ -1995,6 +2016,16 @@ impl Node {
         }
         if ret != RCL_RET_OK as i32 {
             return Err(Error::from_rcl_error(ret));
+        }
+
+        if let Some(index) = graph_guard_index {
+            let graph_changed = !ws.guard_conditions.is_null()
+                && unsafe { !(*ws.guard_conditions.add(index)).is_null() };
+            if graph_changed {
+                while let Some(waiter) = self.graph_change_waiters.pop() {
+                    let _ = waiter.send(());
+                }
+            }
         }
 
         let mut subs_to_remove = vec![];
@@ -2190,6 +2221,24 @@ impl Node {
         self.get_names_and_types(|node, allocator, names_and_types| unsafe {
             rcl_get_topic_names_and_types(node, allocator, false, names_and_types)
         })
+    }
+
+    /// Returns a future that completes after the ROS graph next changes.
+    ///
+    /// The node must be spun while awaiting. All waiters registered before the same graph change
+    /// are completed together.
+    pub fn wait_for_graph_change(&mut self) -> impl Future<Output = Result<()>> {
+        let (sender, receiver) = oneshot::channel();
+        self.graph_change_waiters.push(sender);
+        receiver.map_err(|_| Error::RCL_RET_NODE_INVALID)
+    }
+
+    /// Waits for the next ROS graph change up to `timeout`. The node must be spun.
+    pub fn wait_for_graph_change_with_timeout(
+        &mut self, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<()>>> {
+        let changed = self.wait_for_graph_change();
+        self.with_timeout(changed, timeout)
     }
 
     /// Returns a map of service names and type names visible to this node.
@@ -4022,6 +4071,50 @@ mod tests {
             name == "node_graph_target" && namespace == "/graph_ns"
         }));
         drop(target);
+    }
+
+    #[test]
+    fn graph_change_waits_are_broadcast_and_cancel_safe() {
+        let context = Context::create().unwrap();
+        let mut observer = Node::create(context.clone(), "graph_wait_observer", "").unwrap();
+
+        let first = observer.wait_for_graph_change();
+        let second = observer.wait_for_graph_change();
+        let mut first = Box::pin(first);
+        let mut second = Box::pin(second);
+        let _target = Node::create(context, "graph_wait_target", "").unwrap();
+        let mut first_result = None;
+        let mut second_result = None;
+        for _ in 0..100 {
+            observer.try_spin_once(Duration::from_millis(10)).unwrap();
+            if first_result.is_none() {
+                first_result = first.as_mut().now_or_never();
+            }
+            if second_result.is_none() {
+                second_result = second.as_mut().now_or_never();
+            }
+            if first_result.is_some() && second_result.is_some() {
+                break;
+            }
+        }
+        assert!(matches!(first_result, Some(Ok(()))));
+        assert!(matches!(second_result, Some(Ok(()))));
+
+        let canceled = observer.wait_for_graph_change();
+        assert_eq!(observer.graph_change_waiters.len(), 1);
+        drop(canceled);
+        observer.try_spin_once(Duration::ZERO).unwrap();
+        assert!(observer.graph_change_waiters.is_empty());
+
+        // The timeout variant composes the graph waiter with the already tested Node timeout
+        // mechanism. Do not assert a timeout here: discovery events may legitimately continue
+        // arriving after the target node was created.
+        let timed = observer
+            .wait_for_graph_change_with_timeout(Duration::from_millis(1))
+            .unwrap();
+        drop(timed);
+        observer.try_spin_once(Duration::ZERO).unwrap();
+        assert!(observer.graph_change_waiters.is_empty());
     }
 
     #[test]
