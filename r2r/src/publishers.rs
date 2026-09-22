@@ -1,7 +1,7 @@
 use futures::{channel::oneshot, Future, TryFutureExt};
 use parking_lot::{ArcMutexGuard, Mutex, RawMutex};
 #[cfg(test)]
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::AtomicUsize;
 #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
 use std::time::Duration;
 use std::{
@@ -10,7 +10,10 @@ use std::{
     fmt::Debug,
     marker::PhantomData,
     mem::MaybeUninit,
-    sync::{Arc, Weak},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Weak,
+    },
 };
 
 use crate::{
@@ -686,11 +689,20 @@ where
 pub(crate) struct PublisherHandleLifecycle {
     id: uuid::Uuid,
     dropped_publishers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    explicitly_destroyed: AtomicBool,
 }
 
 impl Drop for PublisherHandleLifecycle {
     fn drop(&mut self) {
-        self.dropped_publishers.lock().push_back(self.id);
+        if !self.explicitly_destroyed.load(Ordering::Acquire) {
+            self.dropped_publishers.lock().push_back(self.id);
+        }
+    }
+}
+
+impl PublisherHandleLifecycle {
+    fn mark_explicitly_destroyed(&self) {
+        self.explicitly_destroyed.store(true, Ordering::Release);
     }
 }
 
@@ -704,6 +716,19 @@ where
             lifecycle: Arc::clone(&self.lifecycle),
             type_: PhantomData,
         }
+    }
+}
+
+impl<T> Publisher<T>
+where
+    T: WrappedTypesupport,
+{
+    pub(crate) fn identity(&self) -> uuid::Uuid {
+        self.lifecycle.id
+    }
+
+    pub(crate) fn mark_explicitly_destroyed(&self) {
+        self.lifecycle.mark_explicitly_destroyed();
     }
 }
 
@@ -804,6 +829,16 @@ impl Clone for PublisherUntyped {
     }
 }
 
+impl PublisherUntyped {
+    pub(crate) fn identity(&self) -> uuid::Uuid {
+        self.lifecycle.id
+    }
+
+    pub(crate) fn mark_explicitly_destroyed(&self) {
+        self.lifecycle.mark_explicitly_destroyed();
+    }
+}
+
 pub(crate) fn make_publisher<T>(
     handle: Weak<Publisher_>, id: uuid::Uuid, dropped_publishers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
 ) -> Publisher<T>
@@ -815,6 +850,7 @@ where
         lifecycle: Arc::new(PublisherHandleLifecycle {
             id,
             dropped_publishers,
+            explicitly_destroyed: AtomicBool::new(false),
         }),
         type_: PhantomData,
     }
@@ -829,6 +865,7 @@ pub(crate) fn make_publisher_untyped(
         lifecycle: Arc::new(PublisherHandleLifecycle {
             id,
             dropped_publishers,
+            explicitly_destroyed: AtomicBool::new(false),
         }),
         type_,
     }

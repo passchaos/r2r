@@ -1103,18 +1103,6 @@ impl Node {
         self.pubs.push(publisher);
     }
 
-    fn remove_publisher(&mut self, publisher: &Arc<Publisher_>) -> Option<Arc<Publisher_>> {
-        let identity = Self::publisher_identity(publisher);
-        let index = self.publisher_indexes.remove(&identity)?;
-        let removed = self.pubs.swap_remove(index);
-        debug_assert!(Arc::ptr_eq(&removed, publisher));
-        if let Some(moved) = self.pubs.get(index) {
-            self.publisher_indexes
-                .insert(Self::publisher_identity(moved), index);
-        }
-        Some(removed)
-    }
-
     fn remove_dropped_publisher(&mut self, identity: uuid::Uuid) -> bool {
         let Some(index) = self.publisher_indexes.get(&identity).copied() else {
             return true;
@@ -1129,6 +1117,28 @@ impl Node {
             self.publisher_indexes
                 .insert(Self::publisher_identity(moved), index);
         }
+        removed.destroy(self.node_handle.as_mut());
+        true
+    }
+
+    fn destroy_publisher_by_id(&mut self, identity: uuid::Uuid) -> bool {
+        let Some(index) = self.publisher_indexes.remove(&identity) else {
+            return false;
+        };
+        let removed = self.pubs.swap_remove(index);
+        debug_assert_eq!(Self::publisher_identity(&removed), identity);
+        if let Some(moved) = self.pubs.get(index) {
+            self.publisher_indexes
+                .insert(Self::publisher_identity(moved), index);
+        }
+        self.pending_publisher_removals.remove(&identity);
+        self.publishers_with_active_waits.remove(&identity);
+        self.dropped_publishers
+            .lock()
+            .retain(|queued| *queued != identity);
+        self.active_wait_publishers
+            .lock()
+            .retain(|queued| *queued != identity);
         removed.destroy(self.node_handle.as_mut());
         true
     }
@@ -3986,21 +3996,17 @@ impl Node {
 
     /// Destroy a ROS publisher.
     pub fn destroy_publisher<T: WrappedTypesupport>(&mut self, p: Publisher<T>) {
-        if let Some(handle) = p.handle.upgrade() {
-            // Only the node that created the publisher may pass its native node handle to fini.
-            if self.remove_publisher(&handle).is_some() {
-                handle.destroy(self.node_handle.as_mut());
-            }
+        let identity = p.identity();
+        if self.destroy_publisher_by_id(identity) {
+            p.mark_explicitly_destroyed();
         }
     }
 
     /// Destroy a ROS publisher.
     pub fn destroy_publisher_untyped(&mut self, p: PublisherUntyped) {
-        if let Some(handle) = p.handle.upgrade() {
-            // Only the node that created the publisher may pass its native node handle to fini.
-            if self.remove_publisher(&handle).is_some() {
-                handle.destroy(self.node_handle.as_mut());
-            }
+        let identity = p.identity();
+        if self.destroy_publisher_by_id(identity) {
+            p.mark_explicitly_destroyed();
         }
     }
 
@@ -12547,6 +12553,39 @@ mod tests {
         assert_eq!(owner.pubs.len(), 1);
         owner.destroy_publisher_untyped(publisher);
         assert!(owner.pubs.is_empty());
+    }
+
+    #[test]
+    fn explicit_publisher_destruction_clears_waits_and_suppresses_stale_drop_notifications() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "publisher_destroy_cleanup_test", "").unwrap();
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(
+                "/publisher_destroy_cleanup",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let clone = publisher.clone();
+        let id = publisher.identity();
+        let wait = publisher.wait_for_subscribers().unwrap();
+        node.publishers_with_active_waits.insert(id);
+
+        node.destroy_publisher(publisher);
+
+        assert!(node.pubs.is_empty());
+        assert!(node.publisher_indexes.is_empty());
+        assert!(!node.publishers_with_active_waits.contains(&id));
+        assert!(node.pending_publisher_removals.is_empty());
+        assert!(node.dropped_publishers.lock().is_empty());
+        assert!(node.active_wait_publishers.lock().is_empty());
+        assert!(matches!(wait.now_or_never(), Some(Err(Error::RCL_RET_PUBLISHER_INVALID))));
+        assert!(matches!(
+            clone.publish(&crate::std_msgs::msg::String::default()),
+            Err(Error::RCL_RET_PUBLISHER_INVALID)
+        ));
+
+        drop(clone);
+        assert!(node.dropped_publishers.lock().is_empty());
     }
 
     #[test]
