@@ -484,12 +484,14 @@ type GoalResponseSender = (uuid::Uuid, oneshot::Sender<(bool, builtin_interfaces
 pub(crate) fn make_action_client_untyped(
     client: Weak<Mutex<WrappedActionClientUntyped>>, identity: usize,
     dropped_action_clients: Arc<Mutex<VecDeque<usize>>>,
+    active_availability_clients: Arc<Mutex<VecDeque<usize>>>,
 ) -> ActionClientUntyped {
     ActionClientUntyped {
         client,
         lifecycle: Arc::new(ActionClientHandleLifecycle {
             identity,
             dropped_action_clients,
+            active_availability_clients,
         }),
     }
 }
@@ -952,21 +954,32 @@ impl ActionClient_ for WrappedActionClientUntyped {
         self.poll_available_channels.register(s);
     }
 
-    fn poll_available(&mut self, node: &mut rcl_node_t) -> Vec<ActionClientCompletion> {
+    fn poll_maintenance(&mut self) -> Vec<ActionClientCompletion> {
         let mut completions = self.prune_canceled_requests();
         if let PendingFeedbackAction::Deliver(completion) = self.pending_feedback_completion() {
             completions.push(completion);
         }
+        completions
+    }
+
+    fn poll_available(&mut self, node: &mut rcl_node_t) -> Vec<ActionClientCompletion> {
         self.poll_available_channels.prune_canceled();
         if self.poll_available_channels.is_empty() {
-            return completions;
+            return Vec::new();
         }
+        record_action_availability_poll();
         let available = action_server_available_helper(node, self.handle());
+        let mut completions = Vec::new();
         if !matches!(available, Ok(false)) {
             let senders = self.poll_available_channels.take_all();
             completions.extend(action_availability_completion(senders, available));
         }
         completions
+    }
+
+    fn has_pending_availability(&mut self) -> bool {
+        self.poll_available_channels.prune_canceled();
+        !self.poll_available_channels.is_empty()
     }
 
     fn has_pending_work(&mut self) -> bool {
@@ -998,6 +1011,10 @@ impl IsAvailablePollable for ActionClientUntyped {
             .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
         let mut client = client.lock();
         client.register_poll_available(sender);
+        self.lifecycle
+            .active_availability_clients
+            .lock()
+            .push_back(self.lifecycle.identity);
         Ok(())
     }
 }

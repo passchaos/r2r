@@ -702,6 +702,8 @@ pub struct Node {
     action_client_identities: HashMap<usize, usize>,
     dropped_action_clients: Arc<Mutex<VecDeque<usize>>>,
     pending_action_client_removals: HashSet<usize>,
+    active_availability_action_clients: Arc<Mutex<VecDeque<usize>>>,
+    action_clients_with_active_availability: HashSet<usize>,
     // action servers
     action_servers: Vec<Arc<Mutex<dyn ActionServer_>>>,
     action_server_indexes: HashMap<uuid::Uuid, usize>,
@@ -1423,6 +1425,8 @@ impl Node {
                 action_client_identities: HashMap::new(),
                 dropped_action_clients: Arc::new(Mutex::new(VecDeque::new())),
                 pending_action_client_removals: HashSet::new(),
+                active_availability_action_clients: Arc::new(Mutex::new(VecDeque::new())),
+                action_clients_with_active_availability: HashSet::new(),
                 action_servers: Vec::new(),
                 action_server_indexes: HashMap::new(),
                 dropped_action_servers: Arc::new(Mutex::new(VecDeque::new())),
@@ -3440,6 +3444,7 @@ impl Node {
             Arc::downgrade(&client_arc),
             identity,
             Arc::clone(&self.dropped_action_clients),
+            Arc::clone(&self.active_availability_action_clients),
         );
         Ok(c)
     }
@@ -3510,6 +3515,7 @@ impl Node {
             Arc::downgrade(&client_arc),
             identity,
             Arc::clone(&self.dropped_action_clients),
+            Arc::clone(&self.active_availability_action_clients),
         );
         Ok(c)
     }
@@ -3894,16 +3900,43 @@ impl Node {
             }
         }
 
-        // Poll action clients for cleanup work and availability.
+        // Canceled requests and released feedback capacity need maintenance every spin, even when
+        // no action-server availability future is active.
         for c in &mut self.action_clients {
             complete_action_client_operation(
                 c,
+                |client, completions| {
+                    completions.extend(client.poll_maintenance());
+                    Ok(())
+                },
+                |client, uuid| client.forget_goal(uuid),
+            )?;
+        }
+
+        {
+            let mut active = self.active_availability_action_clients.lock();
+            self.action_clients_with_active_availability
+                .extend(active.drain(..));
+        }
+        let active_action_clients =
+            std::mem::take(&mut self.action_clients_with_active_availability);
+        for identity in active_action_clients {
+            let Some(index) = self.action_client_identities.get(&identity).copied() else {
+                continue;
+            };
+            let client = &self.action_clients[index];
+            complete_action_client_operation(
+                client,
                 |client, completions| {
                     completions.extend(client.poll_available(self.node_handle.as_mut()));
                     Ok(())
                 },
                 |client, uuid| client.forget_goal(uuid),
             )?;
+            if client.lock().has_pending_availability() {
+                self.action_clients_with_active_availability
+                    .insert(identity);
+            }
         }
 
         {
@@ -10606,6 +10639,40 @@ mod tests {
         node.try_spin_once(Duration::ZERO).unwrap();
         assert_eq!(node.clients[active_index].lock().availability_poll_count(), 2);
         assert_eq!(node.clients[idle_index].lock().availability_poll_count(), 0);
+    }
+
+    #[test]
+    fn action_availability_waiters_skip_idle_clients() {
+        use crate::{
+            action_clients::take_action_availability_poll_count,
+            example_interfaces::action::Fibonacci,
+        };
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "action_sparse_availability_test", "").unwrap();
+        let active = node
+            .create_action_client::<Fibonacci::Action>("/active_action_availability")
+            .unwrap();
+        let _idle = node
+            .create_action_client::<Fibonacci::Action>("/idle_action_availability")
+            .unwrap();
+        take_action_availability_poll_count();
+
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(take_action_availability_poll_count(), 0);
+
+        let wait = Node::is_available(&active).unwrap();
+        assert_eq!(node.active_availability_action_clients.lock().len(), 1);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(take_action_availability_poll_count(), 1);
+        assert_eq!(node.action_clients_with_active_availability.len(), 1);
+
+        drop(wait);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(take_action_availability_poll_count(), 0);
+        assert!(node.action_clients_with_active_availability.is_empty());
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(take_action_availability_poll_count(), 0);
     }
 
     #[test]

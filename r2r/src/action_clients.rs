@@ -653,6 +653,7 @@ where
 pub(crate) struct ActionClientHandleLifecycle {
     pub(crate) identity: usize,
     pub(crate) dropped_action_clients: Arc<Mutex<VecDeque<usize>>>,
+    pub(crate) active_availability_clients: Arc<Mutex<VecDeque<usize>>>,
 }
 
 impl Drop for ActionClientHandleLifecycle {
@@ -1151,6 +1152,7 @@ type GoalResponseSender = (uuid::Uuid, oneshot::Sender<(bool, builtin_interfaces
 pub(crate) fn make_action_client<T>(
     client: Weak<Mutex<WrappedActionClient<T>>>, identity: usize,
     dropped_action_clients: Arc<Mutex<VecDeque<usize>>>,
+    active_availability_clients: Arc<Mutex<VecDeque<usize>>>,
 ) -> ActionClient<T>
 where
     T: WrappedActionTypeSupport,
@@ -1160,6 +1162,7 @@ where
         lifecycle: Arc::new(ActionClientHandleLifecycle {
             identity,
             dropped_action_clients,
+            active_availability_clients,
         }),
     }
 }
@@ -1222,7 +1225,9 @@ pub trait ActionClient_ {
     ) -> Result<ActionClientTakeResult>;
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>);
+    fn poll_maintenance(&mut self) -> Vec<ActionClientCompletion>;
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Vec<ActionClientCompletion>;
+    fn has_pending_availability(&mut self) -> bool;
 }
 
 impl<T> WrappedActionClient<T>
@@ -1673,21 +1678,32 @@ where
         self.poll_available_channels.register(s);
     }
 
-    fn poll_available(&mut self, node: &mut rcl_node_t) -> Vec<ActionClientCompletion> {
+    fn poll_maintenance(&mut self) -> Vec<ActionClientCompletion> {
         let mut completions = self.prune_canceled_requests();
         if let PendingFeedbackAction::Deliver(completion) = self.pending_feedback_completion() {
             completions.push(completion);
         }
+        completions
+    }
+
+    fn poll_available(&mut self, node: &mut rcl_node_t) -> Vec<ActionClientCompletion> {
         self.poll_available_channels.prune_canceled();
         if self.poll_available_channels.is_empty() {
-            return completions;
+            return Vec::new();
         }
+        record_action_availability_poll();
         let available = action_server_available_helper(node, self.handle());
+        let mut completions = Vec::new();
         if !matches!(available, Ok(false)) {
             let senders = self.poll_available_channels.take_all();
             completions.extend(action_availability_completion(senders, available));
         }
         completions
+    }
+
+    fn has_pending_availability(&mut self) -> bool {
+        self.poll_available_channels.prune_canceled();
+        !self.poll_available_channels.is_empty()
     }
 
     fn has_pending_work(&mut self) -> bool {
@@ -1861,8 +1877,30 @@ where
             .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
         let mut client = client.lock();
         client.register_poll_available(sender);
+        self.lifecycle
+            .active_availability_clients
+            .lock()
+            .push_back(self.lifecycle.identity);
         Ok(())
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    static ACTION_AVAILABILITY_POLL_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn record_action_availability_poll() {
+    ACTION_AVAILABILITY_POLL_COUNT.set(ACTION_AVAILABILITY_POLL_COUNT.get() + 1);
+}
+
+#[cfg(not(test))]
+pub(crate) fn record_action_availability_poll() {}
+
+#[cfg(test)]
+pub(crate) fn take_action_availability_poll_count() -> usize {
+    ACTION_AVAILABILITY_POLL_COUNT.replace(0)
 }
 
 pub fn action_server_available_helper(
@@ -1910,6 +1948,7 @@ mod tests {
     #[test]
     fn final_action_client_handle_drop_queues_its_identity_once() {
         let dropped_action_clients = Arc::new(Mutex::new(VecDeque::new()));
+        let active_availability_clients = Arc::new(Mutex::new(VecDeque::new()));
         let client = Arc::new(Mutex::new(WrappedActionClient::<Fibonacci::Action> {
             rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
             goal_response_channels: HashMap::new(),
@@ -1932,6 +1971,7 @@ mod tests {
             Arc::downgrade(&client),
             identity,
             Arc::clone(&dropped_action_clients),
+            active_availability_clients,
         );
         let clone = handle.clone();
 
@@ -2170,8 +2210,14 @@ mod tests {
                 unreachable!()
             }
             fn register_poll_available(&mut self, _sender: oneshot::Sender<()>) {}
+            fn poll_maintenance(&mut self) -> Vec<ActionClientCompletion> {
+                Vec::new()
+            }
             fn poll_available(&mut self, _node: &mut rcl_node_t) -> Vec<ActionClientCompletion> {
                 Vec::new()
+            }
+            fn has_pending_availability(&mut self) -> bool {
+                false
             }
         }
 
