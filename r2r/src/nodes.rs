@@ -3184,7 +3184,7 @@ impl Node {
                         completions.extend(ac.handle_feedback_msg()?);
                     }
                     if is_status_ready {
-                        ac.handle_status_msg()?;
+                        completions.extend(ac.handle_status_msg()?);
                     }
                     if is_goal_response_ready {
                         completions.extend(ac.handle_goal_response()?);

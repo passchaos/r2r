@@ -96,6 +96,7 @@ pub(crate) fn action_availability_completion(
 pub(crate) struct FeedbackChannel<T> {
     pub(crate) sender: Option<mpsc::Sender<T>>,
     pub(crate) pending: Option<T>,
+    pub(crate) closing: bool,
 }
 
 pub(crate) type FeedbackSender<T> = (uuid::Uuid, Arc<Mutex<FeedbackChannel<T>>>);
@@ -105,11 +106,12 @@ impl<T> FeedbackChannel<T> {
         Self {
             sender: Some(sender),
             pending: None,
+            closing: false,
         }
     }
 
     pub(crate) fn is_closed(&self) -> bool {
-        self.sender.as_ref().is_some_and(mpsc::Sender::is_closed)
+        self.closing || self.sender.as_ref().is_some_and(mpsc::Sender::is_closed)
     }
 }
 
@@ -137,8 +139,32 @@ pub(crate) fn detached_feedback_completion<T: Send + 'static>(
                 Err(_) => None,
             };
             let mut channel = channel.lock();
-            channel.sender = Some(sender);
-            channel.pending = pending;
+            if channel.closing {
+                drop(channel);
+                drop(sender);
+                drop(pending);
+            } else {
+                channel.sender = Some(sender);
+                channel.pending = pending;
+            }
+            true
+        }),
+        cleanup_goal_on_failure: None,
+    }
+}
+
+pub(crate) fn close_feedback_completion<T: Send + 'static>(
+    channel: Arc<Mutex<FeedbackChannel<T>>>,
+) -> ActionClientCompletion {
+    ActionClientCompletion {
+        notify: Box::new(move || {
+            let (sender, pending) = {
+                let mut channel = channel.lock();
+                channel.closing = true;
+                (channel.sender.take(), channel.pending.take())
+            };
+            drop(sender);
+            drop(pending);
             true
         }),
         cleanup_goal_on_failure: None,
@@ -634,8 +660,8 @@ pub trait ActionClient_ {
     fn handle_goal_response(&mut self) -> Result<Option<ActionClientCompletion>>;
     fn handle_cancel_response(&mut self) -> Result<Option<ActionClientCompletion>>;
     fn handle_feedback_msg(&mut self) -> Result<Option<ActionClientCompletion>>;
-    fn handle_status_msg(&mut self) -> Result<()>;
-    fn handle_result_response(&mut self) -> Result<Option<ActionClientCompletion>>;
+    fn handle_status_msg(&mut self) -> Result<Vec<ActionClientCompletion>>;
+    fn handle_result_response(&mut self) -> Result<Vec<ActionClientCompletion>>;
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>);
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Vec<ActionClientCompletion>;
@@ -649,6 +675,14 @@ where
         *self.goal_status.get(uuid).unwrap_or(&GoalStatus::Unknown)
     }
 
+    fn take_feedback_sender(&mut self, uuid: &uuid::Uuid) -> Option<FeedbackSender<T::Feedback>> {
+        let index = self
+            .feedback_senders
+            .iter()
+            .position(|(id, _)| id == uuid)?;
+        Some(self.feedback_senders.swap_remove(index))
+    }
+
     fn forget_goal(&mut self, uuid: &uuid::Uuid) {
         self.goal_response_channels.retain(|(_, id, _)| id != uuid);
         self.feedback_senders.retain(|(id, _)| id != uuid);
@@ -657,24 +691,33 @@ where
         self.goal_status.remove(uuid);
     }
 
-    fn forget_result(&mut self, uuid: &uuid::Uuid) {
+    fn forget_result(&mut self, uuid: &uuid::Uuid) -> Option<ActionClientCompletion> {
         self.result_senders.retain(|(id, _)| id != uuid);
         self.result_requests.retain(|(_, id)| id != uuid);
         if self.get_goal_status(uuid).is_terminal() {
-            self.feedback_senders.retain(|(id, _)| id != uuid);
+            return self
+                .take_feedback_sender(uuid)
+                .map(|(_, channel)| close_feedback_completion(channel));
         }
+        None
     }
 
-    fn finish_goal(&mut self, uuid: &uuid::Uuid, status: GoalStatus) {
-        self.feedback_senders.retain(|(id, _)| id != uuid);
+    fn finish_goal(
+        &mut self, uuid: &uuid::Uuid, status: GoalStatus,
+    ) -> Option<ActionClientCompletion> {
+        let feedback = self
+            .take_feedback_sender(uuid)
+            .map(|(_, channel)| close_feedback_completion(channel));
         self.result_senders.retain(|(id, _)| id != uuid);
         self.result_requests.retain(|(_, id)| id != uuid);
         if let Some(tracked_status) = self.goal_status.get_mut(uuid) {
             *tracked_status = status;
         }
+        feedback
     }
 
-    fn prune_canceled_requests(&mut self) {
+    fn prune_canceled_requests(&mut self) -> Vec<ActionClientCompletion> {
+        let mut completions = Vec::new();
         let canceled_goals: Vec<_> = self
             .goal_response_channels
             .iter()
@@ -695,8 +738,9 @@ where
             .filter_map(|(uuid, sender)| sender.is_canceled().then_some(*uuid))
             .collect();
         for uuid in canceled_results {
-            self.forget_result(&uuid);
+            completions.extend(self.forget_result(&uuid));
         }
+        completions
     }
 
     fn pending_feedback_completion(&mut self) -> Option<ActionClientCompletion> {
@@ -895,7 +939,8 @@ where
         Ok(None)
     }
 
-    fn handle_status_msg(&mut self) -> Result<()> {
+    fn handle_status_msg(&mut self) -> Result<Vec<ActionClientCompletion>> {
+        let mut completions = Vec::new();
         let mut status_array = WrappedNativeMsg::<action_msgs::msg::GoalStatusArray>::try_new()?;
         let ret = unsafe { rcl_action_take_status(&self.rcl_handle, status_array.void_ptr_mut()) };
         if action_client_take_succeeded(ret)? {
@@ -911,14 +956,18 @@ where
                     .iter()
                     .any(|(id, sender)| id == &uuid && !sender.is_canceled());
                 if status.is_terminal() && !result_is_tracked {
-                    self.feedback_senders.retain(|(id, _)| id != &uuid);
+                    completions.extend(
+                        self.take_feedback_sender(&uuid)
+                            .map(|(_, channel)| close_feedback_completion(channel)),
+                    );
                 }
             }
         }
-        Ok(())
+        Ok(completions)
     }
 
-    fn handle_result_response(&mut self) -> Result<Option<ActionClientCompletion>> {
+    fn handle_result_response(&mut self) -> Result<Vec<ActionClientCompletion>> {
+        let mut completions = Vec::new();
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
@@ -949,13 +998,14 @@ where
                     let response = <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response::from_native(&response_msg);
                     let (status, result) = T::destructure_result_response_msg(response);
                     let status = GoalStatus::from_rcl(status);
-                    self.finish_goal(&uuid, status);
-                    return Ok(Some(action_response_completion(
+                    completions.extend(self.finish_goal(&uuid, status));
+                    completions.push(action_response_completion(
                         sender,
                         (status, result),
                         "action result",
                         None,
-                    )));
+                    ));
+                    return Ok(completions);
                 }
             } else {
                 let we_have: String = self
@@ -971,7 +1021,7 @@ where
                 );
             }
         }
-        Ok(None)
+        Ok(completions)
     }
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>) {
@@ -979,8 +1029,8 @@ where
     }
 
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Vec<ActionClientCompletion> {
-        self.prune_canceled_requests();
-        let mut completions: Vec<_> = self.pending_feedback_completion().into_iter().collect();
+        let mut completions = self.prune_canceled_requests();
+        completions.extend(self.pending_feedback_completion());
         self.poll_available_channels
             .retain(|sender| !sender.is_canceled());
         if self.poll_available_channels.is_empty() {
@@ -995,15 +1045,25 @@ where
     }
 
     fn has_pending_work(&mut self) -> bool {
-        self.prune_canceled_requests();
-        self.poll_available_channels
-            .retain(|sender| !sender.is_canceled());
-        !self.goal_response_channels.is_empty()
-            || !self.cancel_response_channels.is_empty()
-            || !self.feedback_senders.is_empty()
-            || !self.result_requests.is_empty()
-            || !self.result_senders.is_empty()
-            || !self.poll_available_channels.is_empty()
+        self.goal_response_channels
+            .iter()
+            .any(|(_, _, sender)| !sender.is_canceled())
+            || self
+                .cancel_response_channels
+                .iter()
+                .any(|(_, sender)| !sender.is_canceled())
+            || self
+                .feedback_senders
+                .iter()
+                .any(|(_, channel)| !channel.lock().is_closed())
+            || self
+                .result_senders
+                .iter()
+                .any(|(_, sender)| !sender.is_canceled())
+            || self
+                .poll_available_channels
+                .iter()
+                .any(|sender| !sender.is_canceled())
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -1304,6 +1364,33 @@ mod tests {
     }
 
     #[test]
+    fn feedback_streams_close_after_releasing_the_client_lock() {
+        let client = Arc::new(Mutex::new(()));
+        let (sender, mut receiver) = mpsc::channel::<Fibonacci::Feedback>(0);
+        let channel = Arc::new(Mutex::new(FeedbackChannel::new(sender)));
+        let wake = Arc::new(LockingWake {
+            client: Arc::clone(&client),
+            woke: AtomicBool::new(false),
+        });
+        let waker = waker_ref(&wake);
+        let mut context = Context::from_waker(&waker);
+        assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Pending));
+
+        complete_action_client_operation(
+            &*client,
+            |_, completions| {
+                completions.push(close_feedback_completion(Arc::clone(&channel)));
+                Ok(())
+            },
+            |_, _| {},
+        )
+        .unwrap();
+
+        assert!(wake.woke.load(Ordering::SeqCst));
+        assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Ready(None)));
+    }
+
+    #[test]
     fn failed_goal_completion_cleans_registration_after_relocking() {
         let target = uuid::Uuid::new_v4();
         let (feedback_sender, _feedback_receiver) = mpsc::channel(1);
@@ -1317,6 +1404,7 @@ mod tests {
                 Arc::new(Mutex::new(FeedbackChannel {
                     sender: Some(feedback_sender),
                     pending: Some(Fibonacci::Feedback::default()),
+                    closing: false,
                 })),
             )],
             result_requests: vec![(1, target)],
@@ -1454,6 +1542,7 @@ mod tests {
                     Arc::new(Mutex::new(FeedbackChannel {
                         sender: Some(target_feedback),
                         pending: Some(Fibonacci::Feedback::default()),
+                        closing: false,
                     })),
                 ),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),
@@ -1517,6 +1606,7 @@ mod tests {
                     Arc::new(Mutex::new(FeedbackChannel {
                         sender: Some(target_feedback),
                         pending: Some(Fibonacci::Feedback::default()),
+                        closing: false,
                     })),
                 ),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),

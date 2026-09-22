@@ -462,6 +462,16 @@ impl WrappedActionClientUntyped {
         *self.goal_status.get(uuid).unwrap_or(&GoalStatus::Unknown)
     }
 
+    fn take_feedback_sender(
+        &mut self, uuid: &uuid::Uuid,
+    ) -> Option<FeedbackSender<Result<serde_json::Value>>> {
+        let index = self
+            .feedback_senders
+            .iter()
+            .position(|(id, _)| id == uuid)?;
+        Some(self.feedback_senders.swap_remove(index))
+    }
+
     fn forget_goal(&mut self, uuid: &uuid::Uuid) {
         self.goal_response_channels.retain(|(_, id, _)| id != uuid);
         self.feedback_senders.retain(|(id, _)| id != uuid);
@@ -470,24 +480,33 @@ impl WrappedActionClientUntyped {
         self.goal_status.remove(uuid);
     }
 
-    fn forget_result(&mut self, uuid: &uuid::Uuid) {
+    fn forget_result(&mut self, uuid: &uuid::Uuid) -> Option<ActionClientCompletion> {
         self.result_senders.retain(|(id, _)| id != uuid);
         self.result_requests.retain(|(_, id)| id != uuid);
         if self.get_goal_status(uuid).is_terminal() {
-            self.feedback_senders.retain(|(id, _)| id != uuid);
+            return self
+                .take_feedback_sender(uuid)
+                .map(|(_, channel)| close_feedback_completion(channel));
         }
+        None
     }
 
-    fn finish_goal(&mut self, uuid: &uuid::Uuid, status: GoalStatus) {
-        self.feedback_senders.retain(|(id, _)| id != uuid);
+    fn finish_goal(
+        &mut self, uuid: &uuid::Uuid, status: GoalStatus,
+    ) -> Option<ActionClientCompletion> {
+        let feedback = self
+            .take_feedback_sender(uuid)
+            .map(|(_, channel)| close_feedback_completion(channel));
         self.result_senders.retain(|(id, _)| id != uuid);
         self.result_requests.retain(|(_, id)| id != uuid);
         if let Some(tracked_status) = self.goal_status.get_mut(uuid) {
             *tracked_status = status;
         }
+        feedback
     }
 
-    fn prune_canceled_requests(&mut self) {
+    fn prune_canceled_requests(&mut self) -> Vec<ActionClientCompletion> {
+        let mut completions = Vec::new();
         let canceled_goals: Vec<_> = self
             .goal_response_channels
             .iter()
@@ -508,8 +527,9 @@ impl WrappedActionClientUntyped {
             .filter_map(|(uuid, sender)| sender.is_canceled().then_some(*uuid))
             .collect();
         for uuid in canceled_results {
-            self.forget_result(&uuid);
+            completions.extend(self.forget_result(&uuid));
         }
+        completions
     }
 
     fn pending_feedback_completion(&mut self) -> Option<ActionClientCompletion> {
@@ -700,7 +720,8 @@ impl ActionClient_ for WrappedActionClientUntyped {
         Ok(None)
     }
 
-    fn handle_status_msg(&mut self) -> Result<()> {
+    fn handle_status_msg(&mut self) -> Result<Vec<ActionClientCompletion>> {
+        let mut completions = Vec::new();
         let mut status_array = WrappedNativeMsg::<action_msgs::msg::GoalStatusArray>::try_new()?;
         let ret = unsafe { rcl_action_take_status(&self.rcl_handle, status_array.void_ptr_mut()) };
         if action_client_take_succeeded(ret)? {
@@ -716,14 +737,18 @@ impl ActionClient_ for WrappedActionClientUntyped {
                     .iter()
                     .any(|(id, sender)| id == &uuid && !sender.is_canceled());
                 if status.is_terminal() && !result_is_tracked {
-                    self.feedback_senders.retain(|(id, _)| id != &uuid);
+                    completions.extend(
+                        self.take_feedback_sender(&uuid)
+                            .map(|(_, channel)| close_feedback_completion(channel)),
+                    );
                 }
             }
         }
-        Ok(())
+        Ok(completions)
     }
 
-    fn handle_result_response(&mut self) -> Result<Option<ActionClientCompletion>> {
+    fn handle_result_response(&mut self) -> Result<Vec<ActionClientCompletion>> {
+        let mut completions = Vec::new();
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg = (self.action_type_support.make_result_response_msg)()?;
         let ret = unsafe {
@@ -751,13 +776,14 @@ impl ActionClient_ for WrappedActionClientUntyped {
                     let (status, result) =
                         (self.action_type_support.destructure_result_response_msg)(response_msg);
                     let status = GoalStatus::from_rcl(status);
-                    self.finish_goal(&uuid, status);
-                    return Ok(Some(action_response_completion(
+                    completions.extend(self.finish_goal(&uuid, status));
+                    completions.push(action_response_completion(
                         sender,
                         (status, result),
                         "untyped action result",
                         None,
-                    )));
+                    ));
+                    return Ok(completions);
                 }
             } else {
                 let we_have: String = self
@@ -773,7 +799,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
                 );
             }
         }
-        Ok(None)
+        Ok(completions)
     }
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>) {
@@ -781,8 +807,8 @@ impl ActionClient_ for WrappedActionClientUntyped {
     }
 
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Vec<ActionClientCompletion> {
-        self.prune_canceled_requests();
-        let mut completions: Vec<_> = self.pending_feedback_completion().into_iter().collect();
+        let mut completions = self.prune_canceled_requests();
+        completions.extend(self.pending_feedback_completion());
         self.poll_available_channels
             .retain(|sender| !sender.is_canceled());
         if self.poll_available_channels.is_empty() {
@@ -797,15 +823,25 @@ impl ActionClient_ for WrappedActionClientUntyped {
     }
 
     fn has_pending_work(&mut self) -> bool {
-        self.prune_canceled_requests();
-        self.poll_available_channels
-            .retain(|sender| !sender.is_canceled());
-        !self.goal_response_channels.is_empty()
-            || !self.cancel_response_channels.is_empty()
-            || !self.feedback_senders.is_empty()
-            || !self.result_requests.is_empty()
-            || !self.result_senders.is_empty()
-            || !self.poll_available_channels.is_empty()
+        self.goal_response_channels
+            .iter()
+            .any(|(_, _, sender)| !sender.is_canceled())
+            || self
+                .cancel_response_channels
+                .iter()
+                .any(|(_, sender)| !sender.is_canceled())
+            || self
+                .feedback_senders
+                .iter()
+                .any(|(_, channel)| !channel.lock().is_closed())
+            || self
+                .result_senders
+                .iter()
+                .any(|(_, sender)| !sender.is_canceled())
+            || self
+                .poll_available_channels
+                .iter()
+                .any(|sender| !sender.is_canceled())
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -855,6 +891,7 @@ mod tests {
                     Arc::new(Mutex::new(FeedbackChannel {
                         sender: Some(target_feedback),
                         pending: Some(Ok(serde_json::json!({ "sequence": [1] }))),
+                        closing: false,
                     })),
                 ),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),
@@ -922,6 +959,7 @@ mod tests {
                     Arc::new(Mutex::new(FeedbackChannel {
                         sender: Some(target_feedback),
                         pending: Some(Ok(serde_json::json!({ "sequence": [1] }))),
+                        closing: false,
                     })),
                 ),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),
