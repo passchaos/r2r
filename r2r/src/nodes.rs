@@ -436,6 +436,14 @@ fn read_parameter_values(
     names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
     provider: Option<&Arc<Mutex<dyn RosParams + Send>>>,
 ) -> Vec<ParameterValue> {
+    read_parameter_values_with_policy(names, params, provider, true)
+        .expect("permissive parameter reads cannot reject an undeclared name")
+}
+
+fn read_parameter_values_with_policy(
+    names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
+    provider: Option<&Arc<Mutex<dyn RosParams + Send>>>, allow_undeclared_parameters: bool,
+) -> Result<Vec<ParameterValue>> {
     let provider_values = provider.map(|provider| {
         let mut provider = provider.lock();
         names
@@ -444,7 +452,14 @@ fn read_parameter_values(
             .collect::<Vec<_>>()
     });
     let params = params.lock();
-    names
+    if !allow_undeclared_parameters {
+        if let Some(name) = names.iter().find(|name| !params.contains_key(*name)) {
+            return Err(Error::ParameterNotDeclared {
+                name: name.to_owned(),
+            });
+        }
+    }
+    Ok(names
         .iter()
         .enumerate()
         .map(|(index, name)| {
@@ -454,7 +469,7 @@ fn read_parameter_values(
                 .or_else(|| params.get(name).map(|parameter| parameter.value.clone()))
                 .unwrap_or(ParameterValue::NotSet)
         })
-        .collect()
+        .collect())
 }
 
 fn list_parameter_values(
@@ -508,9 +523,25 @@ fn read_parameter_descriptors(
     names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
     registered: &Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
 ) -> Vec<ParameterDescriptor> {
+    read_parameter_descriptors_with_policy(names, params, registered, true)
+        .expect("permissive parameter descriptions cannot reject an undeclared name")
+}
+
+fn read_parameter_descriptors_with_policy(
+    names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
+    registered: &Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
+    allow_undeclared_parameters: bool,
+) -> Result<Vec<ParameterDescriptor>> {
     let params = params.lock();
+    if !allow_undeclared_parameters {
+        if let Some(name) = names.iter().find(|name| !params.contains_key(*name)) {
+            return Err(Error::ParameterNotDeclared {
+                name: name.to_owned(),
+            });
+        }
+    }
     let registered = registered.lock();
-    describe_parameter_values(names, &params, &registered)
+    Ok(describe_parameter_values(names, &params, &registered))
 }
 
 fn parameter_types(names: &[String], params: &IndexMap<String, Parameter>) -> Vec<ParameterType> {
@@ -527,8 +558,23 @@ fn parameter_types(names: &[String], params: &IndexMap<String, Parameter>) -> Ve
 fn read_parameter_types(
     names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
 ) -> Vec<ParameterType> {
+    read_parameter_types_with_policy(names, params, true)
+        .expect("permissive parameter type reads cannot reject an undeclared name")
+}
+
+fn read_parameter_types_with_policy(
+    names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
+    allow_undeclared_parameters: bool,
+) -> Result<Vec<ParameterType>> {
     let params = params.lock();
-    parameter_types(names, &params)
+    if !allow_undeclared_parameters {
+        if let Some(name) = names.iter().find(|name| !params.contains_key(*name)) {
+            return Err(Error::ParameterNotDeclared {
+                name: name.to_owned(),
+            });
+        }
+    }
+    Ok(parameter_types(names, &params))
 }
 
 fn apply_parameter_updates(
@@ -2172,6 +2218,27 @@ impl Node {
         read_parameter_values(&names, &self.params, self.parameter_provider.as_ref())
     }
 
+    /// Returns raw parameter values while honoring the node's undeclared-parameter policy.
+    ///
+    /// Unlike [`Node::get_parameters`], this returns [`Error::ParameterNotDeclared`] for the
+    /// first unknown name when `allow_undeclared_parameters` is disabled.
+    pub fn try_get_parameters<I, S>(&self, names: I) -> Result<Vec<ParameterValue>>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let names = names
+            .into_iter()
+            .map(|name| name.as_ref().to_owned())
+            .collect::<Vec<_>>();
+        read_parameter_values_with_policy(
+            &names,
+            &self.params,
+            self.parameter_provider.as_ref(),
+            self.allow_undeclared_parameters,
+        )
+    }
+
     /// Returns parameters below `prefix`, keyed by their name relative to the prefix.
     pub fn get_parameters_by_prefix(&self, prefix: &str) -> IndexMap<String, ParameterValue> {
         let qualified_prefix = (!prefix.is_empty()).then(|| format!("{prefix}."));
@@ -2226,6 +2293,31 @@ impl Node {
         read_parameter_descriptors(&names, &self.params, &self.parameter_descriptors)
     }
 
+    /// Returns parameter descriptors while honoring the node's undeclared-parameter policy.
+    pub fn try_describe_parameters<I, S>(&self, names: I) -> Result<Vec<ParameterDescriptor>>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let names = names
+            .into_iter()
+            .map(|name| name.as_ref().to_owned())
+            .collect::<Vec<_>>();
+        read_parameter_descriptors_with_policy(
+            &names,
+            &self.params,
+            &self.parameter_descriptors,
+            self.allow_undeclared_parameters,
+        )
+    }
+
+    /// Returns the descriptor for one parameter.
+    pub fn describe_parameter(&self, name: &str) -> Result<ParameterDescriptor> {
+        self.try_describe_parameters([name])?
+            .pop()
+            .ok_or(Error::RCL_RET_ERROR)
+    }
+
     /// Returns parameter types in the same order as `names`.
     pub fn get_parameter_types<I, S>(&self, names: I) -> Vec<ParameterType>
     where
@@ -2239,13 +2331,33 @@ impl Node {
         read_parameter_types(&names, &self.params)
     }
 
+    /// Returns parameter types while honoring the node's undeclared-parameter policy.
+    pub fn try_get_parameter_types<I, S>(&self, names: I) -> Result<Vec<ParameterType>>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let names = names
+            .into_iter()
+            .map(|name| name.as_ref().to_owned())
+            .collect::<Vec<_>>();
+        read_parameter_types_with_policy(&names, &self.params, self.allow_undeclared_parameters)
+    }
+
+    /// Returns the type of one parameter.
+    pub fn get_parameter_type(&self, name: &str) -> Result<ParameterType> {
+        self.try_get_parameter_types([name])?
+            .pop()
+            .ok_or(Error::RCL_RET_ERROR)
+    }
+
     /// Fetch a single ROS parameter.
     pub fn get_parameter<T>(&self, name: &str) -> Result<T>
     where
         ParameterValue: TryInto<T, Error = WrongParameterType>,
     {
         let value = self
-            .get_parameters([name])
+            .try_get_parameters([name])?
             .pop()
             .unwrap_or(ParameterValue::NotSet);
 
@@ -6307,6 +6419,79 @@ mod tests {
         assert!(!node.has_parameter("misspelled"));
         assert!(!node.has_parameter("missing"));
         assert_eq!(*validation_calls.lock(), 1);
+    }
+
+    #[test]
+    fn strict_parameter_queries_reject_undeclared_names() {
+        let context = Context::create().unwrap();
+        let strict = Node::create_with_options(
+            context.clone(),
+            "strict_parameter_query_test",
+            "",
+            NodeOptions::default()
+                .use_global_arguments(false)
+                .allow_undeclared_parameters(false),
+        )
+        .unwrap();
+        strict.declare_parameter("declared", 1_i64).unwrap();
+
+        assert!(matches!(
+            strict.get_parameter::<i64>("missing"),
+            Err(Error::ParameterNotDeclared { name }) if name == "missing"
+        ));
+        assert!(matches!(
+            strict.try_get_parameters(["declared", "missing"]),
+            Err(Error::ParameterNotDeclared { name }) if name == "missing"
+        ));
+        assert!(matches!(
+            strict.try_get_parameter_types(["declared", "missing"]),
+            Err(Error::ParameterNotDeclared { name }) if name == "missing"
+        ));
+        assert!(matches!(
+            strict.try_describe_parameters(["declared", "missing"]),
+            Err(Error::ParameterNotDeclared { name }) if name == "missing"
+        ));
+        assert_eq!(strict.get_parameter_type("declared").unwrap(), ParameterType::Integer);
+        assert_eq!(strict.describe_parameter("declared").unwrap().name, "declared");
+
+        let permissive = Node::create_with_options(
+            context,
+            "permissive_parameter_query_test",
+            "",
+            NodeOptions::default().use_global_arguments(false),
+        )
+        .unwrap();
+        assert_eq!(permissive.try_get_parameters(["missing"]).unwrap(), [ParameterValue::NotSet]);
+        assert_eq!(permissive.get_parameter_type("missing").unwrap(), ParameterType::NotSet);
+        assert_eq!(permissive.describe_parameter("missing").unwrap().name, "missing");
+    }
+
+    #[test]
+    fn strict_parameter_queries_read_live_provider_values() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create_with_options(
+            context,
+            "strict_provider_query_test",
+            "",
+            NodeOptions::default()
+                .use_global_arguments(false)
+                .allow_undeclared_parameters(false),
+        )
+        .unwrap();
+        let provider = Arc::new(Mutex::new(LocalSetParams {
+            count: 1,
+            ratio: 0.5,
+        }));
+        let provider_for_handler: Arc<Mutex<dyn RosParams + Send>> = provider.clone();
+        let (_handler, _events) = node
+            .make_derived_parameter_handler(provider_for_handler)
+            .unwrap();
+        provider.lock().count = 42;
+
+        assert_eq!(node.try_get_parameters(["count"]).unwrap(), [ParameterValue::Integer(42)]);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 42);
+        assert_eq!(node.get_parameter_type("count").unwrap(), ParameterType::Integer);
+        assert_eq!(node.describe_parameter("count").unwrap().name, "count");
     }
 
     #[test]
