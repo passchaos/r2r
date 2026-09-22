@@ -187,6 +187,12 @@ struct AppliedParameterChanges {
     sim_time_update: Option<bool>,
 }
 
+struct PreparedParameterDeclaration {
+    name: String,
+    value: ParameterValue,
+    descriptor: ParameterDescriptor,
+}
+
 type ParameterValidationCallback =
     dyn Fn(&[(String, ParameterValue)]) -> Result<()> + Send + Sync + 'static;
 type ParameterPostSetCallback = dyn Fn(&[(String, ParameterValue)]) + Send + Sync + 'static;
@@ -1100,54 +1106,132 @@ impl Node {
     /// derived from the arguments, matching ROS 2's declaration semantics.
     pub fn declare_parameter_with_descriptor(
         &self, name: impl Into<String>, default_value: impl Into<ParameterValue>,
-        mut descriptor: ParameterDescriptor,
+        descriptor: ParameterDescriptor,
     ) -> Result<ParameterValue> {
+        self.declare_parameters_impl("", [(name.into(), default_value.into(), descriptor)])
+            .and_then(|mut values| values.pop().ok_or(Error::RCL_RET_ERROR))
+    }
+
+    /// Declares several parameters under `namespace` as one transaction.
+    ///
+    /// An empty namespace leaves names unchanged; otherwise each key is declared as
+    /// `namespace.key`. Overrides are honored for every parameter. The entire batch is validated
+    /// before state is changed, so an invalid descriptor, duplicate name, or rejected value leaves
+    /// every parameter in the batch undeclared.
+    pub fn declare_parameters<I, N, V>(
+        &self, namespace: &str, parameters: I,
+    ) -> Result<Vec<ParameterValue>>
+    where
+        I: IntoIterator<Item = (N, V)>,
+        N: Into<String>,
+        V: Into<ParameterValue>,
+    {
+        self.declare_parameters_impl(
+            namespace,
+            parameters
+                .into_iter()
+                .map(|(name, value)| (name.into(), value.into(), ParameterDescriptor::default())),
+        )
+    }
+
+    /// Declares several parameters and descriptors under `namespace` as one transaction.
+    ///
+    /// Descriptor names and types are derived from the fully qualified parameter name and default
+    /// value. See [`Node::declare_parameters`] for namespace, override, callback, and atomicity
+    /// behavior.
+    pub fn declare_parameters_with_descriptors<I, N, V>(
+        &self, namespace: &str, parameters: I,
+    ) -> Result<Vec<ParameterValue>>
+    where
+        I: IntoIterator<Item = (N, V, ParameterDescriptor)>,
+        N: Into<String>,
+        V: Into<ParameterValue>,
+    {
+        self.declare_parameters_impl(
+            namespace,
+            parameters
+                .into_iter()
+                .map(|(name, value, descriptor)| (name.into(), value.into(), descriptor)),
+        )
+    }
+
+    fn declare_parameters_impl(
+        &self, namespace: &str,
+        parameters: impl IntoIterator<Item = (String, ParameterValue, ParameterDescriptor)>,
+    ) -> Result<Vec<ParameterValue>> {
         let _transaction = self.parameter_transaction.lock();
-        let name = name.into();
-        let default_value = default_value.into();
-        if name.is_empty() {
-            return Err(Error::InvalidParameterName { name });
-        }
-        descriptor.name = name.clone();
-        descriptor.type_ = default_value.parameter_type().into();
-        validate_parameter_descriptor(&name, &descriptor)?;
-
-        let (value, fallback_description) = self.params.lock().get(&name).map_or_else(
-            || (default_value, None),
-            |parameter| (parameter.value.clone(), Some(parameter.description)),
-        );
-        validate_parameter_update(&name, &value, &descriptor, false)?;
-        if descriptor.description.is_empty() {
-            if let Some(description) = fallback_description {
-                descriptor.description = description.to_owned();
+        let prefix = if namespace.is_empty() {
+            String::new()
+        } else {
+            format!("{namespace}.")
+        };
+        let defaults = parameters.into_iter().collect::<Vec<_>>();
+        let mut names = HashSet::with_capacity(defaults.len());
+        let params = self.params.lock();
+        let descriptors = self.parameter_descriptors.lock();
+        let mut prepared = Vec::with_capacity(defaults.len());
+        for (name, default_value, mut descriptor) in defaults {
+            let name = format!("{prefix}{name}");
+            if name.is_empty() {
+                return Err(Error::InvalidParameterName { name });
             }
-        }
-        if descriptor.dynamic_typing {
-            descriptor.type_ = value.parameter_type().into();
-        }
+            if !names.insert(name.clone()) || descriptors.contains_key(&name) {
+                return Err(Error::ParameterAlreadyDeclared { name });
+            }
+            descriptor.name = name.clone();
+            descriptor.type_ = default_value.parameter_type().into();
+            validate_parameter_descriptor(&name, &descriptor)?;
 
-        validate_parameter_callbacks(
-            &[(name.clone(), value.clone())],
-            &self.parameter_validation_callbacks,
-        )?;
+            let value = params
+                .get(&name)
+                .map_or(default_value, |parameter| parameter.value.clone());
+            validate_parameter_update(&name, &value, &descriptor, false)?;
+            if descriptor.description.is_empty() {
+                if let Some(parameter) = params.get(&name) {
+                    descriptor.description = parameter.description.to_owned();
+                }
+            }
+            if descriptor.dynamic_typing {
+                descriptor.type_ = value.parameter_type().into();
+            }
+            prepared.push(PreparedParameterDeclaration {
+                name,
+                value,
+                descriptor,
+            });
+        }
+        drop(descriptors);
+        drop(params);
+
+        for declaration in &prepared {
+            validate_parameter_callbacks(
+                &[(declaration.name.clone(), declaration.value.clone())],
+                &self.parameter_validation_callbacks,
+            )?;
+        }
 
         let mut params = self.params.lock();
         let mut descriptors = self.parameter_descriptors.lock();
-        if descriptors.contains_key(&name) {
-            return Err(Error::ParameterAlreadyDeclared { name });
+        for declaration in &prepared {
+            descriptors.insert(declaration.name.clone(), declaration.descriptor.clone());
+            params
+                .entry(declaration.name.clone())
+                .or_insert_with(|| Parameter::new(declaration.value.clone()));
         }
-        descriptors.insert(name.clone(), descriptor);
-        params
-            .entry(name.clone())
-            .or_insert_with(|| Parameter::new(value.clone()));
         drop(descriptors);
         drop(params);
         drop(_transaction);
-        notify_parameter_post_set_callbacks(
-            &[(name, value.clone())],
-            &self.parameter_post_set_callbacks,
-        );
-        Ok(value)
+
+        for declaration in &prepared {
+            notify_parameter_post_set_callbacks(
+                &[(declaration.name.clone(), declaration.value.clone())],
+                &self.parameter_post_set_callbacks,
+            );
+        }
+        Ok(prepared
+            .into_iter()
+            .map(|declaration| declaration.value)
+            .collect())
     }
 
     /// Registers the ROS descriptor and constraints for an existing parameter.
@@ -5612,6 +5696,132 @@ mod tests {
             Err(Error::ParameterConstraintViolation { .. })
         ));
         assert!(node.get_parameter_descriptor("missing").is_err());
+    }
+
+    #[test]
+    fn batch_parameter_declaration_applies_namespace_overrides_and_descriptors() {
+        let context = Context::create().unwrap();
+        let node = Node::create_with_options(
+            context,
+            "batch_parameter_declaration_test",
+            "",
+            NodeOptions::default()
+                .use_global_arguments(false)
+                .parameter_override("robot.speed", 4_i64),
+        )
+        .unwrap();
+        let range = IntegerRange {
+            from_value: 0,
+            to_value: 10,
+            step: 2,
+        };
+        let post_calls = Arc::new(Mutex::new(Vec::new()));
+        let post_calls_for_callback = Arc::clone(&post_calls);
+        let _post = node.add_post_set_parameters_callback(move |updates| {
+            post_calls_for_callback.lock().push(updates.to_vec());
+        });
+
+        let values = node
+            .declare_parameters_with_descriptors(
+                "robot",
+                [
+                    (
+                        "speed",
+                        ParameterValue::Integer(2),
+                        ParameterDescriptor {
+                            description: "even speed".into(),
+                            integer_range: vec![range.clone()],
+                            ..Default::default()
+                        },
+                    ),
+                    ("limit", ParameterValue::Integer(8), ParameterDescriptor::default()),
+                ],
+            )
+            .unwrap();
+
+        assert_eq!(values, [ParameterValue::Integer(4), ParameterValue::Integer(8)]);
+        assert_eq!(node.get_parameter::<i64>("robot.speed").unwrap(), 4);
+        assert_eq!(node.get_parameter::<i64>("robot.limit").unwrap(), 8);
+        let speed = node.get_parameter_descriptor("robot.speed").unwrap();
+        assert_eq!(speed.name, "robot.speed");
+        assert_eq!(speed.integer_range, [range]);
+        assert_eq!(speed.description, "even speed");
+        assert_eq!(post_calls.lock().len(), 2);
+        assert_eq!(post_calls.lock()[0][0].0, "robot.speed");
+        assert_eq!(post_calls.lock()[1][0].0, "robot.limit");
+    }
+
+    #[test]
+    fn batch_parameter_declaration_is_atomic_on_validation_failures() {
+        let context = Context::create().unwrap();
+        let node = Node::create(context, "atomic_batch_parameter_declaration_test", "").unwrap();
+        let post_calls = Arc::new(Mutex::new(0));
+        let post_calls_for_callback = Arc::clone(&post_calls);
+        let _post = node.add_post_set_parameters_callback(move |_| {
+            *post_calls_for_callback.lock() += 1;
+        });
+
+        let result = node.declare_parameters_with_descriptors(
+            "invalid",
+            [
+                ("first", ParameterValue::Integer(2), ParameterDescriptor::default()),
+                (
+                    "second",
+                    ParameterValue::Integer(3),
+                    ParameterDescriptor {
+                        integer_range: vec![IntegerRange {
+                            from_value: 0,
+                            to_value: 10,
+                            step: 2,
+                        }],
+                        ..Default::default()
+                    },
+                ),
+            ],
+        );
+
+        assert!(matches!(result, Err(Error::ParameterConstraintViolation { .. })));
+        assert!(!node.has_parameter("invalid.first"));
+        assert!(!node.has_parameter("invalid.second"));
+        assert_eq!(*post_calls.lock(), 0);
+
+        let _reject = node.add_on_set_parameters_callback(|updates| {
+            if updates[0].0 == "callback.second" {
+                Err(Error::ParameterUpdateRejected {
+                    reason: "rejected second declaration".into(),
+                })
+            } else {
+                Ok(())
+            }
+        });
+        let result = node.declare_parameters("callback", [("first", 1_i64), ("second", 2_i64)]);
+        assert!(matches!(result, Err(Error::ParameterUpdateRejected { .. })));
+        assert!(!node.has_parameter("callback.first"));
+        assert!(!node.has_parameter("callback.second"));
+        assert_eq!(*post_calls.lock(), 0);
+    }
+
+    #[test]
+    fn batch_parameter_declaration_rejects_duplicate_and_existing_names_atomically() {
+        let context = Context::create().unwrap();
+        let node = Node::create(context, "duplicate_batch_parameter_test", "").unwrap();
+
+        assert!(matches!(
+            node.declare_parameters("batch", [("same", 1_i64), ("same", 2_i64)]),
+            Err(Error::ParameterAlreadyDeclared { name }) if name == "batch.same"
+        ));
+        assert!(!node.has_parameter("batch.same"));
+
+        node.declare_parameter("batch.existing", 3_i64).unwrap();
+        assert!(matches!(
+            node.declare_parameters(
+                "batch",
+                [("fresh", 4_i64), ("existing", 5_i64)],
+            ),
+            Err(Error::ParameterAlreadyDeclared { name }) if name == "batch.existing"
+        ));
+        assert!(!node.has_parameter("batch.fresh"));
+        assert_eq!(node.get_parameter::<i64>("batch.existing").unwrap(), 3);
     }
 
     #[test]
