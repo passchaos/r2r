@@ -71,6 +71,35 @@ fn parameter_overrides(context: &Mutex<ContextHandle>) -> Result<RclParams> {
     parameter_overrides_from_arguments(&context.global_arguments)
 }
 
+fn parameter_rule_matches_node(rule: &str, fully_qualified_name: &str) -> bool {
+    let rule = rule.strip_prefix('/').unwrap_or(rule);
+    let name = fully_qualified_name
+        .strip_prefix('/')
+        .unwrap_or(fully_qualified_name);
+    let rule = rule.split('/').collect::<Vec<_>>();
+    let name = name.split('/').collect::<Vec<_>>();
+
+    fn matches(rule: &[&str], name: &[&str]) -> bool {
+        match rule.split_first() {
+            None => name.is_empty(),
+            Some((&"**", rest)) => {
+                matches(rest, name)
+                    || name
+                        .split_first()
+                        .is_some_and(|(_, tail)| matches(rule, tail))
+            }
+            Some((&"*", rest)) => name
+                .split_first()
+                .is_some_and(|(_, tail)| matches(rest, tail)),
+            Some((segment, rest)) => name
+                .split_first()
+                .is_some_and(|(candidate, tail)| segment == candidate && matches(rest, tail)),
+        }
+    }
+
+    matches(&rule, &name)
+}
+
 struct NodeOptionsNative(rcl_node_options_t);
 
 impl NodeOptionsNative {
@@ -1126,7 +1155,6 @@ impl Node {
         let node_names = unsafe { std::slice::from_raw_parts((*params.0).node_names, num_nodes) };
         let node_params = unsafe { std::slice::from_raw_parts((*params.0).params, num_nodes) };
         let qualified_name = self.fully_qualified_name()?;
-        let name = self.name()?;
 
         for (nn, np) in node_names.iter().zip(node_params) {
             if nn.is_null() {
@@ -1134,11 +1162,7 @@ impl Node {
             }
             let node_name_cstr = unsafe { CStr::from_ptr(*nn) };
             let node_name = c_str_to_str(node_name_cstr, "parameter override node name")?;
-            if !(node_name == "/**"
-                || node_name == "**"
-                || qualified_name == node_name
-                || name == node_name)
-            {
+            if !parameter_rule_matches_node(node_name, &qualified_name) {
                 continue;
             }
             if np.num_params == 0 {
@@ -5154,6 +5178,30 @@ mod tests {
     }
 
     #[test]
+    fn parameter_node_rules_match_ros_wildcard_segments() {
+        for (rule, name) in [
+            ("/**", "/node"),
+            ("/**", "/a/b/node"),
+            ("/*", "/node"),
+            ("/ns/*", "/ns/node"),
+            ("/**/foo/*/bar", "/a/b/foo/c/bar"),
+            ("node", "/node"),
+            ("ns/node", "/ns/node"),
+        ] {
+            assert!(parameter_rule_matches_node(rule, name), "{rule} should match {name}");
+        }
+        for (rule, name) in [
+            ("/*", "/ns/node"),
+            ("/ns/*", "/ns/a/node"),
+            ("/**/foo/*/bar", "/a/b/foo/bar"),
+            ("node", "/ns/node"),
+            ("/node", "/ns/node"),
+        ] {
+            assert!(!parameter_rule_matches_node(rule, name), "{rule} should not match {name}");
+        }
+    }
+
+    #[test]
     fn parameter_prefixes_are_deduplicated_in_first_seen_order() {
         let params = IndexMap::from([
             ("robot.motor.speed".to_owned(), Parameter::new(ParameterValue::Integer(1))),
@@ -6864,6 +6912,57 @@ mod tests {
         assert_eq!(node.name().unwrap(), "remapped_name");
         assert_eq!(node.namespace().unwrap(), "/remapped_namespace");
         assert_eq!(node.fully_qualified_name().unwrap(), "/remapped_namespace/remapped_name");
+    }
+
+    #[test]
+    fn parameter_files_apply_segment_wildcards_to_the_fully_qualified_node_name() {
+        let path = std::env::temp_dir()
+            .join(format!("r2r_parameter_wildcards_{}.yaml", uuid::Uuid::new_v4().simple()));
+        std::fs::write(
+            &path,
+            r#"
+/**:
+  ros__parameters:
+    global_match: true
+/graph_ns/*:
+  ros__parameters:
+    one_level_match: 1
+/**/graph_ns/**:
+  ros__parameters:
+    recursive_match: 2
+/other_ns/graph_target:
+  ros__parameters:
+    should_not_match: true
+/graph_target:
+  ros__parameters:
+    basename_must_not_match: true
+"#,
+        )
+        .unwrap();
+        let arguments = vec![
+            "r2r-node".to_owned(),
+            "--ros-args".to_owned(),
+            "--params-file".to_owned(),
+            path.to_string_lossy().into_owned(),
+        ];
+        let context = Context::create().unwrap();
+
+        let node = Node::create_with_options(
+            context,
+            "graph_target",
+            "/graph_ns",
+            NodeOptions::default()
+                .use_global_arguments(false)
+                .arguments(arguments),
+        )
+        .unwrap();
+        std::fs::remove_file(path).unwrap();
+
+        assert!(node.get_parameter::<bool>("global_match").unwrap());
+        assert_eq!(node.get_parameter::<i64>("one_level_match").unwrap(), 1);
+        assert_eq!(node.get_parameter::<i64>("recursive_match").unwrap(), 2);
+        assert!(!node.has_parameter("should_not_match"));
+        assert!(!node.has_parameter("basename_must_not_match"));
     }
 
     #[test]
