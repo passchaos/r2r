@@ -190,6 +190,12 @@ fn take_active_waiters<T>(waiters: &Mutex<Vec<oneshot::Sender<T>>>) -> Vec<onesh
     std::mem::take(&mut *waiters)
 }
 
+fn has_active_waiters<T>(waiters: &Mutex<Vec<oneshot::Sender<T>>>) -> bool {
+    let mut waiters = waiters.lock();
+    waiters.retain(|sender| !sender.is_canceled());
+    !waiters.is_empty()
+}
+
 fn restore_active_waiters<T>(
     waiters: &Mutex<Vec<oneshot::Sender<T>>>, mut pending: Vec<oneshot::Sender<T>>,
 ) {
@@ -266,6 +272,17 @@ mod waiter_tests {
         restore_active_waiters(&waiters, detached);
 
         assert_eq!(waiters.lock().len(), 2);
+    }
+
+    #[test]
+    fn checking_active_waiters_releases_the_waiter_lock() {
+        let waiters = Mutex::new(Vec::new());
+        let (sender, receiver) = oneshot::channel::<()>();
+        drop(receiver);
+        waiters.lock().push(sender);
+
+        assert!(!has_active_waiters(&waiters));
+        assert!(waiters.try_lock().is_some());
     }
 
     #[test]
@@ -573,17 +590,11 @@ impl Publisher_ {
     }
 
     pub(crate) fn has_pending_waits(&self) -> bool {
-        let mut waiters = self.poll_subscriber_channels.lock();
-        waiters.retain(|sender| !sender.is_canceled());
-        if !waiters.is_empty() {
+        if has_active_waiters(&self.poll_subscriber_channels) {
             return true;
         }
         #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
-        {
-            let mut waiters = self.poll_ack_channels.lock();
-            waiters.retain(|sender| !sender.is_canceled());
-            !waiters.is_empty()
-        }
+        return has_active_waiters(&self.poll_ack_channels);
         #[cfg(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic))]
         false
     }
