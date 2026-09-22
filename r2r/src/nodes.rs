@@ -3324,6 +3324,43 @@ impl Node {
         Ok(ServiceUntyped::new(receiver, id, Arc::clone(&self.canceled_services)))
     }
 
+    /// Immediately destroys a typed service owned by this node.
+    ///
+    /// Dropping a service schedules its native endpoint for removal during the next spin. This
+    /// method is useful when deterministic teardown is required before another spin cycle.
+    pub fn destroy_service<T>(&mut self, service: Service<T>)
+    where
+        T: WrappedServiceTypeSupport,
+    {
+        let id = service.id;
+        drop(service);
+        if Self::remove_service(
+            &mut self.services,
+            &mut self.service_indexes,
+            id,
+            self.node_handle.as_mut(),
+        ) {
+            self.canceled_services.lock().retain(|queued| *queued != id);
+        }
+    }
+
+    /// Immediately destroys an untyped service owned by this node.
+    ///
+    /// Passing a service created by another node leaves this node unchanged and schedules the
+    /// service for normal cleanup by its owning node.
+    pub fn destroy_service_untyped(&mut self, service: ServiceUntyped) {
+        let id = service.id;
+        drop(service);
+        if Self::remove_service(
+            &mut self.services,
+            &mut self.service_indexes,
+            id,
+            self.node_handle.as_mut(),
+        ) {
+            self.canceled_services.lock().retain(|queued| *queued != id);
+        }
+    }
+
     pub(crate) fn get_service_request_subscription_actual_qos(
         &self, id: uuid::Uuid,
     ) -> Result<QosProfile> {
@@ -11811,6 +11848,56 @@ mod tests {
         for (id, index) in &node.service_indexes {
             assert_eq!(node.services[*index].lock().id(), Some(*id));
         }
+    }
+
+    #[test]
+    fn explicit_service_destruction_is_immediate_and_targeted() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context.clone(), "destroy_service_test", "").unwrap();
+        let mut other = Node::create(context, "destroy_service_other", "").unwrap();
+        let first_name = format!("/destroy_srv_first_{}", uuid::Uuid::new_v4().simple());
+        let removed_name = format!("/destroy_srv_removed_{}", uuid::Uuid::new_v4().simple());
+        let last_name = format!("/destroy_srv_last_{}", uuid::Uuid::new_v4().simple());
+        let first = node
+            .create_service::<AddTwoInts::Service>(&first_name, QosProfile::default())
+            .unwrap();
+        let removed = node
+            .create_service::<AddTwoInts::Service>(&removed_name, QosProfile::default())
+            .unwrap();
+        let last = node
+            .create_service_untyped(
+                &last_name,
+                "example_interfaces/srv/AddTwoInts",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let removed_id = removed.id;
+
+        node.destroy_service(removed);
+
+        assert_eq!(node.services.len(), 2);
+        assert_eq!(node.service_indexes.len(), 2);
+        assert!(!node.service_indexes.contains_key(&removed_id));
+        assert!(node.canceled_services.lock().is_empty());
+        assert_eq!(first.service_name(&node).unwrap(), first_name);
+        assert_eq!(last.service_name(&node).unwrap(), last_name);
+
+        let foreign_name = format!("/destroy_srv_foreign_{}", uuid::Uuid::new_v4().simple());
+        let foreign = node
+            .create_service_untyped(
+                &foreign_name,
+                "example_interfaces/srv/AddTwoInts",
+                QosProfile::default(),
+            )
+            .unwrap();
+        other.destroy_service_untyped(foreign);
+        assert_eq!(node.services.len(), 3);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(node.services.len(), 2);
+        assert_eq!(first.service_name(&node).unwrap(), first_name);
+        assert_eq!(last.service_name(&node).unwrap(), last_name);
     }
 
     #[test]

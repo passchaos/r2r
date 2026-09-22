@@ -143,14 +143,14 @@ where
     T: WrappedServiceTypeSupport,
 {
     receiver: mpsc::Receiver<ServiceRequest<T>>,
-    id: uuid::Uuid,
+    pub(crate) id: uuid::Uuid,
     canceled_services: Arc<Mutex<VecDeque<uuid::Uuid>>>,
 }
 
 /// A runtime-typed ROS service request stream.
 pub struct ServiceUntyped {
     receiver: mpsc::Receiver<ServiceRequestUntyped>,
-    id: uuid::Uuid,
+    pub(crate) id: uuid::Uuid,
     canceled_services: Arc<Mutex<VecDeque<uuid::Uuid>>>,
 }
 
