@@ -1158,24 +1158,33 @@ impl Node {
     /// may be backed by a [`RosParams`] field. Parameter service clients can perform the same
     /// operation by assigning [`ParameterValue::NotSet`] to a dynamic parameter.
     pub fn undeclare_parameter(&self, name: &str) -> Result<ParameterValue> {
-        let _transaction = self.parameter_transaction.lock();
-        let mut params = self.params.lock();
-        let mut descriptors = self.parameter_descriptors.lock();
-        if let Some(descriptor) = descriptors.get(name) {
-            if descriptor.read_only || !descriptor.dynamic_typing {
-                return Err(Error::ParameterConstraintViolation {
-                    name: name.to_owned(),
-                    reason: "an immutable or statically typed parameter cannot be undeclared"
-                        .into(),
-                });
+        let (removed, ros_events) = {
+            let _transaction = self.parameter_transaction.lock();
+            let mut params = self.params.lock();
+            let mut descriptors = self.parameter_descriptors.lock();
+            if let Some(descriptor) = descriptors.get(name) {
+                if descriptor.read_only || !descriptor.dynamic_typing {
+                    return Err(Error::ParameterConstraintViolation {
+                        name: name.to_owned(),
+                        reason: "an immutable or statically typed parameter cannot be undeclared"
+                            .into(),
+                    });
+                }
             }
-        }
 
-        let removed = params
-            .shift_remove(name)
-            .ok_or_else(|| Error::InvalidParameterName { name: name.into() })?;
-        descriptors.shift_remove(name);
-        Ok(removed.value)
+            let removed = params
+                .shift_remove(name)
+                .ok_or_else(|| Error::InvalidParameterName { name: name.into() })?;
+            descriptors.shift_remove(name);
+            let mut ros_events = ParameterEventChanges::default();
+            ros_events.record(name, Some(&removed.value), &ParameterValue::NotSet);
+            (removed.value, ros_events)
+        };
+
+        if let Some(sink) = &self.parameter_event_sink {
+            sink.notify(vec![(name.to_owned(), ParameterValue::NotSet)], ros_events);
+        }
+        Ok(removed)
     }
 
     /// Creates parameter service handlers for the Node based on the
@@ -5527,7 +5536,7 @@ mod tests {
     #[test]
     fn local_parameter_undeclare_removes_only_dynamic_parameters() {
         let context = Context::create().unwrap();
-        let node = Node::create(context, "local_parameter_undeclare_test", "").unwrap();
+        let mut node = Node::create(context, "local_parameter_undeclare_test", "").unwrap();
         node.declare_parameter_with_descriptor(
             "dynamic",
             ParameterValue::Integer(1),
@@ -5548,9 +5557,46 @@ mod tests {
             },
         )
         .unwrap();
+        let (_handler, mut events) = node.make_parameter_handler().unwrap();
+        let mut ros_events = node
+            .subscribe_parameter_events(
+                Some("/local_parameter_undeclare_test".into()),
+                Some("dynamic".into()),
+            )
+            .unwrap();
+        for _ in 0..100 {
+            if node
+                .get_subscriptions_info_by_topic("/parameter_events", false)
+                .unwrap()
+                .iter()
+                .any(|endpoint| endpoint.node_name == "local_parameter_undeclare_test")
+            {
+                break;
+            }
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+        }
+        let observed = Arc::new(Mutex::new(Vec::new()));
+        let observed_by_callback = Arc::clone(&observed);
+        let _callback = node.add_post_set_parameters_callback(move |updates| {
+            observed_by_callback.lock().extend_from_slice(updates);
+        });
 
         assert!(node.has_parameter("dynamic"));
         assert_eq!(node.undeclare_parameter("dynamic").unwrap(), ParameterValue::Integer(1));
+        assert_eq!(
+            events.next().now_or_never().flatten(),
+            Some(("dynamic".into(), ParameterValue::NotSet))
+        );
+        assert!(observed.lock().is_empty());
+        let event = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(event) = ros_events.next().now_or_never().flatten() {
+                break event;
+            }
+        };
+        assert_eq!(event.kind, ParameterEventKind::Deleted);
+        assert_eq!(event.name, "dynamic");
+        assert_eq!(event.value, ParameterValue::NotSet);
         assert!(!node.has_parameter("dynamic"));
         assert!(node.get_parameter_descriptor("dynamic").is_err());
         assert!(node.undeclare_parameter("dynamic").is_err());
