@@ -1158,6 +1158,27 @@ impl Node {
         true
     }
 
+    fn destroy_client_by_identity(&mut self, identity: usize) -> bool {
+        let Some(index) = self.client_identities.remove(&identity) else {
+            return false;
+        };
+        let client = self.clients.swap_remove(index);
+        if let Some(moved) = self.clients.get(index) {
+            self.client_identities
+                .insert(Self::client_identity(moved), index);
+        }
+        self.pending_client_removals.remove(&identity);
+        self.clients_with_active_availability.remove(&identity);
+        self.dropped_clients
+            .lock()
+            .retain(|queued| *queued != identity);
+        self.active_availability_clients
+            .lock()
+            .retain(|queued| *queued != identity);
+        client.lock().destroy(self.node_handle.as_mut());
+        true
+    }
+
     fn rollback_clients(&mut self, client_count: usize) {
         let mut removed_identities = HashSet::new();
         while self.clients.len() > client_count {
@@ -3487,6 +3508,38 @@ impl Node {
         self.client_identities.insert(identity, self.clients.len());
         self.clients.push(client_arc);
         Ok(c)
+    }
+
+    /// Immediately destroys a typed service client owned by this node.
+    ///
+    /// Pending response and availability futures are closed. Passing a client created by another
+    /// node leaves this node unchanged and schedules normal cleanup by the owning node.
+    pub fn destroy_client<T>(&mut self, client: Client<T>)
+    where
+        T: WrappedServiceTypeSupport,
+    {
+        let identity = client
+            .client
+            .upgrade()
+            .map(|client| Self::client_identity(&client));
+        drop(client);
+        if let Some(identity) = identity {
+            self.destroy_client_by_identity(identity);
+        }
+    }
+
+    /// Immediately destroys an untyped service client owned by this node.
+    ///
+    /// Pending response and availability futures are closed before this method returns.
+    pub fn destroy_client_untyped(&mut self, client: ClientUntyped) {
+        let identity = client
+            .client
+            .upgrade()
+            .map(|client| Self::client_identity(&client));
+        drop(client);
+        if let Some(identity) = identity {
+            self.destroy_client_by_identity(identity);
+        }
     }
 
     /// Register a client for wakeup when the service or action server is available to the node.
@@ -10993,6 +11046,69 @@ mod tests {
         node.try_spin_once(Duration::ZERO).unwrap();
         assert_eq!(node.clients[active_index].lock().availability_poll_count(), 2);
         assert_eq!(node.clients[idle_index].lock().availability_poll_count(), 0);
+    }
+
+    #[test]
+    fn explicit_client_destruction_is_immediate_and_completes_waiters() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context.clone(), "destroy_client_test", "").unwrap();
+        let mut other = Node::create(context, "destroy_client_other", "").unwrap();
+        let first_name = format!("/destroy_client_first_{}", uuid::Uuid::new_v4().simple());
+        let removed_name = format!("/destroy_client_removed_{}", uuid::Uuid::new_v4().simple());
+        let last_name = format!("/destroy_client_last_{}", uuid::Uuid::new_v4().simple());
+        let first = node
+            .create_client::<AddTwoInts::Service>(&first_name, QosProfile::default())
+            .unwrap();
+        let removed = node
+            .create_client::<AddTwoInts::Service>(&removed_name, QosProfile::default())
+            .unwrap();
+        let last = node
+            .create_client_untyped(
+                &last_name,
+                "example_interfaces/srv/AddTwoInts",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let removed_state = removed.client.upgrade().unwrap();
+        let removed_identity = Node::client_identity(&removed_state);
+        drop(removed_state);
+        let response = removed
+            .request(&AddTwoInts::Request { a: 20, b: 22 })
+            .unwrap();
+        let availability = Node::is_available(&removed).unwrap();
+
+        node.destroy_client(removed);
+
+        assert_eq!(node.clients.len(), 2);
+        assert_eq!(node.client_identities.len(), 2);
+        assert!(!node.client_identities.contains_key(&removed_identity));
+        assert!(!node.pending_client_removals.contains(&removed_identity));
+        assert!(!node
+            .clients_with_active_availability
+            .contains(&removed_identity));
+        assert!(node.dropped_clients.lock().is_empty());
+        assert!(node.active_availability_clients.lock().is_empty());
+        assert!(matches!(response.now_or_never(), Some(Err(Error::RCL_RET_CLIENT_INVALID))));
+        assert!(matches!(availability.now_or_never(), Some(Err(Error::RCL_RET_CLIENT_INVALID))));
+        assert_eq!(first.service_name().unwrap(), first_name);
+        assert_eq!(last.service_name().unwrap(), last_name);
+
+        let foreign_name = format!("/destroy_client_foreign_{}", uuid::Uuid::new_v4().simple());
+        let foreign = node
+            .create_client_untyped(
+                &foreign_name,
+                "example_interfaces/srv/AddTwoInts",
+                QosProfile::default(),
+            )
+            .unwrap();
+        other.destroy_client_untyped(foreign);
+        assert_eq!(node.clients.len(), 3);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(node.clients.len(), 2);
+        assert_eq!(first.service_name().unwrap(), first_name);
+        assert_eq!(last.service_name().unwrap(), last_name);
     }
 
     #[test]

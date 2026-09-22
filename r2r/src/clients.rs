@@ -256,7 +256,7 @@ where
 /// This is a handle to a service client wrapped in a `Mutex` inside a
 /// `Weak` `Arc`. As such you can pass it between threads safely.
 pub struct ClientUntyped {
-    client: Weak<Mutex<UntypedClient_>>,
+    pub(crate) client: Weak<Mutex<UntypedClient_>>,
     lifecycle: Arc<ClientHandleLifecycle>,
 }
 
