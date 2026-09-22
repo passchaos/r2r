@@ -6,7 +6,7 @@ use futures::{
 };
 use parking_lot::Mutex;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     ffi::{CStr, CString},
     future::Future,
     marker::PhantomData,
@@ -695,6 +695,23 @@ fn poll_cancel_decisions(
     }
 }
 
+fn poll_bounded_queue<T, R>(
+    queue: &mut VecDeque<T>, mut poll: impl FnMut(&mut T) -> Option<R>,
+) -> Vec<(T, R)> {
+    let mut ready = Vec::new();
+    for _ in 0..queue.len().min(MAX_ACTION_SERVER_REQUESTS_PER_SPIN) {
+        let mut item = queue
+            .pop_front()
+            .expect("bounded queue length was captured before polling");
+        if let Some(result) = poll(&mut item) {
+            ready.push((item, result));
+        } else {
+            queue.push_back(item);
+        }
+    }
+    ready
+}
+
 pub(crate) struct PendingCancelDelivery {
     uuid: uuid::Uuid,
     request: ActionServerCancelRequest,
@@ -814,7 +831,7 @@ where
     pub cancel_senders:
         HashMap<uuid::Uuid, Arc<Mutex<Option<mpsc::Sender<ActionServerCancelRequest>>>>>,
     pub(crate) pending_cancel_request: Option<PendingCancelRequest>,
-    pub active_cancel_requests: Vec<ActiveCancelRequest>,
+    pub active_cancel_requests: VecDeque<ActiveCancelRequest>,
     pub(crate) goals: HashMap<uuid::Uuid, OwnedGoalHandle>,
     pub result_msgs: HashMap<uuid::Uuid, Box<dyn VoidPtr>>,
     pub result_requests: HashMap<uuid::Uuid, Vec<rmw_request_id_t>>,
@@ -862,7 +879,7 @@ where
             .deliveries
             .retain(|delivery| self.cancel_senders.contains_key(&delivery.uuid));
         if pending.deliveries.is_empty() {
-            self.active_cancel_requests.push((
+            self.active_cancel_requests.push_back((
                 pending.request_id,
                 pending.response,
                 join_all(pending.decisions),
@@ -1047,39 +1064,33 @@ where
         let mut canceled = vec![];
         let mut responses = vec![];
         let mut first_error = None;
-        self.active_cancel_requests
-            .retain_mut(|(request_id, msg, fut)| {
-                if let Some(results) = poll_cancel_decisions(fut) {
-                    let mut response_msg = msg.clone();
-                    let requested_cancels = response_msg.goals_canceling.len();
-                    let decisions = results.into_iter().filter_map(|result| match result {
-                        Ok(decision) => Some(decision),
-                        Err(oneshot::Canceled) => {
-                            log::error!("Warning, cancel request not handled!");
-                            None
-                        }
-                    });
-                    match retain_accepted_cancellations(&mut response_msg, decisions) {
-                        Ok(accepted) => canceled.extend(accepted),
-                        Err(err) => {
-                            first_error.get_or_insert(err);
-                            return false;
-                        }
-                    }
-
-                    // check if all cancels were rejected.
-                    if requested_cancels >= 1 && response_msg.goals_canceling.is_empty() {
-                        response_msg.return_code =
-                            action_msgs::srv::CancelGoal::Response::ERROR_REJECTED as i8;
-                    }
-
-                    responses.push((*request_id, response_msg));
-
-                    false
-                } else {
-                    true
+        let completed = poll_bounded_queue(&mut self.active_cancel_requests, |(_, _, future)| {
+            poll_cancel_decisions(future)
+        });
+        for ((request_id, mut response, _), results) in completed {
+            let requested_cancels = response.goals_canceling.len();
+            let decisions = results.into_iter().filter_map(|result| match result {
+                Ok(decision) => Some(decision),
+                Err(oneshot::Canceled) => {
+                    log::error!("Warning, cancel request not handled!");
+                    None
                 }
             });
+            match retain_accepted_cancellations(&mut response, decisions) {
+                Ok(accepted) => canceled.extend(accepted),
+                Err(err) => {
+                    first_error.get_or_insert(err);
+                    continue;
+                }
+            }
+
+            // check if all cancels were rejected.
+            if requested_cancels >= 1 && response.goals_canceling.is_empty() {
+                response.return_code = action_msgs::srv::CancelGoal::Response::ERROR_REJECTED as i8;
+            }
+
+            responses.push((request_id, response));
+        }
 
         for uuid in &canceled {
             if let Err(err) = self.cancel_goal(uuid) {
@@ -2103,6 +2114,24 @@ mod tests {
         assert!(poll_cancel_decisions(&mut decisions).is_none());
         sender.send((goal, true)).unwrap();
         assert_eq!(poll_cancel_decisions(&mut decisions).unwrap(), vec![Ok((goal, true))]);
+    }
+
+    #[test]
+    fn active_cancel_scans_are_bounded_and_rotate_pending_requests() {
+        let mut queue = (0..20).collect::<VecDeque<_>>();
+        let mut polled = Vec::new();
+
+        let ready = poll_bounded_queue(&mut queue, |item| {
+            polled.push(*item);
+            None::<()>
+        });
+
+        assert!(ready.is_empty());
+        assert_eq!(polled, (0..MAX_ACTION_SERVER_REQUESTS_PER_SPIN).collect::<Vec<_>>());
+        assert_eq!(
+            queue.into_iter().collect::<Vec<_>>(),
+            (16..20).chain(0..16).collect::<Vec<_>>()
+        );
     }
 
     #[test]

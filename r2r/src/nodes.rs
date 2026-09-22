@@ -2623,7 +2623,7 @@ impl Node {
             clock,
             goal_request_sender: Arc::new(Mutex::new(Some(goal_request_sender))),
             pending_cancel_request: None,
-            active_cancel_requests: Vec::new(),
+            active_cancel_requests: Default::default(),
             cancel_senders: HashMap::new(),
             goals: HashMap::new(),
             result_msgs: HashMap::new(),
