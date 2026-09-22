@@ -29,6 +29,8 @@ use r2r_rcl::*;
 
 pub(crate) type ActionServerCompletion = Box<dyn FnOnce() -> Result<()>>;
 
+const MAX_ACTION_SERVER_REQUESTS_PER_SPIN: usize = 16;
+
 fn finish_action_server_operation(
     operation_result: Result<()>, completions: Vec<ActionServerCompletion>,
 ) -> Result<()> {
@@ -51,6 +53,19 @@ pub(crate) fn complete_action_server_operation<S: ?Sized>(
         operation(&mut *server, &mut completions)
     };
     finish_action_server_operation(operation_result, completions)
+}
+
+pub(crate) fn complete_action_server_request_batch<S: ?Sized>(
+    server: &Mutex<S>, mut operation: impl FnMut(&mut S) -> Result<Option<ActionServerCompletion>>,
+) -> Result<()> {
+    for _ in 0..MAX_ACTION_SERVER_REQUESTS_PER_SPIN {
+        let completion = { operation(&mut *server.lock())? };
+        let Some(completion) = completion else {
+            break;
+        };
+        completion()?;
+    }
+    Ok(())
 }
 
 fn request_delivery<T: Send + 'static>(
@@ -2015,6 +2030,29 @@ mod tests {
         assert!(matches!(result, Err(Error::RCL_RET_ERROR)));
         assert!(sender.lock().is_some());
         assert_eq!(receiver.next().now_or_never().flatten(), Some(42));
+    }
+
+    #[test]
+    fn action_server_request_batches_stop_at_idle_and_fairness_limit() {
+        let server = Mutex::new(0usize);
+        complete_action_server_request_batch(&server, |calls| {
+            *calls += 1;
+            if *calls == 3 {
+                Ok(None)
+            } else {
+                Ok(Some(Box::new(|| Ok(()))))
+            }
+        })
+        .unwrap();
+        assert_eq!(*server.lock(), 3);
+
+        *server.lock() = 0;
+        complete_action_server_request_batch(&server, |calls| {
+            *calls += 1;
+            Ok(Some(Box::new(|| Ok(()))))
+        })
+        .unwrap();
+        assert_eq!(*server.lock(), MAX_ACTION_SERVER_REQUESTS_PER_SPIN);
     }
 
     #[test]
