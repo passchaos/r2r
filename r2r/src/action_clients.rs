@@ -27,7 +27,7 @@ use r2r_actions::*;
 use r2r_rcl::*;
 
 pub(crate) struct ActionClientCompletion {
-    notify: Box<dyn FnOnce() -> bool + Send>,
+    notify: Box<dyn FnOnce() -> bool>,
     cleanup_goal_on_failure: Option<uuid::Uuid>,
 }
 
@@ -108,12 +108,19 @@ pub(crate) fn complete_action_feedback_batch<T: ?Sized>(
     Ok(())
 }
 
-pub(crate) fn action_response_completion<T: Send + 'static>(
-    sender: oneshot::Sender<T>, response: T, description: &'static str,
-    cleanup_goal_on_failure: Option<uuid::Uuid>,
-) -> ActionClientCompletion {
+pub(crate) fn action_stateful_response_completion<N, T>(
+    sender: oneshot::Sender<T>, native: N,
+    convert: impl FnOnce(N) -> (T, Vec<ActionClientCompletion>) + 'static,
+    description: &'static str, cleanup_goal_on_failure: Option<uuid::Uuid>,
+) -> ActionClientCompletion
+where
+    N: 'static,
+    T: 'static,
+{
     ActionClientCompletion {
         notify: Box::new(move || {
+            let (response, cleanup) = convert(native);
+            run_detached_action_client_completions(cleanup);
             if sender.send(response).is_err() {
                 log::debug!("could not deliver {description}");
                 false
@@ -749,9 +756,12 @@ pub trait ActionClient_ {
     fn destroy(&mut self, node: &mut rcl_node_t);
     fn has_pending_work(&mut self) -> bool;
     fn forget_goal(&mut self, uuid: &uuid::Uuid) -> Vec<ActionClientCompletion>;
+    fn finish_goal(&mut self, uuid: &uuid::Uuid, status: GoalStatus)
+        -> Vec<ActionClientCompletion>;
 
     fn handle_goal_response(
-        &mut self, completions: &mut Vec<ActionClientCompletion>,
+        &mut self, client: Arc<Mutex<dyn ActionClient_>>,
+        completions: &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult>;
     fn handle_cancel_response(
         &mut self, completions: &mut Vec<ActionClientCompletion>,
@@ -761,7 +771,8 @@ pub trait ActionClient_ {
     ) -> Result<ActionClientTakeResult>;
     fn handle_status_msg(&mut self) -> Result<Vec<ActionClientCompletion>>;
     fn handle_result_response(
-        &mut self, completions: &mut Vec<ActionClientCompletion>,
+        &mut self, client: Arc<Mutex<dyn ActionClient_>>,
+        completions: &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult>;
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>);
@@ -829,10 +840,12 @@ where
 
     fn finish_goal(
         &mut self, uuid: &uuid::Uuid, status: GoalStatus,
-    ) -> Option<ActionClientCompletion> {
+    ) -> Vec<ActionClientCompletion> {
         let feedback = self
             .take_feedback_sender(uuid)
-            .map(|(_, channel)| close_feedback_completion(channel));
+            .map(|(_, channel)| close_feedback_completion(channel))
+            .into_iter()
+            .collect();
         self.result_senders.retain(|(id, _)| id != uuid);
         self.result_requests.retain(|_, id| id != uuid);
         if let Some(tracked_status) = self.goal_status.get_mut(uuid) {
@@ -948,8 +961,15 @@ where
         WrappedActionClient::forget_goal(self, uuid)
     }
 
+    fn finish_goal(
+        &mut self, uuid: &uuid::Uuid, status: GoalStatus,
+    ) -> Vec<ActionClientCompletion> {
+        WrappedActionClient::finish_goal(self, uuid, status)
+    }
+
     fn handle_goal_response(
-        &mut self, completions: &mut Vec<ActionClientCompletion>,
+        &mut self, client: Arc<Mutex<dyn ActionClient_>>,
+        completions: &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg = WrappedNativeMsg::<
@@ -969,14 +989,19 @@ where
                 .goal_response_channels
                 .remove(&request_id.sequence_number)
             {
-                let response = <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response::from_native(&response_msg);
-                let (accept, stamp) = T::destructure_goal_response_msg(response);
-                if !accept {
-                    completions.extend(self.forget_goal(&uuid));
-                }
-                completions.push(action_response_completion(
+                completions.push(action_stateful_response_completion(
                     sender,
-                    (accept, stamp),
+                    response_msg,
+                    move |response_msg| {
+                        let response = <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response::from_native(&response_msg);
+                        let (accept, stamp) = T::destructure_goal_response_msg(response);
+                        let cleanup = if accept {
+                            Vec::new()
+                        } else {
+                            client.lock().forget_goal(&uuid)
+                        };
+                        ((accept, stamp), cleanup)
+                    },
                     "action goal response",
                     Some(uuid),
                 ));
@@ -1102,7 +1127,8 @@ where
     }
 
     fn handle_result_response(
-        &mut self, completions: &mut Vec<ActionClientCompletion>,
+        &mut self, client: Arc<Mutex<dyn ActionClient_>>,
+        completions: &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg = WrappedNativeMsg::<
@@ -1126,13 +1152,16 @@ where
                     .position(|(suuid, _)| suuid == &uuid)
                 {
                     let (_, sender) = self.result_senders.swap_remove(idx);
-                    let response = <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response::from_native(&response_msg);
-                    let (status, result) = T::destructure_result_response_msg(response);
-                    let status = GoalStatus::from_rcl(status);
-                    completions.extend(self.finish_goal(&uuid, status));
-                    completions.push(action_response_completion(
+                    completions.push(action_stateful_response_completion(
                         sender,
-                        (status, result),
+                        response_msg,
+                        move |response_msg| {
+                            let response = <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response::from_native(&response_msg);
+                            let (status, result) = T::destructure_result_response_msg(response);
+                            let status = GoalStatus::from_rcl(status);
+                            let cleanup = client.lock().finish_goal(&uuid, status);
+                            ((status, result), cleanup)
+                        },
                         "action result",
                         None,
                     ));
@@ -1397,6 +1426,11 @@ mod tests {
         woke: AtomicBool,
     }
 
+    struct StatefulResponseWake {
+        client: Arc<Mutex<bool>>,
+        woke: AtomicBool,
+    }
+
     impl ArcWake for LockingWake {
         fn wake_by_ref(arc_self: &Arc<Self>) {
             let _client = arc_self.client.lock();
@@ -1408,6 +1442,13 @@ mod tests {
         fn wake_by_ref(arc_self: &Arc<Self>) {
             let client = arc_self.client.upgrade().unwrap();
             assert!(client.try_lock().is_some());
+            arc_self.woke.store(true, Ordering::SeqCst);
+        }
+    }
+
+    impl ArcWake for StatefulResponseWake {
+        fn wake_by_ref(arc_self: &Arc<Self>) {
+            assert!(*arc_self.client.lock());
             arc_self.woke.store(true, Ordering::SeqCst);
         }
     }
@@ -1427,7 +1468,13 @@ mod tests {
         complete_action_client_operation(
             &client,
             |_, completions| {
-                completions.push(action_response_completion(sender, (), "test response", None));
+                completions.push(action_stateful_response_completion(
+                    sender,
+                    (),
+                    |response| (response, Vec::new()),
+                    "test response",
+                    None,
+                ));
                 Ok(())
             },
             |_, _| Vec::new(),
@@ -1467,6 +1514,43 @@ mod tests {
     }
 
     #[test]
+    fn stateful_action_responses_commit_before_waking() {
+        let client = Arc::new(Mutex::new(false));
+        let (sender, mut receiver) = oneshot::channel();
+        let wake = Arc::new(StatefulResponseWake {
+            client: Arc::clone(&client),
+            woke: AtomicBool::new(false),
+        });
+        let waker = waker_ref(&wake);
+        let mut context = Context::from_waker(&waker);
+        assert!(matches!(Pin::new(&mut receiver).poll(&mut context), Poll::Pending));
+        let client_for_conversion = Arc::clone(&client);
+
+        complete_action_client_operation(
+            &*client,
+            |_, completions| {
+                completions.push(action_stateful_response_completion(
+                    sender,
+                    41,
+                    move |value| {
+                        assert!(client_for_conversion.try_lock().is_some());
+                        *client_for_conversion.lock() = true;
+                        (value + 1, Vec::new())
+                    },
+                    "test stateful response",
+                    None,
+                ));
+                Ok(())
+            },
+            |_, _| Vec::new(),
+        )
+        .unwrap();
+
+        assert!(wake.woke.load(Ordering::SeqCst));
+        assert!(matches!(Pin::new(&mut receiver).poll(&mut context), Poll::Ready(Ok(42))));
+    }
+
+    #[test]
     fn action_completions_run_after_a_failed_locked_operation() {
         let client = Mutex::new(());
         let (sender, mut receiver) = oneshot::channel();
@@ -1474,7 +1558,13 @@ mod tests {
         let result = complete_action_client_operation(
             &client,
             |_, completions| {
-                completions.push(action_response_completion(sender, 42, "test response", None));
+                completions.push(action_stateful_response_completion(
+                    sender,
+                    42,
+                    |response| (response, Vec::new()),
+                    "test response",
+                    None,
+                ));
                 Err(Error::RCL_RET_ERROR)
             },
             |_, _| Vec::new(),
@@ -1720,9 +1810,10 @@ mod tests {
         complete_action_client_operation(
             &client,
             |_, completions| {
-                completions.push(action_response_completion(
+                completions.push(action_stateful_response_completion(
                     sender,
                     (),
+                    |response| (response, Vec::new()),
                     "test goal response",
                     Some(target),
                 ));

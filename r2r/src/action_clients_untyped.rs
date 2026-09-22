@@ -520,10 +520,12 @@ impl WrappedActionClientUntyped {
 
     fn finish_goal(
         &mut self, uuid: &uuid::Uuid, status: GoalStatus,
-    ) -> Option<ActionClientCompletion> {
+    ) -> Vec<ActionClientCompletion> {
         let feedback = self
             .take_feedback_sender(uuid)
-            .map(|(_, channel)| close_feedback_completion(channel));
+            .map(|(_, channel)| close_feedback_completion(channel))
+            .into_iter()
+            .collect();
         self.result_senders.retain(|(id, _)| id != uuid);
         self.result_requests.retain(|_, id| id != uuid);
         if let Some(tracked_status) = self.goal_status.get_mut(uuid) {
@@ -633,8 +635,15 @@ impl ActionClient_ for WrappedActionClientUntyped {
         WrappedActionClientUntyped::forget_goal(self, uuid)
     }
 
+    fn finish_goal(
+        &mut self, uuid: &uuid::Uuid, status: GoalStatus,
+    ) -> Vec<ActionClientCompletion> {
+        WrappedActionClientUntyped::finish_goal(self, uuid, status)
+    }
+
     fn handle_goal_response(
-        &mut self, completions: &mut Vec<ActionClientCompletion>,
+        &mut self, client: Arc<Mutex<dyn ActionClient_>>,
+        completions: &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg = (self.action_type_support.make_goal_response_msg)()?;
@@ -652,14 +661,19 @@ impl ActionClient_ for WrappedActionClientUntyped {
                 .goal_response_channels
                 .remove(&request_id.sequence_number)
             {
-                let (accept, stamp) =
-                    (self.action_type_support.destructure_goal_response_msg)(response_msg);
-                if !accept {
-                    completions.extend(self.forget_goal(&uuid));
-                }
-                completions.push(action_response_completion(
+                let destructure = self.action_type_support.destructure_goal_response_msg;
+                completions.push(action_stateful_response_completion(
                     sender,
-                    (accept, stamp),
+                    response_msg,
+                    move |response_msg| {
+                        let (accept, stamp) = destructure(response_msg);
+                        let cleanup = if accept {
+                            Vec::new()
+                        } else {
+                            client.lock().forget_goal(&uuid)
+                        };
+                        ((accept, stamp), cleanup)
+                    },
                     "untyped action goal response",
                     Some(uuid),
                 ));
@@ -785,7 +799,8 @@ impl ActionClient_ for WrappedActionClientUntyped {
     }
 
     fn handle_result_response(
-        &mut self, completions: &mut Vec<ActionClientCompletion>,
+        &mut self, client: Arc<Mutex<dyn ActionClient_>>,
+        completions: &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg = (self.action_type_support.make_result_response_msg)()?;
@@ -806,13 +821,16 @@ impl ActionClient_ for WrappedActionClientUntyped {
                     .position(|(suuid, _)| suuid == &uuid)
                 {
                     let (_, sender) = self.result_senders.swap_remove(idx);
-                    let (status, result) =
-                        (self.action_type_support.destructure_result_response_msg)(response_msg);
-                    let status = GoalStatus::from_rcl(status);
-                    completions.extend(self.finish_goal(&uuid, status));
-                    completions.push(action_response_completion(
+                    let destructure = self.action_type_support.destructure_result_response_msg;
+                    completions.push(action_stateful_response_completion(
                         sender,
-                        (status, result),
+                        response_msg,
+                        move |response_msg| {
+                            let (status, result) = destructure(response_msg);
+                            let status = GoalStatus::from_rcl(status);
+                            let cleanup = client.lock().finish_goal(&uuid, status);
+                            ((status, result), cleanup)
+                        },
                         "untyped action result",
                         None,
                     ));

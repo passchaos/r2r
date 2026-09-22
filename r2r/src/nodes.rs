@@ -3230,6 +3230,7 @@ impl Node {
                     |client, uuid| client.forget_goal(uuid),
                 )?;
             }
+            let ac_ref = Arc::clone(ac);
             complete_action_client_operation(
                 ac,
                 |ac, completions| {
@@ -3238,7 +3239,7 @@ impl Node {
                     }
                     if is_goal_response_ready {
                         collect_action_client_responses(ac, completions, |ac, completions| {
-                            ac.handle_goal_response(completions)
+                            ac.handle_goal_response(ac_ref.clone(), completions)
                         })?;
                     }
                     if is_cancel_response_ready {
@@ -3248,7 +3249,7 @@ impl Node {
                     }
                     if is_result_response_ready {
                         collect_action_client_responses(ac, completions, |ac, completions| {
-                            ac.handle_result_response(completions)
+                            ac.handle_result_response(ac_ref.clone(), completions)
                         })?;
                     }
                     Ok(())
