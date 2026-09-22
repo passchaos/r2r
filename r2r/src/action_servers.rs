@@ -43,12 +43,16 @@ pub(crate) fn complete_action_server_operation<S: ?Sized>(
 }
 
 fn request_delivery<T: Send + 'static>(
-    sender: Arc<Mutex<mpsc::Sender<T>>>, request: T,
+    sender_slot: Arc<Mutex<Option<mpsc::Sender<T>>>>, mut sender: mpsc::Sender<T>, request: T,
     on_failed: impl FnOnce(T) -> Result<()> + Send + 'static,
 ) -> ActionServerCompletion {
-    Box::new(move || match sender.lock().try_send(request) {
-        Ok(()) => Ok(()),
-        Err(err) => on_failed(err.into_inner()),
+    Box::new(move || {
+        let result = match sender.try_send(request) {
+            Ok(()) => Ok(()),
+            Err(err) => on_failed(err.into_inner()),
+        };
+        *sender_slot.lock() = Some(sender);
+        result
     })
 }
 
@@ -619,7 +623,7 @@ where
 {
     pub rcl_handle: rcl_action_server_t,
     pub clock: Arc<Mutex<Clock>>,
-    pub goal_request_sender: Arc<Mutex<mpsc::Sender<ActionServerGoalRequest<T>>>>,
+    pub goal_request_sender: Arc<Mutex<Option<mpsc::Sender<ActionServerGoalRequest<T>>>>>,
     pub cancel_senders: HashMap<uuid::Uuid, mpsc::Sender<ActionServerCancelRequest>>,
     pub(crate) pending_cancel_request: Option<PendingCancelRequest>,
     pub active_cancel_requests: Vec<ActiveCancelRequest>,
@@ -905,15 +909,18 @@ where
     fn handle_goal_request(
         &mut self, server: Arc<Mutex<dyn ActionServer_>>,
     ) -> Result<Option<ActionServerCompletion>> {
-        let mut goal_request_sender = self.goal_request_sender.lock();
-        let request_stream_closed = goal_request_sender.is_closed();
-        if !request_stream_closed {
-            let mut cx = Context::from_waker(noop_waker_ref());
-            if goal_request_sender.poll_ready(&mut cx) == Poll::Pending {
+        {
+            let mut goal_request_sender = self.goal_request_sender.lock();
+            let Some(goal_request_sender) = goal_request_sender.as_mut() else {
                 return Ok(None);
+            };
+            if !goal_request_sender.is_closed() {
+                let mut cx = Context::from_waker(noop_waker_ref());
+                if goal_request_sender.poll_ready(&mut cx) == Poll::Pending {
+                    return Ok(None);
+                }
             }
         }
-        drop(goal_request_sender);
 
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut request_msg = WrappedNativeMsg::<
@@ -961,8 +968,13 @@ where
             },
         };
 
-        let sender = Arc::clone(&self.goal_request_sender);
-        Ok(Some(request_delivery(sender, gr, move |mut request| {
+        let sender = self
+            .goal_request_sender
+            .lock()
+            .take()
+            .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
+        let sender_slot = Arc::clone(&self.goal_request_sender);
+        Ok(Some(request_delivery(sender_slot, sender, gr, move |mut request| {
             request.response.response_sent = true;
             let server = request
                 .response
@@ -1097,7 +1109,10 @@ where
     }
 
     fn should_remove(&self) -> bool {
-        self.goal_request_sender.lock().is_closed()
+        self.goal_request_sender
+            .lock()
+            .as_ref()
+            .is_some_and(mpsc::Sender::is_closed)
             && self.pending_cancel_request.is_none()
             && self.active_cancel_requests.is_empty()
             && self.cancel_senders.is_empty()
@@ -1862,7 +1877,7 @@ mod tests {
     fn action_server_requests_wake_streams_after_releasing_the_server_lock() {
         let server = Arc::new(Mutex::new(()));
         let (sender, mut receiver) = mpsc::channel(1);
-        let sender = Arc::new(Mutex::new(sender));
+        let sender = Arc::new(Mutex::new(Some(sender)));
         let wake = Arc::new(LockingWake {
             server: Arc::clone(&server),
             woke: AtomicBool::new(false),
@@ -1870,10 +1885,14 @@ mod tests {
         let waker = waker_ref(&wake);
         let mut context = std::task::Context::from_waker(&waker);
         assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Pending));
-        assert!(matches!(sender.lock().poll_ready(&mut context), Poll::Ready(Ok(()))));
+        assert!(matches!(
+            sender.lock().as_mut().unwrap().poll_ready(&mut context),
+            Poll::Ready(Ok(()))
+        ));
 
         complete_action_server_operation(&server, |_| {
-            Ok(Some(request_delivery(Arc::clone(&sender), 42, |_| Ok(()))))
+            let detached = sender.lock().take().unwrap();
+            Ok(Some(request_delivery(Arc::clone(&sender), detached, 42, |_| Ok(()))))
         })
         .unwrap();
 

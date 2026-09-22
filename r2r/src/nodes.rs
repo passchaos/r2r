@@ -2610,7 +2610,7 @@ impl Node {
         let server = WrappedActionServer::<T> {
             rcl_handle: server_handle,
             clock,
-            goal_request_sender: Arc::new(Mutex::new(goal_request_sender)),
+            goal_request_sender: Arc::new(Mutex::new(Some(goal_request_sender))),
             pending_cancel_request: None,
             active_cancel_requests: Vec::new(),
             cancel_senders: HashMap::new(),
