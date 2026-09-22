@@ -715,18 +715,17 @@ pub(crate) trait Subscriber_ {
         match self.publisher_count() {
             Ok(0) => {}
             Ok(_) => {
-                let state = self
-                    .match_state_mut()
-                    .expect("subscriber match state disappeared while polling");
+                let Some(state) = self.match_state_mut() else {
+                    return;
+                };
                 while let Some(sender) = state.waiters.pop() {
                     let _ = sender.send(());
                 }
             }
             Err(_) => {
-                self.match_state_mut()
-                    .expect("subscriber match state disappeared while polling")
-                    .waiters
-                    .clear();
+                if let Some(state) = self.match_state_mut() {
+                    state.waiters.clear();
+                }
             }
         }
     }
@@ -1183,9 +1182,59 @@ pub(crate) fn create_subscription_helper(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::{
+        cell::Cell,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
 
     static RETURNED_LOANS: AtomicUsize = AtomicUsize::new(0);
+
+    struct VanishingMatchSubscriber {
+        handle: rcl_subscription_t,
+        state: SubscriptionMatchState,
+        visible: Cell<bool>,
+        publisher_count: Result<usize>,
+    }
+
+    impl Subscriber_ for VanishingMatchSubscriber {
+        fn handle(&self) -> &rcl_subscription_t {
+            &self.handle
+        }
+
+        fn match_state_mut(&mut self) -> Option<&mut SubscriptionMatchState> {
+            self.visible.get().then_some(&mut self.state)
+        }
+
+        fn publisher_count(&self) -> Result<usize> {
+            self.visible.set(false);
+            self.publisher_count.clone()
+        }
+
+        fn handle_incoming(&mut self) -> Result<bool> {
+            Ok(false)
+        }
+
+        fn destroy(&mut self, _node: &mut rcl_node_t) {}
+    }
+
+    #[test]
+    fn publisher_poll_tolerates_disappearing_match_state() {
+        for publisher_count in [Ok(1), Err(Error::RCL_RET_SUBSCRIPTION_INVALID)] {
+            let mut subscriber = VanishingMatchSubscriber {
+                handle: unsafe { rcl_get_zero_initialized_subscription() },
+                state: SubscriptionMatchState::new(uuid::Uuid::new_v4()),
+                visible: Cell::new(true),
+                publisher_count,
+            };
+            let (sender, _receiver) = oneshot::channel();
+            subscriber.state.waiters.push(sender);
+
+            subscriber.poll_has_publishers();
+
+            assert!(!subscriber.visible.get());
+            assert_eq!(subscriber.state.waiters.len(), 1);
+        }
+    }
 
     unsafe extern "C" fn return_int32_loan(
         _subscription: *const rcl_subscription_t, message: *mut std::os::raw::c_void,
