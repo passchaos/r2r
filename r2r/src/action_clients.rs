@@ -91,6 +91,14 @@ pub(crate) fn action_availability_completion(
     }
 }
 
+pub(crate) fn with_prepared_action_client<C: ?Sized, P, T>(
+    client: &Mutex<C>, prepare: impl FnOnce() -> Result<P>,
+    operation: impl FnOnce(&mut C, P) -> Result<T>,
+) -> Result<T> {
+    let prepared = prepare()?;
+    operation(&mut *client.lock(), prepared)
+}
+
 unsafe impl<T> Send for ActionClient<T> where T: WrappedActionTypeSupport {}
 
 /// Action client
@@ -394,84 +402,91 @@ where
             .client
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
-        let mut client = client.lock();
 
         let uuid = uuid::Uuid::new_v4();
-        let uuid_msg = unique_identifier_msgs::msg::UUID {
-            uuid: uuid.as_bytes().to_vec(),
-        };
-        let request_msg = T::make_goal_request_msg(uuid_msg, goal);
-        let native_msg = WrappedNativeMsg::<
-            <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Request,
-        >::try_from(&request_msg)?;
-        let mut seq_no = 0i64;
-        let result = unsafe {
-            rcl_action_send_goal_request(&client.rcl_handle, native_msg.void_ptr(), &mut seq_no)
-        };
+        let fut_client = Weak::clone(&self.client);
+        with_prepared_action_client(
+            &client,
+            || {
+                let uuid_msg = unique_identifier_msgs::msg::UUID {
+                    uuid: uuid.as_bytes().to_vec(),
+                };
+                let request_msg = T::make_goal_request_msg(uuid_msg, goal);
+                WrappedNativeMsg::try_from(&request_msg)
+            },
+            move |client, native_msg| {
+                let mut seq_no = 0i64;
+                let result = unsafe {
+                    rcl_action_send_goal_request(
+                        &client.rcl_handle,
+                        native_msg.void_ptr(),
+                        &mut seq_no,
+                    )
+                };
 
-        if result == RCL_RET_OK as i32 {
-            let (goal_req_sender, goal_req_receiver) =
-                oneshot::channel::<(bool, builtin_interfaces::msg::Time)>();
-            let feedback = options.track_feedback.then(|| {
-                let (sender, receiver) =
-                    mpsc::channel::<T::Feedback>(client.feedback_channel_capacity);
-                client.feedback_senders.push((uuid, sender));
-                ActionFeedbackStream { receiver }
-            });
-            let result = options.track_result.then(|| {
-                let (sender, receiver) = oneshot::channel::<(GoalStatus, T::Result)>();
-                client.result_senders.push((uuid, sender));
-                ActionResultFuture { receiver }
-            });
-            client
-                .goal_response_channels
-                .push((seq_no, uuid, goal_req_sender));
-            client.goal_status.insert(uuid, GoalStatus::Unknown);
-            let fut_client = Weak::clone(&self.client);
-            let mut pending_registration = PendingGoalRegistration {
-                client: fut_client.clone(),
-                uuid,
-                armed: true,
-            };
-            let future = async move {
-                match goal_req_receiver.await {
-                    Ok((accepted, stamp)) => {
-                        if accepted {
-                            if options.track_result {
-                                let c = fut_client
-                                    .upgrade()
-                                    .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
-                                let mut c = c.lock();
-                                c.send_result_request(uuid)?;
-                            }
-                            let status_registration = Arc::new(GoalStatusRegistration {
-                                client: fut_client.clone(),
-                                uuid,
-                            });
-                            pending_registration.disarm();
-
-                            Ok(ActionClientGoalResponse {
-                                goal: ActionClientGoal {
-                                    client: fut_client,
-                                    uuid,
-                                    accepted_at: stamp,
-                                    status_registration,
-                                },
-                                result,
-                                feedback,
-                            })
-                        } else {
-                            Err(Error::RCL_RET_ACTION_GOAL_REJECTED)
-                        }
-                    }
-                    Err(_) => Err(Error::RCL_RET_ACTION_CLIENT_INVALID),
+                if result != RCL_RET_OK as i32 {
+                    log::error!("could not send goal request {}", result);
+                    return Err(Error::from_rcl_error(result));
                 }
-            };
-            Ok(future)
-        } else {
-            log::error!("could not send goal request {}", result);
-            Err(Error::from_rcl_error(result))
-        }
+
+                let (goal_req_sender, goal_req_receiver) =
+                    oneshot::channel::<(bool, builtin_interfaces::msg::Time)>();
+                let feedback = options.track_feedback.then(|| {
+                    let (sender, receiver) =
+                        mpsc::channel::<T::Feedback>(client.feedback_channel_capacity);
+                    client.feedback_senders.push((uuid, sender));
+                    ActionFeedbackStream { receiver }
+                });
+                let result = options.track_result.then(|| {
+                    let (sender, receiver) = oneshot::channel::<(GoalStatus, T::Result)>();
+                    client.result_senders.push((uuid, sender));
+                    ActionResultFuture { receiver }
+                });
+                client
+                    .goal_response_channels
+                    .push((seq_no, uuid, goal_req_sender));
+                client.goal_status.insert(uuid, GoalStatus::Unknown);
+                let mut pending_registration = PendingGoalRegistration {
+                    client: fut_client.clone(),
+                    uuid,
+                    armed: true,
+                };
+                Ok(async move {
+                    match goal_req_receiver.await {
+                        Ok((accepted, stamp)) => {
+                            if accepted {
+                                if options.track_result {
+                                    let c = fut_client
+                                        .upgrade()
+                                        .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+                                    let mut c = c.lock();
+                                    c.send_result_request(uuid)?;
+                                }
+                                let status_registration = Arc::new(GoalStatusRegistration {
+                                    client: fut_client.clone(),
+                                    uuid,
+                                });
+                                pending_registration.disarm();
+
+                                Ok(ActionClientGoalResponse {
+                                    goal: ActionClientGoal {
+                                        client: fut_client,
+                                        uuid,
+                                        accepted_at: stamp,
+                                        status_registration,
+                                    },
+                                    result,
+                                    feedback,
+                                })
+                            } else {
+                                Err(Error::RCL_RET_ACTION_GOAL_REJECTED)
+                            }
+                        }
+                        Err(_) => Err(Error::RCL_RET_ACTION_CLIENT_INVALID),
+                    }
+                })
+            },
+        )
     }
 
     /// Make a new goal request and wait up to `timeout` for acceptance.
@@ -1231,6 +1246,23 @@ mod tests {
         assert!(client.result_requests.is_empty());
         assert!(client.result_senders.is_empty());
         assert!(!client.goal_status.contains_key(&target));
+    }
+
+    #[test]
+    fn action_payloads_are_prepared_before_locking_the_native_handle() {
+        let client = Mutex::new(());
+
+        let prepared = with_prepared_action_client(
+            &client,
+            || {
+                assert!(client.try_lock().is_some());
+                Ok(41)
+            },
+            |_client, value| Ok(value + 1),
+        )
+        .unwrap();
+
+        assert_eq!(prepared, 42);
     }
 
     #[test]
