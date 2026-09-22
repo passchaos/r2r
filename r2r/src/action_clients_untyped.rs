@@ -477,6 +477,10 @@ impl ActionClientUntyped {
         let client = client.lock();
         action_client_name(client.handle())
     }
+
+    pub(crate) fn identity(&self) -> usize {
+        self.lifecycle.identity
+    }
 }
 
 type GoalResponseSender = (uuid::Uuid, oneshot::Sender<(bool, builtin_interfaces::msg::Time)>);

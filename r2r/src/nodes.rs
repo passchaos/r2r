@@ -1225,6 +1225,34 @@ impl Node {
         Ok(true)
     }
 
+    fn destroy_action_client_by_identity(&mut self, identity: usize) -> Result<bool> {
+        let Some(index) = self.action_client_identities.get(&identity).copied() else {
+            return Ok(false);
+        };
+        let capacities = {
+            let client = self.action_clients[index].lock();
+            action_client_wait_set_capacities(client.handle())?
+        };
+        let client = self.action_clients.swap_remove(index);
+        self.action_client_identities.remove(&identity);
+        if let Some(moved) = self.action_clients.get(index) {
+            self.action_client_identities
+                .insert(Self::action_client_identity(moved), index);
+        }
+        self.pending_action_client_removals.remove(&identity);
+        self.action_clients_with_active_availability
+            .remove(&identity);
+        self.dropped_action_clients
+            .lock()
+            .retain(|queued| *queued != identity);
+        self.active_availability_action_clients
+            .lock()
+            .retain(|queued| *queued != identity);
+        client.lock().destroy(self.node_handle.as_mut());
+        self.action_wait_set_capacities.subtract(capacities);
+        Ok(true)
+    }
+
     fn add_action_server(
         &mut self, id: uuid::Uuid, server: Arc<Mutex<dyn ActionServer_>>,
         capacities: WaitSetCapacities,
@@ -3712,6 +3740,31 @@ impl Node {
             Arc::clone(&self.active_availability_action_clients),
         );
         Ok(c)
+    }
+
+    /// Immediately destroys a typed action client owned by this node.
+    ///
+    /// Pending goal, result, cancel, feedback, and availability operations are closed. Passing a
+    /// client created by another node leaves this node unchanged and schedules normal cleanup by
+    /// the owning node.
+    pub fn destroy_action_client<T>(&mut self, client: ActionClient<T>) -> Result<()>
+    where
+        T: 'static + WrappedActionTypeSupport,
+    {
+        let identity = client.identity();
+        drop(client);
+        self.destroy_action_client_by_identity(identity)?;
+        Ok(())
+    }
+
+    /// Immediately destroys an untyped action client owned by this node.
+    ///
+    /// Pending operations are closed before this method returns.
+    pub fn destroy_action_client_untyped(&mut self, client: ActionClientUntyped) -> Result<()> {
+        let identity = client.identity();
+        drop(client);
+        self.destroy_action_client_by_identity(identity)?;
+        Ok(())
     }
 
     /// Create a ROS action server.
@@ -12168,6 +12221,75 @@ mod tests {
         assert!(!first.is_available(&node).unwrap());
         assert!(!last.is_available(&node).unwrap());
         assert!(matches!(last.is_available(&other), Err(Error::RCL_RET_INVALID_ARGUMENT)));
+    }
+
+    #[test]
+    fn explicit_action_client_destruction_is_immediate_and_updates_capacity() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context.clone(), "destroy_action_client_test", "").unwrap();
+        let mut other = Node::create(context, "destroy_action_client_other", "").unwrap();
+        let first = node
+            .create_action_client::<Fibonacci::Action>("/destroy_action_client_first")
+            .unwrap();
+        let removed = node
+            .create_action_client::<Fibonacci::Action>("/destroy_action_client_removed")
+            .unwrap();
+        let last = node
+            .create_action_client_untyped(
+                "/destroy_action_client_last",
+                "example_interfaces/action/Fibonacci",
+            )
+            .unwrap();
+        let removed_identity = removed.identity();
+        let removed_index = node.action_client_identities[&removed_identity];
+        let removed_capacities =
+            action_client_wait_set_capacities(node.action_clients[removed_index].lock().handle())
+                .unwrap();
+        let expected_capacities = {
+            let mut capacities = node.action_wait_set_capacities;
+            capacities.subtract(removed_capacities);
+            capacities
+        };
+        let goal = removed
+            .send_goal_request(Fibonacci::Goal { order: 1 })
+            .unwrap();
+        let availability = Node::is_available(&removed).unwrap();
+
+        node.destroy_action_client(removed).unwrap();
+
+        assert_eq!(node.action_clients.len(), 2);
+        assert_eq!(node.action_client_identities.len(), 2);
+        assert!(!node
+            .action_client_identities
+            .contains_key(&removed_identity));
+        assert!(!node
+            .pending_action_client_removals
+            .contains(&removed_identity));
+        assert!(!node
+            .action_clients_with_active_availability
+            .contains(&removed_identity));
+        assert!(node.dropped_action_clients.lock().is_empty());
+        assert!(node.active_availability_action_clients.lock().is_empty());
+        assert_eq!(node.action_wait_set_capacities, expected_capacities);
+        assert!(matches!(goal.now_or_never(), Some(Err(Error::RCL_RET_ACTION_CLIENT_INVALID))));
+        assert!(matches!(availability.now_or_never(), Some(Err(Error::RCL_RET_CLIENT_INVALID))));
+        assert_eq!(first.action_name().unwrap(), "/destroy_action_client_first");
+        assert_eq!(last.action_name().unwrap(), "/destroy_action_client_last");
+
+        let foreign = node
+            .create_action_client_untyped(
+                "/destroy_action_client_foreign",
+                "example_interfaces/action/Fibonacci",
+            )
+            .unwrap();
+        other.destroy_action_client_untyped(foreign).unwrap();
+        assert_eq!(node.action_clients.len(), 3);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(node.action_clients.len(), 2);
+        assert_eq!(first.action_name().unwrap(), "/destroy_action_client_first");
+        assert_eq!(last.action_name().unwrap(), "/destroy_action_client_last");
     }
 
     #[test]
