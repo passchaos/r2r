@@ -558,7 +558,9 @@ pub struct Node {
     canceled_timers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
     // and the publishers, whom we allow to be shared.. hmm.
     pub(crate) pubs: Vec<Arc<Publisher_>>,
-    publisher_indexes: HashMap<usize, usize>,
+    publisher_indexes: HashMap<uuid::Uuid, usize>,
+    dropped_publishers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    pending_publisher_removals: HashSet<uuid::Uuid>,
     // RosTime clock used by all timers created by create_timer()
     ros_clock: Arc<Mutex<Clock>>,
     // time source that provides simulated time
@@ -782,8 +784,8 @@ impl Node {
         Some(removed)
     }
 
-    fn publisher_identity(publisher: &Arc<Publisher_>) -> usize {
-        Arc::as_ptr(publisher) as usize
+    fn publisher_identity(publisher: &Arc<Publisher_>) -> uuid::Uuid {
+        publisher.id
     }
 
     fn add_publisher(&mut self, publisher: Arc<Publisher_>) {
@@ -805,16 +807,22 @@ impl Node {
         Some(removed)
     }
 
-    fn rebuild_publisher_indexes(
-        publishers: &[Arc<Publisher_>], indexes: &mut HashMap<usize, usize>,
-    ) {
-        indexes.clear();
-        indexes.reserve(publishers.len());
-        for (index, publisher) in publishers.iter().enumerate() {
-            debug_assert!(indexes
-                .insert(Self::publisher_identity(publisher), index)
-                .is_none());
+    fn remove_dropped_publisher(&mut self, identity: uuid::Uuid) -> bool {
+        let Some(index) = self.publisher_indexes.get(&identity).copied() else {
+            return true;
+        };
+        if self.pubs[index].has_pending_waits() {
+            return false;
         }
+        let removed = self.pubs.swap_remove(index);
+        debug_assert_eq!(Self::publisher_identity(&removed), identity);
+        self.publisher_indexes.remove(&identity);
+        if let Some(moved) = self.pubs.get(index) {
+            self.publisher_indexes
+                .insert(Self::publisher_identity(moved), index);
+        }
+        removed.destroy(self.node_handle.as_mut());
+        true
     }
 
     fn client_identity<T: ?Sized>(client: &Arc<Mutex<T>>) -> usize {
@@ -1144,6 +1152,8 @@ impl Node {
                 canceled_timers: Arc::new(Mutex::new(VecDeque::new())),
                 pubs: Vec::new(),
                 publisher_indexes: HashMap::new(),
+                dropped_publishers: Arc::new(Mutex::new(VecDeque::new())),
+                pending_publisher_removals: HashSet::new(),
                 ros_clock,
                 #[cfg(r2r__rosgraph_msgs__msg__Clock)]
                 time_source,
@@ -3159,7 +3169,9 @@ impl Node {
             options,
         )?;
         let arc = Arc::new(publisher_handle);
-        let p = make_publisher(Arc::downgrade(&arc));
+        let identity = Self::publisher_identity(&arc);
+        let p =
+            make_publisher(Arc::downgrade(&arc), identity, Arc::clone(&self.dropped_publishers));
         self.add_publisher(arc);
         Ok(p)
     }
@@ -3192,7 +3204,13 @@ impl Node {
             options,
         )?;
         let arc = Arc::new(publisher_handle);
-        let p = make_publisher_untyped(Arc::downgrade(&arc), topic_type.to_owned());
+        let identity = Self::publisher_identity(&arc);
+        let p = make_publisher_untyped(
+            Arc::downgrade(&arc),
+            identity,
+            Arc::clone(&self.dropped_publishers),
+            topic_type.to_owned(),
+        );
         self.add_publisher(arc);
         Ok(p)
     }
@@ -3323,21 +3341,15 @@ impl Node {
             }
         }
 
-        // A publisher handle is represented by a Weak reference, while the node owns the native
-        // publisher. Release the native resource after the final public handle and any matching
-        // waiter have both gone away.
-        let node_handle = self.node_handle.as_mut();
-        let previous_publisher_count = self.pubs.len();
-        self.pubs.retain(|publisher| {
-            if Arc::weak_count(publisher) == 0 && !publisher.has_pending_waits() {
-                publisher.destroy(node_handle);
-                false
-            } else {
-                true
+        {
+            let mut dropped = self.dropped_publishers.lock();
+            self.pending_publisher_removals.extend(dropped.drain(..));
+        }
+        let pending_publisher_removals = std::mem::take(&mut self.pending_publisher_removals);
+        for identity in pending_publisher_removals {
+            if !self.remove_dropped_publisher(identity) {
+                self.pending_publisher_removals.insert(identity);
             }
-        });
-        if self.pubs.len() != previous_publisher_count {
-            Self::rebuild_publisher_indexes(&self.pubs, &mut self.publisher_indexes);
         }
 
         // Do not wait for a long-period timer to become ready before noticing that its public
@@ -10436,13 +10448,16 @@ mod tests {
         let wait = publisher.wait_for_subscribers().unwrap();
 
         drop(publisher);
+        assert_eq!(node.dropped_publishers.lock().len(), 1);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert_eq!(node.pubs.len(), 1);
+        assert_eq!(node.pending_publisher_removals.len(), 1);
 
         drop(wait);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.pubs.is_empty());
         assert!(node.publisher_indexes.is_empty());
+        assert!(node.pending_publisher_removals.is_empty());
 
         let subscription = node
             .subscribe::<crate::std_msgs::msg::String>(topic, QosProfile::default())

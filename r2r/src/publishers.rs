@@ -3,6 +3,7 @@ use parking_lot::{ArcMutexGuard, Mutex, RawMutex};
 #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
 use std::time::Duration;
 use std::{
+    collections::VecDeque,
     ffi::{CStr, CString},
     fmt::Debug,
     marker::PhantomData,
@@ -178,6 +179,7 @@ mod option_tests {
 unsafe impl<T> Send for Publisher<T> where T: WrappedTypesupport {}
 
 pub(crate) struct Publisher_ {
+    pub(crate) id: uuid::Uuid,
     handle: Arc<Mutex<PublisherHandle>>,
 
     poll_subscriber_channels: Mutex<Waiters<()>>,
@@ -276,8 +278,46 @@ mod waiter_tests {
     }
 
     #[test]
+    fn final_publisher_handle_drop_queues_its_identity_once() {
+        let dropped_publishers = Arc::new(Mutex::new(VecDeque::new()));
+        let publisher = Arc::new(Publisher_ {
+            id: uuid::Uuid::from_u128(1),
+            handle: Arc::new(Mutex::new(PublisherHandle {
+                publisher: Some(unsafe { rcl_get_zero_initialized_publisher() }),
+                offered_incompatible_qos: None,
+                offered_deadline_missed: None,
+                liveliness_lost: None,
+            })),
+            poll_subscriber_channels: Mutex::new(Waiters::default()),
+            #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+            poll_ack_channels: Mutex::new(Waiters::default()),
+        });
+        let identity = publisher.id;
+        let handle = make_publisher::<crate::std_msgs::msg::String>(
+            Arc::downgrade(&publisher),
+            identity,
+            Arc::clone(&dropped_publishers),
+        );
+        let clone = handle.clone();
+
+        drop(handle);
+        assert!(dropped_publishers.lock().is_empty());
+        drop(clone);
+
+        assert_eq!(
+            dropped_publishers
+                .lock()
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            [identity]
+        );
+    }
+
+    #[test]
     fn publisher_payloads_are_prepared_before_locking_the_native_handle() {
         let publisher = Publisher_ {
+            id: uuid::Uuid::nil(),
             handle: Arc::new(Mutex::new(PublisherHandle {
                 publisher: Some(unsafe { rcl_get_zero_initialized_publisher() }),
                 offered_incompatible_qos: None,
@@ -608,13 +648,39 @@ impl Publisher_ {
 ///
 /// This contains a `Weak Arc` to a typed publisher. As such it is safe to
 /// move between threads.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Publisher<T>
 where
     T: WrappedTypesupport,
 {
     pub(crate) handle: Weak<Publisher_>,
+    lifecycle: Arc<PublisherHandleLifecycle>,
     type_: PhantomData<T>,
+}
+
+#[derive(Debug)]
+pub(crate) struct PublisherHandleLifecycle {
+    id: uuid::Uuid,
+    dropped_publishers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+}
+
+impl Drop for PublisherHandleLifecycle {
+    fn drop(&mut self) {
+        self.dropped_publishers.lock().push_back(self.id);
+    }
+}
+
+impl<T> Clone for Publisher<T>
+where
+    T: WrappedTypesupport,
+{
+    fn clone(&self) -> Self {
+        Self {
+            handle: self.handle.clone(),
+            lifecycle: Arc::clone(&self.lifecycle),
+            type_: PhantomData,
+        }
+    }
 }
 
 /// A message buffer loaned by the middleware for zero-copy publishing.
@@ -697,24 +763,51 @@ unsafe impl Send for PublisherUntyped {}
 ///
 /// This contains a `Weak Arc` to an "untyped" publisher. As such it is safe to
 /// move between threads.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PublisherUntyped {
     pub(crate) handle: Weak<Publisher_>,
+    lifecycle: Arc<PublisherHandleLifecycle>,
     type_: String,
 }
 
-pub fn make_publisher<T>(handle: Weak<Publisher_>) -> Publisher<T>
+impl Clone for PublisherUntyped {
+    fn clone(&self) -> Self {
+        Self {
+            handle: self.handle.clone(),
+            lifecycle: Arc::clone(&self.lifecycle),
+            type_: self.type_.clone(),
+        }
+    }
+}
+
+pub(crate) fn make_publisher<T>(
+    handle: Weak<Publisher_>, id: uuid::Uuid, dropped_publishers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+) -> Publisher<T>
 where
     T: WrappedTypesupport,
 {
     Publisher {
         handle,
+        lifecycle: Arc::new(PublisherHandleLifecycle {
+            id,
+            dropped_publishers,
+        }),
         type_: PhantomData,
     }
 }
 
-pub fn make_publisher_untyped(handle: Weak<Publisher_>, type_: String) -> PublisherUntyped {
-    PublisherUntyped { handle, type_ }
+pub(crate) fn make_publisher_untyped(
+    handle: Weak<Publisher_>, id: uuid::Uuid, dropped_publishers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    type_: String,
+) -> PublisherUntyped {
+    PublisherUntyped {
+        handle,
+        lifecycle: Arc::new(PublisherHandleLifecycle {
+            id,
+            dropped_publishers,
+        }),
+        type_,
+    }
 }
 
 pub fn create_publisher_helper(
@@ -740,6 +833,7 @@ pub fn create_publisher_helper(
     };
     if result == RCL_RET_OK as i32 {
         Ok(Publisher_ {
+            id: uuid::Uuid::new_v4(),
             handle: Arc::new(Mutex::new(PublisherHandle {
                 publisher: Some(publisher_handle),
                 offered_incompatible_qos: None,
