@@ -741,6 +741,35 @@ struct DetachedCancelDelivery {
     delivery: PendingCancelDelivery,
 }
 
+fn take_cancel_deliveries(
+    deliveries: &mut VecDeque<PendingCancelDelivery>,
+    cancel_senders: &HashMap<
+        uuid::Uuid,
+        Arc<Mutex<Option<mpsc::Sender<ActionServerCancelRequest>>>>,
+    >,
+) -> Vec<DetachedCancelDelivery> {
+    let scan_count = deliveries.len().min(MAX_ACTION_SERVER_REQUESTS_PER_SPIN);
+    let mut detached = Vec::with_capacity(scan_count);
+    for _ in 0..scan_count {
+        let delivery = deliveries
+            .pop_front()
+            .expect("bounded cancel delivery count was captured before scanning");
+        let Some(sender_slot) = cancel_senders.get(&delivery.uuid).cloned() else {
+            continue;
+        };
+        let Some(sender) = sender_slot.lock().take() else {
+            deliveries.push_back(delivery);
+            continue;
+        };
+        detached.push(DetachedCancelDelivery {
+            sender_slot,
+            sender,
+            delivery,
+        });
+    }
+    detached
+}
+
 fn cancel_request_delivery(
     detached: Vec<DetachedCancelDelivery>, mut pending: PendingCancelRequest,
     finish: impl FnOnce(PendingCancelRequest) -> Result<()> + 'static,
@@ -755,7 +784,7 @@ fn cancel_request_delivery(
             let uuid = delivery.uuid;
             match sender.try_send(delivery.request) {
                 Ok(()) => {}
-                Err(err) if err.is_full() => pending.deliveries.push(PendingCancelDelivery {
+                Err(err) if err.is_full() => pending.deliveries.push_back(PendingCancelDelivery {
                     uuid,
                     request: err.into_inner(),
                 }),
@@ -791,7 +820,7 @@ where
 pub(crate) struct PendingCancelRequest {
     request_id: rmw_request_id_t,
     response: action_msgs::srv::CancelGoal::Response,
-    deliveries: Vec<PendingCancelDelivery>,
+    deliveries: VecDeque<PendingCancelDelivery>,
     decisions: Vec<oneshot::Receiver<(uuid::Uuid, bool)>>,
 }
 
@@ -911,22 +940,7 @@ where
         &mut self, server: Arc<Mutex<dyn ActionServer_>>,
     ) -> Option<ActionServerCompletion> {
         let mut pending = self.pending_cancel_request.take()?;
-        let mut detached = Vec::new();
-        let deliveries = std::mem::take(&mut pending.deliveries);
-        for delivery in deliveries {
-            let Some(sender_slot) = self.cancel_senders.get(&delivery.uuid).cloned() else {
-                continue;
-            };
-            let Some(sender) = sender_slot.lock().take() else {
-                pending.deliveries.push(delivery);
-                continue;
-            };
-            detached.push(DetachedCancelDelivery {
-                sender_slot,
-                sender,
-                delivery,
-            });
-        }
+        let detached = take_cancel_deliveries(&mut pending.deliveries, &self.cancel_senders);
 
         if detached.is_empty() {
             self.finish_cancel_delivery(pending);
@@ -1322,7 +1336,7 @@ where
                         ))
                     })
                     .collect::<Result<Vec<_>>>()?;
-                let (deliveries, decisions): (Vec<_>, Vec<_>) =
+                let (deliveries, decisions): (VecDeque<_>, Vec<_>) =
                     deliveries_and_decisions.into_iter().unzip();
                 Ok(PendingCancelRequest {
                     request_id,
@@ -2161,6 +2175,80 @@ mod tests {
     }
 
     #[test]
+    fn pending_cancel_delivery_scans_are_bounded() {
+        let mut deliveries = VecDeque::new();
+        let mut cancel_senders = HashMap::new();
+        let mut receivers = Vec::new();
+        for value in 0..20_u128 {
+            let uuid = uuid::Uuid::from_u128(value + 1);
+            let (response_sender, _response_receiver) = oneshot::channel();
+            deliveries.push_back(PendingCancelDelivery {
+                uuid,
+                request: ActionServerCancelRequest {
+                    uuid,
+                    response_sender,
+                },
+            });
+            let (sender, receiver) = mpsc::channel(1);
+            cancel_senders.insert(uuid, Arc::new(Mutex::new(Some(sender))));
+            receivers.push(receiver);
+        }
+
+        let detached = take_cancel_deliveries(&mut deliveries, &cancel_senders);
+
+        assert_eq!(detached.len(), MAX_ACTION_SERVER_REQUESTS_PER_SPIN);
+        assert_eq!(
+            detached
+                .iter()
+                .map(|delivery| delivery.delivery.uuid.as_u128())
+                .collect::<Vec<_>>(),
+            (1..=16).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            deliveries
+                .iter()
+                .map(|delivery| delivery.uuid.as_u128())
+                .collect::<Vec<_>>(),
+            (17..=20).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn blocked_cancel_delivery_rotates_behind_unscanned_goals() {
+        let blocked_uuid = uuid::Uuid::from_u128(1);
+        let mut deliveries = VecDeque::new();
+        let mut cancel_senders = HashMap::from([(blocked_uuid, Arc::new(Mutex::new(None)))]);
+        let mut receivers = Vec::new();
+        for value in 0..18_u128 {
+            let uuid = uuid::Uuid::from_u128(value + 1);
+            let (response_sender, _response_receiver) = oneshot::channel();
+            deliveries.push_back(PendingCancelDelivery {
+                uuid,
+                request: ActionServerCancelRequest {
+                    uuid,
+                    response_sender,
+                },
+            });
+            if uuid != blocked_uuid {
+                let (sender, receiver) = mpsc::channel(1);
+                cancel_senders.insert(uuid, Arc::new(Mutex::new(Some(sender))));
+                receivers.push(receiver);
+            }
+        }
+
+        let detached = take_cancel_deliveries(&mut deliveries, &cancel_senders);
+
+        assert_eq!(detached.len(), MAX_ACTION_SERVER_REQUESTS_PER_SPIN - 1);
+        assert_eq!(
+            deliveries
+                .iter()
+                .map(|delivery| delivery.uuid.as_u128())
+                .collect::<Vec<_>>(),
+            vec![17, 18, 1]
+        );
+    }
+
+    #[test]
     fn cancel_requests_are_converted_after_releasing_the_server_lock() {
         let server: Arc<Mutex<dyn ActionServer_>> =
             Arc::new(Mutex::new(CompletionTestServer::new(false, false, false, false)));
@@ -2177,7 +2265,7 @@ mod tests {
                     Ok(PendingCancelRequest {
                         request_id: unsafe { std::mem::zeroed() },
                         response: action_msgs::srv::CancelGoal::Response::default(),
-                        deliveries: Vec::new(),
+                        deliveries: VecDeque::new(),
                         decisions: Vec::new(),
                     })
                 },
@@ -2562,7 +2650,7 @@ mod tests {
         let pending = PendingCancelRequest {
             request_id: unsafe { std::mem::zeroed() },
             response: action_msgs::srv::CancelGoal::Response::default(),
-            deliveries: Vec::new(),
+            deliveries: VecDeque::new(),
             decisions: Vec::new(),
         };
 
@@ -2627,13 +2715,13 @@ mod tests {
         let first = PendingCancelRequest {
             request_id: unsafe { std::mem::zeroed() },
             response: action_msgs::srv::CancelGoal::Response::default(),
-            deliveries: vec![PendingCancelDelivery {
+            deliveries: VecDeque::from([PendingCancelDelivery {
                 uuid,
                 request: ActionServerCancelRequest {
                     uuid,
                     response_sender: first_response_sender,
                 },
-            }],
+            }]),
             decisions: Vec::new(),
         };
         let first_sender = sender_slot.lock().take().unwrap();
@@ -2646,7 +2734,7 @@ mod tests {
                 delivery: first.deliveries.into_iter().next().unwrap(),
             }],
             PendingCancelRequest {
-                deliveries: Vec::new(),
+                deliveries: VecDeque::new(),
                 ..first
             },
             move |pending| {
@@ -2661,7 +2749,7 @@ mod tests {
         let second = PendingCancelRequest {
             request_id: unsafe { std::mem::zeroed() },
             response: action_msgs::srv::CancelGoal::Response::default(),
-            deliveries: Vec::new(),
+            deliveries: VecDeque::new(),
             decisions: vec![second_response_receiver],
         };
         let second_delivery = PendingCancelDelivery {
@@ -2693,7 +2781,7 @@ mod tests {
 
         assert_eq!(receiver.next().now_or_never().flatten().unwrap().uuid, uuid);
         let second_sender = sender_slot.lock().take().unwrap();
-        let second_delivery = pending.deliveries.pop().unwrap();
+        let second_delivery = pending.deliveries.pop_back().unwrap();
         let completed = Arc::new(Mutex::new(None));
         let completed_for_delivery = Arc::clone(&completed);
         cancel_request_delivery(
