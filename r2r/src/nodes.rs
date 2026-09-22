@@ -974,6 +974,49 @@ impl Node {
         true
     }
 
+    fn rollback_parameter_handler_endpoints(
+        &mut self, service_count: usize, publisher_count: usize,
+        #[cfg(r2r__rosgraph_msgs__msg__Clock)] subscriber_count: usize,
+    ) {
+        let mut removed_service_ids = HashSet::new();
+        while self.services.len() > service_count {
+            let service = self.services.pop().expect("service count checked");
+            let mut service = service.lock();
+            if let Some(id) = service.id() {
+                self.service_indexes.remove(&id);
+                removed_service_ids.insert(id);
+            }
+            service.destroy(self.node_handle.as_mut());
+        }
+        self.canceled_services
+            .lock()
+            .retain(|id| !removed_service_ids.contains(id));
+
+        let mut removed_publisher_ids = HashSet::new();
+        while self.pubs.len() > publisher_count {
+            let publisher = self.pubs.pop().expect("publisher count checked");
+            let id = Self::publisher_identity(&publisher);
+            self.publisher_indexes.remove(&id);
+            removed_publisher_ids.insert(id);
+            publisher.destroy(self.node_handle.as_mut());
+        }
+        self.dropped_publishers
+            .lock()
+            .retain(|id| !removed_publisher_ids.contains(id));
+
+        #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+        if self.subscribers.len() > subscriber_count {
+            while self.subscribers.len() > subscriber_count {
+                let mut subscriber = self.subscribers.pop().expect("subscriber count checked");
+                // A failed simulated-time activation marks its internal subscriber for removal.
+                // Consume that state transition while rolling back the exact endpoint we added.
+                let _ = subscriber.should_remove();
+                subscriber.destroy(self.node_handle.as_mut());
+            }
+            Self::rebuild_subscription_indexes(&self.subscribers, &mut self.subscription_indexes);
+        }
+    }
+
     fn service(&self, id: uuid::Uuid) -> Result<&Arc<Mutex<dyn Service_>>> {
         let index = self
             .service_indexes
@@ -1858,58 +1901,113 @@ impl Node {
             }
         };
         self.initialize_parameter_descriptors(params_struct.is_none())?;
-        let mut handlers: Vec<std::pin::Pin<Box<dyn Future<Output = ()> + Send>>> = Vec::new();
+        let service_count = self.services.len();
+        let publisher_count = self.pubs.len();
+        #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+        let subscriber_count = self.subscribers.len();
+        let setup: Result<_> = (|| {
+            let mut handlers: Vec<std::pin::Pin<Box<dyn Future<Output = ()> + Send>>> = Vec::new();
 
-        let (set_event_tx, event_rx) = mpsc::unbounded::<(String, ParameterValue)>();
+            let (set_event_tx, event_rx) = mpsc::unbounded::<(String, ParameterValue)>();
 
-        let node_name = self.name()?;
-        let fully_qualified_node_name = self.fully_qualified_name()?;
-        // From this point on, failures may leave native endpoints attached to the node. Prevent a
-        // retry from registering duplicate parameter services, while allowing failures before
-        // endpoint creation to be corrected and retried.
-        self.parameter_handler_started = true;
-        let parameter_event_publisher = if options.start_parameter_event_publisher {
-            Some(self.create_publisher::<rcl_interfaces::msg::ParameterEvent>(
-                "/parameter_events",
-                options.parameter_event_qos.clone(),
-            )?)
-        } else {
-            None
-        };
-        let parameter_event_clock = self.ros_clock.clone();
-        let parameter_event_sink = ParameterEventSink {
-            sender: set_event_tx,
-            publisher: parameter_event_publisher,
-            clock: parameter_event_clock,
-            node_name: fully_qualified_node_name,
-        };
+            let node_name = self.name()?;
+            let fully_qualified_node_name = self.fully_qualified_name()?;
+            let parameter_event_publisher = if options.start_parameter_event_publisher {
+                Some(self.create_publisher::<rcl_interfaces::msg::ParameterEvent>(
+                    "/parameter_events",
+                    options.parameter_event_qos.clone(),
+                )?)
+            } else {
+                None
+            };
+            let parameter_event_clock = self.ros_clock.clone();
+            let parameter_event_sink = ParameterEventSink {
+                sender: set_event_tx,
+                publisher: parameter_event_publisher,
+                clock: parameter_event_clock,
+                node_name: fully_qualified_node_name,
+            };
 
-        if options.start_parameter_services {
-            // rcl_interfaces/srv/SetParameters
-            let set_params_request_stream = self
-                .create_service::<rcl_interfaces::srv::SetParameters::Service>(
-                    &format!("{}/set_parameters", node_name),
-                    options.service_qos.clone(),
-                )?;
+            if options.start_parameter_services {
+                // rcl_interfaces/srv/SetParameters
+                let set_params_request_stream = self
+                    .create_service::<rcl_interfaces::srv::SetParameters::Service>(
+                        &format!("{}/set_parameters", node_name),
+                        options.service_qos.clone(),
+                    )?;
 
-            let params = self.params.clone();
-            let parameter_descriptors = self.parameter_descriptors.clone();
-            let parameter_transaction = self.parameter_transaction.clone();
-            let parameter_pre_set_callbacks = self.parameter_pre_set_callbacks.clone();
-            let parameter_validation_callbacks = self.parameter_validation_callbacks.clone();
-            let parameter_post_set_callbacks = self.parameter_post_set_callbacks.clone();
-            let params_struct_clone = params_struct.clone();
-            let allow_undeclared_parameters = self.allow_undeclared_parameters;
-            let set_parameter_event_sink = parameter_event_sink.clone();
-            #[cfg(r2r__rosgraph_msgs__msg__Clock)]
-            let set_params_time_source = self.time_source.clone();
-            let set_params_future = set_params_request_stream.for_each(
-                move |req: ServiceRequest<rcl_interfaces::srv::SetParameters::Service>| {
-                    let mut result = rcl_interfaces::srv::SetParameters::Response::default();
-                    for p in &req.message.parameters {
-                        let val =
-                            match ParameterValue::try_from_parameter_value_msg(p.value.clone()) {
-                                Ok(value) => value,
+                let params = self.params.clone();
+                let parameter_descriptors = self.parameter_descriptors.clone();
+                let parameter_transaction = self.parameter_transaction.clone();
+                let parameter_pre_set_callbacks = self.parameter_pre_set_callbacks.clone();
+                let parameter_validation_callbacks = self.parameter_validation_callbacks.clone();
+                let parameter_post_set_callbacks = self.parameter_post_set_callbacks.clone();
+                let params_struct_clone = params_struct.clone();
+                let allow_undeclared_parameters = self.allow_undeclared_parameters;
+                let set_parameter_event_sink = parameter_event_sink.clone();
+                #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+                let set_params_time_source = self.time_source.clone();
+                let set_params_future = set_params_request_stream.for_each(
+                    move |req: ServiceRequest<rcl_interfaces::srv::SetParameters::Service>| {
+                        let mut result = rcl_interfaces::srv::SetParameters::Response::default();
+                        for p in &req.message.parameters {
+                            let val =
+                                match ParameterValue::try_from_parameter_value_msg(p.value.clone())
+                                {
+                                    Ok(value) => value,
+                                    Err(err) => {
+                                        result.results.push(
+                                            rcl_interfaces::msg::SetParametersResult {
+                                                successful: false,
+                                                reason: err.to_string(),
+                                            },
+                                        );
+                                        continue;
+                                    }
+                                };
+                            let update = vec![(p.name.clone(), val)];
+                            let mut transaction =
+                                match lock_parameter_transaction(&parameter_transaction) {
+                                    Ok(transaction) => transaction,
+                                    Err(err) => {
+                                        result.results.push(
+                                            rcl_interfaces::msg::SetParametersResult {
+                                                successful: false,
+                                                reason: err.to_string(),
+                                            },
+                                        );
+                                        continue;
+                                    }
+                                };
+                            let applied = apply_parameter_updates(
+                                update,
+                                &params,
+                                &parameter_descriptors,
+                                params_struct_clone.as_ref(),
+                                &parameter_pre_set_callbacks,
+                                &parameter_validation_callbacks,
+                                allow_undeclared_parameters,
+                            );
+                            transaction.unlock();
+                            match applied {
+                                Ok(applied) => {
+                                    #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+                                    if let Some(enabled) = applied.sim_time_update {
+                                        set_params_time_source.request_sim_time(enabled);
+                                    }
+                                    set_parameter_event_sink
+                                        .notify(applied.changed, applied.ros_events);
+                                    notify_parameter_post_set_callbacks(
+                                        &applied.updates,
+                                        &parameter_post_set_callbacks,
+                                    );
+                                    result
+                                        .results
+                                        .push(rcl_interfaces::msg::SetParametersResult {
+                                            successful: true,
+                                            reason: String::new(),
+                                        });
+                                }
                                 Err(err) => {
                                     result
                                         .results
@@ -1917,25 +2015,176 @@ impl Node {
                                             successful: false,
                                             reason: err.to_string(),
                                         });
-                                    continue;
                                 }
-                            };
-                        let update = vec![(p.name.clone(), val)];
+                            }
+                            drop(transaction);
+                        }
+                        if let Err(err) = req.respond(result) {
+                            log::warn!("could not send reply to set parameter request: {err}");
+                        }
+                        future::ready(())
+                    },
+                );
+                handlers.push(Box::pin(set_params_future));
+
+                // rcl_interfaces/srv/GetParameters
+                let get_params_request_stream = self
+                    .create_service::<rcl_interfaces::srv::GetParameters::Service>(
+                        &format!("{}/get_parameters", node_name),
+                        options.service_qos.clone(),
+                    )?;
+
+                let params = self.params.clone();
+                let params_struct_clone = params_struct.clone();
+                let get_params_future = get_params_request_stream.for_each(
+                    move |req: ServiceRequest<rcl_interfaces::srv::GetParameters::Service>| {
+                        let values = read_parameter_values(
+                            &req.message.names,
+                            &params,
+                            params_struct_clone.as_ref(),
+                        )
+                        .into_iter()
+                        .map(|v| v.into_parameter_value_msg())
+                        .collect::<Vec<rcl_interfaces::msg::ParameterValue>>();
+
+                        let result = rcl_interfaces::srv::GetParameters::Response { values };
+                        if let Err(err) = req.respond(result) {
+                            log::warn!("could not send reply to get parameter request: {err}");
+                        }
+                        future::ready(())
+                    },
+                );
+
+                handlers.push(Box::pin(get_params_future));
+
+                // rcl_interfaces/srv/ListParameters
+                use rcl_interfaces::srv::ListParameters;
+                let list_params_request_stream = self.create_service::<ListParameters::Service>(
+                    &format!("{}/list_parameters", node_name),
+                    options.service_qos.clone(),
+                )?;
+
+                let params = self.params.clone();
+                let list_params_future = list_params_request_stream.for_each(
+                    move |req: ServiceRequest<ListParameters::Service>| {
+                        Self::handle_list_parameters(req, &params)
+                    },
+                );
+
+                handlers.push(Box::pin(list_params_future));
+
+                // rcl_interfaces/srv/DescribeParameters
+                use rcl_interfaces::srv::DescribeParameters;
+                let desc_params_request_stream = self
+                    .create_service::<DescribeParameters::Service>(
+                        &format!("{node_name}/describe_parameters"),
+                        options.service_qos.clone(),
+                    )?;
+
+                let params = self.params.clone();
+                let parameter_descriptors = self.parameter_descriptors.clone();
+                let desc_params_future = desc_params_request_stream.for_each(
+                    move |req: ServiceRequest<DescribeParameters::Service>| {
+                        Self::handle_desc_parameters(req, &params, &parameter_descriptors)
+                    },
+                );
+
+                handlers.push(Box::pin(desc_params_future));
+
+                // rcl_interfaces/srv/GetParameterTypes
+                use rcl_interfaces::srv::GetParameterTypes;
+                let get_param_types_request_stream = self
+                    .create_service::<GetParameterTypes::Service>(
+                        &format!("{node_name}/get_parameter_types"),
+                        options.service_qos.clone(),
+                    )?;
+
+                let params = self.params.clone();
+                let get_param_types_future = get_param_types_request_stream.for_each(
+                    move |req: ServiceRequest<GetParameterTypes::Service>| {
+                        let types = read_parameter_types(&req.message.names, &params)
+                            .into_iter()
+                            .map(Into::into)
+                            .collect();
+                        if let Err(err) = req.respond(GetParameterTypes::Response { types }) {
+                            log::warn!(
+                                "could not send reply to get parameter types request: {err}"
+                            );
+                        }
+                        future::ready(())
+                    },
+                );
+
+                handlers.push(Box::pin(get_param_types_future));
+
+                // rcl_interfaces/srv/SetParametersAtomically
+                let set_params_atomically_request_stream =
+                    self.create_service::<rcl_interfaces::srv::SetParametersAtomically::Service>(
+                        &format!("{}/set_parameters_atomically", node_name),
+                        options.service_qos.clone(),
+                    )?;
+
+                let params = self.params.clone();
+                let parameter_descriptors = self.parameter_descriptors.clone();
+                let parameter_transaction = self.parameter_transaction.clone();
+                let parameter_pre_set_callbacks = self.parameter_pre_set_callbacks.clone();
+                let parameter_validation_callbacks = self.parameter_validation_callbacks.clone();
+                let parameter_post_set_callbacks = self.parameter_post_set_callbacks.clone();
+                let params_struct_clone = params_struct.clone();
+                let allow_undeclared_parameters = self.allow_undeclared_parameters;
+                let atomic_parameter_event_sink = parameter_event_sink.clone();
+                #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+                let atomic_time_source = self.time_source.clone();
+                let set_params_atomically_future = set_params_atomically_request_stream.for_each(
+                    move |req: ServiceRequest<
+                        rcl_interfaces::srv::SetParametersAtomically::Service,
+                    >| {
+                        let mut result =
+                            rcl_interfaces::srv::SetParametersAtomically::Response::default();
+                        let updates = req
+                            .message
+                            .parameters
+                            .iter()
+                            .map(|parameter| {
+                                Ok((
+                                    parameter.name.clone(),
+                                    ParameterValue::try_from_parameter_value_msg(
+                                        parameter.value.clone(),
+                                    )?,
+                                ))
+                            })
+                            .collect::<Result<Vec<_>>>();
+                        let updates = match updates {
+                            Ok(updates) => updates,
+                            Err(err) => {
+                                result.result.successful = false;
+                                result.result.reason =
+                                    format!("Can't set parameters atomically: {err}");
+                                if let Err(err) = req.respond(result) {
+                                    log::warn!(
+                                    "could not send reply to atomic set parameter request: {err}"
+                                );
+                                }
+                                return future::ready(());
+                            }
+                        };
                         let mut transaction =
                             match lock_parameter_transaction(&parameter_transaction) {
                                 Ok(transaction) => transaction,
                                 Err(err) => {
-                                    result
-                                        .results
-                                        .push(rcl_interfaces::msg::SetParametersResult {
-                                            successful: false,
-                                            reason: err.to_string(),
-                                        });
-                                    continue;
+                                    result.result.successful = false;
+                                    result.result.reason =
+                                        format!("Can't set parameters atomically: {err}");
+                                    if let Err(err) = req.respond(result) {
+                                        log::warn!(
+                                    "could not send reply to atomic set parameter request: {err}"
+                                );
+                                    }
+                                    return future::ready(());
                                 }
                             };
-                        let applied = apply_parameter_updates(
-                            update,
+                        let update_result = apply_parameter_updates(
+                            updates,
                             &params,
                             &parameter_descriptors,
                             params_struct_clone.as_ref(),
@@ -1944,246 +2193,66 @@ impl Node {
                             allow_undeclared_parameters,
                         );
                         transaction.unlock();
-                        match applied {
+
+                        match update_result {
                             Ok(applied) => {
+                                result.result.successful = true;
                                 #[cfg(r2r__rosgraph_msgs__msg__Clock)]
                                 if let Some(enabled) = applied.sim_time_update {
-                                    set_params_time_source.request_sim_time(enabled);
+                                    atomic_time_source.request_sim_time(enabled);
                                 }
-                                set_parameter_event_sink
+                                atomic_parameter_event_sink
                                     .notify(applied.changed, applied.ros_events);
                                 notify_parameter_post_set_callbacks(
                                     &applied.updates,
                                     &parameter_post_set_callbacks,
                                 );
-                                result
-                                    .results
-                                    .push(rcl_interfaces::msg::SetParametersResult {
-                                        successful: true,
-                                        reason: String::new(),
-                                    });
                             }
                             Err(err) => {
-                                result
-                                    .results
-                                    .push(rcl_interfaces::msg::SetParametersResult {
-                                        successful: false,
-                                        reason: err.to_string(),
-                                    });
+                                result.result.successful = false;
+                                result.result.reason =
+                                    format!("Can't set parameters atomically: {err}");
                             }
                         }
                         drop(transaction);
-                    }
-                    if let Err(err) = req.respond(result) {
-                        log::warn!("could not send reply to set parameter request: {err}");
-                    }
-                    future::ready(())
-                },
-            );
-            handlers.push(Box::pin(set_params_future));
-
-            // rcl_interfaces/srv/GetParameters
-            let get_params_request_stream = self
-                .create_service::<rcl_interfaces::srv::GetParameters::Service>(
-                    &format!("{}/get_parameters", node_name),
-                    options.service_qos.clone(),
-                )?;
-
-            let params = self.params.clone();
-            let params_struct_clone = params_struct.clone();
-            let get_params_future = get_params_request_stream.for_each(
-                move |req: ServiceRequest<rcl_interfaces::srv::GetParameters::Service>| {
-                    let values = read_parameter_values(
-                        &req.message.names,
-                        &params,
-                        params_struct_clone.as_ref(),
-                    )
-                    .into_iter()
-                    .map(|v| v.into_parameter_value_msg())
-                    .collect::<Vec<rcl_interfaces::msg::ParameterValue>>();
-
-                    let result = rcl_interfaces::srv::GetParameters::Response { values };
-                    if let Err(err) = req.respond(result) {
-                        log::warn!("could not send reply to get parameter request: {err}");
-                    }
-                    future::ready(())
-                },
-            );
-
-            handlers.push(Box::pin(get_params_future));
-
-            // rcl_interfaces/srv/ListParameters
-            use rcl_interfaces::srv::ListParameters;
-            let list_params_request_stream = self.create_service::<ListParameters::Service>(
-                &format!("{}/list_parameters", node_name),
-                options.service_qos.clone(),
-            )?;
-
-            let params = self.params.clone();
-            let list_params_future = list_params_request_stream.for_each(
-                move |req: ServiceRequest<ListParameters::Service>| {
-                    Self::handle_list_parameters(req, &params)
-                },
-            );
-
-            handlers.push(Box::pin(list_params_future));
-
-            // rcl_interfaces/srv/DescribeParameters
-            use rcl_interfaces::srv::DescribeParameters;
-            let desc_params_request_stream = self.create_service::<DescribeParameters::Service>(
-                &format!("{node_name}/describe_parameters"),
-                options.service_qos.clone(),
-            )?;
-
-            let params = self.params.clone();
-            let parameter_descriptors = self.parameter_descriptors.clone();
-            let desc_params_future = desc_params_request_stream.for_each(
-                move |req: ServiceRequest<DescribeParameters::Service>| {
-                    Self::handle_desc_parameters(req, &params, &parameter_descriptors)
-                },
-            );
-
-            handlers.push(Box::pin(desc_params_future));
-
-            // rcl_interfaces/srv/GetParameterTypes
-            use rcl_interfaces::srv::GetParameterTypes;
-            let get_param_types_request_stream = self
-                .create_service::<GetParameterTypes::Service>(
-                    &format!("{node_name}/get_parameter_types"),
-                    options.service_qos.clone(),
-                )?;
-
-            let params = self.params.clone();
-            let get_param_types_future = get_param_types_request_stream.for_each(
-                move |req: ServiceRequest<GetParameterTypes::Service>| {
-                    let types = read_parameter_types(&req.message.names, &params)
-                        .into_iter()
-                        .map(Into::into)
-                        .collect();
-                    if let Err(err) = req.respond(GetParameterTypes::Response { types }) {
-                        log::warn!("could not send reply to get parameter types request: {err}");
-                    }
-                    future::ready(())
-                },
-            );
-
-            handlers.push(Box::pin(get_param_types_future));
-
-            // rcl_interfaces/srv/SetParametersAtomically
-            let set_params_atomically_request_stream =
-                self.create_service::<rcl_interfaces::srv::SetParametersAtomically::Service>(
-                    &format!("{}/set_parameters_atomically", node_name),
-                    options.service_qos.clone(),
-                )?;
-
-            let params = self.params.clone();
-            let parameter_descriptors = self.parameter_descriptors.clone();
-            let parameter_transaction = self.parameter_transaction.clone();
-            let parameter_pre_set_callbacks = self.parameter_pre_set_callbacks.clone();
-            let parameter_validation_callbacks = self.parameter_validation_callbacks.clone();
-            let parameter_post_set_callbacks = self.parameter_post_set_callbacks.clone();
-            let params_struct_clone = params_struct.clone();
-            let allow_undeclared_parameters = self.allow_undeclared_parameters;
-            let atomic_parameter_event_sink = parameter_event_sink.clone();
-            #[cfg(r2r__rosgraph_msgs__msg__Clock)]
-            let atomic_time_source = self.time_source.clone();
-            let set_params_atomically_future = set_params_atomically_request_stream.for_each(
-                move |req: ServiceRequest<
-                    rcl_interfaces::srv::SetParametersAtomically::Service,
-                >| {
-                    let mut result =
-                        rcl_interfaces::srv::SetParametersAtomically::Response::default();
-                    let updates = req
-                        .message
-                        .parameters
-                        .iter()
-                        .map(|parameter| {
-                            Ok((
-                                parameter.name.clone(),
-                                ParameterValue::try_from_parameter_value_msg(
-                                    parameter.value.clone(),
-                                )?,
-                            ))
-                        })
-                        .collect::<Result<Vec<_>>>();
-                    let updates = match updates {
-                        Ok(updates) => updates,
-                        Err(err) => {
-                            result.result.successful = false;
-                            result.result.reason =
-                                format!("Can't set parameters atomically: {err}");
-                            if let Err(err) = req.respond(result) {
-                                log::warn!(
-                                    "could not send reply to atomic set parameter request: {err}"
-                                );
-                            }
-                            return future::ready(());
-                        }
-                    };
-                    let mut transaction = match lock_parameter_transaction(&parameter_transaction) {
-                        Ok(transaction) => transaction,
-                        Err(err) => {
-                            result.result.successful = false;
-                            result.result.reason =
-                                format!("Can't set parameters atomically: {err}");
-                            if let Err(err) = req.respond(result) {
-                                log::warn!(
-                                    "could not send reply to atomic set parameter request: {err}"
-                                );
-                            }
-                            return future::ready(());
-                        }
-                    };
-                    let update_result = apply_parameter_updates(
-                        updates,
-                        &params,
-                        &parameter_descriptors,
-                        params_struct_clone.as_ref(),
-                        &parameter_pre_set_callbacks,
-                        &parameter_validation_callbacks,
-                        allow_undeclared_parameters,
-                    );
-                    transaction.unlock();
-
-                    match update_result {
-                        Ok(applied) => {
-                            result.result.successful = true;
-                            #[cfg(r2r__rosgraph_msgs__msg__Clock)]
-                            if let Some(enabled) = applied.sim_time_update {
-                                atomic_time_source.request_sim_time(enabled);
-                            }
-                            atomic_parameter_event_sink.notify(applied.changed, applied.ros_events);
-                            notify_parameter_post_set_callbacks(
-                                &applied.updates,
-                                &parameter_post_set_callbacks,
+                        if let Err(err) = req.respond(result) {
+                            log::warn!(
+                                "could not send reply to atomic set parameter request: {err}"
                             );
                         }
-                        Err(err) => {
-                            result.result.successful = false;
-                            result.result.reason =
-                                format!("Can't set parameters atomically: {err}");
-                        }
-                    }
-                    drop(transaction);
-                    if let Err(err) = req.respond(result) {
-                        log::warn!("could not send reply to atomic set parameter request: {err}");
-                    }
-                    future::ready(())
-                },
-            );
-            handlers.push(Box::pin(set_params_atomically_future));
-        }
+                        future::ready(())
+                    },
+                );
+                handlers.push(Box::pin(set_params_atomically_future));
+            }
 
-        #[cfg(r2r__rosgraph_msgs__msg__Clock)]
-        if use_sim_time {
-            let ts = self.time_source.clone();
-            ts.enable_sim_time(self)?;
-        }
-        self.parameter_provider = params_struct;
-        self.parameter_event_sink = Some(parameter_event_sink);
+            #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+            if use_sim_time {
+                let ts = self.time_source.clone();
+                ts.enable_sim_time(self)?;
+            }
 
-        // we don't care about the result, the futures will not complete anyway.
-        Ok((join_all(handlers).map(|_| ()), event_rx))
+            // we don't care about the result, the futures will not complete anyway.
+            Ok((join_all(handlers).map(|_| ()), event_rx, parameter_event_sink))
+        })();
+
+        match setup {
+            Ok((handler, event_rx, parameter_event_sink)) => {
+                self.parameter_handler_started = true;
+                self.parameter_provider = params_struct;
+                self.parameter_event_sink = Some(parameter_event_sink);
+                Ok((handler, event_rx))
+            }
+            Err(err) => {
+                self.rollback_parameter_handler_endpoints(
+                    service_count,
+                    publisher_count,
+                    #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+                    subscriber_count,
+                );
+                Err(err)
+            }
+        }
     }
 
     fn default_parameter_descriptor(
@@ -7183,6 +7252,55 @@ mod tests {
         assert!(!node.services.is_empty());
         assert!(!node.pubs.is_empty());
         drop(handler);
+    }
+
+    #[test]
+    fn failed_parameter_handler_endpoint_creation_rolls_back_and_can_be_retried() {
+        let context = Context::create().unwrap();
+        // The first five parameter service names fit within the ROS topic-name limit, while the
+        // longer `set_parameters_atomically` endpoint does not. This exercises a real failure
+        // after both the event publisher and multiple services have already been created.
+        let node_name = "n".repeat(230);
+        let mut node = Node::create(context, &node_name, "").unwrap();
+        let unrelated_service = node
+            .create_service::<crate::example_interfaces::srv::AddTwoInts::Service>(
+                "/unrelated_service",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let unrelated_publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(
+                "/unrelated_publisher",
+                QosProfile::default(),
+            )
+            .unwrap();
+
+        assert!(node.make_parameter_handler().is_err());
+        assert!(!node.parameter_handler_started);
+        assert_eq!(node.services.len(), 1);
+        assert_eq!(node.service_indexes.len(), 1);
+        assert!(node.canceled_services.lock().is_empty());
+        assert_eq!(unrelated_service.service_name(&node).unwrap(), "/unrelated_service");
+        assert_eq!(node.pubs.len(), 1);
+        assert_eq!(node.publisher_indexes.len(), 1);
+        assert!(node.dropped_publishers.lock().is_empty());
+        assert_eq!(unrelated_publisher.get_actual_qos().unwrap().depth, 10);
+
+        let (handler, mut events) = node
+            .make_parameter_handler_with_options(
+                ParameterHandlerOptions::default()
+                    .start_parameter_services(false)
+                    .start_parameter_event_publisher(false),
+            )
+            .unwrap();
+        assert!(handler.now_or_never().is_some());
+        assert_eq!(node.services.len(), 1);
+        assert_eq!(node.pubs.len(), 1);
+        node.set_parameter("after_retry", 7_i64).unwrap();
+        assert_eq!(
+            events.next().now_or_never().flatten(),
+            Some(("after_retry".into(), ParameterValue::Integer(7)))
+        );
     }
 
     #[test]
