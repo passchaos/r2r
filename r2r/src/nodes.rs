@@ -2251,7 +2251,7 @@ impl Node {
 
         let ws = TypedService::<T> {
             rcl_handle: service_handle,
-            sender: Arc::new(Mutex::new(sender)),
+            sender: Arc::new(Mutex::new(Some(sender))),
             id,
         };
 
@@ -2290,7 +2290,7 @@ impl Node {
         let service = UntypedService {
             service_type,
             rcl_handle: service_handle,
-            sender: Arc::new(Mutex::new(sender)),
+            sender: Arc::new(Mutex::new(Some(sender))),
             id,
         };
         self.services.push(Arc::new(Mutex::new(service)));

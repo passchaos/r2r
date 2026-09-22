@@ -18,17 +18,22 @@ pub(crate) enum ServiceRequestAction {
 }
 
 fn request_delivery<T: Send + 'static>(
-    sender: Arc<Mutex<mpsc::Sender<T>>>, request: T, description: &'static str,
+    sender_slot: Arc<Mutex<Option<mpsc::Sender<T>>>>, mut sender: mpsc::Sender<T>, request: T,
+    description: &'static str,
 ) -> ServiceRequestAction {
     ServiceRequestAction::Deliver(Box::new(move || {
-        let mut sender = sender.lock();
-        if let Err(err) = sender.try_send(request) {
+        let remove = if let Err(err) = sender.try_send(request) {
             if err.is_disconnected() {
-                return true;
+                true
+            } else {
+                log::debug!("{description} channel was unexpectedly full ({err})");
+                false
             }
-            log::debug!("{description} channel was unexpectedly full ({err})");
-        }
-        false
+        } else {
+            false
+        };
+        *sender_slot.lock() = Some(sender);
+        remove
     }))
 }
 
@@ -267,14 +272,14 @@ where
     T: WrappedServiceTypeSupport,
 {
     pub rcl_handle: rcl_service_t,
-    pub sender: Arc<Mutex<mpsc::Sender<ServiceRequest<T>>>>,
+    pub sender: Arc<Mutex<Option<mpsc::Sender<ServiceRequest<T>>>>>,
     pub(crate) id: uuid::Uuid,
 }
 
 pub struct UntypedService {
     pub service_type: UntypedServiceSupport,
     pub rcl_handle: rcl_service_t,
-    pub sender: Arc<Mutex<mpsc::Sender<ServiceRequestUntyped>>>,
+    pub sender: Arc<Mutex<Option<mpsc::Sender<ServiceRequestUntyped>>>>,
     pub(crate) id: uuid::Uuid,
 }
 
@@ -304,21 +309,28 @@ impl Service_ for UntypedService {
     }
 
     fn should_remove(&self) -> bool {
-        self.sender.lock().is_closed()
+        self.sender
+            .lock()
+            .as_ref()
+            .is_some_and(mpsc::Sender::is_closed)
     }
 
     fn handle_request(
         &mut self, service: Arc<Mutex<dyn Service_>>,
     ) -> Result<ServiceRequestAction> {
-        let mut sender = self.sender.lock();
-        if sender.is_closed() {
-            return Ok(ServiceRequestAction::Remove);
+        {
+            let mut sender = self.sender.lock();
+            let Some(sender) = sender.as_mut() else {
+                return Ok(ServiceRequestAction::Idle);
+            };
+            if sender.is_closed() {
+                return Ok(ServiceRequestAction::Remove);
+            }
+            let mut cx = Context::from_waker(noop_waker_ref());
+            if sender.poll_ready(&mut cx) == Poll::Pending {
+                return Ok(ServiceRequestAction::Idle);
+            }
         }
-        let mut cx = Context::from_waker(noop_waker_ref());
-        if sender.poll_ready(&mut cx) == Poll::Pending {
-            return Ok(ServiceRequestAction::Idle);
-        }
-        drop(sender);
 
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut request_msg = (self.service_type.make_request_msg)()?;
@@ -338,7 +350,17 @@ impl Service_ for UntypedService {
             service: Arc::downgrade(&service),
             make_response_msg: self.service_type.make_response_msg,
         };
-        Ok(request_delivery(Arc::clone(&self.sender), request, "untyped service request"))
+        let sender = self
+            .sender
+            .lock()
+            .take()
+            .ok_or(Error::RCL_RET_SERVICE_INVALID)?;
+        Ok(request_delivery(
+            Arc::clone(&self.sender),
+            sender,
+            request,
+            "untyped service request",
+        ))
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -373,21 +395,28 @@ where
     }
 
     fn should_remove(&self) -> bool {
-        self.sender.lock().is_closed()
+        self.sender
+            .lock()
+            .as_ref()
+            .is_some_and(mpsc::Sender::is_closed)
     }
 
     fn handle_request(
         &mut self, service: Arc<Mutex<dyn Service_>>,
     ) -> Result<ServiceRequestAction> {
-        let mut sender = self.sender.lock();
-        if sender.is_closed() {
-            return Ok(ServiceRequestAction::Remove);
+        {
+            let mut sender = self.sender.lock();
+            let Some(sender) = sender.as_mut() else {
+                return Ok(ServiceRequestAction::Idle);
+            };
+            if sender.is_closed() {
+                return Ok(ServiceRequestAction::Remove);
+            }
+            let mut cx = Context::from_waker(noop_waker_ref());
+            if sender.poll_ready(&mut cx) == Poll::Pending {
+                return Ok(ServiceRequestAction::Idle);
+            }
         }
-        let mut cx = Context::from_waker(noop_waker_ref());
-        if sender.poll_ready(&mut cx) == Poll::Pending {
-            return Ok(ServiceRequestAction::Idle);
-        }
-        drop(sender);
 
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut request_msg = WrappedNativeMsg::<T::Request>::try_new()?;
@@ -409,7 +438,12 @@ where
             request_id,
             service: Arc::downgrade(&service),
         };
-        Ok(request_delivery(Arc::clone(&self.sender), request, "service request"))
+        let sender = self
+            .sender
+            .lock()
+            .take()
+            .ok_or(Error::RCL_RET_SERVICE_INVALID)?;
+        Ok(request_delivery(Arc::clone(&self.sender), sender, request, "service request"))
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -487,7 +521,7 @@ mod tests {
     fn service_requests_wake_streams_after_releasing_the_service_lock() {
         let service = Arc::new(Mutex::new(()));
         let (sender, mut receiver) = mpsc::channel(1);
-        let sender = Arc::new(Mutex::new(sender));
+        let sender = Arc::new(Mutex::new(Some(sender)));
         let wake = Arc::new(LockingWake {
             service: Arc::clone(&service),
             woke: AtomicBool::new(false),
@@ -495,10 +529,14 @@ mod tests {
         let waker = waker_ref(&wake);
         let mut context = Context::from_waker(&waker);
         assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Pending));
-        assert!(matches!(sender.lock().poll_ready(&mut context), Poll::Ready(Ok(()))));
+        assert!(matches!(
+            sender.lock().as_mut().unwrap().poll_ready(&mut context),
+            Poll::Ready(Ok(()))
+        ));
 
         complete_service_request(&service, |_| {
-            Ok(request_delivery(Arc::clone(&sender), 42, "test service request"))
+            let detached = sender.lock().take().unwrap();
+            Ok(request_delivery(Arc::clone(&sender), detached, 42, "test service request"))
         })
         .unwrap();
 
