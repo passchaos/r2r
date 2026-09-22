@@ -72,7 +72,6 @@ fn with_prepared_action_server<S: ?Sized, P, T>(
 pub trait ActionServer_ {
     fn handle(&self) -> &rcl_action_server_t;
     fn handle_mut(&mut self) -> &mut rcl_action_server_t;
-    fn now(&mut self) -> Result<builtin_interfaces::msg::Time>;
     fn reject_goal_request(
         &mut self, uuid: &uuid::Uuid, request_id: &mut rmw_request_id_t,
     ) -> Result<()>;
@@ -369,6 +368,7 @@ where
 {
     pub uuid: uuid::Uuid,
     pub goal: T::Goal,
+    clock: Arc<Mutex<Clock>>,
     cancel_requests: mpsc::Receiver<ActionServerCancelRequest>,
     response: GoalRequestResponseGuard,
 }
@@ -421,19 +421,32 @@ where
         let uuid_msg = unique_identifier_msgs::msg::UUID {
             uuid: self.uuid.as_bytes().to_vec(),
         };
-        let server = self
-            .response
-            .server
-            .upgrade()
-            .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
-        let mut server = server.lock();
-        let time = server.now()?;
+        let time = {
+            let mut clock = self.clock.lock();
+            let mut now = 0;
+            let ret = unsafe { rcl_clock_get_now(clock.clock_handle.as_mut(), &mut now) };
+            if ret != RCL_RET_OK as i32 {
+                return Err(Error::from_rcl_error(ret));
+            }
+            time_point_to_builtin(now)?
+        };
         let goal_info = action_msgs::msg::GoalInfo {
             goal_id: uuid_msg,
             stamp: time.clone(),
         };
         let native_goal_info =
             WrappedNativeMsg::<action_msgs::msg::GoalInfo>::try_from(&goal_info)?;
+        let response_msg = T::make_goal_response_msg(true, time);
+        let mut response_msg = WrappedNativeMsg::<
+            <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
+        >::try_from(&response_msg)?;
+
+        let server = self
+            .response
+            .server
+            .upgrade()
+            .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
+        let mut server = server.lock();
 
         let goal_handle: *mut rcl_action_goal_handle_t =
             unsafe { rcl_action_accept_new_goal(server.handle_mut(), &*native_goal_info) };
@@ -465,24 +478,6 @@ where
         }
 
         // send response
-        let response_msg = T::make_goal_response_msg(true, time);
-        let mut response_msg = match WrappedNativeMsg::<
-            <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
-        >::try_from(&response_msg)
-        {
-            Ok(response) => response,
-            Err(err) => {
-                if let Err(rollback_err) = abort_goal_after_failed_accept(&mut *server, &self.uuid)
-                {
-                    log::error!(
-                        "could not abort goal after response allocation failed: {rollback_err}"
-                    );
-                }
-                server.forget_cancel_sender(&self.uuid);
-                return Err(err);
-            }
-        };
-
         self.response.response_sent = true;
         let ret = unsafe {
             rcl_action_send_goal_response(
@@ -767,16 +762,6 @@ where
         WrappedActionServer::finish_cancel_delivery(self, pending);
     }
 
-    fn now(&mut self) -> Result<builtin_interfaces::msg::Time> {
-        let mut clock = self.clock.lock();
-        let mut now = 0;
-        let ret = unsafe { rcl_clock_get_now(clock.clock_handle.as_mut(), &mut now) };
-        if ret != RCL_RET_OK as i32 {
-            return Err(Error::from_rcl_error(ret));
-        }
-        time_point_to_builtin(now)
-    }
-
     fn reject_goal_request(
         &mut self, uuid: &uuid::Uuid, request_id: &mut rmw_request_id_t,
     ) -> Result<()> {
@@ -1021,6 +1006,7 @@ where
         let gr: ActionServerGoalRequest<T> = ActionServerGoalRequest {
             uuid,
             goal,
+            clock: Arc::clone(&self.clock),
             cancel_requests: cancel_receiver,
             response: GoalRequestResponseGuard {
                 server: Arc::downgrade(&server),
@@ -1695,10 +1681,6 @@ mod tests {
 
         fn handle_mut(&mut self) -> &mut rcl_action_server_t {
             &mut self.handle
-        }
-
-        fn now(&mut self) -> Result<builtin_interfaces::msg::Time> {
-            unreachable!()
         }
 
         fn reject_goal_request(
