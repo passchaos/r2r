@@ -3,6 +3,7 @@ use parking_lot::Mutex;
 use std::{
     collections::HashMap,
     ffi::{CStr, CString},
+    fmt::Debug,
     future::Future,
     mem::MaybeUninit,
     sync::Weak,
@@ -11,6 +12,43 @@ use std::{
 
 use crate::{error::*, msg_types::*, nodes::Node, QosProfile};
 use r2r_rcl::*;
+
+pub(crate) type ClientCompletion = Box<dyn FnOnce() + Send>;
+
+fn response_completion<T>(sender: oneshot::Sender<T>, response: T) -> ClientCompletion
+where
+    T: Debug + Send + 'static,
+{
+    Box::new(move || {
+        if let Err(err) = sender.send(response) {
+            log::debug!("error sending to client: {:?}", err);
+        }
+    })
+}
+
+fn availability_completion(
+    senders: Vec<oneshot::Sender<()>>, available: Result<bool>,
+) -> Option<ClientCompletion> {
+    match available {
+        Ok(false) => None,
+        Ok(true) => Some(Box::new(move || {
+            for sender in senders {
+                let _ = sender.send(());
+            }
+        })),
+        Err(_) => Some(Box::new(move || drop(senders))),
+    }
+}
+
+pub(crate) fn complete_client_operation<T: ?Sized>(
+    client: &Mutex<T>, operation: impl FnOnce(&mut T) -> Result<Option<ClientCompletion>>,
+) -> Result<()> {
+    let completion = { operation(&mut *client.lock())? };
+    if let Some(completion) = completion {
+        completion();
+    }
+    Ok(())
+}
 
 /// ROS service client.
 ///
@@ -256,9 +294,9 @@ impl UntypedClient_ {
 
 pub trait Client_ {
     fn handle(&self) -> &rcl_client_t;
-    fn handle_response(&mut self) -> Result<()>;
+    fn handle_response(&mut self) -> Result<Option<ClientCompletion>>;
     fn register_poll_available(&mut self, s: oneshot::Sender<()>);
-    fn poll_available(&mut self, node: &mut rcl_node_t);
+    fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ClientCompletion>;
     fn has_pending_work(&mut self) -> bool;
     fn destroy(&mut self, node: &mut rcl_node_t);
 }
@@ -280,7 +318,7 @@ where
         &self.rcl_handle
     }
 
-    fn handle_response(&mut self) -> Result<()> {
+    fn handle_response(&mut self) -> Result<Option<ClientCompletion>> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg = WrappedNativeMsg::<T::Response>::try_new()?;
 
@@ -292,66 +330,50 @@ where
             )
         };
         if ret == RCL_RET_CLIENT_TAKE_FAILED as i32 {
-            return Ok(());
+            return Ok(None);
         }
         if ret != RCL_RET_OK as i32 {
             return Err(Error::from_rcl_error(ret));
         }
 
-        {
-            let request_id = unsafe { request_id.assume_init() };
-            if let Some(sender) = self.response_channels.remove(&request_id.sequence_number) {
-                let response = T::Response::from_native(&response_msg);
-                match sender.send(response) {
-                    Ok(()) => {}
-                    Err(e) => {
-                        log::debug!("error sending to client: {:?}", e);
-                    }
-                }
-            } else {
-                let we_have: String = self
-                    .response_channels
-                    .keys()
-                    .map(|id| id.to_string())
-                    .collect::<Vec<_>>()
-                    .join(",");
-                log::debug!(
-                    "no such req id: {}, we have [{}], ignoring",
-                    request_id.sequence_number,
-                    we_have
-                );
-            }
+        let request_id = unsafe { request_id.assume_init() };
+        if let Some(sender) = self.response_channels.remove(&request_id.sequence_number) {
+            let response = T::Response::from_native(&response_msg);
+            Ok(Some(response_completion(sender, response)))
+        } else {
+            let we_have: String = self
+                .response_channels
+                .keys()
+                .map(|id| id.to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+            log::debug!(
+                "no such req id: {}, we have [{}], ignoring",
+                request_id.sequence_number,
+                we_have
+            );
+            Ok(None)
         }
-        Ok(())
     }
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>) {
         self.poll_available_channels.push(s);
     }
 
-    fn poll_available(&mut self, node: &mut rcl_node_t) {
+    fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ClientCompletion> {
         self.response_channels
             .retain(|_, sender| !sender.is_canceled());
         self.poll_available_channels
             .retain(|sender| !sender.is_canceled());
         if self.poll_available_channels.is_empty() {
-            return;
+            return None;
         }
         let available = service_available_helper(node, self.handle());
-        match available {
-            Ok(true) => {
-                // send ok and close channels
-                while let Some(sender) = self.poll_available_channels.pop() {
-                    let _res = sender.send(()); // we ignore if receiver dropped.
-                }
-            }
-            Ok(false) => {
-                // not available...
-            }
-            Err(_) => {
-                // error, close all channels
-                self.poll_available_channels.clear();
-            }
+        if matches!(available, Ok(false)) {
+            None
+        } else {
+            let senders = std::mem::take(&mut self.poll_available_channels);
+            availability_completion(senders, available)
         }
     }
 
@@ -382,7 +404,7 @@ impl Client_ for UntypedClient_ {
         &self.rcl_handle
     }
 
-    fn handle_response(&mut self) -> Result<()> {
+    fn handle_response(&mut self) -> Result<Option<ClientCompletion>> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg = (self.service_type.make_response_msg)()?;
 
@@ -394,66 +416,50 @@ impl Client_ for UntypedClient_ {
             )
         };
         if ret == RCL_RET_CLIENT_TAKE_FAILED as i32 {
-            return Ok(());
+            return Ok(None);
         }
         if ret != RCL_RET_OK as i32 {
             return Err(Error::from_rcl_error(ret));
         }
 
-        {
-            let request_id = unsafe { request_id.assume_init() };
-            if let Some(sender) = self.response_channels.remove(&request_id.sequence_number) {
-                let response = response_msg.to_json();
-                match sender.send(response) {
-                    Ok(()) => {}
-                    Err(e) => {
-                        log::debug!("error sending to client: {:?}", e);
-                    }
-                }
-            } else {
-                let we_have: String = self
-                    .response_channels
-                    .keys()
-                    .map(|id| id.to_string())
-                    .collect::<Vec<_>>()
-                    .join(",");
-                log::debug!(
-                    "no such req id: {}, we have [{}], ignoring",
-                    request_id.sequence_number,
-                    we_have
-                );
-            }
+        let request_id = unsafe { request_id.assume_init() };
+        if let Some(sender) = self.response_channels.remove(&request_id.sequence_number) {
+            let response = response_msg.to_json();
+            Ok(Some(response_completion(sender, response)))
+        } else {
+            let we_have: String = self
+                .response_channels
+                .keys()
+                .map(|id| id.to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+            log::debug!(
+                "no such req id: {}, we have [{}], ignoring",
+                request_id.sequence_number,
+                we_have
+            );
+            Ok(None)
         }
-        Ok(())
     }
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>) {
         self.poll_available_channels.push(s);
     }
 
-    fn poll_available(&mut self, node: &mut rcl_node_t) {
+    fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ClientCompletion> {
         self.response_channels
             .retain(|_, sender| !sender.is_canceled());
         self.poll_available_channels
             .retain(|sender| !sender.is_canceled());
         if self.poll_available_channels.is_empty() {
-            return;
+            return None;
         }
         let available = service_available_helper(node, self.handle());
-        match available {
-            Ok(true) => {
-                // send ok and close channels
-                while let Some(sender) = self.poll_available_channels.pop() {
-                    let _res = sender.send(()); // we ignore if receiver dropped.
-                }
-            }
-            Ok(false) => {
-                // not available...
-            }
-            Err(_) => {
-                // error, close all channels
-                self.poll_available_channels.clear();
-            }
+        if matches!(available, Ok(false)) {
+            None
+        } else {
+            let senders = std::mem::take(&mut self.poll_available_channels);
+            availability_completion(senders, available)
         }
     }
 
@@ -536,6 +542,18 @@ impl IsAvailablePollable for ClientUntyped {
 mod tests {
     use super::*;
     use crate::example_interfaces::srv::AddTwoInts;
+    use futures::{
+        task::{waker_ref, ArcWake},
+        Future,
+    };
+    use std::{
+        pin::Pin,
+        sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        },
+        task::{Context, Poll},
+    };
 
     fn assert_clone<T: Clone>() {}
 
@@ -543,5 +561,35 @@ mod tests {
     fn service_client_handles_are_cloneable() {
         assert_clone::<Client<AddTwoInts::Service>>();
         assert_clone::<ClientUntyped>();
+    }
+
+    struct LockingWake {
+        client: Arc<Mutex<()>>,
+        woke: AtomicBool,
+    }
+
+    impl ArcWake for LockingWake {
+        fn wake_by_ref(arc_self: &Arc<Self>) {
+            let _client = arc_self.client.lock();
+            arc_self.woke.store(true, Ordering::SeqCst);
+        }
+    }
+
+    #[test]
+    fn client_completions_wake_after_releasing_the_client_lock() {
+        let client = Arc::new(Mutex::new(()));
+        let (sender, mut receiver) = oneshot::channel();
+        let wake = Arc::new(LockingWake {
+            client: Arc::clone(&client),
+            woke: AtomicBool::new(false),
+        });
+        let waker = waker_ref(&wake);
+        let mut context = Context::from_waker(&waker);
+        assert!(matches!(Pin::new(&mut receiver).poll(&mut context), Poll::Pending));
+
+        complete_client_operation(&client, |_| Ok(Some(response_completion(sender, ())))).unwrap();
+
+        assert!(wake.woke.load(Ordering::SeqCst));
+        assert!(matches!(Pin::new(&mut receiver).poll(&mut context), Poll::Ready(Ok(()))));
     }
 }

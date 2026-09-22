@@ -2868,7 +2868,9 @@ impl Node {
 
         // as well as polling any services/action servers for availability
         for c in &mut self.clients {
-            c.lock().poll_available(self.node_handle.as_mut());
+            complete_client_operation(c, |client| {
+                Ok(client.poll_available(self.node_handle.as_mut()))
+            })?;
         }
 
         for c in &mut self.action_clients {
@@ -3052,8 +3054,7 @@ impl Node {
             let ws_clients = unsafe { std::slice::from_raw_parts(ws.clients, self.clients.len()) };
             for (s, ws_s) in self.clients.iter_mut().zip(ws_clients) {
                 if ws_s != &std::ptr::null() {
-                    let mut s = s.lock();
-                    s.handle_response()?;
+                    complete_client_operation(s, Client_::handle_response)?;
                 }
             }
         }
