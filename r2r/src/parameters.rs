@@ -4,6 +4,7 @@ use std::ffi::CStr;
 use crate::msg_types::generated_msgs::rcl_interfaces;
 use indexmap::IndexMap;
 use r2r_rcl::*;
+pub use rcl_interfaces::msg::{FloatingPointRange, IntegerRange, ParameterDescriptor};
 
 unsafe fn copy_native_array<T: Copy>(values: *const T, size: usize) -> Result<Vec<T>> {
     if size == 0 {
@@ -302,6 +303,164 @@ impl ParameterValue {
             ParameterValue::StringArray(_) => 9,  // int PARAMETER_STRING_ARRAY=9
         }
     }
+}
+
+const PARAMETER_FLOAT_RELATIVE_TOLERANCE: f64 = 1.0e-6;
+
+fn floats_close(left: f64, right: f64) -> bool {
+    left == right
+        || (left.is_finite()
+            && right.is_finite()
+            && (left - right).abs()
+                <= PARAMETER_FLOAT_RELATIVE_TOLERANCE * left.abs().max(right.abs()))
+}
+
+pub(crate) fn validate_parameter_descriptor(
+    name: &str, descriptor: &ParameterDescriptor,
+) -> Result<()> {
+    if name.is_empty() {
+        return Err(Error::InvalidParameterDescriptor {
+            name: name.to_owned(),
+            reason: "parameter name cannot be empty".into(),
+        });
+    }
+    if descriptor.integer_range.len() > 1 {
+        return Err(Error::InvalidParameterDescriptor {
+            name: name.to_owned(),
+            reason: "at most one integer range is allowed".into(),
+        });
+    }
+    if descriptor.floating_point_range.len() > 1 {
+        return Err(Error::InvalidParameterDescriptor {
+            name: name.to_owned(),
+            reason: "at most one floating-point range is allowed".into(),
+        });
+    }
+    if !descriptor.integer_range.is_empty() && !descriptor.floating_point_range.is_empty() {
+        return Err(Error::InvalidParameterDescriptor {
+            name: name.to_owned(),
+            reason: "integer and floating-point ranges are mutually exclusive".into(),
+        });
+    }
+    if descriptor.type_ > rcl_interfaces::msg::ParameterType::PARAMETER_STRING_ARRAY as u8 {
+        return Err(Error::InvalidParameterDescriptor {
+            name: name.to_owned(),
+            reason: format!("unknown parameter type {}", descriptor.type_),
+        });
+    }
+    if !descriptor.dynamic_typing
+        && !descriptor.integer_range.is_empty()
+        && descriptor.type_ != rcl_interfaces::msg::ParameterType::PARAMETER_INTEGER as u8
+    {
+        return Err(Error::InvalidParameterDescriptor {
+            name: name.to_owned(),
+            reason: "an integer range requires an integer parameter".into(),
+        });
+    }
+    if !descriptor.dynamic_typing
+        && !descriptor.floating_point_range.is_empty()
+        && descriptor.type_ != rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE as u8
+    {
+        return Err(Error::InvalidParameterDescriptor {
+            name: name.to_owned(),
+            reason: "a floating-point range requires a double parameter".into(),
+        });
+    }
+    if let Some(range) = descriptor.floating_point_range.first() {
+        if !range.from_value.is_finite() || !range.to_value.is_finite() || !range.step.is_finite() {
+            return Err(Error::InvalidParameterDescriptor {
+                name: name.to_owned(),
+                reason: "floating-point range bounds and step must be finite".into(),
+            });
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_parameter_update(
+    name: &str, value: &ParameterValue, descriptor: &ParameterDescriptor, check_read_only: bool,
+) -> Result<()> {
+    if check_read_only && descriptor.read_only {
+        return Err(Error::ParameterConstraintViolation {
+            name: name.to_owned(),
+            reason: "parameter is read-only".into(),
+        });
+    }
+
+    let actual_type = value.parameter_type();
+    if !descriptor.dynamic_typing {
+        if actual_type == rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET as u8 {
+            return Err(Error::ParameterConstraintViolation {
+                name: name.to_owned(),
+                reason: "a statically typed parameter cannot be unset".into(),
+            });
+        }
+        if actual_type != descriptor.type_ {
+            return Err(Error::ParameterConstraintViolation {
+                name: name.to_owned(),
+                reason: format!(
+                    "wrong parameter type: expected {}, got {}",
+                    descriptor.type_, actual_type
+                ),
+            });
+        }
+    }
+
+    if let (ParameterValue::Integer(value), Some(range)) = (value, descriptor.integer_range.first())
+    {
+        let min = range.from_value.min(range.to_value);
+        let max = range.from_value.max(range.to_value);
+        if *value != min && *value != max {
+            if *value < min || *value > max {
+                return Err(Error::ParameterConstraintViolation {
+                    name: name.to_owned(),
+                    reason: format!("value {value} is outside [{min}, {max}]"),
+                });
+            }
+            if range.step != 0
+                && (i128::from(*value) - i128::from(min)) % i128::from(range.step) != 0
+            {
+                return Err(Error::ParameterConstraintViolation {
+                    name: name.to_owned(),
+                    reason: format!(
+                        "value {value} does not align with step {} from {min}",
+                        range.step
+                    ),
+                });
+            }
+        }
+    }
+
+    if let (ParameterValue::Double(value), Some(range)) =
+        (value, descriptor.floating_point_range.first())
+    {
+        let min = range.from_value.min(range.to_value);
+        let max = range.from_value.max(range.to_value);
+        if !floats_close(*value, min) && !floats_close(*value, max) {
+            if !value.is_finite() || *value < min || *value > max {
+                return Err(Error::ParameterConstraintViolation {
+                    name: name.to_owned(),
+                    reason: format!("value {value} is outside [{min}, {max}]"),
+                });
+            }
+            let step = range.step.abs();
+            if step != 0.0 {
+                let steps = ((*value - min) / step).round();
+                let nearest = min + steps * step;
+                if !floats_close(*value, nearest) {
+                    return Err(Error::ParameterConstraintViolation {
+                        name: name.to_owned(),
+                        reason: format!(
+                            "value {value} does not align with step {} from {min}",
+                            range.step
+                        ),
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// ROS parameter.
@@ -636,5 +795,126 @@ mod tests {
             string_array_value: &mut strings,
         };
         assert!(matches!(ParameterValue::from_rcl(&variant), Err(Error::RCL_RET_ERROR)));
+    }
+
+    fn descriptor_for(value: &ParameterValue) -> ParameterDescriptor {
+        ParameterDescriptor {
+            name: "value".into(),
+            type_: value.parameter_type(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn integer_descriptor_accepts_endpoints_and_exact_steps() {
+        let mut descriptor = descriptor_for(&ParameterValue::Integer(0));
+        descriptor.integer_range = vec![IntegerRange {
+            from_value: 10,
+            to_value: -10,
+            step: 4,
+        }];
+
+        for value in [-10, -6, -2, 2, 6, 10] {
+            validate_parameter_update("value", &ParameterValue::Integer(value), &descriptor, true)
+                .unwrap();
+        }
+        for value in [-11, -5, 9, 11] {
+            assert!(validate_parameter_update(
+                "value",
+                &ParameterValue::Integer(value),
+                &descriptor,
+                true,
+            )
+            .is_err());
+        }
+
+        descriptor.integer_range[0] = IntegerRange {
+            from_value: i64::MIN,
+            to_value: i64::MAX,
+            step: u64::MAX,
+        };
+        validate_parameter_update("value", &ParameterValue::Integer(i64::MAX), &descriptor, true)
+            .unwrap();
+    }
+
+    #[test]
+    fn floating_descriptor_uses_ros_compatible_step_tolerance() {
+        let mut descriptor = descriptor_for(&ParameterValue::Double(0.0));
+        descriptor.floating_point_range = vec![FloatingPointRange {
+            from_value: 0.0,
+            to_value: 1.0,
+            step: 0.1,
+        }];
+
+        validate_parameter_update(
+            "value",
+            &ParameterValue::Double(0.30000000000000004),
+            &descriptor,
+            true,
+        )
+        .unwrap();
+        assert!(validate_parameter_update(
+            "value",
+            &ParameterValue::Double(0.35),
+            &descriptor,
+            true,
+        )
+        .is_err());
+        assert!(validate_parameter_update(
+            "value",
+            &ParameterValue::Double(f64::NAN),
+            &descriptor,
+            true,
+        )
+        .is_err());
+        assert!(validate_parameter_update(
+            "value",
+            &ParameterValue::Double(f64::INFINITY),
+            &descriptor,
+            true,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn descriptor_enforces_read_only_and_static_typing() {
+        let mut descriptor = descriptor_for(&ParameterValue::Integer(1));
+        descriptor.read_only = true;
+        assert!(matches!(
+            validate_parameter_update("value", &ParameterValue::Integer(2), &descriptor, true),
+            Err(Error::ParameterConstraintViolation { .. })
+        ));
+        validate_parameter_update("value", &ParameterValue::Integer(1), &descriptor, false)
+            .unwrap();
+
+        descriptor.read_only = false;
+        assert!(validate_parameter_update(
+            "value",
+            &ParameterValue::Double(1.0),
+            &descriptor,
+            true,
+        )
+        .is_err());
+        assert!(validate_parameter_update("value", &ParameterValue::NotSet, &descriptor, true,)
+            .is_err());
+
+        descriptor.dynamic_typing = true;
+        validate_parameter_update("value", &ParameterValue::Double(1.0), &descriptor, true)
+            .unwrap();
+    }
+
+    #[test]
+    fn malformed_descriptors_are_rejected() {
+        let mut descriptor = descriptor_for(&ParameterValue::Integer(1));
+        descriptor.integer_range = vec![IntegerRange::default(), IntegerRange::default()];
+        assert!(validate_parameter_descriptor("value", &descriptor).is_err());
+
+        descriptor.integer_range.truncate(1);
+        descriptor.floating_point_range = vec![FloatingPointRange::default()];
+        assert!(validate_parameter_descriptor("value", &descriptor).is_err());
+
+        descriptor.integer_range.clear();
+        descriptor.floating_point_range[0].step = f64::INFINITY;
+        assert!(validate_parameter_descriptor("value", &descriptor).is_err());
     }
 }

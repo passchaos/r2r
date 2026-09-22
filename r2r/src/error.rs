@@ -126,11 +126,20 @@ pub enum Error {
     #[error("Invalid parameter name: {name}")]
     InvalidParameterName { name: String },
 
+    #[error("Parameter {name} has already been declared")]
+    ParameterAlreadyDeclared { name: String },
+
     #[error("Invalid type for parameter {name} (should be {ty})")]
     InvalidParameterType { name: String, ty: &'static str },
 
     #[error("Parameter {name} conversion failed: {msg}")]
     ParameterValueConv { name: String, msg: String },
+
+    #[error("Invalid descriptor for parameter {name}: {reason}")]
+    InvalidParameterDescriptor { name: String, reason: String },
+
+    #[error("Parameter {name} violates its descriptor: {reason}")]
+    ParameterConstraintViolation { name: String, reason: String },
 
     #[error(
         "Parameter {name} was expected to be of type {expected_type} but was of type {actual_type}"

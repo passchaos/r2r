@@ -139,6 +139,7 @@ impl ParameterEventChanges {
 pub struct Node {
     /// ROS parameters.
     pub params: Arc<Mutex<IndexMap<String, Parameter>>>,
+    parameter_descriptors: Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
     pub(crate) node_handle: Box<rcl_node_t>,
     // the node owns the subscribers
     pub(crate) subscribers: Vec<Box<dyn Subscriber_>>,
@@ -456,6 +457,7 @@ impl Node {
 
             let mut node = Node {
                 params: Arc::new(Mutex::new(IndexMap::new())),
+                parameter_descriptors: Arc::new(Mutex::new(IndexMap::new())),
                 node_handle,
                 subscribers: Vec::new(),
                 services: Vec::new(),
@@ -506,6 +508,91 @@ impl Node {
         self.make_parameter_handler_internal(None)
     }
 
+    /// Declares a statically typed parameter, honoring any CLI, YAML, or programmatic override.
+    pub fn declare_parameter(
+        &self, name: impl Into<String>, default_value: ParameterValue,
+    ) -> Result<ParameterValue> {
+        self.declare_parameter_with_descriptor(name, default_value, ParameterDescriptor::default())
+    }
+
+    /// Declares a parameter with a ROS descriptor and returns its effective initial value.
+    ///
+    /// An override loaded while creating the node takes precedence over `default_value`, but must
+    /// satisfy the declared type and constraints. The descriptor's `name` and `type_` fields are
+    /// derived from the arguments, matching ROS 2's declaration semantics.
+    pub fn declare_parameter_with_descriptor(
+        &self, name: impl Into<String>, default_value: ParameterValue,
+        mut descriptor: ParameterDescriptor,
+    ) -> Result<ParameterValue> {
+        let name = name.into();
+        if name.is_empty() {
+            return Err(Error::InvalidParameterName { name });
+        }
+        descriptor.name = name.clone();
+        descriptor.type_ = default_value.parameter_type();
+        validate_parameter_descriptor(&name, &descriptor)?;
+
+        let mut params = self.params.lock();
+        let value = params
+            .get(&name)
+            .map(|parameter| parameter.value.clone())
+            .unwrap_or(default_value);
+        validate_parameter_update(&name, &value, &descriptor, false)?;
+        if descriptor.description.is_empty() {
+            if let Some(parameter) = params.get(&name) {
+                descriptor.description = parameter.description.to_owned();
+            }
+        }
+        if descriptor.dynamic_typing {
+            descriptor.type_ = value.parameter_type();
+        }
+
+        let mut descriptors = self.parameter_descriptors.lock();
+        if descriptors.contains_key(&name) {
+            return Err(Error::ParameterAlreadyDeclared { name });
+        }
+        descriptors.insert(name.clone(), descriptor);
+        params
+            .entry(name)
+            .or_insert_with(|| Parameter::new(value.clone()));
+        Ok(value)
+    }
+
+    /// Registers the ROS descriptor and constraints for an existing parameter.
+    ///
+    /// The descriptor's `name` and `type_` fields are derived from `name` and the parameter's
+    /// current value. Other fields, including read-only, dynamic typing, and numeric ranges, are
+    /// exposed through `DescribeParameters` and enforced by both parameter-setting services.
+    pub fn set_parameter_descriptor(
+        &self, name: impl Into<String>, mut descriptor: ParameterDescriptor,
+    ) -> Result<()> {
+        let name = name.into();
+        let value = self
+            .params
+            .lock()
+            .get(&name)
+            .map(|parameter| parameter.value.clone())
+            .ok_or_else(|| Error::InvalidParameterName { name: name.clone() })?;
+        descriptor.name = name.clone();
+        descriptor.type_ = value.parameter_type();
+        validate_parameter_descriptor(&name, &descriptor)?;
+        validate_parameter_update(&name, &value, &descriptor, false)?;
+        self.parameter_descriptors.lock().insert(name, descriptor);
+        Ok(())
+    }
+
+    /// Returns the registered descriptor for a parameter.
+    pub fn get_parameter_descriptor(&self, name: &str) -> Result<ParameterDescriptor> {
+        if let Some(descriptor) = self.parameter_descriptors.lock().get(name) {
+            return Ok(descriptor.clone());
+        }
+        let params = self.params.lock();
+        let parameter = params
+            .get(name)
+            .ok_or_else(|| Error::InvalidParameterName { name: name.into() })?;
+        Ok(Self::default_parameter_descriptor(name, parameter, true))
+    }
+
     /// Creates parameter service handlers for the Node based on the
     /// [`RosParams`] trait.
     ///
@@ -538,6 +625,28 @@ impl Node {
             ps.lock()
                 .register_parameters("", None, &mut self.params.lock())?;
         }
+        #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+        let use_sim_time = {
+            let mut params = self.params.lock();
+            match params.get("use_sim_time") {
+                Some(Parameter {
+                    value: ParameterValue::Bool(value),
+                    ..
+                }) => *value,
+                Some(_) => {
+                    return Err(Error::InvalidParameterType {
+                        name: "use_sim_time".into(),
+                        ty: "boolean",
+                    });
+                }
+                None => {
+                    params
+                        .insert("use_sim_time".into(), Parameter::new(ParameterValue::Bool(false)));
+                    false
+                }
+            }
+        };
+        self.initialize_parameter_descriptors(params_struct.is_none())?;
         let mut handlers: Vec<std::pin::Pin<Box<dyn Future<Output = ()> + Send>>> = Vec::new();
 
         let (mut set_event_tx, event_rx) = mpsc::channel::<(String, ParameterValue)>(10);
@@ -560,6 +669,7 @@ impl Node {
             )?;
 
         let params = self.params.clone();
+        let parameter_descriptors = self.parameter_descriptors.clone();
         let params_struct_clone = params_struct.clone();
         let set_parameter_event_publisher = parameter_event_publisher.clone();
         let set_parameter_event_clock = parameter_event_clock.clone();
@@ -574,7 +684,18 @@ impl Node {
                     let val = ParameterValue::from_parameter_value_msg(p.value.clone());
                     let previous = params.lock().get(&p.name).map(|v| v.value.clone());
                     let changed = previous.as_ref() != Some(&val);
-                    let r = if p.name == "use_sim_time" {
+                    let descriptor_result = parameter_descriptors
+                        .lock()
+                        .get(&p.name)
+                        .map_or(Ok(()), |descriptor| {
+                            validate_parameter_update(&p.name, &val, descriptor, true)
+                        });
+                    let r = if let Err(err) = descriptor_result {
+                        rcl_interfaces::msg::SetParametersResult {
+                            successful: false,
+                            reason: err.to_string(),
+                        }
+                    } else if p.name == "use_sim_time" {
                         match val {
                             ParameterValue::Bool(enabled) => {
                                 let _ = enabled;
@@ -623,6 +744,11 @@ impl Node {
                     };
                     // if the value changed, send out new value on parameter event stream
                     if changed && r.successful {
+                        Self::record_successful_parameter_descriptor(
+                            &parameter_descriptors,
+                            &p.name,
+                            &val,
+                        );
                         ros_events.record(&p.name, previous.as_ref(), &val);
                         if let Err(e) = set_event_tx.try_send((p.name.clone(), val)) {
                             log::debug!("Warning: could not send parameter event ({}).", e);
@@ -712,9 +838,10 @@ impl Node {
         )?;
 
         let params = self.params.clone();
+        let parameter_descriptors = self.parameter_descriptors.clone();
         let desc_params_future = desc_params_request_stream.for_each(
             move |req: ServiceRequest<DescribeParameters::Service>| {
-                Self::handle_desc_parameters(req, &params)
+                Self::handle_desc_parameters(req, &params, &parameter_descriptors)
             },
         );
 
@@ -757,6 +884,7 @@ impl Node {
             )?;
 
         let params = self.params.clone();
+        let parameter_descriptors = self.parameter_descriptors.clone();
         let params_struct_clone = params_struct.clone();
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
         let atomic_time_source = self.time_source.clone();
@@ -787,11 +915,21 @@ impl Node {
                     .cloned()
                     .collect::<Vec<_>>();
 
+                let descriptor_result = {
+                    let descriptors = parameter_descriptors.lock();
+                    updates.iter().try_for_each(|(name, value)| {
+                        descriptors.get(name).map_or(Ok(()), |descriptor| {
+                            validate_parameter_update(name, value, descriptor, true)
+                        })
+                    })
+                };
                 let update_result = if invalid_sim_time {
                     Err(Error::InvalidParameterType {
                         name: "use_sim_time".into(),
                         ty: "boolean",
                     })
+                } else if let Err(err) = descriptor_result {
+                    Err(err)
                 } else {
                     params_struct_clone
                         .as_ref()
@@ -815,6 +953,14 @@ impl Node {
                                         .and_modify(|parameter| parameter.value = value.clone())
                                         .or_insert_with(|| Parameter::new(value.clone()));
                                 }
+                            }
+                            drop(params);
+                            for (name, value) in &updates {
+                                Self::record_successful_parameter_descriptor(
+                                    &parameter_descriptors,
+                                    name,
+                                    value,
+                                );
                             }
                             (local_events, ros_events)
                         };
@@ -848,38 +994,69 @@ impl Node {
         handlers.push(Box::pin(set_params_atomically_future));
 
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
-        {
-            // create TimeSource based on value of use_sim_time parameter
-            let use_sim_time = {
-                let mut params = self.params.lock();
-                match params.get("use_sim_time") {
-                    Some(Parameter {
-                        value: ParameterValue::Bool(value),
-                        ..
-                    }) => *value,
-                    Some(_) => {
-                        return Err(Error::InvalidParameterType {
-                            name: "use_sim_time".into(),
-                            ty: "boolean",
-                        });
-                    }
-                    None => {
-                        params.insert(
-                            "use_sim_time".into(),
-                            Parameter::new(ParameterValue::Bool(false)),
-                        );
-                        false
-                    }
-                }
-            };
-            if use_sim_time {
-                let ts = self.time_source.clone();
-                ts.enable_sim_time(self)?;
-            }
+        if use_sim_time {
+            let ts = self.time_source.clone();
+            ts.enable_sim_time(self)?;
         }
 
         // we don't care about the result, the futures will not complete anyway.
         Ok((join_all(handlers).map(|_| ()), event_rx))
+    }
+
+    fn default_parameter_descriptor(
+        name: &str, parameter: &Parameter, dynamic_typing: bool,
+    ) -> ParameterDescriptor {
+        ParameterDescriptor {
+            name: name.to_owned(),
+            type_: parameter.value.parameter_type(),
+            description: parameter.description.to_owned(),
+            dynamic_typing,
+            ..Default::default()
+        }
+    }
+
+    fn initialize_parameter_descriptors(&self, dynamic_typing: bool) -> Result<()> {
+        let params = self.params.lock();
+        let mut descriptors = self.parameter_descriptors.lock();
+        for (name, parameter) in params.iter() {
+            let descriptor = descriptors.entry(name.clone()).or_insert_with(|| {
+                Self::default_parameter_descriptor(
+                    name,
+                    parameter,
+                    dynamic_typing && name != "use_sim_time",
+                )
+            });
+            descriptor.name = name.clone();
+            descriptor.type_ = parameter.value.parameter_type();
+            if descriptor.description.is_empty() {
+                descriptor.description = parameter.description.to_owned();
+            }
+            validate_parameter_descriptor(name, descriptor)?;
+            validate_parameter_update(name, &parameter.value, descriptor, false)?;
+        }
+        Ok(())
+    }
+
+    fn record_successful_parameter_descriptor(
+        descriptors: &Arc<Mutex<IndexMap<String, ParameterDescriptor>>>, name: &str,
+        value: &ParameterValue,
+    ) {
+        let mut descriptors = descriptors.lock();
+        if let Some(descriptor) = descriptors.get_mut(name) {
+            if descriptor.dynamic_typing {
+                descriptor.type_ = value.parameter_type();
+            }
+        } else {
+            descriptors.insert(
+                name.to_owned(),
+                ParameterDescriptor {
+                    name: name.to_owned(),
+                    type_: value.parameter_type(),
+                    dynamic_typing: true,
+                    ..Default::default()
+                },
+            );
+        }
     }
 
     fn handle_list_parameters(
@@ -929,19 +1106,22 @@ impl Node {
     fn handle_desc_parameters(
         req: ServiceRequest<rcl_interfaces::srv::DescribeParameters::Service>,
         params: &Arc<Mutex<IndexMap<String, Parameter>>>,
+        parameter_descriptors: &Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
     ) -> future::Ready<()> {
-        use rcl_interfaces::{msg::ParameterDescriptor, srv::DescribeParameters};
+        use rcl_interfaces::srv::DescribeParameters;
         let mut descriptors = Vec::<ParameterDescriptor>::new();
         let params = params.lock();
+        let registered = parameter_descriptors.lock();
         for name in &req.message.names {
-            let default = Parameter::empty();
-            let param = params.get(name).unwrap_or(&default);
-            descriptors.push(ParameterDescriptor {
-                name: name.clone(),
-                type_: param.value.parameter_type(),
-                description: param.description.to_string(),
-                ..Default::default()
-            });
+            descriptors.push(registered.get(name).cloned().unwrap_or_else(|| {
+                params.get(name).map_or_else(
+                    || ParameterDescriptor {
+                        name: name.clone(),
+                        ..Default::default()
+                    },
+                    |parameter| Self::default_parameter_descriptor(name, parameter, true),
+                )
+            }));
         }
         if let Err(err) = req.respond(DescribeParameters::Response { descriptors }) {
             log::warn!("could not send reply to describe parameters request: {err}");
@@ -3540,6 +3720,61 @@ mod tests {
     }
 
     #[test]
+    fn parameter_declaration_validates_overrides_and_prevents_duplicates() {
+        let context = Context::create().unwrap();
+        let node = Node::create_with_options(
+            context,
+            "parameter_declaration_test",
+            "",
+            NodeOptions::default()
+                .use_global_arguments(false)
+                .parameter_override("count", ParameterValue::Integer(4))
+                .parameter_override("invalid", ParameterValue::Integer(3)),
+        )
+        .unwrap();
+        let range = IntegerRange {
+            from_value: 0,
+            to_value: 10,
+            step: 2,
+        };
+
+        let effective = node
+            .declare_parameter_with_descriptor(
+                "count",
+                ParameterValue::Integer(2),
+                ParameterDescriptor {
+                    description: "even count".into(),
+                    integer_range: vec![range.clone()],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(effective, ParameterValue::Integer(4));
+        let descriptor = node.get_parameter_descriptor("count").unwrap();
+        assert_eq!(descriptor.name, "count");
+        assert_eq!(descriptor.type_, rcl_interfaces::msg::ParameterType::PARAMETER_INTEGER as u8);
+        assert_eq!(descriptor.description, "even count");
+        assert_eq!(descriptor.integer_range, vec![range.clone()]);
+
+        assert!(matches!(
+            node.declare_parameter("count", ParameterValue::Integer(2)),
+            Err(Error::ParameterAlreadyDeclared { .. })
+        ));
+        assert!(matches!(
+            node.declare_parameter_with_descriptor(
+                "invalid",
+                ParameterValue::Integer(2),
+                ParameterDescriptor {
+                    integer_range: vec![range],
+                    ..Default::default()
+                },
+            ),
+            Err(Error::ParameterConstraintViolation { .. })
+        ));
+        assert!(node.get_parameter_descriptor("missing").is_err());
+    }
+
+    #[test]
     fn node_options_control_global_parameter_arguments() {
         const CHILD_ENV: &str = "R2R_NODE_OPTIONS_CHILD";
         if let Ok(mode) = std::env::var(CHILD_ENV) {
@@ -5058,6 +5293,183 @@ mod tests {
                 }
             );
         }
+    }
+
+    #[test]
+    fn parameter_services_expose_and_enforce_descriptors() {
+        use rcl_interfaces::{
+            msg,
+            srv::{DescribeParameters, SetParameters, SetParametersAtomically},
+        };
+
+        fn parameter(name: &str, value: ParameterValue) -> msg::Parameter {
+            msg::Parameter {
+                name: name.into(),
+                value: value.into_parameter_value_msg(),
+            }
+        }
+
+        fn drive<T>(
+            node: &mut Node, pool: &mut LocalPool, future: impl Future<Output = Result<T>>,
+        ) -> T {
+            let mut future = Box::pin(future);
+            loop {
+                node.try_spin_once(Duration::from_millis(10)).unwrap();
+                pool.run_until_stalled();
+                if let Some(result) = future.as_mut().now_or_never() {
+                    return result.unwrap();
+                }
+            }
+        }
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "parameter_descriptor_test", "").unwrap();
+        {
+            let mut params = node.params.lock();
+            params.insert("read_only".into(), Parameter::new(ParameterValue::Integer(7)));
+            params.insert("count".into(), Parameter::new(ParameterValue::Integer(2)));
+            params.insert("ratio".into(), Parameter::new(ParameterValue::Double(0.2)));
+            params
+                .insert("dynamic".into(), Parameter::new(ParameterValue::String("initial".into())));
+        }
+        node.set_parameter_descriptor(
+            "read_only",
+            ParameterDescriptor {
+                description: "immutable value".into(),
+                additional_constraints: "configured during startup".into(),
+                read_only: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        node.set_parameter_descriptor(
+            "count",
+            ParameterDescriptor {
+                integer_range: vec![IntegerRange {
+                    from_value: 0,
+                    to_value: 10,
+                    step: 2,
+                }],
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        node.set_parameter_descriptor(
+            "ratio",
+            ParameterDescriptor {
+                floating_point_range: vec![FloatingPointRange {
+                    from_value: 0.0,
+                    to_value: 1.0,
+                    step: 0.1,
+                }],
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        node.set_parameter_descriptor(
+            "dynamic",
+            ParameterDescriptor {
+                dynamic_typing: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let (handler, _events) = node.make_parameter_handler().unwrap();
+        let describe = node
+            .create_client::<DescribeParameters::Service>(
+                "parameter_descriptor_test/describe_parameters",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let set = node
+            .create_client::<SetParameters::Service>(
+                "parameter_descriptor_test/set_parameters",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let set_atomically = node
+            .create_client::<SetParametersAtomically::Service>(
+                "parameter_descriptor_test/set_parameters_atomically",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let mut pool = LocalPool::new();
+        pool.spawner().spawn_local(handler).unwrap();
+
+        let response = drive(
+            &mut node,
+            &mut pool,
+            describe
+                .request(&DescribeParameters::Request {
+                    names: vec!["read_only".into(), "count".into()],
+                })
+                .unwrap(),
+        );
+        assert_eq!(response.descriptors[0].name, "read_only");
+        assert_eq!(response.descriptors[0].description, "immutable value");
+        assert_eq!(response.descriptors[0].additional_constraints, "configured during startup");
+        assert!(response.descriptors[0].read_only);
+        assert_eq!(response.descriptors[1].integer_range[0].step, 2);
+
+        let response = drive(
+            &mut node,
+            &mut pool,
+            set.request(&SetParameters::Request {
+                parameters: vec![
+                    parameter("read_only", ParameterValue::Integer(8)),
+                    parameter("count", ParameterValue::Integer(3)),
+                    parameter("count", ParameterValue::String("wrong".into())),
+                    parameter("count", ParameterValue::Integer(6)),
+                    parameter("dynamic", ParameterValue::Integer(42)),
+                ],
+            })
+            .unwrap(),
+        );
+        assert!(!response.results[0].successful);
+        assert!(!response.results[1].successful);
+        assert!(!response.results[2].successful);
+        assert!(response.results[3].successful);
+        assert!(response.results[4].successful);
+        assert_eq!(node.get_parameter::<i64>("read_only").unwrap(), 7);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 6);
+        assert_eq!(node.get_parameter::<i64>("dynamic").unwrap(), 42);
+        assert_eq!(
+            node.get_parameter_descriptor("dynamic").unwrap().type_,
+            msg::ParameterType::PARAMETER_INTEGER as u8
+        );
+
+        let response = drive(
+            &mut node,
+            &mut pool,
+            set_atomically
+                .request(&SetParametersAtomically::Request {
+                    parameters: vec![
+                        parameter("count", ParameterValue::Integer(8)),
+                        parameter("ratio", ParameterValue::Double(0.25)),
+                    ],
+                })
+                .unwrap(),
+        );
+        assert!(!response.result.successful);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 6);
+        assert_eq!(node.get_parameter::<f64>("ratio").unwrap(), 0.2);
+
+        let response = drive(
+            &mut node,
+            &mut pool,
+            set_atomically
+                .request(&SetParametersAtomically::Request {
+                    parameters: vec![
+                        parameter("count", ParameterValue::Integer(8)),
+                        parameter("ratio", ParameterValue::Double(0.4)),
+                    ],
+                })
+                .unwrap(),
+        );
+        assert!(response.result.successful);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 8);
+        assert_eq!(node.get_parameter::<f64>("ratio").unwrap(), 0.4);
     }
 
     #[test]
