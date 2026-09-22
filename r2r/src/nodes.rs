@@ -952,6 +952,22 @@ impl Node {
         true
     }
 
+    fn destroy_subscription_by_id(&mut self, id: uuid::Uuid) -> bool {
+        let removed = Self::remove_subscription(
+            &mut self.subscribers,
+            &mut self.subscription_indexes,
+            id,
+            self.node_handle.as_mut(),
+        );
+        if removed {
+            self.subscriptions_with_active_waits.remove(&id);
+            self.canceled_subscriptions
+                .lock()
+                .retain(|queued| *queued != id);
+        }
+        removed
+    }
+
     pub(crate) fn subscriber(&self, id: uuid::Uuid) -> Result<&dyn Subscriber_> {
         let index = self
             .subscription_indexes
@@ -3140,6 +3156,18 @@ impl Node {
         };
         self.add_subscriber(Box::new(ws));
         Ok(Subscription::new(receiver, id, Arc::clone(&self.canceled_subscriptions)))
+    }
+
+    /// Immediately destroys a subscription owned by this node.
+    ///
+    /// Dropping a subscription schedules its native endpoint for removal during the next spin.
+    /// This method is useful when deterministic teardown is required before another spin cycle.
+    /// Passing a subscription created by another node leaves this node unchanged and schedules
+    /// the subscription for normal cleanup by its owning node.
+    pub fn destroy_subscription<T>(&mut self, subscription: Subscription<T>) {
+        let id = subscription.id;
+        drop(subscription);
+        self.destroy_subscription_by_id(id);
     }
 
     pub(crate) fn get_subscription_publisher_count(&self, id: uuid::Uuid) -> Result<usize> {
@@ -11669,6 +11697,49 @@ mod tests {
         for (id, index) in &node.subscription_indexes {
             assert_eq!(node.subscribers[*index].match_state().unwrap().id, *id);
         }
+    }
+
+    #[test]
+    fn explicit_subscription_destruction_is_immediate_and_targeted() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context.clone(), "destroy_subscription_test", "").unwrap();
+        let mut other = Node::create(context, "destroy_subscription_other", "").unwrap();
+        let first_topic = format!("/destroy_sub_first_{}", uuid::Uuid::new_v4().simple());
+        let removed_topic = format!("/destroy_sub_removed_{}", uuid::Uuid::new_v4().simple());
+        let last_topic = format!("/destroy_sub_last_{}", uuid::Uuid::new_v4().simple());
+        let first = node
+            .subscribe::<crate::std_msgs::msg::String>(&first_topic, QosProfile::default())
+            .unwrap();
+        let removed = node
+            .subscribe::<crate::std_msgs::msg::String>(&removed_topic, QosProfile::default())
+            .unwrap();
+        let last = node
+            .subscribe::<crate::std_msgs::msg::String>(&last_topic, QosProfile::default())
+            .unwrap();
+        let wait = removed.wait_for_publishers(&mut node).unwrap();
+        let removed_id = removed.id;
+
+        node.destroy_subscription(removed);
+
+        assert_eq!(node.subscribers.len(), 2);
+        assert_eq!(node.subscription_indexes.len(), 2);
+        assert!(!node.subscription_indexes.contains_key(&removed_id));
+        assert!(!node.subscriptions_with_active_waits.contains(&removed_id));
+        assert!(node.canceled_subscriptions.lock().is_empty());
+        assert!(matches!(wait.now_or_never(), Some(Err(_))));
+        assert_eq!(first.topic_name(&node).unwrap(), first_topic);
+        assert_eq!(last.topic_name(&node).unwrap(), last_topic);
+
+        let foreign_topic = format!("/destroy_sub_foreign_{}", uuid::Uuid::new_v4().simple());
+        let foreign = node
+            .subscribe::<crate::std_msgs::msg::String>(&foreign_topic, QosProfile::default())
+            .unwrap();
+        other.destroy_subscription(foreign);
+        assert_eq!(node.subscribers.len(), 3);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(node.subscribers.len(), 2);
+        assert_eq!(first.topic_name(&node).unwrap(), first_topic);
+        assert_eq!(last.topic_name(&node).unwrap(), last_topic);
     }
 
     #[test]
