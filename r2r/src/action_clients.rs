@@ -52,6 +52,66 @@ pub(crate) struct PendingFeedbackQueue {
 }
 
 pub(crate) type CanceledResultQueue = Arc<Mutex<VecDeque<uuid::Uuid>>>;
+pub(crate) type CanceledCancelQueue = Arc<Mutex<VecDeque<i64>>>;
+
+struct CancelFutureRegistration {
+    canceled_cancels: CanceledCancelQueue,
+    sequence: i64,
+    armed: bool,
+}
+
+impl CancelFutureRegistration {
+    fn new(canceled_cancels: CanceledCancelQueue, sequence: i64) -> Self {
+        Self {
+            canceled_cancels,
+            sequence,
+            armed: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for CancelFutureRegistration {
+    fn drop(&mut self) {
+        if self.armed {
+            self.canceled_cancels.lock().push_back(self.sequence);
+        }
+    }
+}
+
+struct CancelResponseFuture {
+    receiver: oneshot::Receiver<action_msgs::srv::CancelGoal::Response>,
+    registration: Option<CancelFutureRegistration>,
+}
+
+impl Future for CancelResponseFuture {
+    type Output = Result<Vec<uuid::Uuid>>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match Pin::new(&mut self.receiver).poll(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(response) => {
+                if let Some(registration) = &mut self.registration {
+                    registration.disarm();
+                }
+                Poll::Ready(
+                    response
+                        .map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID)
+                        .and_then(decode_cancel_response),
+                )
+            }
+        }
+    }
+}
+
+impl Drop for CancelResponseFuture {
+    fn drop(&mut self) {
+        self.receiver.close();
+    }
+}
 
 pub(crate) struct ResultFutureRegistration {
     canceled_results: CanceledResultQueue,
@@ -95,6 +155,25 @@ pub(crate) fn take_canceled_result_goals<T>(
         .filter(|uuid| {
             result_senders
                 .get(uuid)
+                .is_some_and(oneshot::Sender::is_canceled)
+        })
+        .collect()
+}
+
+pub(crate) fn take_canceled_cancel_sequences(
+    canceled_cancels: &CanceledCancelQueue,
+    cancel_senders: &HashMap<i64, oneshot::Sender<action_msgs::srv::CancelGoal::Response>>,
+) -> Vec<i64> {
+    let candidates = {
+        let mut canceled_cancels = canceled_cancels.lock();
+        let count = canceled_cancels.len().min(MAX_ACTION_RESPONSES_PER_SPIN);
+        canceled_cancels.drain(..count).collect::<Vec<_>>()
+    };
+    candidates
+        .into_iter()
+        .filter(|sequence| {
+            cancel_senders
+                .get(sequence)
                 .is_some_and(oneshot::Sender::is_canceled)
         })
         .collect()
@@ -985,6 +1064,7 @@ where
     pub goal_response_sequences: HashMap<uuid::Uuid, i64>,
     pub cancel_response_channels:
         HashMap<i64, oneshot::Sender<action_msgs::srv::CancelGoal::Response>>,
+    pub canceled_cancel_requests: CanceledCancelQueue,
     pub feedback_senders: HashMap<uuid::Uuid, FeedbackSender<T::Feedback>>,
     pub pending_feedback_goals: Arc<Mutex<PendingFeedbackQueue>>,
     pub result_requests: HashMap<i64, uuid::Uuid>,
@@ -1172,8 +1252,7 @@ where
 
     fn prune_canceled_requests(&mut self) -> Vec<ActionClientCompletion> {
         let mut completions = Vec::new();
-        self.cancel_response_channels
-            .retain(|_, sender| !sender.is_canceled());
+        self.prune_canceled_cancel_requests();
         self.feedback_senders
             .retain(|_, channel| !channel.lock().is_closed());
         let canceled_results =
@@ -1182,6 +1261,15 @@ where
             completions.extend(self.forget_result(&uuid));
         }
         completions
+    }
+
+    fn prune_canceled_cancel_requests(&mut self) {
+        for sequence in take_canceled_cancel_sequences(
+            &self.canceled_cancel_requests,
+            &self.cancel_response_channels,
+        ) {
+            self.cancel_response_channels.remove(&sequence);
+        }
     }
 
     fn pending_feedback_completion(&mut self) -> PendingFeedbackAction {
@@ -1214,7 +1302,11 @@ where
 
             self.cancel_response_channels
                 .insert(seq_no, cancel_req_sender);
-            Ok(cancel_response_future(cancel_req_receiver))
+            Ok(registered_cancel_response_future(
+                cancel_req_receiver,
+                Arc::clone(&self.canceled_cancel_requests),
+                seq_no,
+            ))
         } else {
             log::error!("could not send goal request {}", result);
             Err(Error::from_rcl_error(result))
@@ -1482,11 +1574,9 @@ where
     }
 
     fn has_pending_work(&mut self) -> bool {
+        self.prune_canceled_cancel_requests();
         !self.goal_response_channels.is_empty()
-            || self
-                .cancel_response_channels
-                .iter()
-                .any(|(_, sender)| !sender.is_canceled())
+            || !self.cancel_response_channels.is_empty()
             || self
                 .feedback_senders
                 .values()
@@ -1555,12 +1645,9 @@ pub(crate) fn action_client_take_succeeded(ret: rcl_ret_t) -> Result<bool> {
     }
 }
 
-pub(crate) async fn cancel_response_future(
-    receiver: oneshot::Receiver<action_msgs::srv::CancelGoal::Response>,
+fn decode_cancel_response(
+    response: action_msgs::srv::CancelGoal::Response,
 ) -> Result<Vec<uuid::Uuid>> {
-    let response = receiver
-        .await
-        .map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID)?;
     match response.return_code {
         code if code == action_msgs::srv::CancelGoal::Response::ERROR_NONE as i8 => response
             .goals_canceling
@@ -1577,6 +1664,26 @@ pub(crate) async fn cancel_response_future(
             Err(Error::GoalCancelAlreadyTerminated)
         }
         code => Err(Error::UnknownActionCancelResponse(code)),
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn cancel_response_future(
+    receiver: oneshot::Receiver<action_msgs::srv::CancelGoal::Response>,
+) -> impl Future<Output = Result<Vec<uuid::Uuid>>> {
+    CancelResponseFuture {
+        receiver,
+        registration: None,
+    }
+}
+
+pub(crate) fn registered_cancel_response_future(
+    receiver: oneshot::Receiver<action_msgs::srv::CancelGoal::Response>,
+    canceled_cancels: CanceledCancelQueue, sequence: i64,
+) -> impl Future<Output = Result<Vec<uuid::Uuid>>> {
+    CancelResponseFuture {
+        receiver,
+        registration: Some(CancelFutureRegistration::new(canceled_cancels, sequence)),
     }
 }
 
@@ -2110,6 +2217,7 @@ mod tests {
             goal_response_channels: HashMap::new(),
             goal_response_sequences: HashMap::new(),
             cancel_response_channels: HashMap::new(),
+            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::from([(
                 uuid,
                 Arc::new(Mutex::new(FeedbackChannel::new(feedback_sender))),
@@ -2232,6 +2340,7 @@ mod tests {
             goal_response_channels: HashMap::new(),
             goal_response_sequences: HashMap::new(),
             cancel_response_channels: HashMap::new(),
+            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::from([
                 (target, Arc::new(Mutex::new(FeedbackChannel::new(target_sender)))),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_sender)))),
@@ -2499,6 +2608,7 @@ mod tests {
             goal_response_channels: HashMap::new(),
             goal_response_sequences: HashMap::new(),
             cancel_response_channels: HashMap::new(),
+            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::from([(
                 target,
                 Arc::new(Mutex::new(FeedbackChannel::new(feedback_sender))),
@@ -2558,6 +2668,7 @@ mod tests {
             ]),
             goal_response_sequences: HashMap::from([(target, 10), (other, 11)]),
             cancel_response_channels: HashMap::new(),
+            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::new(),
             pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
@@ -2595,6 +2706,7 @@ mod tests {
             goal_response_channels: HashMap::from([(10, (uuid, sender))]),
             goal_response_sequences: HashMap::from([(uuid, 10)]),
             cancel_response_channels: HashMap::new(),
+            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::new(),
             pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
@@ -2631,6 +2743,7 @@ mod tests {
             goal_response_channels: HashMap::new(),
             goal_response_sequences: HashMap::new(),
             cancel_response_channels: HashMap::new(),
+            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::from([(
                 target,
                 Arc::new(Mutex::new(FeedbackChannel {
@@ -2713,6 +2826,93 @@ mod tests {
     }
 
     #[test]
+    fn dropping_cancel_future_queues_only_its_sequence_for_cleanup() {
+        let canceled_cancels = Arc::new(Mutex::new(VecDeque::new()));
+        let (target_sender, target_receiver) = oneshot::channel();
+        let (other_sender, _other_receiver) = oneshot::channel();
+        let senders = HashMap::from([(10, target_sender), (11, other_sender)]);
+        let future =
+            registered_cancel_response_future(target_receiver, Arc::clone(&canceled_cancels), 10);
+
+        drop(future);
+
+        assert_eq!(take_canceled_cancel_sequences(&canceled_cancels, &senders), [10]);
+        assert!(!senders[&11].is_canceled());
+    }
+
+    #[test]
+    fn completed_cancel_future_does_not_queue_cleanup() {
+        let canceled_cancels = Arc::new(Mutex::new(VecDeque::new()));
+        let (sender, receiver) = oneshot::channel();
+        let future = registered_cancel_response_future(receiver, Arc::clone(&canceled_cancels), 10);
+        sender
+            .send(action_msgs::srv::CancelGoal::Response {
+                return_code: action_msgs::srv::CancelGoal::Response::ERROR_NONE as i8,
+                goals_canceling: Vec::new(),
+            })
+            .unwrap();
+
+        assert!(futures::executor::block_on(future).unwrap().is_empty());
+        assert!(canceled_cancels.lock().is_empty());
+    }
+
+    #[test]
+    fn canceled_cancel_cleanup_is_bounded_and_ignores_stale_sequences() {
+        let stale_sequence = 1;
+        let canceled_cancels = Arc::new(Mutex::new((stale_sequence..=20).collect::<VecDeque<_>>()));
+        let mut receivers = Vec::new();
+        let senders = (stale_sequence..=20)
+            .map(|sequence| {
+                let (sender, receiver) = oneshot::channel();
+                if sequence == stale_sequence {
+                    receivers.push(receiver);
+                } else {
+                    drop(receiver);
+                }
+                (sequence, sender)
+            })
+            .collect::<HashMap<_, _>>();
+
+        let canceled = take_canceled_cancel_sequences(&canceled_cancels, &senders);
+
+        assert_eq!(canceled, (2..=16).collect::<Vec<_>>());
+        assert_eq!(
+            canceled_cancels.lock().iter().copied().collect::<Vec<_>>(),
+            (17..=20).collect::<Vec<_>>()
+        );
+        assert!(!senders[&stale_sequence].is_canceled());
+        drop(receivers);
+    }
+
+    #[test]
+    fn pending_work_prunes_dropped_cancel_future() {
+        let canceled_cancels = Arc::new(Mutex::new(VecDeque::new()));
+        let (sender, receiver) = oneshot::channel();
+        let mut client = WrappedActionClient::<Fibonacci::Action> {
+            rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
+            goal_response_channels: HashMap::new(),
+            goal_response_sequences: HashMap::new(),
+            cancel_response_channels: HashMap::from([(10, sender)]),
+            canceled_cancel_requests: Arc::clone(&canceled_cancels),
+            feedback_senders: HashMap::new(),
+            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            result_requests: HashMap::new(),
+            result_request_sequences: HashMap::new(),
+            result_senders: HashMap::new(),
+            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
+            goal_status: HashMap::new(),
+            feedback_channel_capacity: 0,
+            poll_available_channels: Vec::new(),
+        };
+        let future = registered_cancel_response_future(receiver, canceled_cancels, 10);
+
+        drop(future);
+
+        assert!(!client.has_pending_work());
+        assert!(client.cancel_response_channels.is_empty());
+    }
+
+    #[test]
     fn batch_cancel_response_decodes_all_goal_ids_strictly() {
         let first = uuid::Uuid::from_u128(1);
         let second = uuid::Uuid::from_u128(2);
@@ -2773,6 +2973,7 @@ mod tests {
             goal_response_channels: HashMap::new(),
             goal_response_sequences: HashMap::new(),
             cancel_response_channels: HashMap::new(),
+            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::from([
                 (
                     target,
@@ -2834,6 +3035,7 @@ mod tests {
             goal_response_channels: HashMap::from([(12, (other, other_goal))]),
             goal_response_sequences: HashMap::from([(other, 12)]),
             cancel_response_channels: HashMap::new(),
+            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::from([
                 (
                     target,

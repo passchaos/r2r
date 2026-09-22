@@ -468,6 +468,7 @@ pub struct WrappedActionClientUntyped {
     pub goal_response_sequences: HashMap<uuid::Uuid, i64>,
     pub cancel_response_channels:
         HashMap<i64, oneshot::Sender<action_msgs::srv::CancelGoal::Response>>,
+    pub canceled_cancel_requests: CanceledCancelQueue,
     pub feedback_senders: HashMap<uuid::Uuid, FeedbackSender<Result<serde_json::Value>>>,
     pub pending_feedback_goals: Arc<Mutex<PendingFeedbackQueue>>,
     pub result_requests: HashMap<i64, uuid::Uuid>,
@@ -617,8 +618,7 @@ impl WrappedActionClientUntyped {
 
     fn prune_canceled_requests(&mut self) -> Vec<ActionClientCompletion> {
         let mut completions = Vec::new();
-        self.cancel_response_channels
-            .retain(|_, sender| !sender.is_canceled());
+        self.prune_canceled_cancel_requests();
         self.feedback_senders
             .retain(|_, channel| !channel.lock().is_closed());
         let canceled_results =
@@ -627,6 +627,15 @@ impl WrappedActionClientUntyped {
             completions.extend(self.forget_result(&uuid));
         }
         completions
+    }
+
+    fn prune_canceled_cancel_requests(&mut self) {
+        for sequence in take_canceled_cancel_sequences(
+            &self.canceled_cancel_requests,
+            &self.cancel_response_channels,
+        ) {
+            self.cancel_response_channels.remove(&sequence);
+        }
     }
 
     fn pending_feedback_completion(&mut self) -> PendingFeedbackAction {
@@ -659,7 +668,11 @@ impl WrappedActionClientUntyped {
 
             self.cancel_response_channels
                 .insert(seq_no, cancel_req_sender);
-            Ok(cancel_response_future(cancel_req_receiver))
+            Ok(registered_cancel_response_future(
+                cancel_req_receiver,
+                Arc::clone(&self.canceled_cancel_requests),
+                seq_no,
+            ))
         } else {
             log::error!("could not send goal request {}", result);
             Err(Error::from_rcl_error(result))
@@ -916,11 +929,9 @@ impl ActionClient_ for WrappedActionClientUntyped {
     }
 
     fn has_pending_work(&mut self) -> bool {
+        self.prune_canceled_cancel_requests();
         !self.goal_response_channels.is_empty()
-            || self
-                .cancel_response_channels
-                .iter()
-                .any(|(_, sender)| !sender.is_canceled())
+            || !self.cancel_response_channels.is_empty()
             || self
                 .feedback_senders
                 .values()
@@ -959,6 +970,38 @@ mod tests {
     use futures::{FutureExt, StreamExt};
 
     #[test]
+    fn pending_work_prunes_dropped_cancel_future() {
+        let canceled_cancels = Arc::new(Mutex::new(std::collections::VecDeque::new()));
+        let (sender, receiver) = oneshot::channel();
+        let mut client = WrappedActionClientUntyped {
+            action_type_support: UntypedActionSupport::new_from(
+                "example_interfaces/action/Fibonacci",
+            )
+            .unwrap(),
+            rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
+            goal_response_channels: HashMap::new(),
+            goal_response_sequences: HashMap::new(),
+            cancel_response_channels: HashMap::from([(10, sender)]),
+            canceled_cancel_requests: Arc::clone(&canceled_cancels),
+            feedback_senders: HashMap::new(),
+            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            result_requests: HashMap::new(),
+            result_request_sequences: HashMap::new(),
+            result_senders: HashMap::new(),
+            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
+            goal_status: HashMap::new(),
+            feedback_channel_capacity: 0,
+            poll_available_channels: Vec::new(),
+        };
+        let future = registered_cancel_response_future(receiver, canceled_cancels, 10);
+
+        drop(future);
+
+        assert!(!client.has_pending_work());
+        assert!(client.cancel_response_channels.is_empty());
+    }
+
+    #[test]
     fn feedback_is_routed_only_to_the_indexed_goal() {
         let target = uuid::Uuid::new_v4();
         let other = uuid::Uuid::new_v4();
@@ -973,6 +1016,7 @@ mod tests {
             goal_response_channels: HashMap::new(),
             goal_response_sequences: HashMap::new(),
             cancel_response_channels: HashMap::new(),
+            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::from([
                 (target, Arc::new(Mutex::new(FeedbackChannel::new(target_sender)))),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_sender)))),
@@ -1023,6 +1067,7 @@ mod tests {
             ]),
             goal_response_sequences: HashMap::from([(target, 10), (other, 11)]),
             cancel_response_channels: HashMap::new(),
+            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::new(),
             pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
@@ -1064,6 +1109,7 @@ mod tests {
             goal_response_channels: HashMap::from([(10, (uuid, sender))]),
             goal_response_sequences: HashMap::from([(uuid, 10)]),
             cancel_response_channels: HashMap::new(),
+            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::new(),
             pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
@@ -1107,6 +1153,7 @@ mod tests {
             goal_response_channels: HashMap::new(),
             goal_response_sequences: HashMap::new(),
             cancel_response_channels: HashMap::new(),
+            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::from([
                 (
                     target,
@@ -1172,6 +1219,7 @@ mod tests {
             goal_response_channels: HashMap::from([(12, (other, other_goal))]),
             goal_response_sequences: HashMap::from([(other, 12)]),
             cancel_response_channels: HashMap::new(),
+            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::from([
                 (
                     target,
