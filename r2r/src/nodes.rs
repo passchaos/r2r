@@ -522,6 +522,7 @@ pub struct Node {
     // services,
     services: Vec<Arc<Mutex<dyn Service_>>>,
     service_indexes: HashMap<uuid::Uuid, usize>,
+    canceled_services: Arc<Mutex<VecDeque<uuid::Uuid>>>,
     // service clients
     clients: Vec<Arc<Mutex<dyn Client_>>>,
     client_identities: HashSet<usize>,
@@ -684,16 +685,26 @@ impl Node {
         self.services.push(service);
     }
 
-    fn rebuild_service_indexes(
-        services: &[Arc<Mutex<dyn Service_>>], indexes: &mut HashMap<uuid::Uuid, usize>,
-    ) {
-        indexes.clear();
-        indexes.reserve(services.len());
-        for (index, service) in services.iter().enumerate() {
-            if let Some(id) = service.lock().id() {
-                debug_assert!(indexes.insert(id, index).is_none());
+    fn remove_service(
+        services: &mut Vec<Arc<Mutex<dyn Service_>>>,
+        service_indexes: &mut HashMap<uuid::Uuid, usize>, id: uuid::Uuid,
+        node_handle: &mut rcl_node_t,
+    ) -> bool {
+        let Some(index) = service_indexes.remove(&id) else {
+            return false;
+        };
+        let removed = services.swap_remove(index);
+        {
+            let mut removed = removed.lock();
+            debug_assert_eq!(removed.id(), Some(id));
+            removed.destroy(node_handle);
+        }
+        if let Some(moved) = services.get(index) {
+            if let Some(moved_id) = moved.lock().id() {
+                service_indexes.insert(moved_id, index);
             }
         }
+        true
     }
 
     fn service(&self, id: uuid::Uuid) -> Result<&Arc<Mutex<dyn Service_>>> {
@@ -1022,6 +1033,7 @@ impl Node {
                 canceled_subscriptions: Arc::new(Mutex::new(VecDeque::new())),
                 services: Vec::new(),
                 service_indexes: HashMap::new(),
+                canceled_services: Arc::new(Mutex::new(VecDeque::new())),
                 clients: Vec::new(),
                 client_identities: HashSet::new(),
                 action_clients: Vec::new(),
@@ -2418,7 +2430,7 @@ impl Node {
         };
 
         self.add_service(id, Arc::new(Mutex::new(ws)));
-        Ok(Service::new(receiver, id))
+        Ok(Service::new(receiver, id, Arc::clone(&self.canceled_services)))
     }
 
     /// Creates a runtime-typed ROS service whose requests and responses use JSON values.
@@ -2456,7 +2468,7 @@ impl Node {
             id,
         };
         self.add_service(id, Arc::new(Mutex::new(service)));
-        Ok(ServiceUntyped::new(receiver, id))
+        Ok(ServiceUntyped::new(receiver, id, Arc::clone(&self.canceled_services)))
     }
 
     pub(crate) fn get_service_request_subscription_actual_qos(
@@ -2980,22 +2992,13 @@ impl Node {
             }
         }
 
-        // A dropped service stream cannot receive another request to trigger its old reactive
-        // cleanup path. Remove it before rebuilding the wait set so it leaves the ROS graph even
-        // when the service is idle.
+        let canceled_services = {
+            let mut canceled_services = self.canceled_services.lock();
+            canceled_services.drain(..).collect::<Vec<_>>()
+        };
         let node_handle = self.node_handle.as_mut();
-        let previous_service_count = self.services.len();
-        self.services.retain(|service| {
-            let mut handle = service.lock();
-            if handle.should_remove() {
-                handle.destroy(node_handle);
-                false
-            } else {
-                true
-            }
-        });
-        if self.services.len() != previous_service_count {
-            Self::rebuild_service_indexes(&self.services, &mut self.service_indexes);
+        for id in canceled_services {
+            Self::remove_service(&mut self.services, &mut self.service_indexes, id, node_handle);
         }
 
         // Public clients only keep weak references to their native state. Retain a client while
@@ -3310,7 +3313,7 @@ impl Node {
             }
         }
 
-        let mut services_to_remove = HashSet::new();
+        let mut services_to_remove = Vec::new();
         let mut service_error = None;
         if !ws.services.is_null() {
             let ws_services =
@@ -3319,7 +3322,9 @@ impl Node {
                 if ws_s != &std::ptr::null() {
                     match complete_ready_service(s) {
                         Ok(ServiceHandleResult::Remove) => {
-                            services_to_remove.insert(s.lock().handle() as *const rcl_service_t);
+                            if let Some(id) = s.lock().id() {
+                                services_to_remove.push(id);
+                            }
                         }
                         Ok(ServiceHandleResult::Taken | ServiceHandleResult::Idle) => {}
                         Err(err) => {
@@ -3330,18 +3335,8 @@ impl Node {
             }
         }
         let node_handle = self.node_handle.as_mut();
-        let previous_service_count = self.services.len();
-        self.services.retain(|service| {
-            let mut handle = service.lock();
-            if services_to_remove.contains(&(handle.handle() as *const rcl_service_t)) {
-                handle.destroy(node_handle);
-                false
-            } else {
-                true
-            }
-        });
-        if self.services.len() != previous_service_count {
-            Self::rebuild_service_indexes(&self.services, &mut self.service_indexes);
+        for id in services_to_remove {
+            Self::remove_service(&mut self.services, &mut self.service_indexes, id, node_handle);
         }
         if let Some(err) = service_error {
             return Err(err);
@@ -9522,13 +9517,29 @@ mod tests {
         let last = node
             .create_service::<AddTwoInts::Service>(&last_name, QosProfile::default())
             .unwrap();
+        let removed_id = *node
+            .service_indexes
+            .iter()
+            .find_map(|(id, index)| {
+                (node.services[*index].lock().service_name().unwrap() == removed_name).then_some(id)
+            })
+            .unwrap();
 
         assert_eq!(node.service_indexes.len(), 3);
         drop(removed);
+        assert_eq!(
+            node.canceled_services
+                .lock()
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            [removed_id]
+        );
         node.try_spin_once(Duration::ZERO).unwrap();
 
         assert_eq!(node.services.len(), 2);
         assert_eq!(node.service_indexes.len(), 2);
+        assert!(node.canceled_services.lock().is_empty());
         assert_eq!(first.service_name(&node).unwrap(), first_name);
         assert_eq!(last.service_name(&node).unwrap(), last_name);
         for (id, index) in &node.service_indexes {
