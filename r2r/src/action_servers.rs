@@ -937,10 +937,7 @@ impl<T> WrappedActionServer<T>
 where
     T: WrappedActionTypeSupport,
 {
-    fn finish_cancel_delivery(&mut self, mut pending: PendingCancelRequest) {
-        pending
-            .deliveries
-            .retain(|delivery| self.cancel_senders.contains_key(&delivery.uuid));
+    fn finish_cancel_delivery(&mut self, pending: PendingCancelRequest) {
         if pending.deliveries.is_empty() {
             self.active_cancel_requests.push_back((
                 pending.request_id,
@@ -2220,6 +2217,34 @@ mod tests {
                 .collect::<Vec<_>>(),
             (1..=16).collect::<Vec<_>>()
         );
+        assert_eq!(
+            deliveries
+                .iter()
+                .map(|delivery| delivery.uuid.as_u128())
+                .collect::<Vec<_>>(),
+            (17..=20).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn stale_cancel_deliveries_are_removed_in_bounded_batches() {
+        let mut deliveries = (1..=20_u128)
+            .map(|value| {
+                let uuid = uuid::Uuid::from_u128(value);
+                let (response_sender, _response_receiver) = oneshot::channel();
+                PendingCancelDelivery {
+                    uuid,
+                    request: ActionServerCancelRequest {
+                        uuid,
+                        response_sender,
+                    },
+                }
+            })
+            .collect::<VecDeque<_>>();
+
+        let detached = take_cancel_deliveries(&mut deliveries, &HashMap::new());
+
+        assert!(detached.is_empty());
         assert_eq!(
             deliveries
                 .iter()
