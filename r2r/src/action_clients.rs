@@ -11,7 +11,10 @@ use std::{
     future::Future,
     mem::MaybeUninit,
     pin::Pin,
-    sync::{Arc, Weak},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Weak,
+    },
     task::{Context, Poll},
 };
 
@@ -654,11 +657,20 @@ pub(crate) struct ActionClientHandleLifecycle {
     pub(crate) identity: usize,
     pub(crate) dropped_action_clients: Arc<Mutex<VecDeque<usize>>>,
     pub(crate) active_availability_clients: Arc<Mutex<VecDeque<usize>>>,
+    pub(crate) explicitly_destroyed: AtomicBool,
 }
 
 impl Drop for ActionClientHandleLifecycle {
     fn drop(&mut self) {
-        self.dropped_action_clients.lock().push_back(self.identity);
+        if !self.explicitly_destroyed.load(Ordering::Acquire) {
+            self.dropped_action_clients.lock().push_back(self.identity);
+        }
+    }
+}
+
+impl ActionClientHandleLifecycle {
+    pub(crate) fn mark_explicitly_destroyed(&self) {
+        self.explicitly_destroyed.store(true, Ordering::Release);
     }
 }
 
@@ -1149,6 +1161,10 @@ where
     pub(crate) fn identity(&self) -> usize {
         self.lifecycle.identity
     }
+
+    pub(crate) fn mark_explicitly_destroyed(&self) {
+        self.lifecycle.mark_explicitly_destroyed();
+    }
 }
 
 type GoalResponseSender = (uuid::Uuid, oneshot::Sender<(bool, builtin_interfaces::msg::Time)>);
@@ -1167,6 +1183,7 @@ where
             identity,
             dropped_action_clients,
             active_availability_clients,
+            explicitly_destroyed: AtomicBool::new(false),
         }),
     }
 }

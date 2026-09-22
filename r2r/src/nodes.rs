@@ -3785,8 +3785,9 @@ impl Node {
         T: 'static + WrappedActionTypeSupport,
     {
         let identity = client.identity();
-        drop(client);
-        self.destroy_action_client_by_identity(identity)?;
+        if self.destroy_action_client_by_identity(identity)? {
+            client.mark_explicitly_destroyed();
+        }
         Ok(())
     }
 
@@ -3795,8 +3796,9 @@ impl Node {
     /// Pending operations are closed before this method returns.
     pub fn destroy_action_client_untyped(&mut self, client: ActionClientUntyped) -> Result<()> {
         let identity = client.identity();
-        drop(client);
-        self.destroy_action_client_by_identity(identity)?;
+        if self.destroy_action_client_by_identity(identity)? {
+            client.mark_explicitly_destroyed();
+        }
         Ok(())
     }
 
@@ -12291,6 +12293,7 @@ mod tests {
         let removed = node
             .create_action_client::<Fibonacci::Action>("/destroy_action_client_removed")
             .unwrap();
+        let removed_clone = removed.clone();
         let last = node
             .create_action_client_untyped(
                 "/destroy_action_client_last",
@@ -12330,8 +12333,11 @@ mod tests {
         assert_eq!(node.action_wait_set_capacities, expected_capacities);
         assert!(matches!(goal.now_or_never(), Some(Err(Error::RCL_RET_ACTION_CLIENT_INVALID))));
         assert!(matches!(availability.now_or_never(), Some(Err(Error::RCL_RET_CLIENT_INVALID))));
+        assert!(matches!(removed_clone.action_name(), Err(Error::RCL_RET_ACTION_CLIENT_INVALID)));
         assert_eq!(first.action_name().unwrap(), "/destroy_action_client_first");
         assert_eq!(last.action_name().unwrap(), "/destroy_action_client_last");
+        drop(removed_clone);
+        assert!(node.dropped_action_clients.lock().is_empty());
 
         let foreign = node
             .create_action_client_untyped(

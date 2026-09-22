@@ -481,6 +481,10 @@ impl ActionClientUntyped {
     pub(crate) fn identity(&self) -> usize {
         self.lifecycle.identity
     }
+
+    pub(crate) fn mark_explicitly_destroyed(&self) {
+        self.lifecycle.mark_explicitly_destroyed();
+    }
 }
 
 type GoalResponseSender = (uuid::Uuid, oneshot::Sender<(bool, builtin_interfaces::msg::Time)>);
@@ -496,6 +500,7 @@ pub(crate) fn make_action_client_untyped(
             identity,
             dropped_action_clients,
             active_availability_clients,
+            explicitly_destroyed: std::sync::atomic::AtomicBool::new(false),
         }),
     }
 }
