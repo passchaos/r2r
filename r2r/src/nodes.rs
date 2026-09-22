@@ -513,6 +513,7 @@ pub struct Node {
     /// ROS parameters.
     pub params: Arc<Mutex<IndexMap<String, Parameter>>>,
     parameter_overrides: IndexMap<String, ParameterValue>,
+    automatically_declare_parameters_from_overrides: bool,
     parameter_descriptors: Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
     parameter_provider: Option<Arc<Mutex<dyn RosParams + Send>>>,
     parameter_transaction: Arc<Mutex<()>>,
@@ -565,6 +566,8 @@ pub struct NodeOptions {
     pub use_global_arguments: bool,
     /// Programmatic parameter overrides. These take precedence over global CLI/YAML overrides.
     pub parameter_overrides: IndexMap<String, ParameterValue>,
+    /// Whether parameter overrides are immediately exposed as declared parameters.
+    pub automatically_declare_parameters_from_overrides: bool,
     /// Whether the node publishes logs on `/rosout`.
     pub enable_rosout: bool,
     /// Optional override for the `/rosout` publisher QoS.
@@ -576,6 +579,7 @@ impl Default for NodeOptions {
         Self {
             use_global_arguments: true,
             parameter_overrides: IndexMap::new(),
+            automatically_declare_parameters_from_overrides: true,
             enable_rosout: true,
             rosout_qos: None,
         }
@@ -606,6 +610,16 @@ impl NodeOptions {
                 .into_iter()
                 .map(|(name, value)| (name.into(), value.into())),
         );
+        self
+    }
+
+    /// Controls whether overrides are exposed as parameters during node creation.
+    ///
+    /// Disabling this keeps overrides available to later explicit declarations without making
+    /// them visible through parameter lookup or listing beforehand. The default is `true` for
+    /// compatibility with r2r's historical behavior.
+    pub fn automatically_declare_parameters_from_overrides(mut self, enabled: bool) -> Self {
+        self.automatically_declare_parameters_from_overrides = enabled;
         self
     }
 
@@ -1027,6 +1041,8 @@ impl Node {
             let mut node = Node {
                 params: Arc::new(Mutex::new(IndexMap::new())),
                 parameter_overrides: IndexMap::new(),
+                automatically_declare_parameters_from_overrides: options
+                    .automatically_declare_parameters_from_overrides,
                 parameter_descriptors: Arc::new(Mutex::new(IndexMap::new())),
                 parameter_provider: None,
                 parameter_transaction: Arc::new(Mutex::new(())),
@@ -1069,11 +1085,13 @@ impl Node {
                 IndexMap::new()
             };
             parameter_overrides.extend(options.parameter_overrides);
-            node.params.lock().extend(
-                parameter_overrides
-                    .iter()
-                    .map(|(name, value)| (name.clone(), Parameter::new(value.clone()))),
-            );
+            if options.automatically_declare_parameters_from_overrides {
+                node.params.lock().extend(
+                    parameter_overrides
+                        .iter()
+                        .map(|(name, value)| (name.clone(), Parameter::new(value.clone()))),
+                );
+            }
             node.parameter_overrides = parameter_overrides;
             Ok(node)
         } else {
@@ -1251,15 +1269,20 @@ impl Node {
             descriptor.type_ = default_value.parameter_type().into();
             validate_parameter_descriptor(&name, &descriptor)?;
 
-            let override_parameter = (!options.ignore_override)
+            let existing_override = (!options.ignore_override)
                 .then(|| params.get(&name))
                 .flatten();
-            let uses_existing_override = override_parameter.is_some();
-            let value =
-                override_parameter.map_or(default_value, |parameter| parameter.value.clone());
+            let deferred_override = (!options.ignore_override && existing_override.is_none())
+                .then(|| self.parameter_overrides.get(&name))
+                .flatten();
+            let uses_existing_override = existing_override.is_some();
+            let value = existing_override
+                .map(|parameter| parameter.value.clone())
+                .or_else(|| deferred_override.cloned())
+                .unwrap_or(default_value);
             validate_parameter_update(&name, &value, &descriptor, false)?;
             if descriptor.description.is_empty() {
-                if let Some(parameter) = override_parameter {
+                if let Some(parameter) = existing_override {
                     descriptor.description = parameter.description.to_owned();
                 }
             }
@@ -1423,9 +1446,38 @@ impl Node {
             return Err(Error::ParameterHandlerAlreadyCreated);
         }
         if let Some(ps) = &params_struct {
-            // register all parameters
-            ps.lock()
-                .register_parameters("", None, &mut self.params.lock())?;
+            let mut provider = ps.lock();
+            let mut params = self.params.lock();
+            let original_params = params
+                .iter()
+                .map(|(name, parameter)| {
+                    (
+                        name.clone(),
+                        Parameter {
+                            value: parameter.value.clone(),
+                            description: parameter.description,
+                        },
+                    )
+                })
+                .collect();
+            let mut deferred_overrides = Vec::new();
+            if !self.automatically_declare_parameters_from_overrides {
+                for (name, value) in &self.parameter_overrides {
+                    if !params.contains_key(name) {
+                        params.insert(name.clone(), Parameter::new(value.clone()));
+                        deferred_overrides.push(name.clone());
+                    }
+                }
+            }
+            if let Err(err) = provider.register_parameters("", None, &mut params) {
+                *params = original_params;
+                return Err(err);
+            }
+            for name in deferred_overrides {
+                if provider.get_parameter(&name).is_err() {
+                    params.shift_remove(&name);
+                }
+            }
         }
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
         let use_sim_time = {
@@ -1442,9 +1494,21 @@ impl Node {
                     });
                 }
                 None => {
-                    params
-                        .insert("use_sim_time".into(), Parameter::new(ParameterValue::Bool(false)));
-                    false
+                    let enabled = match self.parameter_overrides.get("use_sim_time") {
+                        Some(ParameterValue::Bool(enabled)) => *enabled,
+                        Some(_) => {
+                            return Err(Error::InvalidParameterType {
+                                name: "use_sim_time".into(),
+                                ty: "boolean",
+                            });
+                        }
+                        None => false,
+                    };
+                    params.insert(
+                        "use_sim_time".into(),
+                        Parameter::new(ParameterValue::Bool(enabled)),
+                    );
+                    enabled
                 }
             }
         };
@@ -4722,6 +4786,52 @@ mod tests {
         ratio: f64,
     }
 
+    struct DerivedOverrideParams {
+        count: i64,
+    }
+
+    impl RosParams for DerivedOverrideParams {
+        fn register_parameters(
+            &mut self, _prefix: &str, _parameter: Option<Parameter>,
+            parameters: &mut IndexMap<String, Parameter>,
+        ) -> Result<()> {
+            self.count
+                .register_parameters("count", Some(Parameter::empty()), parameters)
+        }
+
+        fn get_parameter(&mut self, name: &str) -> Result<ParameterValue> {
+            match name {
+                "count" => Ok(ParameterValue::Integer(self.count)),
+                _ => Err(Error::InvalidParameterName { name: name.into() }),
+            }
+        }
+
+        fn set_parameter(&mut self, name: &str, value: &ParameterValue) -> Result<()> {
+            match (name, value) {
+                ("count", ParameterValue::Integer(value)) => {
+                    self.count = *value;
+                    Ok(())
+                }
+                ("count", _) => Err(Error::InvalidParameterType {
+                    name: name.into(),
+                    ty: "integer",
+                }),
+                _ => Err(Error::InvalidParameterName { name: name.into() }),
+            }
+        }
+
+        fn check_parameter(&self, name: &str, value: &ParameterValue) -> Result<()> {
+            match (name, value) {
+                ("count", ParameterValue::Integer(_)) => Ok(()),
+                ("count", _) => Err(Error::InvalidParameterType {
+                    name: name.into(),
+                    ty: "integer",
+                }),
+                _ => Err(Error::InvalidParameterName { name: name.into() }),
+            }
+        }
+    }
+
     impl RosParams for LocalSetParams {
         fn register_parameters(
             &mut self, prefix: &str, _parameter: Option<Parameter>,
@@ -5937,6 +6047,73 @@ mod tests {
     }
 
     #[test]
+    fn parameter_overrides_can_wait_for_explicit_declaration() {
+        let context = Context::create().unwrap();
+        let node = Node::create_with_options(
+            context,
+            "deferred_parameter_override_test",
+            "",
+            NodeOptions::default()
+                .use_global_arguments(false)
+                .parameter_override("pending", 41_i64)
+                .parameter_override("ignored", 42_i64)
+                .automatically_declare_parameters_from_overrides(false),
+        )
+        .unwrap();
+
+        assert!(!node.has_parameter("pending"));
+        assert!(!node
+            .list_parameters(
+                std::iter::empty::<&str>(),
+                rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE as u64,
+            )
+            .names
+            .contains(&"pending".to_owned()));
+        assert_eq!(node.parameter_overrides().get("pending"), Some(&ParameterValue::Integer(41)));
+
+        assert_eq!(node.declare_parameter("pending", 1_i64).unwrap(), ParameterValue::Integer(41));
+        assert_eq!(
+            node.declare_parameter_with_options(
+                "ignored",
+                2_i64,
+                ParameterDescriptor::default(),
+                ParameterDeclarationOptions::default().ignore_override(true),
+            )
+            .unwrap(),
+            ParameterValue::Integer(2)
+        );
+        assert_eq!(node.get_parameter::<i64>("pending").unwrap(), 41);
+        assert_eq!(node.get_parameter::<i64>("ignored").unwrap(), 2);
+    }
+
+    #[test]
+    fn deferred_overrides_initialize_only_derived_parameters() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create_with_options(
+            context,
+            "deferred_derived_parameter_override_test",
+            "",
+            NodeOptions::default()
+                .use_global_arguments(false)
+                .parameter_override("count", 41_i64)
+                .parameter_override("unclaimed", 42_i64)
+                .automatically_declare_parameters_from_overrides(false),
+        )
+        .unwrap();
+        let provider = Arc::new(Mutex::new(DerivedOverrideParams { count: 1 }));
+        let provider_for_handler: Arc<Mutex<dyn RosParams + Send>> = provider.clone();
+
+        let (_handler, _events) = node
+            .make_derived_parameter_handler(provider_for_handler)
+            .unwrap();
+
+        assert_eq!(provider.lock().count, 41);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 41);
+        assert!(!node.has_parameter("unclaimed"));
+        assert_eq!(node.parameter_overrides().get("unclaimed"), Some(&ParameterValue::Integer(42)));
+    }
+
+    #[test]
     fn batch_parameter_declaration_is_atomic_on_validation_failures() {
         let context = Context::create().unwrap();
         let node = Node::create(context, "atomic_batch_parameter_declaration_test", "").unwrap();
@@ -6136,14 +6313,16 @@ mod tests {
         const CHILD_ENV: &str = "R2R_NODE_OPTIONS_CHILD";
         if let Ok(mode) = std::env::var(CHILD_ENV) {
             let context = Context::create().unwrap();
-            let options = match mode.as_str() {
-                "global" => NodeOptions::default(),
-                "isolated" => NodeOptions::default().use_global_arguments(false),
-                "override" => {
-                    NodeOptions::default().parameter_override("answer", ParameterValue::Integer(43))
-                }
-                _ => unreachable!(),
-            };
+            let options =
+                match mode.as_str() {
+                    "global" => NodeOptions::default(),
+                    "isolated" => NodeOptions::default().use_global_arguments(false),
+                    "override" => NodeOptions::default()
+                        .parameter_override("answer", ParameterValue::Integer(43)),
+                    "deferred" => NodeOptions::default()
+                        .automatically_declare_parameters_from_overrides(false),
+                    _ => unreachable!(),
+                };
             let node =
                 Node::create_with_options(context, "node_options_cli_test", "", options).unwrap();
             match mode.as_str() {
@@ -6165,13 +6344,24 @@ mod tests {
                         Some(&ParameterValue::Integer(43))
                     );
                 }
+                "deferred" => {
+                    assert!(!node.has_parameter("answer"));
+                    assert_eq!(
+                        node.parameter_overrides().get("answer"),
+                        Some(&ParameterValue::Integer(42))
+                    );
+                    assert_eq!(
+                        node.declare_parameter("answer", 1_i64).unwrap(),
+                        ParameterValue::Integer(42)
+                    );
+                }
                 _ => unreachable!(),
             }
             return;
         }
 
         let test_binary = std::env::current_exe().unwrap();
-        for mode in ["global", "isolated", "override"] {
+        for mode in ["global", "isolated", "override", "deferred"] {
             let status = std::process::Command::new(&test_binary)
                 .arg("nodes::tests::node_options_control_global_parameter_arguments")
                 .arg("--exact")
