@@ -250,7 +250,7 @@ pub(crate) struct FeedbackChannel<T> {
     pub(crate) closing: bool,
 }
 
-pub(crate) type FeedbackSender<T> = (uuid::Uuid, Arc<Mutex<FeedbackChannel<T>>>);
+pub(crate) type FeedbackSender<T> = Arc<Mutex<FeedbackChannel<T>>>;
 
 impl<T> FeedbackChannel<T> {
     pub(crate) fn new(sender: mpsc::Sender<T>) -> Self {
@@ -517,8 +517,8 @@ where
         let client = client.lock();
         Ok(client
             .feedback_senders
-            .iter()
-            .any(|(uuid, channel)| uuid == &self.uuid && !channel.lock().is_closed()))
+            .get(&self.uuid)
+            .is_some_and(|channel| !channel.lock().is_closed()))
     }
 
     /// Returns whether this goal's result future is still being observed.
@@ -688,7 +688,7 @@ where
                         mpsc::channel::<T::Feedback>(client.feedback_channel_capacity);
                     client
                         .feedback_senders
-                        .push((uuid, Arc::new(Mutex::new(FeedbackChannel::new(sender)))));
+                        .insert(uuid, Arc::new(Mutex::new(FeedbackChannel::new(sender))));
                     ActionFeedbackStream { receiver }
                 });
                 let result = options.track_result.then(|| {
@@ -808,7 +808,7 @@ where
     pub goal_response_channels: HashMap<i64, GoalResponseSender>,
     pub cancel_response_channels:
         HashMap<i64, oneshot::Sender<action_msgs::srv::CancelGoal::Response>>,
-    pub feedback_senders: Vec<FeedbackSender<T::Feedback>>,
+    pub feedback_senders: HashMap<uuid::Uuid, FeedbackSender<T::Feedback>>,
     pub result_requests: HashMap<i64, uuid::Uuid>,
     pub result_senders: HashMap<uuid::Uuid, ResultSender<T::Result>>,
     pub goal_status: HashMap<uuid::Uuid, GoalStatus>,
@@ -863,11 +863,7 @@ where
     }
 
     fn take_feedback_sender(&mut self, uuid: &uuid::Uuid) -> Option<FeedbackSender<T::Feedback>> {
-        let index = self
-            .feedback_senders
-            .iter()
-            .position(|(id, _)| id == uuid)?;
-        Some(self.feedback_senders.swap_remove(index))
+        self.feedback_senders.remove(uuid)
     }
 
     fn forget_goal(&mut self, uuid: &uuid::Uuid) -> Vec<ActionClientCompletion> {
@@ -887,7 +883,7 @@ where
         if !removed.is_empty() {
             completions.push(drop_action_client_resources_completion(removed));
         }
-        if let Some((_, channel)) = self.take_feedback_sender(uuid) {
+        if let Some(channel) = self.take_feedback_sender(uuid) {
             completions.push(close_feedback_completion(channel));
         }
         if let Some(sender) = self.result_senders.remove(uuid) {
@@ -904,7 +900,7 @@ where
         if self.get_goal_status(uuid).is_terminal() {
             return self
                 .take_feedback_sender(uuid)
-                .map(|(_, channel)| close_feedback_completion(channel));
+                .map(close_feedback_completion);
         }
         None
     }
@@ -914,7 +910,7 @@ where
     ) -> Vec<ActionClientCompletion> {
         let feedback = self
             .take_feedback_sender(uuid)
-            .map(|(_, channel)| close_feedback_completion(channel))
+            .map(close_feedback_completion)
             .into_iter()
             .collect();
         self.result_senders.remove(uuid);
@@ -940,7 +936,7 @@ where
             if status.is_terminal() && !result_is_tracked {
                 completions.extend(
                     self.take_feedback_sender(uuid)
-                        .map(|(_, channel)| close_feedback_completion(channel)),
+                        .map(close_feedback_completion),
                 );
             }
         }
@@ -955,9 +951,8 @@ where
             .map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID)?;
         Ok(self
             .feedback_senders
-            .iter()
-            .find(|(id, _)| id == uuid)
-            .and_then(|(_, channel)| feedback_completion(Arc::clone(channel), *feedback)))
+            .get(uuid)
+            .and_then(|channel| feedback_completion(Arc::clone(channel), *feedback)))
     }
 
     fn prune_canceled_requests(&mut self) -> Vec<ActionClientCompletion> {
@@ -975,7 +970,7 @@ where
         self.cancel_response_channels
             .retain(|_, sender| !sender.is_canceled());
         self.feedback_senders
-            .retain(|(_, channel)| !channel.lock().is_closed());
+            .retain(|_, channel| !channel.lock().is_closed());
         let canceled_results: Vec<_> = self
             .result_senders
             .iter()
@@ -988,7 +983,7 @@ where
     }
 
     fn pending_feedback_completion(&mut self) -> Option<ActionClientCompletion> {
-        self.feedback_senders.iter().find_map(|(_, channel)| {
+        self.feedback_senders.values().find_map(|channel| {
             let mut channel_guard = channel.lock();
             let feedback = channel_guard.pending.take()?;
             let Some(sender) = channel_guard.sender.take() else {
@@ -1314,8 +1309,8 @@ where
                 .any(|(_, sender)| !sender.is_canceled())
             || self
                 .feedback_senders
-                .iter()
-                .any(|(_, channel)| !channel.lock().is_closed())
+                .values()
+                .any(|channel| !channel.lock().is_closed())
             || self
                 .result_senders
                 .values()
@@ -1923,6 +1918,36 @@ mod tests {
     }
 
     #[test]
+    fn feedback_is_routed_only_to_the_indexed_goal() {
+        let target = uuid::Uuid::new_v4();
+        let other = uuid::Uuid::new_v4();
+        let (target_sender, mut target_receiver) = mpsc::channel(1);
+        let (other_sender, mut other_receiver) = mpsc::channel(1);
+        let mut client = WrappedActionClient::<Fibonacci::Action> {
+            rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
+            goal_response_channels: HashMap::new(),
+            cancel_response_channels: HashMap::new(),
+            feedback_senders: HashMap::from([
+                (target, Arc::new(Mutex::new(FeedbackChannel::new(target_sender)))),
+                (other, Arc::new(Mutex::new(FeedbackChannel::new(other_sender)))),
+            ]),
+            result_requests: HashMap::new(),
+            result_senders: HashMap::new(),
+            goal_status: HashMap::new(),
+            feedback_channel_capacity: 1,
+            poll_available_channels: Vec::new(),
+        };
+
+        let completion = client
+            .route_feedback(&target, Box::new(Fibonacci::Feedback::default()))
+            .unwrap()
+            .unwrap();
+        assert!(matches!((completion.notify)(), Ok(true)));
+        assert!(target_receiver.next().now_or_never().flatten().is_some());
+        assert!(other_receiver.next().now_or_never().is_none());
+    }
+
+    #[test]
     fn full_feedback_channel_preserves_the_pending_message() {
         let (sender, mut receiver) = mpsc::channel(0);
         let channel = Arc::new(Mutex::new(FeedbackChannel::new(sender)));
@@ -1986,10 +2011,10 @@ mod tests {
             rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
             goal_response_channels: HashMap::new(),
             cancel_response_channels: HashMap::new(),
-            feedback_senders: vec![(
+            feedback_senders: HashMap::from([(
                 target,
                 Arc::new(Mutex::new(FeedbackChannel::new(feedback_sender))),
-            )],
+            )]),
             result_requests: HashMap::from([(1, target)]),
             result_senders: HashMap::from([(target, result_sender)]),
             goal_status: HashMap::from([(target, GoalStatus::Accepted)]),
@@ -2035,14 +2060,14 @@ mod tests {
             rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
             goal_response_channels: HashMap::new(),
             cancel_response_channels: HashMap::new(),
-            feedback_senders: vec![(
+            feedback_senders: HashMap::from([(
                 target,
                 Arc::new(Mutex::new(FeedbackChannel {
                     sender: Some(feedback_sender),
                     pending: Some(Fibonacci::Feedback::default()),
                     closing: false,
                 })),
-            )],
+            )]),
             result_requests: HashMap::from([(1, target)]),
             result_senders: HashMap::from([(target, result_sender)]),
             goal_status: HashMap::from([(target, GoalStatus::Accepted)]),
@@ -2173,7 +2198,7 @@ mod tests {
             rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
             goal_response_channels: HashMap::new(),
             cancel_response_channels: HashMap::new(),
-            feedback_senders: vec![
+            feedback_senders: HashMap::from([
                 (
                     target,
                     Arc::new(Mutex::new(FeedbackChannel {
@@ -2183,7 +2208,7 @@ mod tests {
                     })),
                 ),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),
-            ],
+            ]),
             result_requests: HashMap::from([(10, target), (11, other)]),
             result_senders: HashMap::from([(target, target_result), (other, other_result)]),
             goal_status: HashMap::from([
@@ -2198,14 +2223,8 @@ mod tests {
             client.finish_result_request_send(target, Err(Error::RCL_RET_BAD_ALLOC));
         assert!(matches!(result, Err(Error::RCL_RET_BAD_ALLOC)));
         run_detached_action_client_completions(completions);
-        assert!(!client
-            .feedback_senders
-            .iter()
-            .any(|(uuid, _)| uuid == &target));
-        assert!(client
-            .feedback_senders
-            .iter()
-            .any(|(uuid, _)| uuid == &other));
+        assert!(!client.feedback_senders.contains_key(&target));
+        assert!(client.feedback_senders.contains_key(&other));
         assert!(!client
             .result_requests
             .iter()
@@ -2234,7 +2253,7 @@ mod tests {
             // The target response has already been delivered, so only the other request remains.
             goal_response_channels: HashMap::from([(12, (other, other_goal))]),
             cancel_response_channels: HashMap::new(),
-            feedback_senders: vec![
+            feedback_senders: HashMap::from([
                 (
                     target,
                     Arc::new(Mutex::new(FeedbackChannel {
@@ -2244,7 +2263,7 @@ mod tests {
                     })),
                 ),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),
-            ],
+            ]),
             result_requests: HashMap::new(),
             result_senders: HashMap::from([(target, target_result), (other, other_result)]),
             goal_status: HashMap::from([
@@ -2263,14 +2282,8 @@ mod tests {
         drop(pending);
 
         let client = client.lock();
-        assert!(!client
-            .feedback_senders
-            .iter()
-            .any(|(uuid, _)| uuid == &target));
-        assert!(client
-            .feedback_senders
-            .iter()
-            .any(|(uuid, _)| uuid == &other));
+        assert!(!client.feedback_senders.contains_key(&target));
+        assert!(client.feedback_senders.contains_key(&other));
         assert!(!client.result_senders.contains_key(&target));
         assert!(client.result_senders.contains_key(&other));
         assert!(!client.goal_status.contains_key(&target));
