@@ -181,6 +181,7 @@ where
             client
                 .goal_response_channels
                 .push((seq_no, uuid, goal_req_sender));
+            client.goal_status.insert(uuid, GoalStatus::Unknown);
             // instead of "canceled" we return invalid client.
             let fut_client = Weak::clone(&self.client);
             let future = goal_req_receiver
@@ -333,6 +334,22 @@ where
     fn forget_result(&mut self, uuid: &uuid::Uuid) {
         self.result_senders.retain(|(id, _)| id != uuid);
         self.result_requests.retain(|(_, id)| id != uuid);
+    }
+
+    fn finish_goal(&mut self, uuid: &uuid::Uuid, status: GoalStatus) {
+        self.feedback_senders.retain(|(id, _)| id != uuid);
+        self.result_senders.retain(|(id, _)| id != uuid);
+        self.result_requests.retain(|(_, id)| id != uuid);
+        if self
+            .pending_feedback
+            .as_ref()
+            .is_some_and(|(id, _)| id == uuid)
+        {
+            self.pending_feedback = None;
+        }
+        if let Some(tracked_status) = self.goal_status.get_mut(uuid) {
+            *tracked_status = status;
+        }
     }
 
     fn prune_canceled_requests(&mut self) {
@@ -550,11 +567,9 @@ where
             let arr = action_msgs::msg::GoalStatusArray::from_native(&status_array);
             for a in &arr.status_list {
                 let uuid = uuid_msg_to_uuid(&a.goal_info.goal_id);
-                if !self.result_senders.iter().any(|(suuid, _)| suuid == &uuid) {
-                    continue;
+                if let Some(status) = self.goal_status.get_mut(&uuid) {
+                    *status = GoalStatus::from_rcl(a.status);
                 }
-                let status = GoalStatus::from_rcl(a.status);
-                *self.goal_status.entry(uuid).or_insert(GoalStatus::Unknown) = status;
             }
         }
         Ok(())
@@ -588,11 +603,10 @@ where
                     .position(|(suuid, _)| suuid == &uuid)
                 {
                     let (_, sender) = self.result_senders.swap_remove(idx);
-                    self.forget_goal(&uuid);
                     let response = <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response::from_native(&response_msg);
                     let (status, result) = T::destructure_result_response_msg(response);
                     let status = GoalStatus::from_rcl(status);
-                    self.goal_status.insert(uuid, status);
+                    self.finish_goal(&uuid, status);
                     match sender.send((status, result)) {
                         Ok(()) => {}
                         Err(e) => {
@@ -680,7 +694,6 @@ where
             || self.pending_feedback.is_some()
             || !self.result_requests.is_empty()
             || !self.result_senders.is_empty()
-            || !self.goal_status.is_empty()
             || !self.poll_available_channels.is_empty()
     }
 

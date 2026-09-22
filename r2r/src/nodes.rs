@@ -5551,6 +5551,96 @@ mod tests {
     }
 
     #[test]
+    fn completed_results_do_not_restore_dropped_action_goal_status() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "completed_action_cleanup_test", "").unwrap();
+        let mut typed_requests = node
+            .create_action_server::<Fibonacci::Action>("/typed_completed_action_cleanup")
+            .unwrap();
+        let typed_client = node
+            .create_action_client::<Fibonacci::Action>("/typed_completed_action_cleanup")
+            .unwrap();
+        let response = typed_client
+            .send_goal_request(Fibonacci::Goal { order: 1 })
+            .unwrap();
+        let mut response = Box::pin(response);
+        let mut server_goal = None;
+        let (client_goal, result, feedback) = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if server_goal.is_none() {
+                if let Some(request) = typed_requests.next().now_or_never().flatten() {
+                    server_goal = Some(request.accept().unwrap().0);
+                }
+            }
+            if let Some(response) = response.as_mut().now_or_never() {
+                break response.unwrap();
+            }
+        };
+        drop(response);
+        drop(client_goal);
+        drop(feedback);
+        server_goal
+            .unwrap()
+            .succeed(Fibonacci::Result { sequence: vec![1] })
+            .unwrap();
+        let mut result = Box::pin(result);
+        loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if result.as_mut().now_or_never().is_some() {
+                break;
+            }
+        }
+        drop(typed_client);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.action_clients.is_empty());
+
+        let mut untyped_requests = node
+            .create_action_server::<Fibonacci::Action>("/untyped_completed_action_cleanup")
+            .unwrap();
+        let untyped_client = node
+            .create_action_client_untyped(
+                "/untyped_completed_action_cleanup",
+                "example_interfaces/action/Fibonacci",
+            )
+            .unwrap();
+        let response = untyped_client
+            .send_goal_request(serde_json::json!({ "order": 1 }))
+            .unwrap();
+        let mut response = Box::pin(response);
+        let mut server_goal = None;
+        let (client_goal, result, feedback) = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if server_goal.is_none() {
+                if let Some(request) = untyped_requests.next().now_or_never().flatten() {
+                    server_goal = Some(request.accept().unwrap().0);
+                }
+            }
+            if let Some(response) = response.as_mut().now_or_never() {
+                break response.unwrap();
+            }
+        };
+        drop(response);
+        drop(client_goal);
+        drop(feedback);
+        server_goal
+            .unwrap()
+            .succeed(Fibonacci::Result { sequence: vec![1] })
+            .unwrap();
+        let mut result = Box::pin(result);
+        loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if result.as_mut().now_or_never().is_some() {
+                break;
+            }
+        }
+        drop(untyped_client);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.action_clients.is_empty());
+    }
+
+    #[test]
     fn dropped_idle_action_server_is_removed_before_waiting() {
         use crate::example_interfaces::action::Fibonacci;
 
