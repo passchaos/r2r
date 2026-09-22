@@ -162,6 +162,9 @@ pub enum Error {
     #[error("Parameter update was rejected: {reason}")]
     ParameterUpdateRejected { reason: String },
 
+    #[error("Parameter modification from within a parameter callback is not allowed")]
+    RecursiveParameterMutation,
+
     #[error("A parameter handler has already been created for this node")]
     ParameterHandlerAlreadyCreated,
 

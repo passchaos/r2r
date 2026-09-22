@@ -4,8 +4,9 @@ use futures::{
     stream::{Stream, StreamExt},
 };
 use indexmap::IndexMap;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, MutexGuard};
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
     ffi::{CStr, CString},
     future::Future,
@@ -40,6 +41,10 @@ use crate::{
 };
 
 const SPIN_UNTIL_FUTURE_POLL_INTERVAL: Duration = Duration::from_millis(10);
+
+thread_local! {
+    static ACTIVE_PARAMETER_TRANSACTIONS: RefCell<HashSet<usize>> = RefCell::new(HashSet::new());
+}
 
 struct RclParams(*mut rcl_params_t);
 
@@ -192,6 +197,40 @@ struct PreparedParameterDeclaration {
     value: ParameterValue,
     descriptor: ParameterDescriptor,
     uses_existing_override: bool,
+}
+
+struct ParameterTransactionGuard<'a> {
+    guard: Option<MutexGuard<'a, ()>>,
+    identity: usize,
+}
+
+impl ParameterTransactionGuard<'_> {
+    fn unlock(&mut self) {
+        self.guard.take();
+    }
+}
+
+impl Drop for ParameterTransactionGuard<'_> {
+    fn drop(&mut self) {
+        ACTIVE_PARAMETER_TRANSACTIONS.with(|active| {
+            debug_assert!(active.borrow_mut().remove(&self.identity));
+        });
+    }
+}
+
+fn lock_parameter_transaction(
+    transaction: &Arc<Mutex<()>>,
+) -> Result<ParameterTransactionGuard<'_>> {
+    let identity = Arc::as_ptr(transaction) as usize;
+    let inserted =
+        ACTIVE_PARAMETER_TRANSACTIONS.with(|active| active.borrow_mut().insert(identity));
+    if !inserted {
+        return Err(Error::RecursiveParameterMutation);
+    }
+    Ok(ParameterTransactionGuard {
+        guard: Some(transaction.lock()),
+        identity,
+    })
 }
 
 type ParameterValidationCallback =
@@ -1353,7 +1392,7 @@ impl Node {
         parameters: impl IntoIterator<Item = (String, ParameterValue, ParameterDescriptor)>,
         options: ParameterDeclarationOptions,
     ) -> Result<Vec<ParameterValue>> {
-        let _transaction = self.parameter_transaction.lock();
+        let mut transaction = lock_parameter_transaction(&self.parameter_transaction)?;
         let prefix = if namespace.is_empty() {
             String::new()
         } else {
@@ -1423,7 +1462,7 @@ impl Node {
         }
         drop(descriptors);
         drop(params);
-        drop(_transaction);
+        transaction.unlock();
 
         for declaration in &prepared {
             notify_parameter_post_set_callbacks(
@@ -1445,7 +1484,7 @@ impl Node {
     pub fn set_parameter_descriptor(
         &self, name: impl Into<String>, mut descriptor: ParameterDescriptor,
     ) -> Result<()> {
-        let _transaction = self.parameter_transaction.lock();
+        let _transaction = lock_parameter_transaction(&self.parameter_transaction)?;
         let name = name.into();
         let params = self.params.lock();
         let value = params
@@ -1494,7 +1533,7 @@ impl Node {
     /// operation by assigning [`ParameterValue::NotSet`] to a dynamic parameter.
     pub fn undeclare_parameter(&self, name: &str) -> Result<ParameterValue> {
         let (removed, ros_events) = {
-            let _transaction = self.parameter_transaction.lock();
+            let _transaction = lock_parameter_transaction(&self.parameter_transaction)?;
             let mut params = self.params.lock();
             let mut descriptors = self.parameter_descriptors.lock();
             if let Some(descriptor) = descriptors.get(name) {
@@ -1678,18 +1717,28 @@ impl Node {
                         }
                     };
                     let update = vec![(p.name.clone(), val)];
-                    let applied = {
-                        let _transaction = parameter_transaction.lock();
-                        apply_parameter_updates(
-                            update,
-                            &params,
-                            &parameter_descriptors,
-                            params_struct_clone.as_ref(),
-                            &parameter_pre_set_callbacks,
-                            &parameter_validation_callbacks,
-                            allow_undeclared_parameters,
-                        )
+                    let mut transaction = match lock_parameter_transaction(&parameter_transaction) {
+                        Ok(transaction) => transaction,
+                        Err(err) => {
+                            result
+                                .results
+                                .push(rcl_interfaces::msg::SetParametersResult {
+                                    successful: false,
+                                    reason: err.to_string(),
+                                });
+                            continue;
+                        }
                     };
+                    let applied = apply_parameter_updates(
+                        update,
+                        &params,
+                        &parameter_descriptors,
+                        params_struct_clone.as_ref(),
+                        &parameter_pre_set_callbacks,
+                        &parameter_validation_callbacks,
+                        allow_undeclared_parameters,
+                    );
+                    transaction.unlock();
                     match applied {
                         Ok(applied) => {
                             #[cfg(r2r__rosgraph_msgs__msg__Clock)]
@@ -1717,6 +1766,7 @@ impl Node {
                                 });
                         }
                     }
+                    drop(transaction);
                 }
                 if let Err(err) = req.respond(result) {
                     log::warn!("could not send reply to set parameter request: {err}");
@@ -1857,18 +1907,29 @@ impl Node {
                         return future::ready(());
                     }
                 };
-                let update_result = {
-                    let _transaction = parameter_transaction.lock();
-                    apply_parameter_updates(
-                        updates,
-                        &params,
-                        &parameter_descriptors,
-                        params_struct_clone.as_ref(),
-                        &parameter_pre_set_callbacks,
-                        &parameter_validation_callbacks,
-                        allow_undeclared_parameters,
-                    )
+                let mut transaction = match lock_parameter_transaction(&parameter_transaction) {
+                    Ok(transaction) => transaction,
+                    Err(err) => {
+                        result.result.successful = false;
+                        result.result.reason = format!("Can't set parameters atomically: {err}");
+                        if let Err(err) = req.respond(result) {
+                            log::warn!(
+                                "could not send reply to atomic set parameter request: {err}"
+                            );
+                        }
+                        return future::ready(());
+                    }
                 };
+                let update_result = apply_parameter_updates(
+                    updates,
+                    &params,
+                    &parameter_descriptors,
+                    params_struct_clone.as_ref(),
+                    &parameter_pre_set_callbacks,
+                    &parameter_validation_callbacks,
+                    allow_undeclared_parameters,
+                );
+                transaction.unlock();
 
                 match update_result {
                     Ok(applied) => {
@@ -1888,6 +1949,7 @@ impl Node {
                         result.result.reason = format!("Can't set parameters atomically: {err}");
                     }
                 }
+                drop(transaction);
                 if let Err(err) = req.respond(result) {
                     log::warn!("could not send reply to atomic set parameter request: {err}");
                 }
@@ -2168,8 +2230,8 @@ impl Node {
     ///
     /// Callbacks run in reverse registration order and stop at the first error. Keep the returned
     /// handle alive for as long as the callback should remain active; dropping it unregisters the
-    /// callback. A callback may inspect parameter state, but must not initiate another parameter
-    /// mutation because updates are serialized.
+    /// callback. A callback may inspect parameter state. Attempting another parameter mutation on
+    /// the same node from a callback returns [`Error::RecursiveParameterMutation`].
     pub fn add_on_set_parameters_callback<F>(&self, callback: F) -> ParameterCallbackHandle
     where
         F: Fn(&[(String, ParameterValue)]) -> Result<()> + Send + Sync + 'static,
@@ -2190,6 +2252,8 @@ impl Node {
     /// previous callback. The final batch is then validated and committed atomically. Producing
     /// an empty batch rejects the update. Keep the returned handle alive to keep the callback
     /// registered. Parameter declaration and explicit undeclaration do not invoke this callback.
+    /// Recursive parameter mutation on the same node returns
+    /// [`Error::RecursiveParameterMutation`].
     pub fn add_pre_set_parameters_callback<F>(&self, callback: F) -> ParameterPreSetCallbackHandle
     where
         F: Fn(&mut Vec<(String, ParameterValue)>) + Send + Sync + 'static,
@@ -2208,7 +2272,9 @@ impl Node {
     ///
     /// Callbacks run in reverse registration order. They receive the complete successful input
     /// batch and execute after all internal parameter locks are released, so they may inspect the
-    /// committed node state. Keep the returned handle alive to keep the callback registered.
+    /// committed node state. Recursive parameter mutation on the same node returns
+    /// [`Error::RecursiveParameterMutation`]. Keep the returned handle alive to keep the callback
+    /// registered.
     pub fn add_post_set_parameters_callback<F>(&self, callback: F) -> ParameterPostSetCallbackHandle
     where
         F: Fn(&[(String, ParameterValue)]) + Send + Sync + 'static,
@@ -2234,8 +2300,8 @@ impl Node {
             .into_iter()
             .map(|(name, value)| (name.into(), value.into()))
             .collect::<Vec<_>>();
+        let mut transaction = lock_parameter_transaction(&self.parameter_transaction)?;
         let applied = {
-            let _transaction = self.parameter_transaction.lock();
             apply_parameter_updates(
                 updates,
                 &self.params,
@@ -2246,6 +2312,7 @@ impl Node {
                 self.allow_undeclared_parameters,
             )?
         };
+        transaction.unlock();
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
         if let Some(enabled) = applied.sim_time_update {
             self.time_source.request_sim_time(enabled);
@@ -5506,6 +5573,58 @@ mod tests {
                 .collect::<Vec<_>>(),
             [3, 1]
         );
+    }
+
+    #[test]
+    fn parameter_transaction_guard_rejects_reentry_until_the_operation_finishes() {
+        let transaction = Arc::new(Mutex::new(()));
+        let mut outer = lock_parameter_transaction(&transaction).unwrap();
+
+        assert!(matches!(
+            lock_parameter_transaction(&transaction),
+            Err(Error::RecursiveParameterMutation)
+        ));
+        outer.unlock();
+        assert!(matches!(
+            lock_parameter_transaction(&transaction),
+            Err(Error::RecursiveParameterMutation)
+        ));
+        drop(outer);
+
+        assert!(lock_parameter_transaction(&transaction).is_ok());
+    }
+
+    #[test]
+    fn parameter_callback_observes_recursive_mutation_error_without_deadlocking() {
+        let context = Context::create().unwrap();
+        let node = Node::create(context, "recursive_parameter_callback_test", "").unwrap();
+        node.declare_parameter("count", 1_i64).unwrap();
+        let node_ptr = (&node as *const Node) as usize;
+        let observed = Arc::new(Mutex::new(Vec::new()));
+        let validation_observed = Arc::clone(&observed);
+        let _callback = node.add_on_set_parameters_callback(move |_| {
+            let node = unsafe { &*(node_ptr as *const Node) };
+            if matches!(node.set_parameter("nested", 1_i64), Err(Error::RecursiveParameterMutation))
+            {
+                validation_observed.lock().push("validation");
+            }
+            Ok(())
+        });
+        let post_observed = Arc::clone(&observed);
+        let _post = node.add_post_set_parameters_callback(move |_| {
+            let node = unsafe { &*(node_ptr as *const Node) };
+            if matches!(node.set_parameter("nested", 1_i64), Err(Error::RecursiveParameterMutation))
+            {
+                post_observed.lock().push("post");
+            }
+        });
+
+        node.set_parameter("count", 2_i64).unwrap();
+
+        assert_eq!(*observed.lock(), ["validation", "post"]);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 2);
+        assert!(!node.has_parameter("nested"));
+        node.set_parameter("count", 3_i64).unwrap();
     }
 
     #[test]
