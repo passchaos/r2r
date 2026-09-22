@@ -607,7 +607,9 @@ impl ActionClient_ for WrappedActionClientUntyped {
         WrappedActionClientUntyped::forget_goal(self, uuid);
     }
 
-    fn handle_goal_response(&mut self) -> Result<Option<ActionClientCompletion>> {
+    fn handle_goal_response(
+        &mut self, completions: &mut Vec<ActionClientCompletion>,
+    ) -> Result<ActionClientTakeResult> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg = (self.action_type_support.make_goal_response_msg)()?;
 
@@ -631,12 +633,12 @@ impl ActionClient_ for WrappedActionClientUntyped {
                 if !accept {
                     self.forget_goal(&uuid);
                 }
-                return Ok(Some(action_response_completion(
+                completions.push(action_response_completion(
                     sender,
                     (accept, stamp),
                     "untyped action goal response",
                     Some(uuid),
-                )));
+                ));
             } else {
                 let we_have: String = self
                     .goal_response_channels
@@ -650,11 +652,15 @@ impl ActionClient_ for WrappedActionClientUntyped {
                     we_have
                 );
             }
+            Ok(ActionClientTakeResult::Taken)
+        } else {
+            Ok(ActionClientTakeResult::Idle)
         }
-        Ok(None)
     }
 
-    fn handle_cancel_response(&mut self) -> Result<Option<ActionClientCompletion>> {
+    fn handle_cancel_response(
+        &mut self, completions: &mut Vec<ActionClientCompletion>,
+    ) -> Result<ActionClientTakeResult> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg =
             WrappedNativeMsg::<action_msgs::srv::CancelGoal::Response>::try_new()?;
@@ -675,12 +681,12 @@ impl ActionClient_ for WrappedActionClientUntyped {
             {
                 let (_, sender) = self.cancel_response_channels.swap_remove(idx);
                 let response = action_msgs::srv::CancelGoal::Response::from_native(&response_msg);
-                return Ok(Some(action_response_completion(
+                completions.push(action_response_completion(
                     sender,
                     response,
                     "untyped action cancel response",
                     None,
-                )));
+                ));
             } else {
                 let we_have: String = self
                     .cancel_response_channels
@@ -694,8 +700,10 @@ impl ActionClient_ for WrappedActionClientUntyped {
                     we_have
                 );
             }
+            Ok(ActionClientTakeResult::Taken)
+        } else {
+            Ok(ActionClientTakeResult::Idle)
         }
-        Ok(None)
     }
 
     fn handle_feedback_msg(&mut self) -> Result<Option<ActionClientCompletion>> {
@@ -747,8 +755,9 @@ impl ActionClient_ for WrappedActionClientUntyped {
         Ok(completions)
     }
 
-    fn handle_result_response(&mut self) -> Result<Vec<ActionClientCompletion>> {
-        let mut completions = Vec::new();
+    fn handle_result_response(
+        &mut self, completions: &mut Vec<ActionClientCompletion>,
+    ) -> Result<ActionClientTakeResult> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg = (self.action_type_support.make_result_response_msg)()?;
         let ret = unsafe {
@@ -783,7 +792,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
                         "untyped action result",
                         None,
                     ));
-                    return Ok(completions);
+                    return Ok(ActionClientTakeResult::Taken);
                 }
             } else {
                 let we_have: String = self
@@ -798,8 +807,10 @@ impl ActionClient_ for WrappedActionClientUntyped {
                     we_have
                 );
             }
+            Ok(ActionClientTakeResult::Taken)
+        } else {
+            Ok(ActionClientTakeResult::Idle)
         }
-        Ok(completions)
     }
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>) {

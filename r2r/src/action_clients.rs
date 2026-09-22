@@ -31,6 +31,26 @@ pub(crate) struct ActionClientCompletion {
     cleanup_goal_on_failure: Option<uuid::Uuid>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ActionClientTakeResult {
+    Idle,
+    Taken,
+}
+
+const MAX_ACTION_RESPONSES_PER_SPIN: usize = 16;
+
+pub(crate) fn collect_action_client_responses<C: ?Sized>(
+    client: &mut C, completions: &mut Vec<ActionClientCompletion>,
+    mut take: impl FnMut(&mut C, &mut Vec<ActionClientCompletion>) -> Result<ActionClientTakeResult>,
+) -> Result<()> {
+    for _ in 0..MAX_ACTION_RESPONSES_PER_SPIN {
+        if take(client, completions)? == ActionClientTakeResult::Idle {
+            break;
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn complete_action_client_operation<T: ?Sized>(
     client: &Mutex<T>,
     operation: impl FnOnce(&mut T, &mut Vec<ActionClientCompletion>) -> Result<()>,
@@ -657,11 +677,17 @@ pub trait ActionClient_ {
     fn has_pending_work(&mut self) -> bool;
     fn forget_goal(&mut self, uuid: &uuid::Uuid);
 
-    fn handle_goal_response(&mut self) -> Result<Option<ActionClientCompletion>>;
-    fn handle_cancel_response(&mut self) -> Result<Option<ActionClientCompletion>>;
+    fn handle_goal_response(
+        &mut self, completions: &mut Vec<ActionClientCompletion>,
+    ) -> Result<ActionClientTakeResult>;
+    fn handle_cancel_response(
+        &mut self, completions: &mut Vec<ActionClientCompletion>,
+    ) -> Result<ActionClientTakeResult>;
     fn handle_feedback_msg(&mut self) -> Result<Option<ActionClientCompletion>>;
     fn handle_status_msg(&mut self) -> Result<Vec<ActionClientCompletion>>;
-    fn handle_result_response(&mut self) -> Result<Vec<ActionClientCompletion>>;
+    fn handle_result_response(
+        &mut self, completions: &mut Vec<ActionClientCompletion>,
+    ) -> Result<ActionClientTakeResult>;
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>);
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Vec<ActionClientCompletion>;
@@ -824,7 +850,9 @@ where
         WrappedActionClient::forget_goal(self, uuid);
     }
 
-    fn handle_goal_response(&mut self) -> Result<Option<ActionClientCompletion>> {
+    fn handle_goal_response(
+        &mut self, completions: &mut Vec<ActionClientCompletion>,
+    ) -> Result<ActionClientTakeResult> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
@@ -850,12 +878,12 @@ where
                 if !accept {
                     self.forget_goal(&uuid);
                 }
-                return Ok(Some(action_response_completion(
+                completions.push(action_response_completion(
                     sender,
                     (accept, stamp),
                     "action goal response",
                     Some(uuid),
-                )));
+                ));
             } else {
                 let we_have: String = self
                     .goal_response_channels
@@ -869,11 +897,15 @@ where
                     we_have
                 );
             }
+            Ok(ActionClientTakeResult::Taken)
+        } else {
+            Ok(ActionClientTakeResult::Idle)
         }
-        Ok(None)
     }
 
-    fn handle_cancel_response(&mut self) -> Result<Option<ActionClientCompletion>> {
+    fn handle_cancel_response(
+        &mut self, completions: &mut Vec<ActionClientCompletion>,
+    ) -> Result<ActionClientTakeResult> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg =
             WrappedNativeMsg::<action_msgs::srv::CancelGoal::Response>::try_new()?;
@@ -894,12 +926,12 @@ where
             {
                 let (_, sender) = self.cancel_response_channels.swap_remove(idx);
                 let response = action_msgs::srv::CancelGoal::Response::from_native(&response_msg);
-                return Ok(Some(action_response_completion(
+                completions.push(action_response_completion(
                     sender,
                     response,
                     "action cancel response",
                     None,
-                )));
+                ));
             } else {
                 let we_have: String = self
                     .cancel_response_channels
@@ -913,8 +945,10 @@ where
                     we_have
                 );
             }
+            Ok(ActionClientTakeResult::Taken)
+        } else {
+            Ok(ActionClientTakeResult::Idle)
         }
-        Ok(None)
     }
 
     fn handle_feedback_msg(&mut self) -> Result<Option<ActionClientCompletion>> {
@@ -966,8 +1000,9 @@ where
         Ok(completions)
     }
 
-    fn handle_result_response(&mut self) -> Result<Vec<ActionClientCompletion>> {
-        let mut completions = Vec::new();
+    fn handle_result_response(
+        &mut self, completions: &mut Vec<ActionClientCompletion>,
+    ) -> Result<ActionClientTakeResult> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
         let mut response_msg = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
@@ -1005,7 +1040,7 @@ where
                         "action result",
                         None,
                     ));
-                    return Ok(completions);
+                    return Ok(ActionClientTakeResult::Taken);
                 }
             } else {
                 let we_have: String = self
@@ -1020,8 +1055,10 @@ where
                     we_have
                 );
             }
+            Ok(ActionClientTakeResult::Taken)
+        } else {
+            Ok(ActionClientTakeResult::Idle)
         }
-        Ok(completions)
     }
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>) {
@@ -1308,6 +1345,32 @@ mod tests {
 
         assert!(matches!(result, Err(Error::RCL_RET_ERROR)));
         assert_eq!(receiver.try_recv().unwrap(), Some(42));
+    }
+
+    #[test]
+    fn action_response_batches_stop_at_idle_and_fairness_limit() {
+        let calls = std::cell::Cell::new(0);
+        let mut client = ();
+        let mut completions = Vec::new();
+        collect_action_client_responses(&mut client, &mut completions, |_, _| {
+            let call = calls.get();
+            calls.set(call + 1);
+            if call == 2 {
+                Ok(ActionClientTakeResult::Idle)
+            } else {
+                Ok(ActionClientTakeResult::Taken)
+            }
+        })
+        .unwrap();
+        assert_eq!(calls.get(), 3);
+
+        calls.set(0);
+        collect_action_client_responses(&mut client, &mut completions, |_, _| {
+            calls.set(calls.get() + 1);
+            Ok(ActionClientTakeResult::Taken)
+        })
+        .unwrap();
+        assert_eq!(calls.get(), MAX_ACTION_RESPONSES_PER_SPIN);
     }
 
     #[test]

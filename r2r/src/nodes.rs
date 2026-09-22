@@ -3219,13 +3219,19 @@ impl Node {
                         completions.extend(ac.handle_status_msg()?);
                     }
                     if is_goal_response_ready {
-                        completions.extend(ac.handle_goal_response()?);
+                        collect_action_client_responses(ac, completions, |ac, completions| {
+                            ac.handle_goal_response(completions)
+                        })?;
                     }
                     if is_cancel_response_ready {
-                        completions.extend(ac.handle_cancel_response()?);
+                        collect_action_client_responses(ac, completions, |ac, completions| {
+                            ac.handle_cancel_response(completions)
+                        })?;
                     }
                     if is_result_response_ready {
-                        completions.extend(ac.handle_result_response()?);
+                        collect_action_client_responses(ac, completions, |ac, completions| {
+                            ac.handle_result_response(completions)
+                        })?;
                     }
                     Ok(())
                 },
@@ -7934,6 +7940,61 @@ mod tests {
         drop(untyped_feedback);
         assert!(!untyped_client_goal.is_feedback_aware().unwrap());
         assert!(!untyped_client_goal_clone.is_feedback_aware().unwrap());
+    }
+
+    #[test]
+    fn action_client_drains_goal_response_bursts_in_one_spin() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        let context = Context::create().unwrap();
+        let mut server_node =
+            Node::create(context.clone(), "action_goal_batch_server", "").unwrap();
+        let mut client_node = Node::create(context, "action_goal_batch_client", "").unwrap();
+        let action_name = format!("/action_goal_batch_{}", uuid::Uuid::new_v4().simple());
+        let mut server = server_node
+            .create_action_server_with_options::<Fibonacci::Action>(
+                &action_name,
+                ActionServerOptions::default().goal_request_channel_capacity(8),
+            )
+            .unwrap();
+        let client = client_node
+            .create_action_client::<Fibonacci::Action>(&action_name)
+            .unwrap();
+        let available = Node::is_available(&client).unwrap();
+        client_node
+            .spin_until_future_complete(available, Duration::from_secs(1))
+            .unwrap();
+
+        let mut responses = (1..=3)
+            .map(|order| {
+                Box::pin(
+                    client
+                        .send_goal_request_with_options(
+                            Fibonacci::Goal { order },
+                            ActionGoalOptions::fire_and_forget(),
+                        )
+                        .unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        std::thread::sleep(Duration::from_millis(20));
+        let mut rejected = 0;
+        while rejected < 3 {
+            server_node.try_spin_once(Duration::ZERO).unwrap();
+            while let Some(request) = server.next().now_or_never().flatten() {
+                request.reject().unwrap();
+                rejected += 1;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(20));
+        client_node
+            .try_spin_once(Duration::from_millis(100))
+            .unwrap();
+
+        assert!(responses.iter_mut().all(|response| matches!(
+            response.as_mut().now_or_never(),
+            Some(Err(Error::RCL_RET_ACTION_GOAL_REJECTED))
+        )));
     }
 
     #[test]
