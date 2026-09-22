@@ -8,7 +8,9 @@ use std::{
     collections::HashMap,
     future::Future,
     mem::MaybeUninit,
+    pin::Pin,
     sync::{Arc, Weak},
+    task::{Context, Poll},
 };
 
 use crate::{
@@ -48,6 +50,44 @@ pub struct ActionClientGoalUntyped {
     pub uuid: uuid::Uuid,
     accepted_at: builtin_interfaces::msg::Time,
     status_registration: Arc<GoalStatusRegistration>,
+}
+
+/// Result future for an accepted untyped action goal.
+pub struct ActionResultFutureUntyped {
+    receiver: oneshot::Receiver<(GoalStatus, Result<serde_json::Value>)>,
+}
+
+impl Future for ActionResultFutureUntyped {
+    type Output = Result<(GoalStatus, Result<serde_json::Value>)>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.receiver)
+            .poll(cx)
+            .map(|result| result.map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID))
+    }
+}
+
+/// Feedback stream for an accepted untyped action goal.
+pub struct ActionFeedbackStreamUntyped {
+    receiver: mpsc::Receiver<Result<serde_json::Value>>,
+}
+
+impl Stream for ActionFeedbackStreamUntyped {
+    type Item = Result<serde_json::Value>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.receiver).poll_next(cx)
+    }
+}
+
+/// Accepted untyped action goal and the client-side channels requested for it.
+pub struct ActionClientGoalResponseUntyped {
+    /// Handle for querying or canceling the accepted goal.
+    pub goal: ActionClientGoalUntyped,
+    /// Eventual result when result tracking was requested.
+    pub result: Option<ActionResultFutureUntyped>,
+    /// Feedback messages when feedback tracking was requested.
+    pub feedback: Option<ActionFeedbackStreamUntyped>,
 }
 
 struct GoalStatusRegistration {
@@ -218,12 +258,31 @@ impl ActionClientUntyped {
         impl Future<
             Output = Result<(
                 ActionClientGoalUntyped,
-                impl Future<Output = Result<(GoalStatus, Result<serde_json::Value>)>>, // T::Result
-                impl Stream<Item = Result<serde_json::Value>> + Unpin, // T::Feedback
+                ActionResultFutureUntyped,
+                ActionFeedbackStreamUntyped,
             )>,
         >,
     > {
-        // upgrade to actual ref. if still alive
+        let response = self.send_goal_request_with_options(goal, ActionGoalOptions::default())?;
+        Ok(async move {
+            let response = response.await?;
+            let result = response
+                .result
+                .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+            let feedback = response
+                .feedback
+                .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+            Ok((response.goal, result, feedback))
+        })
+    }
+
+    /// Sends an untyped goal with explicit control over result and feedback tracking.
+    ///
+    /// Disabling result tracking also suppresses the result request normally sent immediately
+    /// after acceptance. Disabled result and feedback channels are returned as [`None`].
+    pub fn send_goal_request_with_options(
+        &self, goal: serde_json::Value, options: ActionGoalOptions,
+    ) -> Result<impl Future<Output = Result<ActionClientGoalResponseUntyped>>> {
         let client = self
             .client
             .upgrade()
@@ -245,12 +304,18 @@ impl ActionClientUntyped {
         if result == RCL_RET_OK as i32 {
             let (goal_req_sender, goal_req_receiver) =
                 oneshot::channel::<(bool, builtin_interfaces::msg::Time)>();
-            let (feedback_sender, feedback_receiver) =
-                mpsc::channel::<Result<serde_json::Value>>(client.feedback_channel_capacity);
-            client.feedback_senders.push((uuid, feedback_sender));
-            let (result_sender, result_receiver) =
-                oneshot::channel::<(GoalStatus, Result<serde_json::Value>)>();
-            client.result_senders.push((uuid, result_sender));
+            let feedback = options.track_feedback.then(|| {
+                let (sender, receiver) =
+                    mpsc::channel::<Result<serde_json::Value>>(client.feedback_channel_capacity);
+                client.feedback_senders.push((uuid, sender));
+                ActionFeedbackStreamUntyped { receiver }
+            });
+            let result = options.track_result.then(|| {
+                let (sender, receiver) =
+                    oneshot::channel::<(GoalStatus, Result<serde_json::Value>)>();
+                client.result_senders.push((uuid, sender));
+                ActionResultFutureUntyped { receiver }
+            });
             client
                 .goal_response_channels
                 .push((seq_no, uuid, goal_req_sender));
@@ -265,8 +330,7 @@ impl ActionClientUntyped {
                 match goal_req_receiver.await {
                     Ok((accepted, stamp)) => {
                         if accepted {
-                            // on goal accept we immediately send the result request
-                            {
+                            if options.track_result {
                                 let c = fut_client
                                     .upgrade()
                                     .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
@@ -279,16 +343,16 @@ impl ActionClientUntyped {
                             });
                             pending_registration.disarm();
 
-                            Ok((
-                                ActionClientGoalUntyped {
+                            Ok(ActionClientGoalResponseUntyped {
+                                goal: ActionClientGoalUntyped {
                                     client: fut_client,
                                     uuid,
                                     accepted_at: stamp,
                                     status_registration,
                                 },
-                                result_receiver.map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID),
-                                feedback_receiver,
-                            ))
+                                result,
+                                feedback,
+                            })
                         } else {
                             Err(Error::RCL_RET_ACTION_GOAL_REJECTED)
                         }
@@ -395,6 +459,16 @@ impl WrappedActionClientUntyped {
     fn forget_result(&mut self, uuid: &uuid::Uuid) {
         self.result_senders.retain(|(id, _)| id != uuid);
         self.result_requests.retain(|(_, id)| id != uuid);
+        if self.get_goal_status(uuid).is_terminal() {
+            self.feedback_senders.retain(|(id, _)| id != uuid);
+            if self
+                .pending_feedback
+                .as_ref()
+                .is_some_and(|(id, _)| id == uuid)
+            {
+                self.pending_feedback = None;
+            }
+        }
     }
 
     fn finish_goal(&mut self, uuid: &uuid::Uuid, status: GoalStatus) {
@@ -637,8 +711,23 @@ impl ActionClient_ for WrappedActionClientUntyped {
             let arr = action_msgs::msg::GoalStatusArray::from_native(&status_array);
             for a in &arr.status_list {
                 let uuid = uuid_msg_to_uuid(&a.goal_info.goal_id)?;
-                if let Some(status) = self.goal_status.get_mut(&uuid) {
-                    *status = GoalStatus::from_rcl(a.status);
+                let status = GoalStatus::from_rcl(a.status);
+                if let Some(tracked_status) = self.goal_status.get_mut(&uuid) {
+                    *tracked_status = status;
+                }
+                let result_is_tracked = self
+                    .result_senders
+                    .iter()
+                    .any(|(id, sender)| id == &uuid && !sender.is_canceled());
+                if status.is_terminal() && !result_is_tracked {
+                    self.feedback_senders.retain(|(id, _)| id != &uuid);
+                    if self
+                        .pending_feedback
+                        .as_ref()
+                        .is_some_and(|(id, _)| id == &uuid)
+                    {
+                        self.pending_feedback = None;
+                    }
                 }
             }
         }

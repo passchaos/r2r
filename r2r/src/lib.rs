@@ -116,13 +116,19 @@ mod parameter_clients;
 pub use parameter_clients::ParameterClient;
 
 mod action_common;
-pub use action_common::{ActionClientOptions, ActionServerOptions, GoalStatus};
+pub use action_common::{ActionClientOptions, ActionGoalOptions, ActionServerOptions, GoalStatus};
 
 mod action_clients;
-pub use action_clients::{ActionClient, ActionClientGoal};
+pub use action_clients::{
+    ActionClient, ActionClientGoal, ActionClientGoalResponse, ActionFeedbackStream,
+    ActionResultFuture,
+};
 
 mod action_clients_untyped;
-pub use action_clients_untyped::{ActionClientGoalUntyped, ActionClientUntyped};
+pub use action_clients_untyped::{
+    ActionClientGoalResponseUntyped, ActionClientGoalUntyped, ActionClientUntyped,
+    ActionFeedbackStreamUntyped, ActionResultFutureUntyped,
+};
 
 mod action_servers;
 pub use action_servers::{

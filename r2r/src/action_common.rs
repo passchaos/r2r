@@ -3,6 +3,49 @@ use std::time::Duration;
 use crate::{Error, QosProfile, Result};
 use r2r_actions::{rcl_action_client_options_t, rcl_action_server_options_t};
 
+/// Per-goal client-side tracking options.
+///
+/// Disabling unused channels avoids their allocation and prevents the action client from sending
+/// a result request when the caller only needs to know whether the goal was accepted.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ActionGoalOptions {
+    /// Whether to create and retain a feedback stream for the goal.
+    pub track_feedback: bool,
+    /// Whether to create a result future and send a result request after acceptance.
+    pub track_result: bool,
+}
+
+impl Default for ActionGoalOptions {
+    fn default() -> Self {
+        Self {
+            track_feedback: true,
+            track_result: true,
+        }
+    }
+}
+
+impl ActionGoalOptions {
+    /// Enables or disables feedback tracking for this goal.
+    pub const fn track_feedback(mut self, track: bool) -> Self {
+        self.track_feedback = track;
+        self
+    }
+
+    /// Enables or disables result tracking for this goal.
+    pub const fn track_result(mut self, track: bool) -> Self {
+        self.track_result = track;
+        self
+    }
+
+    /// Creates options for a goal whose acceptance is the only client-side outcome needed.
+    pub const fn fire_and_forget() -> Self {
+        Self {
+            track_feedback: false,
+            track_result: false,
+        }
+    }
+}
+
 /// Optional QoS overrides for an action client. Unset fields retain the ROS distribution's
 /// native defaults.
 #[derive(Clone, Debug)]
@@ -208,6 +251,11 @@ pub enum GoalStatus {
 }
 
 impl GoalStatus {
+    /// Returns whether the goal has reached a terminal state.
+    pub const fn is_terminal(self) -> bool {
+        matches!(self, Self::Succeeded | Self::Canceled | Self::Aborted)
+    }
+
     #[allow(dead_code)]
     pub fn to_rcl(&self) -> i8 {
         match self {
@@ -275,6 +323,42 @@ mod tests {
     #[test]
     fn unknown_wire_status_maps_to_unknown() {
         assert_eq!(GoalStatus::from_rcl(i8::MAX), GoalStatus::Unknown);
+    }
+
+    #[test]
+    fn action_goal_options_preserve_tracking_by_default() {
+        assert_eq!(
+            ActionGoalOptions::default(),
+            ActionGoalOptions {
+                track_feedback: true,
+                track_result: true,
+            }
+        );
+        assert_eq!(
+            ActionGoalOptions::default()
+                .track_feedback(false)
+                .track_result(false),
+            ActionGoalOptions::fire_and_forget()
+        );
+    }
+
+    #[test]
+    fn only_completed_goal_statuses_are_terminal() {
+        for status in [
+            GoalStatus::Unknown,
+            GoalStatus::Accepted,
+            GoalStatus::Executing,
+            GoalStatus::Canceling,
+        ] {
+            assert!(!status.is_terminal());
+        }
+        for status in [
+            GoalStatus::Succeeded,
+            GoalStatus::Canceled,
+            GoalStatus::Aborted,
+        ] {
+            assert!(status.is_terminal());
+        }
     }
 
     #[test]
