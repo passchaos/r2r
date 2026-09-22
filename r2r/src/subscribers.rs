@@ -354,15 +354,7 @@ impl<T> Subscription<T> {
     where
         T: WrappedTypesupport,
     {
-        let subscriber = node
-            .subscribers
-            .iter_mut()
-            .find(|subscriber| {
-                subscriber
-                    .match_state()
-                    .is_some_and(|state| state.id == self.id)
-            })
-            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
+        let subscriber = node.subscriber_mut(self.id)?;
         if subscriber.message_type_id() != Some(TypeId::of::<T>()) {
             return Err(Error::RCL_RET_SUBSCRIPTION_INVALID);
         }

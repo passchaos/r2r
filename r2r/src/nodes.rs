@@ -496,6 +496,7 @@ pub struct Node {
     pub(crate) node_handle: Box<rcl_node_t>,
     // the node owns the subscribers
     pub(crate) subscribers: Vec<Box<dyn Subscriber_>>,
+    subscription_indexes: HashMap<uuid::Uuid, usize>,
     // services,
     services: Vec<Arc<Mutex<dyn Service_>>>,
     // service clients
@@ -585,6 +586,50 @@ impl NodeOptions {
 unsafe impl Send for Node {}
 
 impl Node {
+    pub(crate) fn add_subscriber(&mut self, subscriber: Box<dyn Subscriber_>) {
+        let index = self.subscribers.len();
+        if let Some(state) = subscriber.match_state() {
+            debug_assert!(self.subscription_indexes.insert(state.id, index).is_none());
+        }
+        self.subscribers.push(subscriber);
+    }
+
+    fn rebuild_subscription_indexes(
+        subscribers: &[Box<dyn Subscriber_>], indexes: &mut HashMap<uuid::Uuid, usize>,
+    ) {
+        indexes.clear();
+        indexes.reserve(subscribers.len());
+        for (index, subscriber) in subscribers.iter().enumerate() {
+            if let Some(state) = subscriber.match_state() {
+                debug_assert!(indexes.insert(state.id, index).is_none());
+            }
+        }
+    }
+
+    pub(crate) fn subscriber(&self, id: uuid::Uuid) -> Result<&dyn Subscriber_> {
+        let index = self
+            .subscription_indexes
+            .get(&id)
+            .copied()
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
+        self.subscribers
+            .get(index)
+            .map(|subscriber| &**subscriber)
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)
+    }
+
+    pub(crate) fn subscriber_mut(&mut self, id: uuid::Uuid) -> Result<&mut (dyn Subscriber_ + '_)> {
+        let index = self
+            .subscription_indexes
+            .get(&id)
+            .copied()
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
+        match self.subscribers.get_mut(index) {
+            Some(subscriber) => Ok(&mut **subscriber),
+            None => Err(Error::RCL_RET_SUBSCRIPTION_INVALID),
+        }
+    }
+
     pub(crate) fn owns_publisher(&self, publisher: &Arc<Publisher_>) -> bool {
         self.pubs
             .iter()
@@ -829,6 +874,7 @@ impl Node {
                 parameter_handler_started: false,
                 node_handle,
                 subscribers: Vec::new(),
+                subscription_indexes: HashMap::new(),
                 services: Vec::new(),
                 clients: Vec::new(),
                 action_clients: Vec::new(),
@@ -1782,7 +1828,7 @@ impl Node {
             max_messages_per_spin: subscription_batch_size(options.channel_capacity),
             match_state: SubscriptionMatchState::new(id),
         };
-        self.subscribers.push(Box::new(ws));
+        self.add_subscriber(Box::new(ws));
         Ok(Subscription::new(receiver, id))
     }
 
@@ -1899,7 +1945,7 @@ impl Node {
             max_messages_per_spin: subscription_batch_size(options.channel_capacity),
             match_state: SubscriptionMatchState::new(id),
         };
-        self.subscribers.push(Box::new(ws));
+        self.add_subscriber(Box::new(ws));
         Ok(Subscription::new(receiver, id))
     }
 
@@ -1986,7 +2032,7 @@ impl Node {
             max_messages_per_spin: subscription_batch_size(options.channel_capacity),
             match_state: SubscriptionMatchState::new(id),
         };
-        self.subscribers.push(Box::new(ws));
+        self.add_subscriber(Box::new(ws));
         Ok(Subscription::new(receiver, id))
     }
 
@@ -2105,130 +2151,78 @@ impl Node {
             max_messages_per_spin: subscription_batch_size(options.channel_capacity),
             match_state: SubscriptionMatchState::new(id),
         };
-        self.subscribers.push(Box::new(ws));
+        self.add_subscriber(Box::new(ws));
         Ok(Subscription::new(receiver, id))
     }
 
     pub(crate) fn get_subscription_publisher_count(&self, id: uuid::Uuid) -> Result<usize> {
-        self.subscribers
-            .iter()
-            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
-            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
-            .publisher_count()
+        self.subscriber(id)?.publisher_count()
     }
 
     pub(crate) fn get_subscription_actual_qos(&self, id: uuid::Uuid) -> Result<QosProfile> {
-        self.subscribers
-            .iter()
-            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
-            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
-            .actual_qos()
+        self.subscriber(id)?.actual_qos()
     }
 
     pub(crate) fn get_subscription_topic_name(&self, id: uuid::Uuid) -> Result<String> {
-        self.subscribers
-            .iter()
-            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
-            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
-            .topic_name()
+        self.subscriber(id)?.topic_name()
     }
 
     pub(crate) fn get_subscription_can_loan_messages(&self, id: uuid::Uuid) -> Result<bool> {
-        Ok(self
-            .subscribers
-            .iter()
-            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
-            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
-            .can_loan_messages())
+        Ok(self.subscriber(id)?.can_loan_messages())
     }
 
     pub(crate) fn get_subscription_network_flow_endpoints(
         &self, id: uuid::Uuid,
     ) -> Result<Vec<NetworkFlowEndpoint>> {
-        self.subscribers
-            .iter()
-            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
-            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
-            .network_flow_endpoints()
+        self.subscriber(id)?.network_flow_endpoints()
     }
 
     pub(crate) fn get_subscription_content_filter_enabled(&self, id: uuid::Uuid) -> Result<bool> {
-        Ok(self
-            .subscribers
-            .iter()
-            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
-            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
-            .is_content_filter_enabled())
+        Ok(self.subscriber(id)?.is_content_filter_enabled())
     }
 
     pub(crate) fn set_subscription_content_filter(
         &mut self, id: uuid::Uuid, options: &ContentFilterOptions,
     ) -> Result<()> {
-        self.subscribers
-            .iter()
-            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
-            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
-            .set_content_filter(options)
+        self.subscriber(id)?.set_content_filter(options)
     }
 
     pub(crate) fn get_subscription_content_filter(
         &self, id: uuid::Uuid,
     ) -> Result<ContentFilterOptions> {
-        self.subscribers
-            .iter()
-            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
-            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
-            .get_content_filter()
+        self.subscriber(id)?.get_content_filter()
     }
 
     pub(crate) fn take_subscription_requested_incompatible_qos(
         &mut self, id: uuid::Uuid,
     ) -> Result<Option<RequestedIncompatibleQosStatus>> {
-        self.subscribers
-            .iter_mut()
-            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
-            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
-            .take_requested_incompatible_qos()
+        self.subscriber_mut(id)?.take_requested_incompatible_qos()
     }
 
     pub(crate) fn take_subscription_requested_deadline_missed(
         &mut self, id: uuid::Uuid,
     ) -> Result<Option<RequestedDeadlineMissedStatus>> {
-        self.subscribers
-            .iter_mut()
-            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
-            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
-            .take_requested_deadline_missed()
+        self.subscriber_mut(id)?.take_requested_deadline_missed()
     }
 
     pub(crate) fn take_subscription_liveliness_changed(
         &mut self, id: uuid::Uuid,
     ) -> Result<Option<LivelinessChangedStatus>> {
-        self.subscribers
-            .iter_mut()
-            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
-            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
-            .take_liveliness_changed()
+        self.subscriber_mut(id)?.take_liveliness_changed()
     }
 
     pub(crate) fn take_subscription_message_lost(
         &mut self, id: uuid::Uuid,
     ) -> Result<Option<MessageLostStatus>> {
-        self.subscribers
-            .iter_mut()
-            .find(|subscriber| subscriber.match_state().is_some_and(|state| state.id == id))
-            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
-            .take_message_lost()
+        self.subscriber_mut(id)?.take_message_lost()
     }
 
     pub(crate) fn register_subscription_publisher_wait(
         &mut self, id: uuid::Uuid,
     ) -> Result<oneshot::Receiver<()>> {
         let state = self
-            .subscribers
-            .iter_mut()
-            .filter_map(|subscriber| subscriber.match_state_mut())
-            .find(|state| state.id == id)
+            .subscriber_mut(id)?
+            .match_state_mut()
             .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
         let (sender, receiver) = oneshot::channel();
         state.waiters.push(sender);
@@ -2806,6 +2800,7 @@ impl Node {
         // message arriving. Remove them before rebuilding the wait set so teardown does not
         // depend on readiness from the subscription being removed.
         let node_handle = self.node_handle.as_mut();
+        let previous_subscriber_count = self.subscribers.len();
         self.subscribers.retain_mut(|subscriber| {
             if subscriber.should_remove() {
                 subscriber.destroy(node_handle);
@@ -2814,6 +2809,9 @@ impl Node {
                 true
             }
         });
+        if self.subscribers.len() != previous_subscriber_count {
+            Self::rebuild_subscription_indexes(&self.subscribers, &mut self.subscription_indexes);
+        }
 
         // A dropped service stream cannot receive another request to trigger its old reactive
         // cleanup path. Remove it before rebuilding the wait set so it leaves the ROS graph even
@@ -3070,6 +3068,7 @@ impl Node {
             }
         }
         let node_handle = self.node_handle.as_mut();
+        let previous_subscriber_count = self.subscribers.len();
         self.subscribers.retain_mut(|subscriber| {
             if subs_to_remove.contains(&(subscriber.handle() as *const rcl_subscription_t)) {
                 subscriber.destroy(node_handle);
@@ -3078,6 +3077,9 @@ impl Node {
                 true
             }
         });
+        if self.subscribers.len() != previous_subscriber_count {
+            Self::rebuild_subscription_indexes(&self.subscribers, &mut self.subscription_indexes);
+        }
         if let Some(err) = subscriber_error {
             return Err(err);
         }
@@ -9141,6 +9143,36 @@ mod tests {
         drop(subscription);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert_eq!(node.subscribers.len(), subscriptions_before_drop - 1);
+    }
+
+    #[test]
+    fn subscription_indexes_follow_removal_and_reordering() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "subscription_index_test", "").unwrap();
+        let first_topic = format!("/indexed_first_{}", uuid::Uuid::new_v4().simple());
+        let removed_topic = format!("/indexed_removed_{}", uuid::Uuid::new_v4().simple());
+        let last_topic = format!("/indexed_last_{}", uuid::Uuid::new_v4().simple());
+        let first = node
+            .subscribe::<crate::std_msgs::msg::String>(&first_topic, QosProfile::default())
+            .unwrap();
+        let removed = node
+            .subscribe::<crate::std_msgs::msg::String>(&removed_topic, QosProfile::default())
+            .unwrap();
+        let last = node
+            .subscribe::<crate::std_msgs::msg::String>(&last_topic, QosProfile::default())
+            .unwrap();
+
+        assert_eq!(node.subscription_indexes.len(), 3);
+        drop(removed);
+        node.try_spin_once(Duration::ZERO).unwrap();
+
+        assert_eq!(node.subscribers.len(), 2);
+        assert_eq!(node.subscription_indexes.len(), 2);
+        assert_eq!(first.topic_name(&node).unwrap(), first_topic);
+        assert_eq!(last.topic_name(&node).unwrap(), last_topic);
+        for (id, index) in &node.subscription_indexes {
+            assert_eq!(node.subscribers[*index].match_state().unwrap().id, *id);
+        }
     }
 
     #[test]

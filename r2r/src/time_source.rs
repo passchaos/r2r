@@ -110,7 +110,7 @@ impl TimeSource {
             (subscriber, initial_time, clocks)
         };
         if let Some(subscriber) = subscriber {
-            node.subscribers.push(Box::new(subscriber));
+            node.add_subscriber(Box::new(subscriber));
         }
         if let Err(err) =
             try_for_each_clock(&clocks, |clock| clock.enable_ros_time_override(initial_time))
