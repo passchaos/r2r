@@ -22,15 +22,24 @@ impl ArcWake for AvailabilityCancellationWake {
     }
 }
 
-#[derive(Default)]
-pub(crate) struct AvailabilityWaiters {
-    senders: BTreeMap<u64, oneshot::Sender<()>>,
+pub(crate) struct Waiters<T> {
+    senders: BTreeMap<u64, oneshot::Sender<T>>,
     canceled_waiters: Arc<Mutex<VecDeque<u64>>>,
     next_token: u64,
 }
 
-impl AvailabilityWaiters {
-    pub(crate) fn register(&mut self, mut sender: oneshot::Sender<()>) {
+impl<T> Default for Waiters<T> {
+    fn default() -> Self {
+        Self {
+            senders: BTreeMap::new(),
+            canceled_waiters: Arc::new(Mutex::new(VecDeque::new())),
+            next_token: 0,
+        }
+    }
+}
+
+impl<T> Waiters<T> {
+    pub(crate) fn register(&mut self, mut sender: oneshot::Sender<T>) {
         let token = loop {
             let token = self.next_token;
             self.next_token = self.next_token.wrapping_add(1);
@@ -72,15 +81,34 @@ impl AvailabilityWaiters {
         self.senders.is_empty()
     }
 
+    pub(crate) fn poll_boundary(&mut self) -> Option<u64> {
+        self.prune_canceled();
+        self.senders.last_key_value().map(|(token, _)| *token)
+    }
+
     #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.senders.len()
     }
 
-    pub(crate) fn take_all(&mut self) -> Vec<oneshot::Sender<()>> {
+    pub(crate) fn take_all(&mut self) -> Vec<oneshot::Sender<T>> {
         std::mem::take(&mut self.senders).into_values().collect()
     }
+
+    pub(crate) fn take_through(&mut self, boundary: u64) -> Vec<oneshot::Sender<T>> {
+        let tokens = self
+            .senders
+            .range(..=boundary)
+            .map(|(token, _)| *token)
+            .collect::<Vec<_>>();
+        tokens
+            .into_iter()
+            .filter_map(|token| self.senders.remove(&token))
+            .collect()
+    }
 }
+
+pub(crate) type AvailabilityWaiters = Waiters<()>;
 
 #[cfg(test)]
 mod tests {
@@ -144,5 +172,20 @@ mod tests {
         assert_eq!(waiters.senders.keys().copied().collect::<Vec<_>>(), [0, 1, 2]);
         assert_eq!(waiters.take_all().len(), 3);
         drop(receivers);
+    }
+
+    #[test]
+    fn poll_boundary_excludes_waiters_registered_during_poll() {
+        let mut waiters = Waiters::<()>::default();
+        let (first, _first_receiver) = oneshot::channel();
+        waiters.register(first);
+        let boundary = waiters.poll_boundary().unwrap();
+        let (later, mut later_receiver) = oneshot::channel();
+        waiters.register(later);
+
+        assert_eq!(waiters.take_through(boundary).len(), 1);
+        assert_eq!(waiters.len(), 1);
+        waiters.take_all().pop().unwrap().send(()).unwrap();
+        assert_eq!(futures::executor::block_on(&mut later_receiver), Ok(()));
     }
 }

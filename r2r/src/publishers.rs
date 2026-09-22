@@ -10,7 +10,9 @@ use std::{
     sync::{Arc, Weak},
 };
 
-use crate::{error::*, msg_types::*, nodes::Node, qos::QosProfile, QosPolicyKind};
+use crate::{
+    availability::Waiters, error::*, msg_types::*, nodes::Node, qos::QosProfile, QosPolicyKind,
+};
 use r2r_rcl::*;
 
 /// Whether an endpoint should use a unique middleware network flow.
@@ -178,32 +180,19 @@ unsafe impl<T> Send for Publisher<T> where T: WrappedTypesupport {}
 pub(crate) struct Publisher_ {
     handle: Arc<Mutex<PublisherHandle>>,
 
-    // TODO use a mpsc to avoid the mutex?
-    poll_subscriber_channels: Mutex<Vec<oneshot::Sender<()>>>,
+    poll_subscriber_channels: Mutex<Waiters<()>>,
     #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
-    poll_ack_channels: Mutex<Vec<oneshot::Sender<Result<()>>>>,
+    poll_ack_channels: Mutex<Waiters<Result<()>>>,
 }
 
-fn take_active_waiters<T>(waiters: &Mutex<Vec<oneshot::Sender<T>>>) -> Vec<oneshot::Sender<T>> {
+fn has_active_waiters<T>(waiters: &Mutex<Waiters<T>>) -> bool {
     let mut waiters = waiters.lock();
-    waiters.retain(|sender| !sender.is_canceled());
-    std::mem::take(&mut *waiters)
-}
-
-fn has_active_waiters<T>(waiters: &Mutex<Vec<oneshot::Sender<T>>>) -> bool {
-    let mut waiters = waiters.lock();
-    waiters.retain(|sender| !sender.is_canceled());
+    waiters.prune_canceled();
     !waiters.is_empty()
 }
 
-fn restore_active_waiters<T>(
-    waiters: &Mutex<Vec<oneshot::Sender<T>>>, mut pending: Vec<oneshot::Sender<T>>,
-) {
-    pending.retain(|sender| !sender.is_canceled());
-    if pending.is_empty() {
-        return;
-    }
-    waiters.lock().extend(pending);
+fn take_waiters_through<T>(waiters: &Mutex<Waiters<T>>, boundary: u64) -> Vec<oneshot::Sender<T>> {
+    waiters.lock().take_through(boundary)
 }
 
 fn complete_waiters<T: Clone>(waiters: Vec<oneshot::Sender<T>>, value: T) {
@@ -226,23 +215,23 @@ mod waiter_tests {
     };
 
     struct RegisteringWake {
-        waiters: Arc<Mutex<Vec<oneshot::Sender<()>>>>,
+        waiters: Arc<Mutex<Waiters<()>>>,
         woke: AtomicBool,
     }
 
     impl ArcWake for RegisteringWake {
         fn wake_by_ref(arc_self: &Arc<Self>) {
             let (sender, _receiver) = oneshot::channel();
-            arc_self.waiters.lock().push(sender);
+            arc_self.waiters.lock().register(sender);
             arc_self.woke.store(true, Ordering::SeqCst);
         }
     }
 
     #[test]
     fn completing_waiters_allows_reentrant_registration() {
-        let waiters = Arc::new(Mutex::new(Vec::new()));
+        let waiters = Arc::new(Mutex::new(Waiters::default()));
         let (sender, mut receiver) = oneshot::channel();
-        waiters.lock().push(sender);
+        waiters.lock().register(sender);
         let wake = Arc::new(RegisteringWake {
             waiters: Arc::clone(&waiters),
             woke: AtomicBool::new(false),
@@ -251,7 +240,8 @@ mod waiter_tests {
         let mut context = Context::from_waker(&waker);
         assert!(matches!(Pin::new(&mut receiver).poll(&mut context), Poll::Pending));
 
-        let detached = take_active_waiters(&waiters);
+        let boundary = waiters.lock().poll_boundary().unwrap();
+        let detached = take_waiters_through(&waiters, boundary);
         assert!(waiters.try_lock().is_some());
         complete_waiters(detached, ());
 
@@ -261,25 +251,25 @@ mod waiter_tests {
     }
 
     #[test]
-    fn restoring_waiters_preserves_concurrent_registrations() {
-        let waiters = Mutex::new(Vec::new());
+    fn poll_boundary_preserves_concurrent_registrations() {
+        let waiters = Mutex::new(Waiters::default());
         let (first, _first_receiver) = oneshot::channel::<()>();
-        waiters.lock().push(first);
-        let detached = take_active_waiters(&waiters);
+        waiters.lock().register(first);
+        let boundary = waiters.lock().poll_boundary().unwrap();
         let (second, _second_receiver) = oneshot::channel::<()>();
-        waiters.lock().push(second);
+        waiters.lock().register(second);
+        let detached = take_waiters_through(&waiters, boundary);
 
-        restore_active_waiters(&waiters, detached);
-
-        assert_eq!(waiters.lock().len(), 2);
+        assert_eq!(detached.len(), 1);
+        assert_eq!(waiters.lock().len(), 1);
     }
 
     #[test]
     fn checking_active_waiters_releases_the_waiter_lock() {
-        let waiters = Mutex::new(Vec::new());
+        let waiters = Mutex::new(Waiters::default());
         let (sender, receiver) = oneshot::channel::<()>();
         drop(receiver);
-        waiters.lock().push(sender);
+        waiters.lock().register(sender);
 
         assert!(!has_active_waiters(&waiters));
         assert!(waiters.try_lock().is_some());
@@ -294,9 +284,9 @@ mod waiter_tests {
                 offered_deadline_missed: None,
                 liveliness_lost: None,
             })),
-            poll_subscriber_channels: Mutex::new(Vec::new()),
+            poll_subscriber_channels: Mutex::new(Waiters::default()),
             #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
-            poll_ack_channels: Mutex::new(Vec::new()),
+            poll_ack_channels: Mutex::new(Waiters::default()),
         };
 
         let prepared = publisher
@@ -524,7 +514,7 @@ impl Publisher_ {
 
     #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     fn register_ack_wait(&self, sender: oneshot::Sender<Result<()>>) {
-        self.poll_ack_channels.lock().push(sender);
+        self.poll_ack_channels.lock().register(sender);
     }
 
     fn get_actual_qos(&self) -> Result<QosProfile> {
@@ -560,32 +550,33 @@ impl Publisher_ {
     }
 
     pub(crate) fn poll_has_subscribers(&self) {
-        let waiters = take_active_waiters(&self.poll_subscriber_channels);
-        if waiters.is_empty() {
+        let Some(boundary) = self.poll_subscriber_channels.lock().poll_boundary() else {
             return;
-        }
+        };
         match self.get_subscription_count() {
-            Ok(0) => {
-                restore_active_waiters(&self.poll_subscriber_channels, waiters);
+            Ok(0) => {}
+            Ok(_) => {
+                let waiters = take_waiters_through(&self.poll_subscriber_channels, boundary);
+                complete_waiters(waiters, ());
             }
-            Ok(_) => complete_waiters(waiters, ()),
-            // Dropping the detached senders reports an invalid publisher to the receivers.
-            Err(_) => {}
+            Err(_) => {
+                let waiters = take_waiters_through(&self.poll_subscriber_channels, boundary);
+                drop(waiters);
+            }
         }
     }
 
     #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     pub(crate) fn poll_all_acked(&self) {
-        let waiters = take_active_waiters(&self.poll_ack_channels);
-        if waiters.is_empty() {
+        let Some(boundary) = self.poll_ack_channels.lock().poll_boundary() else {
             return;
-        }
+        };
 
         let result = self.wait_for_all_acked(Duration::ZERO);
         if matches!(result, Err(Error::RCL_RET_TIMEOUT)) {
-            restore_active_waiters(&self.poll_ack_channels, waiters);
             return;
         }
+        let waiters = take_waiters_through(&self.poll_ack_channels, boundary);
         complete_waiters(waiters, result);
     }
 
@@ -755,9 +746,9 @@ pub fn create_publisher_helper(
                 offered_deadline_missed: None,
                 liveliness_lost: None,
             })),
-            poll_subscriber_channels: Mutex::new(Vec::new()),
+            poll_subscriber_channels: Mutex::new(Waiters::default()),
             #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
-            poll_ack_channels: Mutex::new(Vec::new()),
+            poll_ack_channels: Mutex::new(Waiters::default()),
         })
     } else {
         Err(Error::from_rcl_error(result))
@@ -959,7 +950,7 @@ impl PublisherUntyped {
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
             .poll_subscriber_channels
             .lock()
-            .push(sender);
+            .register(sender);
 
         Ok(receiver.map_err(|_| Error::RCL_RET_PUBLISHER_INVALID))
     }
@@ -1204,7 +1195,7 @@ where
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
             .poll_subscriber_channels
             .lock()
-            .push(sender);
+            .register(sender);
 
         Ok(receiver.map_err(|_| Error::RCL_RET_PUBLISHER_INVALID))
     }
