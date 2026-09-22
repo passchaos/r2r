@@ -38,6 +38,8 @@ use crate::{
     subscribers::*,
 };
 
+const SPIN_UNTIL_FUTURE_POLL_INTERVAL: Duration = Duration::from_millis(10);
+
 struct RclParams(*mut rcl_params_t);
 
 impl Drop for RclParams {
@@ -2805,8 +2807,10 @@ impl Node {
     ///
     /// This is a runtime-independent counterpart to repeatedly calling [`Node::try_spin_once`]
     /// and polling a service, action, timer, graph, or matching future. A future that is already
-    /// ready is returned even when `timeout` is zero. The timeout uses steady wall-clock time,
-    /// so it is not affected by ROS simulated time.
+    /// ready is returned even when `timeout` is zero. Futures are polled periodically even when
+    /// they do not wake themselves, which supports availability checks whose state may change
+    /// without a corresponding wait-set event. The timeout uses steady wall-clock time, so it is
+    /// not affected by ROS simulated time.
     pub fn spin_until_future_complete<T>(
         &mut self, future: impl Future<Output = Result<T>>, timeout: Duration,
     ) -> Result<T> {
@@ -2821,7 +2825,7 @@ impl Node {
             if remaining.is_zero() {
                 return Err(Error::RCL_RET_TIMEOUT);
             }
-            self.try_spin_once(remaining)?;
+            self.try_spin_once(remaining.min(SPIN_UNTIL_FUTURE_POLL_INTERVAL))?;
         }
     }
 
@@ -5152,6 +5156,26 @@ mod tests {
             ),
             Err(Error::RCL_RET_TIMEOUT)
         ));
+
+        let polls = std::cell::Cell::new(0);
+        let started = Instant::now();
+        let result = node
+            .spin_until_future_complete(
+                future::poll_fn(|_| {
+                    let poll = polls.get() + 1;
+                    polls.set(poll);
+                    if poll == 1 {
+                        Poll::Pending
+                    } else {
+                        Poll::Ready(Ok(7))
+                    }
+                }),
+                Duration::from_millis(200),
+            )
+            .unwrap();
+        assert_eq!(result, 7);
+        assert_eq!(polls.get(), 2);
+        assert!(started.elapsed() < Duration::from_millis(150));
 
         let service = node
             .create_service::<AddTwoInts::Service>(
