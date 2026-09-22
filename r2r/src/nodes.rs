@@ -88,6 +88,9 @@ struct ParameterEventChanges {
 
 impl ParameterEventChanges {
     fn record(&mut self, name: &str, previous: Option<&ParameterValue>, value: &ParameterValue) {
+        if !parameter_value_changed(previous, value) {
+            return;
+        }
         let parameter = rcl_interfaces::msg::Parameter {
             name: name.to_owned(),
             value: value.clone().into_parameter_value_msg(),
@@ -129,6 +132,10 @@ impl ParameterEventChanges {
             log::warn!("could not publish parameter event: {err}");
         }
     }
+}
+
+fn parameter_value_changed(previous: Option<&ParameterValue>, value: &ParameterValue) -> bool {
+    previous != Some(value) && !(previous.is_none() && matches!(value, ParameterValue::NotSet))
 }
 
 /// A ROS Node.
@@ -598,19 +605,20 @@ impl Node {
         self.params.lock().contains_key(name)
     }
 
-    /// Removes a declared parameter and its descriptor.
+    /// Removes a declared dynamic parameter and its descriptor.
     ///
-    /// Read-only parameters cannot be undeclared. Parameter service clients can undeclare dynamic
-    /// parameters by assigning [`ParameterValue::NotSet`]; statically typed parameters require
-    /// this explicit API, matching ROS 2's distinction between setting and undeclaring.
+    /// Read-only and statically typed parameters cannot be removed through this API because they
+    /// may be backed by a [`RosParams`] field. Parameter service clients can perform the same
+    /// operation by assigning [`ParameterValue::NotSet`] to a dynamic parameter.
     pub fn undeclare_parameter(&self, name: &str) -> Result<ParameterValue> {
         let mut params = self.params.lock();
         let mut descriptors = self.parameter_descriptors.lock();
         if let Some(descriptor) = descriptors.get(name) {
-            if descriptor.read_only {
+            if descriptor.read_only || !descriptor.dynamic_typing {
                 return Err(Error::ParameterConstraintViolation {
                     name: name.to_owned(),
-                    reason: "a read-only parameter cannot be undeclared".into(),
+                    reason: "an immutable or statically typed parameter cannot be undeclared"
+                        .into(),
                 });
             }
         }
@@ -723,7 +731,7 @@ impl Node {
                         }
                     };
                     let previous = params.lock().get(&p.name).map(|v| v.value.clone());
-                    let changed = previous.as_ref() != Some(&val);
+                    let changed = parameter_value_changed(previous.as_ref(), &val);
                     let descriptor_result = parameter_descriptors
                         .lock()
                         .get(&p.name)
@@ -994,7 +1002,7 @@ impl Node {
                             let mut ros_events = ParameterEventChanges::default();
                             for (name, value) in &updates {
                                 let previous = params.get(name).map(|parameter| &parameter.value);
-                                if previous != Some(value) {
+                                if parameter_value_changed(previous, value) {
                                     local_events.push((name.clone(), value.clone()));
                                     ros_events.record(name, previous, value);
                                     Self::store_dynamic_parameter(&mut params, name, value);
@@ -3654,6 +3662,20 @@ mod tests {
     }
 
     #[test]
+    fn absent_parameter_unset_is_not_reported_as_a_change() {
+        assert!(!parameter_value_changed(None, &ParameterValue::NotSet));
+        assert!(parameter_value_changed(None, &ParameterValue::Integer(1)));
+        assert!(parameter_value_changed(
+            Some(&ParameterValue::Integer(1)),
+            &ParameterValue::NotSet
+        ));
+        assert!(!parameter_value_changed(
+            Some(&ParameterValue::Integer(1)),
+            &ParameterValue::Integer(1)
+        ));
+    }
+
+    #[test]
     fn empty_node_spin_honors_timeout_without_an_rcl_error() {
         let context = Context::create().unwrap();
         let mut node = Node::create(context, "empty_spin_test", "").unwrap();
@@ -3838,7 +3860,7 @@ mod tests {
     }
 
     #[test]
-    fn local_parameter_undeclare_removes_mutable_parameters() {
+    fn local_parameter_undeclare_removes_only_dynamic_parameters() {
         let context = Context::create().unwrap();
         let node = Node::create(context, "local_parameter_undeclare_test", "").unwrap();
         node.declare_parameter_with_descriptor(
@@ -3867,9 +3889,9 @@ mod tests {
         assert!(!node.has_parameter("dynamic"));
         assert!(node.get_parameter_descriptor("dynamic").is_err());
         assert!(node.undeclare_parameter("dynamic").is_err());
-        assert_eq!(node.undeclare_parameter("static").unwrap(), ParameterValue::Integer(2));
+        assert!(node.undeclare_parameter("static").is_err());
         assert!(node.undeclare_parameter("read_only").is_err());
-        assert!(!node.has_parameter("static"));
+        assert!(node.has_parameter("static"));
         assert!(node.has_parameter("read_only"));
     }
 
