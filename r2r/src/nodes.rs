@@ -2500,6 +2500,7 @@ impl Node {
         let client = WrappedActionClient::<T> {
             rcl_handle: client_handle,
             goal_response_channels: HashMap::new(),
+            goal_response_sequences: HashMap::new(),
             cancel_response_channels: HashMap::new(),
             feedback_senders: HashMap::new(),
             result_senders: HashMap::new(),
@@ -2557,6 +2558,7 @@ impl Node {
             action_type_support,
             rcl_handle: client_handle,
             goal_response_channels: HashMap::new(),
+            goal_response_sequences: HashMap::new(),
             cancel_response_channels: HashMap::new(),
             feedback_senders: HashMap::new(),
             result_senders: HashMap::new(),
