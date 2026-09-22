@@ -3587,13 +3587,9 @@ impl Node {
     where
         T: WrappedServiceTypeSupport,
     {
-        let identity = client
-            .client
-            .upgrade()
-            .map(|client| Self::client_identity(&client));
-        drop(client);
-        if let Some(identity) = identity {
-            self.destroy_client_by_identity(identity);
+        let identity = client.identity();
+        if self.destroy_client_by_identity(identity) {
+            client.mark_explicitly_destroyed();
         }
     }
 
@@ -3601,13 +3597,9 @@ impl Node {
     ///
     /// Pending response and availability futures are closed before this method returns.
     pub fn destroy_client_untyped(&mut self, client: ClientUntyped) {
-        let identity = client
-            .client
-            .upgrade()
-            .map(|client| Self::client_identity(&client));
-        drop(client);
-        if let Some(identity) = identity {
-            self.destroy_client_by_identity(identity);
+        let identity = client.identity();
+        if self.destroy_client_by_identity(identity) {
+            client.mark_explicitly_destroyed();
         }
     }
 
@@ -11189,6 +11181,7 @@ mod tests {
         let removed = node
             .create_client::<AddTwoInts::Service>(&removed_name, QosProfile::default())
             .unwrap();
+        let removed_clone = removed.clone();
         let last = node
             .create_client_untyped(
                 &last_name,
@@ -11217,8 +11210,11 @@ mod tests {
         assert!(node.active_availability_clients.lock().is_empty());
         assert!(matches!(response.now_or_never(), Some(Err(Error::RCL_RET_CLIENT_INVALID))));
         assert!(matches!(availability.now_or_never(), Some(Err(Error::RCL_RET_CLIENT_INVALID))));
+        assert!(matches!(removed_clone.service_name(), Err(Error::RCL_RET_CLIENT_INVALID)));
         assert_eq!(first.service_name().unwrap(), first_name);
         assert_eq!(last.service_name().unwrap(), last_name);
+        drop(removed_clone);
+        assert!(node.dropped_clients.lock().is_empty());
 
         let foreign_name = format!("/destroy_client_foreign_{}", uuid::Uuid::new_v4().simple());
         let foreign = node

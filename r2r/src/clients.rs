@@ -1,7 +1,7 @@
 use futures::channel::oneshot;
 use parking_lot::Mutex;
 #[cfg(test)]
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::AtomicUsize;
 use std::{
     collections::{HashMap, VecDeque},
     ffi::{CStr, CString},
@@ -9,7 +9,10 @@ use std::{
     future::Future,
     mem::MaybeUninit,
     pin::Pin,
-    sync::{Arc, Weak},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Weak,
+    },
     task::{Context, Poll},
     time::Duration,
 };
@@ -164,11 +167,20 @@ pub(crate) struct ClientHandleLifecycle {
     identity: usize,
     dropped_clients: Arc<Mutex<VecDeque<usize>>>,
     active_availability_clients: Arc<Mutex<VecDeque<usize>>>,
+    explicitly_destroyed: AtomicBool,
 }
 
 impl Drop for ClientHandleLifecycle {
     fn drop(&mut self) {
-        self.dropped_clients.lock().push_back(self.identity);
+        if !self.explicitly_destroyed.load(Ordering::Acquire) {
+            self.dropped_clients.lock().push_back(self.identity);
+        }
+    }
+}
+
+impl ClientHandleLifecycle {
+    fn mark_explicitly_destroyed(&self) {
+        self.explicitly_destroyed.store(true, Ordering::Release);
     }
 }
 
@@ -181,6 +193,19 @@ where
             client: self.client.clone(),
             lifecycle: Arc::clone(&self.lifecycle),
         }
+    }
+}
+
+impl<T> Client<T>
+where
+    T: WrappedServiceTypeSupport,
+{
+    pub(crate) fn identity(&self) -> usize {
+        self.lifecycle.identity
+    }
+
+    pub(crate) fn mark_explicitly_destroyed(&self) {
+        self.lifecycle.mark_explicitly_destroyed();
     }
 }
 
@@ -270,6 +295,14 @@ impl Clone for ClientUntyped {
 }
 
 impl ClientUntyped {
+    pub(crate) fn identity(&self) -> usize {
+        self.lifecycle.identity
+    }
+
+    pub(crate) fn mark_explicitly_destroyed(&self) {
+        self.lifecycle.mark_explicitly_destroyed();
+    }
+
     /// Make an "untyped" service request.
     ///
     /// The request is a `serde_json::Value`. It is up to the user to
@@ -377,6 +410,7 @@ where
             identity,
             dropped_clients,
             active_availability_clients,
+            explicitly_destroyed: AtomicBool::new(false),
         }),
     }
 }
@@ -392,6 +426,7 @@ pub(crate) fn make_untyped_client(
             identity,
             dropped_clients,
             active_availability_clients,
+            explicitly_destroyed: AtomicBool::new(false),
         }),
     }
 }
