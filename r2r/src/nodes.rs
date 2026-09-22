@@ -4886,6 +4886,19 @@ impl Node {
         Ok(out_timer)
     }
 
+    /// Immediately destroys a timer owned by this node.
+    ///
+    /// Dropping a timer schedules it for removal during the next spin. This method removes and
+    /// finalizes it before returning. Passing a timer created by another node leaves this node
+    /// unchanged and schedules normal cleanup by the owning node.
+    pub fn destroy_timer(&mut self, timer: Timer) {
+        let id = timer.id;
+        drop(timer);
+        if Self::remove_timer(&mut self.timers, &mut self.timer_indexes, id).is_some() {
+            self.canceled_timers.lock().retain(|queued| *queued != id);
+        }
+    }
+
     fn create_timer_helper(
         &self, clock: &mut Clock, period: Duration,
     ) -> Result<Pin<Box<RclTimer>>> {
@@ -12406,6 +12419,34 @@ mod tests {
         for (id, index) in &node.timer_indexes {
             assert_eq!(node.timers[*index].id, *id);
         }
+    }
+
+    #[test]
+    fn explicit_timer_destruction_is_immediate_and_targeted() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context.clone(), "destroy_timer_test", "").unwrap();
+        let mut other = Node::create(context, "destroy_timer_other", "").unwrap();
+        let first = node.create_wall_timer(Duration::from_secs(60)).unwrap();
+        let removed = node.create_wall_timer(Duration::from_secs(61)).unwrap();
+        let last = node.create_timer(Duration::from_secs(62)).unwrap();
+        let removed_id = removed.id;
+
+        node.destroy_timer(removed);
+
+        assert_eq!(node.timers.len(), 2);
+        assert_eq!(node.timer_indexes.len(), 2);
+        assert!(!node.timer_indexes.contains_key(&removed_id));
+        assert!(node.canceled_timers.lock().is_empty());
+        assert_eq!(first.period(&node).unwrap(), Duration::from_secs(60));
+        assert_eq!(last.period(&node).unwrap(), Duration::from_secs(62));
+
+        let foreign = node.create_wall_timer(Duration::from_secs(63)).unwrap();
+        other.destroy_timer(foreign);
+        assert_eq!(node.timers.len(), 3);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(node.timers.len(), 2);
+        assert_eq!(first.period(&node).unwrap(), Duration::from_secs(60));
+        assert_eq!(last.period(&node).unwrap(), Duration::from_secs(62));
     }
 
     #[test]
