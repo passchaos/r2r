@@ -13,13 +13,17 @@ use std::{
 use crate::{error::*, msg_types::*, nodes::Node, QosProfile};
 use r2r_rcl::*;
 
-pub(crate) type ClientCompletion = Box<dyn FnOnce() + Send>;
+pub(crate) type ClientCompletion = Box<dyn FnOnce()>;
 
-fn response_completion<T>(sender: oneshot::Sender<T>, response: T) -> ClientCompletion
+fn response_conversion_completion<N, T>(
+    sender: oneshot::Sender<T>, native: N, convert: impl FnOnce(N) -> T + Send + 'static,
+) -> ClientCompletion
 where
-    T: Debug + Send + 'static,
+    N: 'static,
+    T: Debug + 'static,
 {
     Box::new(move || {
+        let response = convert(native);
         if let Err(err) = sender.send(response) {
             log::debug!("error sending to client: {:?}", err);
         }
@@ -355,8 +359,9 @@ where
 
         let request_id = unsafe { request_id.assume_init() };
         if let Some(sender) = self.response_channels.remove(&request_id.sequence_number) {
-            let response = T::Response::from_native(&response_msg);
-            Ok(Some(response_completion(sender, response)))
+            Ok(Some(response_conversion_completion(sender, response_msg, |response_msg| {
+                T::Response::from_native(&response_msg)
+            })))
         } else {
             let we_have: String = self
                 .response_channels
@@ -441,8 +446,9 @@ impl Client_ for UntypedClient_ {
 
         let request_id = unsafe { request_id.assume_init() };
         if let Some(sender) = self.response_channels.remove(&request_id.sequence_number) {
-            let response = response_msg.to_json();
-            Ok(Some(response_completion(sender, response)))
+            Ok(Some(response_conversion_completion(sender, response_msg, |response_msg| {
+                response_msg.to_json()
+            })))
         } else {
             let we_have: String = self
                 .response_channels
@@ -604,10 +610,30 @@ mod tests {
         let mut context = Context::from_waker(&waker);
         assert!(matches!(Pin::new(&mut receiver).poll(&mut context), Poll::Pending));
 
-        complete_client_operation(&client, |_| Ok(Some(response_completion(sender, ())))).unwrap();
+        complete_client_operation(&client, |_| {
+            Ok(Some(response_conversion_completion(sender, (), |response| response)))
+        })
+        .unwrap();
 
         assert!(wake.woke.load(Ordering::SeqCst));
         assert!(matches!(Pin::new(&mut receiver).poll(&mut context), Poll::Ready(Ok(()))));
+    }
+
+    #[test]
+    fn client_responses_are_converted_after_releasing_the_client_lock() {
+        let client = Arc::new(Mutex::new(()));
+        let (sender, mut receiver) = oneshot::channel();
+        let client_for_conversion = Arc::clone(&client);
+
+        complete_client_operation(&*client, |_| {
+            Ok(Some(response_conversion_completion(sender, 41, move |value| {
+                assert!(client_for_conversion.try_lock().is_some());
+                value + 1
+            })))
+        })
+        .unwrap();
+
+        assert_eq!(receiver.try_recv().unwrap(), Some(42));
     }
 
     #[test]
