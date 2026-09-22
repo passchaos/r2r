@@ -38,6 +38,7 @@ pub(crate) enum ActionClientTakeResult {
 }
 
 const MAX_ACTION_RESPONSES_PER_SPIN: usize = 16;
+const MAX_ACTION_FEEDBACK_PER_SPIN: usize = 16;
 
 pub(crate) fn collect_action_client_responses<C: ?Sized>(
     client: &mut C, completions: &mut Vec<ActionClientCompletion>,
@@ -70,6 +71,35 @@ pub(crate) fn complete_action_client_operation<T: ?Sized>(
         }
     }
     operation_result
+}
+
+pub(crate) fn complete_action_feedback_batch<T: ?Sized>(
+    client: &Mutex<T>,
+    mut operation: impl FnMut(
+        &mut T,
+        &mut Vec<ActionClientCompletion>,
+    ) -> Result<ActionClientTakeResult>,
+    mut cleanup_goal: impl FnMut(&mut T, &uuid::Uuid),
+) -> Result<()> {
+    for _ in 0..MAX_ACTION_FEEDBACK_PER_SPIN {
+        let mut completions = Vec::new();
+        let take_result = { operation(&mut *client.lock(), &mut completions) };
+        for completion in completions {
+            let ActionClientCompletion {
+                notify,
+                cleanup_goal_on_failure,
+            } = completion;
+            if !notify() {
+                if let Some(uuid) = cleanup_goal_on_failure {
+                    cleanup_goal(&mut *client.lock(), &uuid);
+                }
+            }
+        }
+        if take_result? == ActionClientTakeResult::Idle {
+            break;
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn action_response_completion<T: Send + 'static>(
@@ -683,7 +713,9 @@ pub trait ActionClient_ {
     fn handle_cancel_response(
         &mut self, completions: &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult>;
-    fn handle_feedback_msg(&mut self) -> Result<Option<ActionClientCompletion>>;
+    fn handle_feedback_msg(
+        &mut self, completions: &mut Vec<ActionClientCompletion>,
+    ) -> Result<ActionClientTakeResult>;
     fn handle_status_msg(&mut self) -> Result<Vec<ActionClientCompletion>>;
     fn handle_result_response(
         &mut self, completions: &mut Vec<ActionClientCompletion>,
@@ -951,9 +983,12 @@ where
         }
     }
 
-    fn handle_feedback_msg(&mut self) -> Result<Option<ActionClientCompletion>> {
+    fn handle_feedback_msg(
+        &mut self, completions: &mut Vec<ActionClientCompletion>,
+    ) -> Result<ActionClientTakeResult> {
         if let Some(completion) = self.pending_feedback_completion() {
-            return Ok(Some(completion));
+            completions.push(completion);
+            return Ok(ActionClientTakeResult::Taken);
         }
         let mut feedback_msg = WrappedNativeMsg::<T::FeedbackMessage>::try_new()?;
         let ret =
@@ -967,10 +1002,12 @@ where
                 .iter()
                 .find(|(uuid, _)| uuid == &msg_uuid)
             {
-                return Ok(feedback_completion(Arc::clone(channel), feedback));
+                completions.extend(feedback_completion(Arc::clone(channel), feedback));
             }
+            Ok(ActionClientTakeResult::Taken)
+        } else {
+            Ok(ActionClientTakeResult::Idle)
         }
-        Ok(None)
     }
 
     fn handle_status_msg(&mut self) -> Result<Vec<ActionClientCompletion>> {
@@ -1371,6 +1408,39 @@ mod tests {
         })
         .unwrap();
         assert_eq!(calls.get(), MAX_ACTION_RESPONSES_PER_SPIN);
+    }
+
+    #[test]
+    fn action_feedback_batches_stop_at_idle_and_fairness_limit() {
+        let client = Mutex::new(0usize);
+        let calls = std::cell::Cell::new(0);
+        complete_action_feedback_batch(
+            &client,
+            |_, _| {
+                let call = calls.get();
+                calls.set(call + 1);
+                if call == 2 {
+                    Ok(ActionClientTakeResult::Idle)
+                } else {
+                    Ok(ActionClientTakeResult::Taken)
+                }
+            },
+            |_, _| {},
+        )
+        .unwrap();
+        assert_eq!(calls.get(), 3);
+
+        calls.set(0);
+        complete_action_feedback_batch(
+            &client,
+            |_, _| {
+                calls.set(calls.get() + 1);
+                Ok(ActionClientTakeResult::Taken)
+            },
+            |_, _| {},
+        )
+        .unwrap();
+        assert_eq!(calls.get(), MAX_ACTION_FEEDBACK_PER_SPIN);
     }
 
     #[test]

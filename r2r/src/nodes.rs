@@ -3187,34 +3187,52 @@ impl Node {
         }
 
         for ac in &self.action_clients {
+            let (
+                is_feedback_ready,
+                is_status_ready,
+                is_goal_response_ready,
+                is_cancel_response_ready,
+                is_result_response_ready,
+            ) = {
+                let ac = ac.lock();
+                let mut is_feedback_ready = false;
+                let mut is_status_ready = false;
+                let mut is_goal_response_ready = false;
+                let mut is_cancel_response_ready = false;
+                let mut is_result_response_ready = false;
+                let ret = unsafe {
+                    rcl_action_client_wait_set_get_entities_ready(
+                        ws,
+                        ac.handle(),
+                        &mut is_feedback_ready,
+                        &mut is_status_ready,
+                        &mut is_goal_response_ready,
+                        &mut is_cancel_response_ready,
+                        &mut is_result_response_ready,
+                    )
+                };
+                if ret != RCL_RET_OK as i32 {
+                    return Err(Error::from_rcl_error(ret));
+                }
+                (
+                    is_feedback_ready,
+                    is_status_ready,
+                    is_goal_response_ready,
+                    is_cancel_response_ready,
+                    is_result_response_ready,
+                )
+            };
+
+            if is_feedback_ready {
+                complete_action_feedback_batch(
+                    ac,
+                    |client, completions| client.handle_feedback_msg(completions),
+                    |client, uuid| client.forget_goal(uuid),
+                )?;
+            }
             complete_action_client_operation(
                 ac,
                 |ac, completions| {
-                    let mut is_feedback_ready = false;
-                    let mut is_status_ready = false;
-                    let mut is_goal_response_ready = false;
-                    let mut is_cancel_response_ready = false;
-                    let mut is_result_response_ready = false;
-
-                    let ret = unsafe {
-                        rcl_action_client_wait_set_get_entities_ready(
-                            ws,
-                            ac.handle(),
-                            &mut is_feedback_ready,
-                            &mut is_status_ready,
-                            &mut is_goal_response_ready,
-                            &mut is_cancel_response_ready,
-                            &mut is_result_response_ready,
-                        )
-                    };
-
-                    if ret != RCL_RET_OK as i32 {
-                        return Err(Error::from_rcl_error(ret));
-                    }
-
-                    if is_feedback_ready {
-                        completions.extend(ac.handle_feedback_msg()?);
-                    }
                     if is_status_ready {
                         completions.extend(ac.handle_status_msg()?);
                     }
@@ -8068,6 +8086,83 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(orders, vec![1, 2, 3]);
         drop(responses);
+    }
+
+    #[test]
+    fn action_client_drains_feedback_bursts_in_one_spin() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        let context = Context::create().unwrap();
+        let mut server_node =
+            Node::create(context.clone(), "action_feedback_batch_server", "").unwrap();
+        let mut client_node = Node::create(context, "action_feedback_batch_client", "").unwrap();
+        let action_name = format!("/action_feedback_batch_{}", uuid::Uuid::new_v4().simple());
+        let qos = QosProfile::default().keep_last(8);
+        let mut server = server_node
+            .create_action_server_with_options::<Fibonacci::Action>(
+                &action_name,
+                ActionServerOptions::default().feedback_topic_qos(qos.clone()),
+            )
+            .unwrap();
+        let client = client_node
+            .create_action_client_with_options::<Fibonacci::Action>(
+                &action_name,
+                ActionClientOptions::default()
+                    .feedback_topic_qos(qos)
+                    .feedback_channel_capacity(8),
+            )
+            .unwrap();
+        for _ in 0..200 {
+            server_node.try_spin_once(Duration::ZERO).unwrap();
+            client_node
+                .try_spin_once(Duration::from_millis(10))
+                .unwrap();
+            if client.is_available(&client_node).unwrap() {
+                break;
+            }
+        }
+
+        let response = client
+            .send_goal_request_with_options(
+                Fibonacci::Goal { order: 3 },
+                ActionGoalOptions::default().track_result(false),
+            )
+            .unwrap();
+        let mut response = Box::pin(response);
+        let mut server_goal = None;
+        let response = loop {
+            server_node
+                .try_spin_once(Duration::from_millis(10))
+                .unwrap();
+            if server_goal.is_none() {
+                if let Some(request) = server.next().now_or_never().flatten() {
+                    server_goal = Some(request.accept().unwrap().0);
+                }
+            }
+            client_node
+                .try_spin_once(Duration::from_millis(10))
+                .unwrap();
+            if let Some(response) = response.as_mut().now_or_never() {
+                break response.unwrap();
+            }
+        };
+        let goal = server_goal.unwrap();
+        for value in 1..=3 {
+            goal.publish_feedback(Fibonacci::Feedback {
+                sequence: vec![value],
+            })
+            .unwrap();
+        }
+        std::thread::sleep(Duration::from_millis(20));
+        client_node
+            .try_spin_once(Duration::from_millis(100))
+            .unwrap();
+
+        let mut feedback = response.feedback.unwrap();
+        let values = (0..3)
+            .map(|_| feedback.next().now_or_never().flatten().unwrap().sequence[0])
+            .collect::<Vec<_>>();
+        assert_eq!(values, vec![1, 2, 3]);
     }
 
     #[test]

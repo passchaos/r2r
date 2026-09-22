@@ -706,9 +706,12 @@ impl ActionClient_ for WrappedActionClientUntyped {
         }
     }
 
-    fn handle_feedback_msg(&mut self) -> Result<Option<ActionClientCompletion>> {
+    fn handle_feedback_msg(
+        &mut self, completions: &mut Vec<ActionClientCompletion>,
+    ) -> Result<ActionClientTakeResult> {
         if let Some(completion) = self.pending_feedback_completion() {
-            return Ok(Some(completion));
+            completions.push(completion);
+            return Ok(ActionClientTakeResult::Taken);
         }
         let mut feedback_msg = (self.action_type_support.make_feedback_msg)()?;
         let ret =
@@ -722,10 +725,12 @@ impl ActionClient_ for WrappedActionClientUntyped {
                 .iter()
                 .find(|(uuid, _)| uuid == &msg_uuid)
             {
-                return Ok(feedback_completion(Arc::clone(channel), feedback));
+                completions.extend(feedback_completion(Arc::clone(channel), feedback));
             }
+            Ok(ActionClientTakeResult::Taken)
+        } else {
+            Ok(ActionClientTakeResult::Idle)
         }
-        Ok(None)
     }
 
     fn handle_status_msg(&mut self) -> Result<Vec<ActionClientCompletion>> {
