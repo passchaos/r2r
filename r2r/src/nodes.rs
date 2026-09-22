@@ -505,6 +505,7 @@ pub struct Node {
     client_identities: HashSet<usize>,
     // action clients
     action_clients: Vec<Arc<Mutex<dyn ActionClient_>>>,
+    action_client_identities: HashSet<usize>,
     // action servers
     action_servers: Vec<Arc<Mutex<dyn ActionServer_>>>,
     action_wait_set_capacities: WaitSetCapacities,
@@ -724,6 +725,18 @@ impl Node {
         identities.extend(clients.iter().map(Self::client_identity));
     }
 
+    fn action_client_identity<T: ?Sized>(client: &Arc<Mutex<T>>) -> usize {
+        Arc::as_ptr(client).cast::<()>() as usize
+    }
+
+    fn rebuild_action_client_identities(
+        clients: &[Arc<Mutex<dyn ActionClient_>>], identities: &mut HashSet<usize>,
+    ) {
+        identities.clear();
+        identities.reserve(clients.len());
+        identities.extend(clients.iter().map(Self::action_client_identity));
+    }
+
     pub(crate) fn owns_publisher(&self, publisher: &Arc<Publisher_>) -> bool {
         self.publisher_indexes
             .contains_key(&Self::publisher_identity(publisher))
@@ -741,10 +754,8 @@ impl Node {
     where
         T: ActionClient_ + ?Sized,
     {
-        let client = Arc::as_ptr(client).cast::<()>();
-        self.action_clients
-            .iter()
-            .any(|candidate| Arc::as_ptr(candidate).cast::<()>() == client)
+        self.action_client_identities
+            .contains(&Self::action_client_identity(client))
     }
 
     /// Returns the name of the node.
@@ -971,6 +982,7 @@ impl Node {
                 clients: Vec::new(),
                 client_identities: HashSet::new(),
                 action_clients: Vec::new(),
+                action_client_identities: HashSet::new(),
                 action_servers: Vec::new(),
                 action_wait_set_capacities: WaitSetCapacities::default(),
                 timers: Vec::new(),
@@ -2593,6 +2605,8 @@ impl Node {
         };
 
         let client_arc = Arc::new(Mutex::new(client));
+        self.action_client_identities
+            .insert(Self::action_client_identity(&client_arc));
         self.action_clients.push(client_arc.clone());
         self.action_wait_set_capacities.add(action_capacities);
         let c = make_action_client(Arc::downgrade(&client_arc));
@@ -2652,6 +2666,8 @@ impl Node {
         };
 
         let client_arc = Arc::new(Mutex::new(client));
+        self.action_client_identities
+            .insert(Self::action_client_identity(&client_arc));
         self.action_clients.push(client_arc.clone());
         self.action_wait_set_capacities.add(action_capacities);
         let c = make_action_client_untyped(Arc::downgrade(&client_arc));
@@ -2958,6 +2974,7 @@ impl Node {
 
         let node_handle = self.node_handle.as_mut();
         let mut removed_action_capacities = WaitSetCapacities::default();
+        let previous_action_client_count = self.action_clients.len();
         self.action_clients.retain(|client| {
             let mut handle = client.lock();
             if Arc::weak_count(client) == 0 && !handle.has_pending_work() {
@@ -2976,6 +2993,12 @@ impl Node {
                 true
             }
         });
+        if self.action_clients.len() != previous_action_client_count {
+            Self::rebuild_action_client_identities(
+                &self.action_clients,
+                &mut self.action_client_identities,
+            );
+        }
         self.action_wait_set_capacities
             .subtract(removed_action_capacities);
 
@@ -9440,6 +9463,37 @@ mod tests {
     }
 
     #[test]
+    fn action_client_identities_follow_middle_removal() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context.clone(), "action_client_identity_test", "").unwrap();
+        let other = Node::create(context, "action_client_identity_other", "").unwrap();
+        let first = node
+            .create_action_client::<Fibonacci::Action>("/indexed_first_action_client")
+            .unwrap();
+        let removed = node
+            .create_action_client::<Fibonacci::Action>("/indexed_removed_action_client")
+            .unwrap();
+        let last = node
+            .create_action_client_untyped(
+                "/indexed_last_action_client",
+                "example_interfaces/action/Fibonacci",
+            )
+            .unwrap();
+
+        assert_eq!(node.action_client_identities.len(), 3);
+        drop(removed);
+        node.try_spin_once(Duration::ZERO).unwrap();
+
+        assert_eq!(node.action_clients.len(), 2);
+        assert_eq!(node.action_client_identities.len(), 2);
+        assert!(!first.is_available(&node).unwrap());
+        assert!(!last.is_available(&node).unwrap());
+        assert!(matches!(last.is_available(&other), Err(Error::RCL_RET_INVALID_ARGUMENT)));
+    }
+
+    #[test]
     fn dropped_publishers_are_removed_after_pending_waits_finish() {
         let context = Context::create().unwrap();
         let mut node = Node::create(context, "publisher_drop_cleanup_test", "").unwrap();
@@ -9661,6 +9715,7 @@ mod tests {
         drop(availability);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.action_clients.is_empty());
+        assert!(node.action_client_identities.is_empty());
         assert_eq!(node.action_wait_set_capacities, WaitSetCapacities::default());
 
         let client = node
@@ -9676,6 +9731,7 @@ mod tests {
         drop(goal);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.action_clients.is_empty());
+        assert!(node.action_client_identities.is_empty());
         assert_eq!(node.action_wait_set_capacities, WaitSetCapacities::default());
 
         let untyped = node
@@ -9687,6 +9743,7 @@ mod tests {
         drop(untyped);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.action_clients.is_empty());
+        assert!(node.action_client_identities.is_empty());
         assert_eq!(node.action_wait_set_capacities, WaitSetCapacities::default());
     }
 
