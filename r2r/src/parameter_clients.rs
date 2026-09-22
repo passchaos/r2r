@@ -93,6 +93,18 @@ impl ParameterClient {
         }))
     }
 
+    /// Gets parameter values, failing with [`Error::RCL_RET_TIMEOUT`] after `timeout`.
+    pub fn get_parameters_with_timeout<I, S>(
+        &self, node: &mut Node, names: I, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<Vec<ParameterValue>>>>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let response = self.get_parameters(names)?;
+        node.with_timeout(response, timeout)
+    }
+
     pub fn get_parameter_types<I, S>(
         &self, names: I,
     ) -> Result<impl Future<Output = Result<Vec<ParameterType>>>>
@@ -113,6 +125,18 @@ impl ParameterClient {
         }))
     }
 
+    /// Gets parameter types, failing with [`Error::RCL_RET_TIMEOUT`] after `timeout`.
+    pub fn get_parameter_types_with_timeout<I, S>(
+        &self, node: &mut Node, names: I, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<Vec<ParameterType>>>>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let response = self.get_parameter_types(names)?;
+        node.with_timeout(response, timeout)
+    }
+
     pub fn describe_parameters<I, S>(
         &self, names: I,
     ) -> Result<impl Future<Output = Result<Vec<msg::ParameterDescriptor>>>>
@@ -125,6 +149,18 @@ impl ParameterClient {
         };
         let response = self.describe_parameters.request(&request)?;
         Ok(response.map(|response| response.map(|response| response.descriptors)))
+    }
+
+    /// Describes parameters, failing with [`Error::RCL_RET_TIMEOUT`] after `timeout`.
+    pub fn describe_parameters_with_timeout<I, S>(
+        &self, node: &mut Node, names: I, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<Vec<msg::ParameterDescriptor>>>>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let response = self.describe_parameters(names)?;
+        node.with_timeout(response, timeout)
     }
 
     pub fn list_parameters<I, S>(
@@ -142,6 +178,18 @@ impl ParameterClient {
         Ok(response.map(|response| response.map(|response| response.result)))
     }
 
+    /// Lists parameters, failing with [`Error::RCL_RET_TIMEOUT`] after `timeout`.
+    pub fn list_parameters_with_timeout<I, S>(
+        &self, node: &mut Node, prefixes: I, depth: u64, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<msg::ListParametersResult>>>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let response = self.list_parameters(prefixes, depth)?;
+        node.with_timeout(response, timeout)
+    }
+
     pub fn set_parameters<I, S>(
         &self, parameters: I,
     ) -> Result<impl Future<Output = Result<Vec<msg::SetParametersResult>>>>
@@ -154,6 +202,18 @@ impl ParameterClient {
         };
         let response = self.set_parameters.request(&request)?;
         Ok(response.map(|response| response.map(|response| response.results)))
+    }
+
+    /// Sets parameters, failing with [`Error::RCL_RET_TIMEOUT`] after `timeout`.
+    pub fn set_parameters_with_timeout<I, S>(
+        &self, node: &mut Node, parameters: I, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<Vec<msg::SetParametersResult>>>>
+    where
+        I: IntoIterator<Item = (S, ParameterValue)>,
+        S: Into<String>,
+    {
+        let response = self.set_parameters(parameters)?;
+        node.with_timeout(response, timeout)
     }
 
     pub fn set_parameters_atomically<I, S>(
@@ -170,6 +230,18 @@ impl ParameterClient {
         Ok(response.map(|response| response.map(|response| response.result)))
     }
 
+    /// Atomically sets parameters, failing with [`Error::RCL_RET_TIMEOUT`] after `timeout`.
+    pub fn set_parameters_atomically_with_timeout<I, S>(
+        &self, node: &mut Node, parameters: I, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<msg::SetParametersResult>>>
+    where
+        I: IntoIterator<Item = (S, ParameterValue)>,
+        S: Into<String>,
+    {
+        let response = self.set_parameters_atomically(parameters)?;
+        node.with_timeout(response, timeout)
+    }
+
     pub fn delete_parameters<I, S>(
         &self, names: I,
     ) -> Result<impl Future<Output = Result<Vec<msg::SetParametersResult>>>>
@@ -178,6 +250,18 @@ impl ParameterClient {
         S: Into<String>,
     {
         self.set_parameters(names.into_iter().map(|name| (name, ParameterValue::NotSet)))
+    }
+
+    /// Deletes parameters, failing with [`Error::RCL_RET_TIMEOUT`] after `timeout`.
+    pub fn delete_parameters_with_timeout<I, S>(
+        &self, node: &mut Node, names: I, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<Vec<msg::SetParametersResult>>>>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let response = self.delete_parameters(names)?;
+        node.with_timeout(response, timeout)
     }
 }
 
@@ -226,12 +310,18 @@ mod tests {
     fn drive<T>(
         node: &mut Node, pool: &mut LocalPool, future: impl Future<Output = Result<T>>,
     ) -> T {
+        drive_result(node, pool, future).unwrap()
+    }
+
+    fn drive_result<T>(
+        node: &mut Node, pool: &mut LocalPool, future: impl Future<Output = Result<T>>,
+    ) -> Result<T> {
         let mut future = Box::pin(future);
         loop {
-            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            node.try_spin_once(Duration::from_millis(10))?;
             pool.run_until_stalled();
             if let Some(result) = future.as_mut().now_or_never() {
-                return result.unwrap();
+                return result;
             }
         }
     }
@@ -417,6 +507,57 @@ mod tests {
         assert!(normalize_remote_node_name("bad\0node").is_err());
         assert_eq!(normalize_remote_node_name("node/").unwrap(), "node");
         assert_eq!(normalize_remote_node_name("/scope/node/").unwrap(), "/scope/node");
+    }
+
+    #[test]
+    fn parameter_client_operations_support_timeouts() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "parameter_timeout_client", "").unwrap();
+        let client = node
+            .create_parameter_client("/missing_parameter_server")
+            .unwrap();
+        let mut pool = LocalPool::new();
+        let timeout = Duration::from_millis(1);
+
+        macro_rules! assert_times_out {
+            ($future:expr) => {
+                let future = $future;
+                assert!(matches!(
+                    drive_result(&mut node, &mut pool, future),
+                    Err(Error::RCL_RET_TIMEOUT)
+                ));
+            };
+        }
+
+        assert_times_out!(client
+            .get_parameters_with_timeout(&mut node, ["value"], timeout)
+            .unwrap());
+        assert_times_out!(client
+            .get_parameter_types_with_timeout(&mut node, ["value"], timeout)
+            .unwrap());
+        assert_times_out!(client
+            .describe_parameters_with_timeout(&mut node, ["value"], timeout)
+            .unwrap());
+        assert_times_out!(client
+            .list_parameters_with_timeout(&mut node, ["prefix"], 1, timeout)
+            .unwrap());
+        assert_times_out!(client
+            .set_parameters_with_timeout(
+                &mut node,
+                [("value", ParameterValue::Integer(1))],
+                timeout,
+            )
+            .unwrap());
+        assert_times_out!(client
+            .set_parameters_atomically_with_timeout(
+                &mut node,
+                [("value", ParameterValue::Integer(1))],
+                timeout,
+            )
+            .unwrap());
+        assert_times_out!(client
+            .delete_parameters_with_timeout(&mut node, ["value"], timeout)
+            .unwrap());
     }
 
     #[test]
