@@ -39,6 +39,12 @@ pub(crate) enum ActionClientTakeResult {
     Backpressured,
 }
 
+pub(crate) enum PendingFeedbackAction {
+    None,
+    Backpressured,
+    Deliver(ActionClientCompletion),
+}
+
 const MAX_ACTION_RESPONSES_PER_SPIN: usize = 16;
 const MAX_ACTION_FEEDBACK_PER_SPIN: usize = 16;
 
@@ -280,6 +286,39 @@ pub(crate) fn feedback_completion<T: Send + 'static>(
     };
     drop(channel_guard);
     Some(detached_feedback_completion(channel, sender, feedback))
+}
+
+pub(crate) fn take_ready_pending_feedback<'a, T: Send + 'static>(
+    channels: impl IntoIterator<Item = &'a FeedbackSender<T>>,
+) -> PendingFeedbackAction {
+    let mut saw_pending = false;
+    for channel in channels {
+        let mut channel_guard = channel.lock();
+        if channel_guard.pending.is_none() {
+            continue;
+        }
+        saw_pending = true;
+        let Some(sender) = channel_guard.sender.as_mut() else {
+            continue;
+        };
+        let mut context = Context::from_waker(futures::task::noop_waker_ref());
+        if matches!(sender.poll_ready(&mut context), Poll::Pending) {
+            continue;
+        }
+        let feedback = channel_guard.pending.take().unwrap();
+        let sender = channel_guard.sender.take().unwrap();
+        drop(channel_guard);
+        return PendingFeedbackAction::Deliver(detached_feedback_completion(
+            Arc::clone(channel),
+            sender,
+            feedback,
+        ));
+    }
+    if saw_pending {
+        PendingFeedbackAction::Backpressured
+    } else {
+        PendingFeedbackAction::None
+    }
 }
 
 pub(crate) fn detached_feedback_completion<T: Send + 'static>(
@@ -1015,17 +1054,8 @@ where
         completions
     }
 
-    fn pending_feedback_completion(&mut self) -> Option<ActionClientCompletion> {
-        self.feedback_senders.values().find_map(|channel| {
-            let mut channel_guard = channel.lock();
-            let feedback = channel_guard.pending.take()?;
-            let Some(sender) = channel_guard.sender.take() else {
-                channel_guard.pending = Some(feedback);
-                return None;
-            };
-            drop(channel_guard);
-            Some(detached_feedback_completion(Arc::clone(channel), sender, feedback))
-        })
+    fn pending_feedback_completion(&mut self) -> PendingFeedbackAction {
+        take_ready_pending_feedback(self.feedback_senders.values())
     }
 
     fn finish_result_request_send(
@@ -1209,9 +1239,15 @@ where
         &mut self, client: Arc<Mutex<dyn ActionClient_>>,
         completions: &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult> {
-        if let Some(completion) = self.pending_feedback_completion() {
-            completions.push(completion);
-            return Ok(ActionClientTakeResult::Backpressured);
+        match self.pending_feedback_completion() {
+            PendingFeedbackAction::Deliver(completion) => {
+                completions.push(completion);
+                return Ok(ActionClientTakeResult::Taken);
+            }
+            PendingFeedbackAction::Backpressured => {
+                return Ok(ActionClientTakeResult::Backpressured);
+            }
+            PendingFeedbackAction::None => {}
         }
         let mut feedback_msg = WrappedNativeMsg::<T::FeedbackMessage>::try_new()?;
         let ret =
@@ -1299,7 +1335,9 @@ where
 
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Vec<ActionClientCompletion> {
         let mut completions = self.prune_canceled_requests();
-        completions.extend(self.pending_feedback_completion());
+        if let PendingFeedbackAction::Deliver(completion) = self.pending_feedback_completion() {
+            completions.push(completion);
+        }
         self.poll_available_channels
             .retain(|sender| !sender.is_canceled());
         if self.poll_available_channels.is_empty() {
@@ -2001,6 +2039,70 @@ mod tests {
         .unwrap();
         assert_eq!(receiver.next().now_or_never().flatten(), Some(42));
         assert!(channel.lock().pending.is_none());
+    }
+
+    #[test]
+    fn pending_feedback_skips_a_blocked_goal_for_a_ready_goal() {
+        let (blocked_sender, mut blocked_receiver) = mpsc::channel(0);
+        let blocked = Arc::new(Mutex::new(FeedbackChannel::new(blocked_sender)));
+        let waker = futures::task::noop_waker_ref();
+        let mut context = Context::from_waker(waker);
+        assert!(matches!(Pin::new(&mut blocked_receiver).poll_next(&mut context), Poll::Pending));
+        (feedback_completion(Arc::clone(&blocked), 41)
+            .unwrap()
+            .notify)()
+        .unwrap();
+        blocked.lock().pending = Some(42);
+
+        let (ready_sender, mut ready_receiver) = mpsc::channel(0);
+        let ready = Arc::new(Mutex::new(FeedbackChannel {
+            sender: Some(ready_sender),
+            pending: Some(52),
+            closing: false,
+        }));
+        assert!(matches!(Pin::new(&mut ready_receiver).poll_next(&mut context), Poll::Pending));
+
+        let action = take_ready_pending_feedback([&blocked, &ready]);
+        let PendingFeedbackAction::Deliver(completion) = action else {
+            panic!("a ready goal should be selected after a blocked goal");
+        };
+        assert!(matches!((completion.notify)(), Ok(true)));
+
+        assert_eq!(ready_receiver.next().now_or_never().flatten(), Some(52));
+        assert!(ready.lock().pending.is_none());
+        assert_eq!(blocked.lock().pending, Some(42));
+        assert_eq!(blocked_receiver.next().now_or_never().flatten(), Some(41));
+    }
+
+    #[test]
+    fn pending_feedback_reports_backpressure_when_every_goal_is_blocked() {
+        fn blocked_feedback_channel(
+            queued: i32, pending: i32,
+        ) -> (FeedbackSender<i32>, mpsc::Receiver<i32>) {
+            let (sender, mut receiver) = mpsc::channel(0);
+            let channel = Arc::new(Mutex::new(FeedbackChannel::new(sender)));
+            let waker = futures::task::noop_waker_ref();
+            let mut context = Context::from_waker(waker);
+            assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Pending));
+            (feedback_completion(Arc::clone(&channel), queued)
+                .unwrap()
+                .notify)()
+            .unwrap();
+            channel.lock().pending = Some(pending);
+            (channel, receiver)
+        }
+
+        let (first, mut first_receiver) = blocked_feedback_channel(41, 42);
+        let (second, mut second_receiver) = blocked_feedback_channel(51, 52);
+
+        assert!(matches!(
+            take_ready_pending_feedback([&first, &second]),
+            PendingFeedbackAction::Backpressured
+        ));
+        assert_eq!(first.lock().pending, Some(42));
+        assert_eq!(second.lock().pending, Some(52));
+        assert_eq!(first_receiver.next().now_or_never().flatten(), Some(41));
+        assert_eq!(second_receiver.next().now_or_never().flatten(), Some(51));
     }
 
     #[test]

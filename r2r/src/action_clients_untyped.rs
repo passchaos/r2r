@@ -618,17 +618,8 @@ impl WrappedActionClientUntyped {
         completions
     }
 
-    fn pending_feedback_completion(&mut self) -> Option<ActionClientCompletion> {
-        self.feedback_senders.values().find_map(|channel| {
-            let mut channel_guard = channel.lock();
-            let feedback = channel_guard.pending.take()?;
-            let Some(sender) = channel_guard.sender.take() else {
-                channel_guard.pending = Some(feedback);
-                return None;
-            };
-            drop(channel_guard);
-            Some(detached_feedback_completion(Arc::clone(channel), sender, feedback))
-        })
+    fn pending_feedback_completion(&mut self) -> PendingFeedbackAction {
+        take_ready_pending_feedback(self.feedback_senders.values())
     }
 
     fn finish_result_request_send(
@@ -804,9 +795,15 @@ impl ActionClient_ for WrappedActionClientUntyped {
         &mut self, client: Arc<Mutex<dyn ActionClient_>>,
         completions: &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult> {
-        if let Some(completion) = self.pending_feedback_completion() {
-            completions.push(completion);
-            return Ok(ActionClientTakeResult::Backpressured);
+        match self.pending_feedback_completion() {
+            PendingFeedbackAction::Deliver(completion) => {
+                completions.push(completion);
+                return Ok(ActionClientTakeResult::Taken);
+            }
+            PendingFeedbackAction::Backpressured => {
+                return Ok(ActionClientTakeResult::Backpressured);
+            }
+            PendingFeedbackAction::None => {}
         }
         let mut feedback_msg = (self.action_type_support.make_feedback_msg)()?;
         let ret =
@@ -891,7 +888,9 @@ impl ActionClient_ for WrappedActionClientUntyped {
 
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Vec<ActionClientCompletion> {
         let mut completions = self.prune_canceled_requests();
-        completions.extend(self.pending_feedback_completion());
+        if let PendingFeedbackAction::Deliver(completion) = self.pending_feedback_completion() {
+            completions.push(completion);
+        }
         self.poll_available_channels
             .retain(|sender| !sender.is_canceled());
         if self.poll_available_channels.is_empty() {
