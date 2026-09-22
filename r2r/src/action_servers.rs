@@ -710,6 +710,27 @@ fn cancel_request_delivery(
     })
 }
 
+fn cancel_request_conversion_completion<N>(
+    server: Arc<Mutex<dyn ActionServer_>>, native: N,
+    convert: impl FnOnce(N) -> Result<PendingCancelRequest> + 'static,
+) -> ActionServerCompletion
+where
+    N: 'static,
+{
+    Box::new(move || {
+        let pending = convert(native)?;
+        let delivery = {
+            let mut server_guard = server.lock();
+            server_guard.finish_cancel_delivery(pending);
+            server_guard.take_pending_cancel_delivery(Arc::clone(&server))
+        };
+        if let Some(delivery) = delivery {
+            delivery()?;
+        }
+        Ok(())
+    })
+}
+
 pub(crate) struct PendingCancelRequest {
     request_id: rmw_request_id_t,
     response: action_msgs::srv::CancelGoal::Response,
@@ -1221,39 +1242,41 @@ where
             return Err(Error::from_rcl_error(ret));
         }
 
-        let response_msg =
-            action_msgs::srv::CancelGoal::Response::from_native(&cancel_response.0.msg);
-
-        let deliveries_and_decisions = response_msg
-            .goals_canceling
-            .iter()
-            .map(|goal_info| {
-                let uuid = uuid_msg_to_uuid(&goal_info.goal_id)?;
-                let (response_sender, response_receiver) = oneshot::channel::<(uuid::Uuid, bool)>();
-                Ok((
-                    PendingCancelDelivery {
-                        uuid,
-                        request: ActionServerCancelRequest {
-                            uuid,
-                            response_sender,
-                        },
-                    },
-                    response_receiver,
-                ))
-            })
-            .collect::<Result<Vec<_>>>()?;
-        let (deliveries, decisions): (Vec<_>, Vec<_>) =
-            deliveries_and_decisions.into_iter().unzip();
-
-        self.pending_cancel_request = Some(PendingCancelRequest {
-            request_id,
-            response: response_msg,
-            deliveries,
-            decisions,
-        });
-        Ok(self
-            .take_pending_cancel_delivery(server)
-            .map_or(ActionServerDeliveryAction::Taken, ActionServerDeliveryAction::Deliver))
+        Ok(ActionServerDeliveryAction::Deliver(cancel_request_conversion_completion(
+            server,
+            cancel_response,
+            move |cancel_response| {
+                let response =
+                    action_msgs::srv::CancelGoal::Response::from_native(&cancel_response.0.msg);
+                let deliveries_and_decisions = response
+                    .goals_canceling
+                    .iter()
+                    .map(|goal_info| {
+                        let uuid = uuid_msg_to_uuid(&goal_info.goal_id)?;
+                        let (response_sender, response_receiver) =
+                            oneshot::channel::<(uuid::Uuid, bool)>();
+                        Ok((
+                            PendingCancelDelivery {
+                                uuid,
+                                request: ActionServerCancelRequest {
+                                    uuid,
+                                    response_sender,
+                                },
+                            },
+                            response_receiver,
+                        ))
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                let (deliveries, decisions): (Vec<_>, Vec<_>) =
+                    deliveries_and_decisions.into_iter().unzip();
+                Ok(PendingCancelRequest {
+                    request_id,
+                    response,
+                    deliveries,
+                    decisions,
+                })
+            },
+        )))
     }
 
     fn handle_goal_expired(&mut self, completions: &mut Vec<ActionServerCompletion>) -> Result<()> {
@@ -2047,6 +2070,56 @@ mod tests {
             Err(Error::InvalidActionUuidLength { actual: 15 })
         ));
         assert_eq!(response.goals_canceling.len(), 2);
+    }
+
+    #[test]
+    fn cancel_requests_are_converted_after_releasing_the_server_lock() {
+        let server: Arc<Mutex<dyn ActionServer_>> =
+            Arc::new(Mutex::new(CompletionTestServer::new(false, false, false, false)));
+        let server_for_completion = Arc::clone(&server);
+        let server_for_conversion = Arc::clone(&server);
+
+        complete_action_server_operation(&*server, move |_, completions| {
+            completions.push(cancel_request_conversion_completion(
+                server_for_completion,
+                41,
+                move |value| {
+                    assert!(server_for_conversion.try_lock().is_some());
+                    assert_eq!(value, 41);
+                    Ok(PendingCancelRequest {
+                        request_id: unsafe { std::mem::zeroed() },
+                        response: action_msgs::srv::CancelGoal::Response::default(),
+                        deliveries: Vec::new(),
+                        decisions: Vec::new(),
+                    })
+                },
+            ));
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn failed_cancel_request_conversion_does_not_commit_pending_state() {
+        let server: Arc<Mutex<dyn ActionServer_>> =
+            Arc::new(Mutex::new(CompletionTestServer::new(false, false, false, false)));
+        let server_for_completion = Arc::clone(&server);
+        let server_for_conversion = Arc::clone(&server);
+
+        let result = complete_action_server_operation(&*server, move |_, completions| {
+            completions.push(cancel_request_conversion_completion(
+                server_for_completion,
+                (),
+                move |_| {
+                    assert!(server_for_conversion.try_lock().is_some());
+                    Err(Error::InvalidActionUuidLength { actual: 15 })
+                },
+            ));
+            Ok(())
+        });
+
+        assert!(matches!(result, Err(Error::InvalidActionUuidLength { actual: 15 })));
+        assert!(!server.lock().has_pending_cancel_delivery());
     }
 
     #[test]
