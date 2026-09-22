@@ -278,6 +278,61 @@ impl Node {
         c_str_to_owned(s, "node namespace")
     }
 
+    /// Returns the ROS domain ID used by this node.
+    pub fn domain_id(&self) -> Result<usize> {
+        let mut domain_id = 0;
+        let ret = unsafe { rcl_node_get_domain_id(self.node_handle.as_ref(), &mut domain_id) };
+        check_rcl_ret(ret)?;
+        Ok(domain_id)
+    }
+
+    /// Expands and remaps a topic name using this node's namespace and ROS arguments.
+    #[cfg(not(r2r__ros__distro__foxy))]
+    pub fn resolve_topic_name(&self, name: &str) -> Result<String> {
+        self.resolve_name(name, false, false)
+    }
+
+    /// Expands a topic name without applying remapping rules.
+    #[cfg(not(r2r__ros__distro__foxy))]
+    pub fn resolve_topic_name_without_remapping(&self, name: &str) -> Result<String> {
+        self.resolve_name(name, false, true)
+    }
+
+    /// Expands and remaps a service name using this node's namespace and ROS arguments.
+    #[cfg(not(r2r__ros__distro__foxy))]
+    pub fn resolve_service_name(&self, name: &str) -> Result<String> {
+        self.resolve_name(name, true, false)
+    }
+
+    /// Expands a service name without applying remapping rules.
+    #[cfg(not(r2r__ros__distro__foxy))]
+    pub fn resolve_service_name_without_remapping(&self, name: &str) -> Result<String> {
+        self.resolve_name(name, true, true)
+    }
+
+    #[cfg(not(r2r__ros__distro__foxy))]
+    fn resolve_name(&self, name: &str, is_service: bool, only_expand: bool) -> Result<String> {
+        let name = CString::new(name).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
+        let allocator = unsafe { rcutils_get_default_allocator() };
+        let mut output = std::ptr::null_mut();
+        let ret = unsafe {
+            rcl_node_resolve_name(
+                self.node_handle.as_ref(),
+                name.as_ptr(),
+                allocator,
+                is_service,
+                only_expand,
+                &mut output,
+            )
+        };
+        check_rcl_ret(ret)?;
+        let output = AllocatedCString { output, allocator };
+        if output.output.is_null() {
+            return Err(Error::RCL_RET_ERROR);
+        }
+        c_str_to_owned(unsafe { CStr::from_ptr(output.output) }, "resolved ROS name")
+    }
+
     fn load_params(&mut self) -> Result<()> {
         let ctx = self.context.context_handle.lock();
         let mut params = RclParams(std::ptr::null_mut());
@@ -2663,6 +2718,21 @@ impl Node {
 
 struct NamesAndTypes(rmw_names_and_types_t);
 
+#[cfg(not(r2r__ros__distro__foxy))]
+struct AllocatedCString {
+    output: *mut std::os::raw::c_char,
+    allocator: rcutils_allocator_t,
+}
+
+#[cfg(not(r2r__ros__distro__foxy))]
+impl Drop for AllocatedCString {
+    fn drop(&mut self) {
+        if let Some(deallocate) = self.allocator.deallocate {
+            unsafe { deallocate(self.output.cast(), self.allocator.state) };
+        }
+    }
+}
+
 impl Drop for NamesAndTypes {
     fn drop(&mut self) {
         let ret = unsafe { rmw_names_and_types_fini(&mut self.0) };
@@ -3273,6 +3343,39 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn reports_domain_id_and_resolves_names() {
+        let context = Context::create().unwrap();
+        let node = Node::create(context, "name_resolution_test", "/scope").unwrap();
+
+        let mut default_domain_id = 0;
+        assert_eq!(unsafe { rcl_get_default_domain_id(&mut default_domain_id) }, RCL_RET_OK as i32);
+        assert_eq!(node.domain_id().unwrap(), default_domain_id);
+        #[cfg(not(r2r__ros__distro__foxy))]
+        {
+            assert_eq!(node.resolve_topic_name("relative").unwrap(), "/scope/relative");
+            assert_eq!(
+                node.resolve_topic_name("~/private").unwrap(),
+                "/scope/name_resolution_test/private"
+            );
+            assert_eq!(
+                node.resolve_topic_name_without_remapping("relative")
+                    .unwrap(),
+                "/scope/relative"
+            );
+            assert_eq!(node.resolve_service_name("service").unwrap(), "/scope/service");
+            assert_eq!(
+                node.resolve_service_name_without_remapping("service")
+                    .unwrap(),
+                "/scope/service"
+            );
+            assert!(matches!(
+                node.resolve_topic_name("bad\0name"),
+                Err(Error::RCL_RET_INVALID_ARGUMENT)
+            ));
+        }
     }
 
     #[test]
