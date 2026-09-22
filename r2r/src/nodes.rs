@@ -1697,6 +1697,17 @@ impl Node {
         drop(params);
         transaction.unlock();
 
+        let declared = prepared
+            .iter()
+            .map(|declaration| (declaration.name.clone(), declaration.value.clone()))
+            .collect::<Vec<_>>();
+        if let Some(sink) = &self.parameter_event_sink {
+            let mut ros_events = ParameterEventChanges::default();
+            for (name, value) in &declared {
+                ros_events.record(name, None, value);
+            }
+            sink.notify(declared.clone(), ros_events);
+        }
         for declaration in &prepared {
             notify_parameter_post_set_callbacks(
                 &[(declaration.name.clone(), declaration.value.clone())],
@@ -7202,6 +7213,68 @@ mod tests {
         assert!(node.undeclare_parameter("read_only").is_err());
         assert!(node.has_parameter("static"));
         assert!(node.has_parameter("read_only"));
+    }
+
+    #[test]
+    fn runtime_parameter_declarations_publish_local_and_ros_events() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "parameter_declaration_event_test", "").unwrap();
+        let (handler, mut local_events) = node.make_parameter_handler().unwrap();
+        let mut ros_events = node
+            .subscribe_parameter_events(Some("/parameter_declaration_event_test".into()), None)
+            .unwrap();
+        let pool = LocalPool::new();
+        pool.spawner().spawn_local(handler).unwrap();
+        for _ in 0..100 {
+            if node
+                .get_subscriptions_info_by_topic("/parameter_events", false)
+                .unwrap()
+                .iter()
+                .any(|endpoint| endpoint.node_name == "parameter_declaration_event_test")
+            {
+                break;
+            }
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+        }
+
+        assert_eq!(
+            node.declare_parameters("runtime", [("first", 1_i64), ("second", 2_i64)])
+                .unwrap(),
+            [ParameterValue::Integer(1), ParameterValue::Integer(2)]
+        );
+        assert_eq!(
+            local_events.next().now_or_never().flatten(),
+            Some(("runtime.first".into(), ParameterValue::Integer(1)))
+        );
+        assert_eq!(
+            local_events.next().now_or_never().flatten(),
+            Some(("runtime.second".into(), ParameterValue::Integer(2)))
+        );
+        assert!(local_events.next().now_or_never().is_none());
+
+        let mut received = Vec::new();
+        while received.len() < 2 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            while let Some(event) = ros_events.next().now_or_never().flatten() {
+                received.push(event);
+            }
+        }
+        assert_eq!(
+            received
+                .iter()
+                .map(|event| (event.kind, event.name.as_str(), event.value.clone()))
+                .collect::<Vec<_>>(),
+            [
+                (ParameterEventKind::New, "runtime.first", ParameterValue::Integer(1)),
+                (ParameterEventKind::New, "runtime.second", ParameterValue::Integer(2)),
+            ]
+        );
+        assert!(received
+            .iter()
+            .all(|event| event.node == "/parameter_declaration_event_test"));
+        assert!(received
+            .iter()
+            .all(|event| event.stamp.sec > 0 || event.stamp.nanosec > 0));
     }
 
     #[test]
