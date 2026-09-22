@@ -1,14 +1,15 @@
 use crate::{
     rcl_interfaces::{msg, srv},
-    Client, Error, Node, ParameterType, ParameterValue, QosProfile, Result,
+    Client, Error, Node, ParameterEventChange, ParameterType, ParameterValue, QosProfile, Result,
 };
-use futures::{future::try_join_all, Future, FutureExt, TryFutureExt};
+use futures::{future::try_join_all, Future, FutureExt, Stream, TryFutureExt};
 use std::time::Duration;
 
 /// Runtime-agnostic client for the standard ROS parameter services of another node.
 #[derive(Clone)]
 pub struct ParameterClient {
     remote_node_name: String,
+    resolved_remote_node_name: String,
     get_parameters: Client<srv::GetParameters::Service>,
     get_parameter_types: Client<srv::GetParameterTypes::Service>,
     set_parameters: Client<srv::SetParameters::Service>,
@@ -20,9 +21,16 @@ pub struct ParameterClient {
 impl ParameterClient {
     pub(crate) fn new(node: &mut Node, remote_node_name: &str, qos: QosProfile) -> Result<Self> {
         let remote_node_name = normalize_remote_node_name(remote_node_name)?;
+        let get_parameters =
+            node.create_client(&format!("{remote_node_name}/get_parameters"), qos.clone())?;
+        let get_parameters_service = get_parameters.service_name()?;
+        let resolved_remote_node_name = get_parameters_service
+            .strip_suffix("/get_parameters")
+            .filter(|name| !name.is_empty())
+            .ok_or(Error::RCL_RET_SERVICE_NAME_INVALID)?
+            .to_owned();
         Ok(Self {
-            get_parameters: node
-                .create_client(&format!("{remote_node_name}/get_parameters"), qos.clone())?,
+            get_parameters,
             get_parameter_types: node
                 .create_client(&format!("{remote_node_name}/get_parameter_types"), qos.clone())?,
             set_parameters: node
@@ -36,11 +44,26 @@ impl ParameterClient {
             describe_parameters: node
                 .create_client(&format!("{remote_node_name}/describe_parameters"), qos)?,
             remote_node_name,
+            resolved_remote_node_name,
         })
     }
 
     pub fn remote_node_name(&self) -> &str {
         &self.remote_node_name
+    }
+
+    /// Returns the fully resolved target node name used to filter parameter events.
+    pub fn resolved_remote_node_name(&self) -> &str {
+        &self.resolved_remote_node_name
+    }
+
+    /// Subscribes to standard parameter events from this client's target node.
+    ///
+    /// When `parameter` is set, changes for other parameters on the target node are filtered out.
+    pub fn subscribe_parameter_events(
+        &self, node: &mut Node, parameter: Option<String>,
+    ) -> Result<impl Stream<Item = ParameterEventChange> + Unpin> {
+        node.subscribe_parameter_events(Some(self.resolved_remote_node_name.clone()), parameter)
     }
 
     /// Returns true only when all six standard parameter services are available.
@@ -371,8 +394,10 @@ mod tests {
             .create_parameter_client("parameter_client_server/")
             .unwrap();
         assert_eq!(client.remote_node_name(), "parameter_client_server");
+        assert_eq!(client.resolved_remote_node_name(), "/scope/parameter_client_server");
         let self_client = node.create_parameter_client_for_self().unwrap();
         assert_eq!(self_client.remote_node_name(), "/scope/parameter_client_server");
+        assert_eq!(self_client.resolved_remote_node_name(), "/scope/parameter_client_server");
         let custom_qos_client = node
             .create_parameter_client_with_qos(
                 "parameter_client_server",
@@ -464,6 +489,59 @@ mod tests {
         let deleted = drive(&mut node, &mut pool, client.delete_parameters(["temporary"]).unwrap());
         assert!(deleted[0].successful);
         assert!(!node.has_parameter("temporary"));
+    }
+
+    #[test]
+    fn parameter_client_filters_events_by_resolved_node_and_parameter() {
+        use crate::ParameterEventKind;
+
+        let context = Context::create().unwrap();
+        let mut server = Node::create(context.clone(), "event_server", "/scope").unwrap();
+        let mut client_node = Node::create(context, "event_client", "/scope").unwrap();
+        let (handler, _local_events) = server.make_parameter_handler().unwrap();
+        let client = client_node.create_parameter_client("event_server").unwrap();
+        let mut events = client
+            .subscribe_parameter_events(&mut client_node, Some("watched".into()))
+            .unwrap();
+        let mut pool = LocalPool::new();
+        pool.spawner().spawn_local(handler).unwrap();
+
+        for _ in 0..100 {
+            let discovered = server
+                .get_subscriptions_info_by_topic("/parameter_events", false)
+                .unwrap()
+                .iter()
+                .any(|endpoint| endpoint.node_name == "event_client");
+            if discovered {
+                break;
+            }
+            server.try_spin_once(Duration::from_millis(10)).unwrap();
+            client_node
+                .try_spin_once(Duration::from_millis(10))
+                .unwrap();
+        }
+
+        server
+            .set_parameters_atomically([
+                ("ignored", ParameterValue::Integer(1)),
+                ("watched", ParameterValue::Integer(2)),
+            ])
+            .unwrap();
+        let event = loop {
+            server.try_spin_once(Duration::from_millis(10)).unwrap();
+            client_node
+                .try_spin_once(Duration::from_millis(10))
+                .unwrap();
+            pool.run_until_stalled();
+            if let Some(event) = events.next().now_or_never().flatten() {
+                break event;
+            }
+        };
+        assert_eq!(event.node, "/scope/event_server");
+        assert_eq!(event.name, "watched");
+        assert_eq!(event.kind, ParameterEventKind::New);
+        assert_eq!(event.value, ParameterValue::Integer(2));
+        assert!(events.next().now_or_never().flatten().is_none());
     }
 
     #[test]
