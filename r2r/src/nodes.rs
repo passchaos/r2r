@@ -4024,35 +4024,35 @@ pub trait IsAvailablePollable {
     fn register_poll_available(&self, sender: oneshot::Sender<()>) -> Result<()>;
 }
 
+/// Whether graph endpoint information describes a publisher or a subscription.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TopicEndpointType {
+    Invalid,
+    Publisher,
+    Subscription,
+}
+
+impl TryFrom<rmw_endpoint_type_t> for TopicEndpointType {
+    type Error = Error;
+
+    fn try_from(value: rmw_endpoint_type_t) -> Result<Self> {
+        match value {
+            rmw_endpoint_type_t::RMW_ENDPOINT_INVALID => Ok(Self::Invalid),
+            rmw_endpoint_type_t::RMW_ENDPOINT_PUBLISHER => Ok(Self::Publisher),
+            rmw_endpoint_type_t::RMW_ENDPOINT_SUBSCRIPTION => Ok(Self::Subscription),
+        }
+    }
+}
+
+/// Metadata for one publisher or subscription discovered in the ROS graph.
+#[derive(Debug, Clone, PartialEq)]
 pub struct TopicEndpointInfo {
     pub node_name: String,
     pub node_namespace: String,
     pub topic_type: String,
+    pub endpoint_type: TopicEndpointType,
     pub endpoint_gid: [u8; RMW_GID_STORAGE_SIZE as usize],
     pub qos_profile: QosProfile,
-}
-
-impl From<rmw_topic_endpoint_info_t> for TopicEndpointInfo {
-    fn from(info: rmw_topic_endpoint_info_t) -> Self {
-        // Convert C strings to Rust String
-        let node_name = c_string_from_ptr(info.node_name).unwrap_or_default();
-        let node_namespace = c_string_from_ptr(info.node_namespace).unwrap_or_default();
-        let topic_type = c_string_from_ptr(info.topic_type).unwrap_or_default();
-
-        // Copy the endpoint_gid array
-        let endpoint_gid: [u8; RMW_GID_STORAGE_SIZE as usize] = info.endpoint_gid;
-
-        // Convert qos_profile
-        let qos_profile = QosProfile::from(info.qos_profile); // Adjust this line based on how QosProfile is defined
-
-        TopicEndpointInfo {
-            node_name,
-            node_namespace,
-            topic_type,
-            endpoint_gid,
-            qos_profile,
-        }
-    }
 }
 
 impl TopicEndpointInfo {
@@ -4061,6 +4061,7 @@ impl TopicEndpointInfo {
             node_name: c_string_from_ptr(info.node_name)?,
             node_namespace: c_string_from_ptr(info.node_namespace)?,
             topic_type: c_string_from_ptr(info.topic_type)?,
+            endpoint_type: info.endpoint_type.try_into()?,
             endpoint_gid: info.endpoint_gid,
             qos_profile: QosProfile::try_from(&info.qos_profile)?,
         })
@@ -5128,14 +5129,32 @@ mod tests {
         let subscriptions = node.get_subscriptions_info_by_topic(&topic, false).unwrap();
 
         assert_eq!(topics.get(&topic), Some(&vec!["std_msgs/msg/String".to_owned()]));
-        assert!(publishers
-            .iter()
-            .any(|publisher| publisher.topic_type == "std_msgs/msg/String"));
+        assert!(publishers.iter().any(|publisher| {
+            publisher.topic_type == "std_msgs/msg/String"
+                && publisher.endpoint_type == TopicEndpointType::Publisher
+        }));
         assert!(subscriptions.iter().any(|subscription| {
             subscription.topic_type == "std_msgs/msg/String"
+                && subscription.endpoint_type == TopicEndpointType::Subscription
                 && subscription.qos_profile.reliability
                     == QosProfile::default().best_effort().reliability
         }));
+    }
+
+    #[test]
+    fn maps_topic_endpoint_roles_without_loss() {
+        assert_eq!(
+            TopicEndpointType::try_from(rmw_endpoint_type_t::RMW_ENDPOINT_INVALID).unwrap(),
+            TopicEndpointType::Invalid
+        );
+        assert_eq!(
+            TopicEndpointType::try_from(rmw_endpoint_type_t::RMW_ENDPOINT_PUBLISHER).unwrap(),
+            TopicEndpointType::Publisher
+        );
+        assert_eq!(
+            TopicEndpointType::try_from(rmw_endpoint_type_t::RMW_ENDPOINT_SUBSCRIPTION).unwrap(),
+            TopicEndpointType::Subscription
+        );
     }
 
     #[test]
