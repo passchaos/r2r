@@ -1,6 +1,6 @@
 use futures::{
     channel::{mpsc, oneshot},
-    future::{join_all, FutureExt, JoinAll},
+    future::{join_all, JoinAll},
     stream::{Stream, StreamExt},
     task::noop_waker_ref,
 };
@@ -8,6 +8,7 @@ use parking_lot::Mutex;
 use std::{
     collections::{HashMap, HashSet},
     ffi::{CStr, CString},
+    future::Future,
     marker::PhantomData,
     mem::MaybeUninit,
     pin::Pin,
@@ -684,6 +685,16 @@ pub type ActiveCancelRequest = (
     JoinAll<oneshot::Receiver<(uuid::Uuid, bool)>>,
 );
 
+fn poll_cancel_decisions(
+    decisions: &mut JoinAll<oneshot::Receiver<(uuid::Uuid, bool)>>,
+) -> Option<Vec<std::result::Result<(uuid::Uuid, bool), oneshot::Canceled>>> {
+    let mut context = Context::from_waker(noop_waker_ref());
+    match Pin::new(decisions).poll(&mut context) {
+        Poll::Ready(results) => Some(results),
+        Poll::Pending => None,
+    }
+}
+
 pub(crate) struct PendingCancelDelivery {
     uuid: uuid::Uuid,
     request: ActionServerCancelRequest,
@@ -1038,8 +1049,7 @@ where
         let mut first_error = None;
         self.active_cancel_requests
             .retain_mut(|(request_id, msg, fut)| {
-                let boxed = fut.boxed();
-                if let Some(results) = boxed.now_or_never() {
+                if let Some(results) = poll_cancel_decisions(fut) {
                     let mut response_msg = msg.clone();
                     let requested_cancels = response_msg.goals_canceling.len();
                     let decisions = results.into_iter().filter_map(|result| match result {
@@ -1838,7 +1848,7 @@ mod tests {
     use futures::{
         executor::LocalPool,
         task::{waker_ref, ArcWake, LocalSpawnExt},
-        StreamExt,
+        FutureExt, StreamExt,
     };
     use std::{
         sync::atomic::{AtomicBool, Ordering},
@@ -2082,6 +2092,17 @@ mod tests {
             Err(Error::InvalidActionUuidLength { actual: 15 })
         ));
         assert_eq!(response.goals_canceling.len(), 2);
+    }
+
+    #[test]
+    fn cancel_decisions_are_polled_in_place_until_ready() {
+        let goal = uuid::Uuid::new_v4();
+        let (sender, receiver) = oneshot::channel();
+        let mut decisions = join_all(vec![receiver]);
+
+        assert!(poll_cancel_decisions(&mut decisions).is_none());
+        sender.send((goal, true)).unwrap();
+        assert_eq!(poll_cancel_decisions(&mut decisions).unwrap(), vec![Ok((goal, true))]);
     }
 
     #[test]
