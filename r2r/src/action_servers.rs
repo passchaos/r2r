@@ -8,6 +8,7 @@ use parking_lot::Mutex;
 use std::{
     collections::{HashMap, HashSet},
     ffi::{CStr, CString},
+    marker::PhantomData,
     mem::MaybeUninit,
     pin::Pin,
     sync::{Arc, Weak},
@@ -456,7 +457,11 @@ where
         let g = ActionServerGoal {
             uuid: self.uuid,
             goal: self.goal,
-            server: self.response.server.clone(),
+            lifecycle: Arc::new(ServerGoalLifecycle {
+                server: self.response.server.clone(),
+                uuid: self.uuid,
+                action_type: PhantomData,
+            }),
         };
 
         if let Err(err) = server.publish_status() {
@@ -1194,7 +1199,71 @@ where
 {
     pub uuid: uuid::Uuid,
     pub goal: T::Goal,
+    lifecycle: Arc<ServerGoalLifecycle<T>>,
+}
+
+struct ServerGoalLifecycle<T>
+where
+    T: WrappedActionTypeSupport,
+{
     server: Weak<Mutex<dyn ActionServer_>>,
+    uuid: uuid::Uuid,
+    action_type: PhantomData<T>,
+}
+
+impl<T> Drop for ServerGoalLifecycle<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    fn drop(&mut self) {
+        let Some(server) = self.server.upgrade() else {
+            return;
+        };
+
+        let mut server = server.lock();
+        let needs_cancel = match server.get_goal_status(&self.uuid) {
+            Ok(GoalStatus::Accepted | GoalStatus::Executing) => true,
+            Ok(GoalStatus::Canceling) => false,
+            Ok(
+                GoalStatus::Succeeded
+                | GoalStatus::Canceled
+                | GoalStatus::Aborted
+                | GoalStatus::Unknown,
+            )
+            | Err(_) => return,
+        };
+
+        // Allocate the result before changing state. If allocation fails, the goal remains in a
+        // state that a future recovery path can still complete.
+        let result = T::make_result_response_msg(
+            action_msgs::msg::GoalStatus::STATUS_CANCELED as i8,
+            T::Result::default(),
+        );
+        let result = match WrappedNativeMsg::<
+            <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
+        >::try_from(&result)
+        {
+            Ok(result) => result,
+            Err(err) => {
+                log::error!("could not allocate result for abandoned action goal: {err}");
+                return;
+            }
+        };
+        if needs_cancel {
+            if let Err(err) = server.cancel_goal(&self.uuid) {
+                log::error!("could not cancel abandoned action goal: {err}");
+                return;
+            }
+        }
+        if let Err(err) = complete_goal(
+            &mut *server,
+            self.uuid,
+            rcl_action_goal_event_t::GOAL_EVENT_CANCELED,
+            Box::new(result),
+        ) {
+            log::error!("could not complete abandoned action goal: {err}");
+        }
+    }
 }
 
 unsafe impl<T> Send for ActionServerGoal<T> where T: WrappedActionTypeSupport {}
@@ -1206,6 +1275,7 @@ where
     /// Returns the fully resolved action name used by the native server.
     pub fn action_name(&self) -> Result<String> {
         let server = self
+            .lifecycle
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
@@ -1216,6 +1286,7 @@ where
     /// Return the server-side state of this goal.
     pub fn get_status(&self) -> Result<GoalStatus> {
         let action_server = self
+            .lifecycle
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
@@ -1226,6 +1297,7 @@ where
     /// Start executing a goal accepted with [`ActionServerGoalRequest::accept_deferred`].
     pub fn execute(&self) -> Result<()> {
         let action_server = self
+            .lifecycle
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
@@ -1235,6 +1307,7 @@ where
 
     pub fn is_cancelling(&self) -> Result<bool> {
         let action_server = self
+            .lifecycle
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
@@ -1249,6 +1322,7 @@ where
     {
         // upgrade to actual ref. if still alive
         let action_server = self
+            .lifecycle
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
@@ -1272,6 +1346,7 @@ where
     pub fn cancel(&mut self, msg: T::Result) -> Result<()> {
         // upgrade to actual ref. if still alive
         let action_server = self
+            .lifecycle
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
@@ -1294,6 +1369,7 @@ where
     pub fn abort(&mut self, msg: T::Result) -> Result<()> {
         // upgrade to actual ref. if still alive
         let action_server = self
+            .lifecycle
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
@@ -1319,6 +1395,7 @@ where
     {
         // upgrade to actual ref. if still alive
         let action_server = self
+            .lifecycle
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
@@ -1574,5 +1651,57 @@ mod tests {
             }
         }
         panic!("client did not receive the deferred goal result");
+    }
+
+    #[test]
+    fn dropping_last_server_goal_cancels_abandoned_goal() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "abandoned_action_test", "").unwrap();
+        let mut requests = node
+            .create_action_server::<Fibonacci::Action>("/abandoned_action")
+            .unwrap();
+        let client = node
+            .create_action_client::<Fibonacci::Action>("/abandoned_action")
+            .unwrap();
+        let response = client
+            .send_goal_request(Fibonacci::Goal { order: 1 })
+            .unwrap();
+        let mut response = Box::pin(response);
+        let mut server_goal = None;
+        let mut cancel_requests = None;
+        let (client_goal, result) = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if server_goal.is_none() {
+                if let Some(request) = requests.next().now_or_never().flatten() {
+                    let (goal, cancels) = request.accept().unwrap();
+                    server_goal = Some(goal);
+                    cancel_requests = Some(cancels);
+                }
+            }
+            if let Some(response) = response.as_mut().now_or_never() {
+                let (goal, result, _feedback) = response.unwrap();
+                break (goal, result);
+            }
+        };
+
+        let goal = server_goal.unwrap();
+        let last_goal = goal.clone();
+        drop(goal);
+        assert_eq!(last_goal.get_status().unwrap(), GoalStatus::Executing);
+        drop(last_goal);
+
+        let mut result = Box::pin(result);
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(result) = result.as_mut().now_or_never() {
+                let (status, result) = result.unwrap();
+                assert_eq!(status, GoalStatus::Canceled);
+                assert_eq!(result, Fibonacci::Result::default());
+                assert_eq!(client_goal.get_status().unwrap(), GoalStatus::Canceled);
+                drop(cancel_requests);
+                return;
+            }
+        }
+        panic!("client did not receive the abandoned goal result");
     }
 }
