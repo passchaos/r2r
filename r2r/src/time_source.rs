@@ -26,6 +26,9 @@ use std::sync::{Arc, Weak};
 #[derive(Clone)]
 pub struct TimeSource {
     inner: Arc<Mutex<TimeSource_>>,
+    // Serializes state snapshots with their corresponding clock operations without nesting the
+    // state mutex inside a managed clock mutex.
+    operations: Arc<Mutex<()>>,
 }
 
 pub(crate) struct TimeSource_ {
@@ -52,6 +55,7 @@ impl TimeSource {
     pub(crate) fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(TimeSource_::new())),
+            operations: Arc::new(Mutex::new(())),
         }
     }
 
@@ -60,28 +64,24 @@ impl TimeSource {
     /// If the simulated time is enabled the [`TimeSource`] will distribute simulated time
     /// to all attached clocks.
     pub fn attach_ros_clock(&self, clock: Weak<Mutex<Clock>>) -> Result<()> {
-        let mut time_source = self.inner.lock();
-        let clock_valid = clock
-            .upgrade()
-            .map(|clock_arc| {
-                let mut clock = clock_arc.lock();
-
-                if !matches!(clock.get_clock_type(), ClockType::RosTime) {
-                    return Err(Error::ClockTypeNotRosTime);
-                }
-
-                if time_source.simulated_time_enabled {
-                    clock.enable_ros_time_override(time_source.last_time_msg)?;
-                }
-
-                Ok(())
-            })
-            .transpose()?
-            .is_some();
-        if clock_valid {
-            time_source.managed_clocks.push(clock);
+        let _operation = self.operations.lock();
+        let Some(clock_arc) = clock.upgrade() else {
+            return Ok(());
+        };
+        let (simulated_time_enabled, last_time_msg) = {
+            let inner = self.inner.lock();
+            (inner.simulated_time_enabled, inner.last_time_msg)
+        };
+        {
+            let mut clock_guard = clock_arc.lock();
+            if !matches!(clock_guard.get_clock_type(), ClockType::RosTime) {
+                return Err(Error::ClockTypeNotRosTime);
+            }
+            if simulated_time_enabled {
+                clock_guard.enable_ros_time_override(last_time_msg)?;
+            }
         }
-        // if upgrade is none no need to attach the clock since it is already dropped
+        self.inner.lock().managed_clocks.push(clock);
 
         Ok(())
     }
@@ -92,33 +92,41 @@ impl TimeSource {
     ///
     /// See example: sim_time_publisher.rs
     pub fn enable_sim_time(&self, node: &mut Node) -> Result<()> {
-        let mut inner = self.inner.lock();
-        if inner.simulated_time_enabled {
-            // already enabled nothing to do
-            return Ok(());
-        }
+        let _operation = self.operations.lock();
+        self.enable_sim_time_locked(node)
+    }
 
-        if let Some(subscriber) = inner.activate_subscriber(|| {
-            TimeSourceSubscriber::new(&mut node.node_handle, self.clone())
-        })? {
+    fn enable_sim_time_locked(&self, node: &mut Node) -> Result<()> {
+        let (subscriber, initial_time, clocks) = {
+            let mut inner = self.inner.lock();
+            if inner.simulated_time_enabled {
+                return Ok(());
+            }
+            let subscriber = inner.activate_subscriber(|| {
+                TimeSourceSubscriber::new(&mut node.node_handle, self.clone())
+            })?;
+            let initial_time = inner.last_time_msg;
+            let clocks = inner.live_managed_clocks();
+            (subscriber, initial_time, clocks)
+        };
+        if let Some(subscriber) = subscriber {
             node.subscribers.push(Box::new(subscriber));
         }
-        let initial_time = inner.last_time_msg;
         if let Err(err) =
-            inner.try_for_each_managed_clock(|clock| clock.enable_ros_time_override(initial_time))
+            try_for_each_clock(&clocks, |clock| clock.enable_ros_time_override(initial_time))
         {
             // Some clocks may already have been enabled. Restore every live clock and schedule
             // the subscription for removal so callers can retry from a consistent state.
-            if let Err(rollback_err) =
-                inner.try_for_each_managed_clock(Clock::disable_ros_time_override)
+            if let Err(rollback_err) = try_for_each_clock(&clocks, Clock::disable_ros_time_override)
             {
                 log::error!("failed to roll back simulated time activation: {rollback_err}");
             }
-            inner.subscriber_state = TimeSourceSubscriberState::ToBeDestroyed;
+            self.inner.lock().subscriber_state = TimeSourceSubscriberState::ToBeDestroyed;
             return Err(err);
         }
 
         // Do not publish the enabled state until subscription and clock setup have succeeded.
+        let mut inner = self.inner.lock();
         inner.simulated_time_enabled = true;
         inner.requested_simulated_time = None;
 
@@ -130,17 +138,23 @@ impl TimeSource {
     /// This schedules removal of the internal subscriber to the `"/clock"` topic before the
     /// node enters its next wait cycle.
     pub fn disable_sim_time(&self) {
-        let mut inner = self.inner.lock();
-        inner.requested_simulated_time = None;
-        if inner.simulated_time_enabled {
-            inner.simulated_time_enabled = false;
+        let _operation = self.operations.lock();
+        self.disable_sim_time_locked();
+    }
 
-            // disable ros time override on all attached clocks
-            if let Err(err) = inner.try_for_each_managed_clock(Clock::disable_ros_time_override) {
+    fn disable_sim_time_locked(&self) {
+        let (was_enabled, clocks) = {
+            let mut inner = self.inner.lock();
+            inner.requested_simulated_time = None;
+            (inner.simulated_time_enabled, inner.live_managed_clocks())
+        };
+        if was_enabled {
+            if let Err(err) = try_for_each_clock(&clocks, Clock::disable_ros_time_override) {
                 log::error!("failed to disable simulated time on an attached clock: {err}");
             }
         }
-
+        let mut inner = self.inner.lock();
+        inner.simulated_time_enabled = false;
         if matches!(inner.subscriber_state, TimeSourceSubscriberState::Active) {
             inner.subscriber_state = TimeSourceSubscriberState::ToBeDestroyed;
         }
@@ -152,6 +166,7 @@ impl TimeSource {
     }
 
     pub(crate) fn request_sim_time(&self, enabled: bool) {
+        let _operation = self.operations.lock();
         let mut inner = self.inner.lock();
         if inner.simulated_time_enabled == enabled {
             inner.requested_simulated_time = None;
@@ -161,15 +176,16 @@ impl TimeSource {
     }
 
     pub(crate) fn apply_requested_sim_time(&self, node: &mut Node) -> Result<()> {
+        let _operation = self.operations.lock();
         let requested = self.inner.lock().requested_simulated_time.take();
         match requested {
             Some(true) => {
-                if let Err(err) = self.enable_sim_time(node) {
+                if let Err(err) = self.enable_sim_time_locked(node) {
                     self.inner.lock().requested_simulated_time = Some(true);
                     return Err(err);
                 }
             }
-            Some(false) => self.disable_sim_time(),
+            Some(false) => self.disable_sim_time_locked(),
             None => {}
         }
         Ok(())
@@ -187,37 +203,32 @@ impl TimeSource_ {
         }
     }
 
-    fn for_each_managed_clock<F>(&mut self, mut f: F)
-    where
-        F: FnMut(&mut Clock),
-    {
+    fn live_managed_clocks(&mut self) -> Vec<Arc<Mutex<Clock>>> {
+        let mut clocks = Vec::new();
         self.managed_clocks.retain(|weak_clock| {
             let Some(clock_arc) = weak_clock.upgrade() else {
-                // clock can be deleted
                 return false;
             };
-
-            let mut clock = clock_arc.lock();
-            f(&mut clock);
-
-            // retain clock
+            clocks.push(clock_arc);
             true
         });
+        clocks
     }
+}
 
-    fn try_for_each_managed_clock<F>(&mut self, mut f: F) -> Result<()>
-    where
-        F: FnMut(&mut Clock) -> Result<()>,
-    {
-        let mut first_error = None;
-        self.for_each_managed_clock(|clock| {
-            if let Err(err) = f(clock) {
-                first_error.get_or_insert(err);
-            }
-        });
-        first_error.map_or(Ok(()), Err)
+fn try_for_each_clock(
+    clocks: &[Arc<Mutex<Clock>>], mut f: impl FnMut(&mut Clock) -> Result<()>,
+) -> Result<()> {
+    let mut first_error = None;
+    for clock in clocks {
+        if let Err(err) = f(&mut clock.lock()) {
+            first_error.get_or_insert(err);
+        }
     }
+    first_error.map_or(Ok(()), Err)
+}
 
+impl TimeSource_ {
     fn activate_subscriber<T>(&mut self, create: impl FnOnce() -> Result<T>) -> Result<Option<T>> {
         match self.subscriber_state {
             TimeSourceSubscriberState::None => {
@@ -254,13 +265,19 @@ impl TimeSource_ {
             TimeSourceSubscriberState::None => true,
         }
     }
+}
 
-    // this is similar to internal rclcpp function `set_all_clocks` in `time_source.cpp`
-    fn set_clock_time(&mut self, time_msg: Time) {
+impl TimeSource {
+    // This is similar to the internal rclcpp `set_all_clocks` helper.
+    fn set_clock_time(&self, time_msg: Time) {
+        let _operation = self.operations.lock();
         let time = time_msg.into();
-        self.last_time_msg = time;
-        if let Err(err) = self.try_for_each_managed_clock(|clock| clock.set_ros_time_override(time))
-        {
+        let clocks = {
+            let mut inner = self.inner.lock();
+            inner.last_time_msg = time;
+            inner.live_managed_clocks()
+        };
+        if let Err(err) = try_for_each_clock(&clocks, |clock| clock.set_ros_time_override(time)) {
             log::error!("failed to update simulated time on an attached clock: {err}");
         }
     }
@@ -315,13 +332,16 @@ impl Subscriber_ for TimeSourceSubscriber {
             return Err(Error::from_rcl_error(ret));
         }
 
-        let mut inner_time_source = self.time_source.inner.lock();
         if ret == RCL_RET_OK as i32 {
-            inner_time_source
+            self.time_source
                 .set_clock_time(rosgraph_msgs::msg::Clock::from_native(&clock_msg).clock);
         }
 
-        Ok(inner_time_source.subscriber_should_remove_after_take())
+        Ok(self
+            .time_source
+            .inner
+            .lock()
+            .subscriber_should_remove_after_take())
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -380,5 +400,27 @@ mod tests {
         time_source.request_sim_time(false);
 
         assert!(time_source.inner.lock().requested_simulated_time.is_none());
+    }
+
+    #[test]
+    fn managed_clock_operations_do_not_hold_the_time_source_state_lock() {
+        let time_source = TimeSource::new();
+        let clock = Arc::new(Mutex::new(Clock::create(ClockType::RosTime).unwrap()));
+        time_source
+            .inner
+            .lock()
+            .managed_clocks
+            .push(Arc::downgrade(&clock));
+        let clocks = time_source.inner.lock().live_managed_clocks();
+        let mut visited = false;
+
+        try_for_each_clock(&clocks, |_| {
+            assert!(time_source.inner.try_lock().is_some());
+            visited = true;
+            Ok(())
+        })
+        .unwrap();
+
+        assert!(visited);
     }
 }
