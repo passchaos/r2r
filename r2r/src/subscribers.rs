@@ -255,7 +255,7 @@ pub(crate) fn attach_message_info<T>(message: T, info: MessageInfo) -> ReceivedM
 /// A ROS subscription stream with graph matching helpers.
 pub struct Subscription<T> {
     receiver: mpsc::Receiver<T>,
-    id: uuid::Uuid,
+    pub(crate) id: uuid::Uuid,
     canceled_subscriptions: Arc<Mutex<VecDeque<uuid::Uuid>>>,
 }
 
@@ -425,6 +425,8 @@ impl<T> Drop for Subscription<T> {
 pub(crate) struct SubscriptionMatchState {
     pub(crate) id: uuid::Uuid,
     pub(crate) waiters: AvailabilityWaiters,
+    #[cfg(test)]
+    pub(crate) wait_poll_count: usize,
     requested_incompatible_qos: Option<SubscriptionEvent>,
     requested_deadline_missed: Option<SubscriptionEvent>,
     liveliness_changed: Option<SubscriptionEvent>,
@@ -436,6 +438,8 @@ impl SubscriptionMatchState {
         Self {
             id,
             waiters: AvailabilityWaiters::default(),
+            #[cfg(test)]
+            wait_poll_count: 0,
             requested_incompatible_qos: None,
             requested_deadline_missed: None,
             liveliness_changed: None,
@@ -721,6 +725,10 @@ pub(crate) trait Subscriber_ {
             let Some(state) = self.match_state_mut() else {
                 return;
             };
+            #[cfg(test)]
+            {
+                state.wait_poll_count += 1;
+            }
             let Some(boundary) = state.waiters.poll_boundary() else {
                 return;
             };
@@ -743,6 +751,17 @@ pub(crate) trait Subscriber_ {
                 }
             }
         }
+    }
+    fn has_pending_publisher_waits(&mut self) -> bool {
+        let Some(state) = self.match_state_mut() else {
+            return false;
+        };
+        state.waiters.prune_canceled();
+        !state.waiters.is_empty()
+    }
+    #[cfg(test)]
+    fn publisher_wait_poll_count(&self) -> usize {
+        self.match_state().map_or(0, |state| state.wait_poll_count)
     }
     /// Returns true when the subscriber should be destroyed before entering the next wait.
     fn should_remove(&mut self) -> bool {

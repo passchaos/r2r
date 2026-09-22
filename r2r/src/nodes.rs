@@ -637,6 +637,7 @@ pub struct Node {
     pub(crate) subscribers: Vec<Box<dyn Subscriber_>>,
     subscription_indexes: HashMap<uuid::Uuid, usize>,
     canceled_subscriptions: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    subscriptions_with_active_waits: HashSet<uuid::Uuid>,
     // services,
     services: Vec<Arc<Mutex<dyn Service_>>>,
     service_indexes: HashMap<uuid::Uuid, usize>,
@@ -1269,6 +1270,7 @@ impl Node {
                 subscribers: Vec::new(),
                 subscription_indexes: HashMap::new(),
                 canceled_subscriptions: Arc::new(Mutex::new(VecDeque::new())),
+                subscriptions_with_active_waits: HashSet::new(),
                 services: Vec::new(),
                 service_indexes: HashMap::new(),
                 canceled_services: Arc::new(Mutex::new(VecDeque::new())),
@@ -2867,6 +2869,7 @@ impl Node {
             .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
         let (sender, receiver) = oneshot::channel();
         state.waiters.register(sender);
+        self.subscriptions_with_active_waits.insert(id);
         Ok(receiver)
     }
 
@@ -3622,8 +3625,17 @@ impl Node {
                 self.publishers_with_active_waits.insert(id);
             }
         }
-        for subscriber in &mut self.subscribers {
+        let subscriptions_with_active_waits =
+            std::mem::take(&mut self.subscriptions_with_active_waits);
+        for id in subscriptions_with_active_waits {
+            let Some(index) = self.subscription_indexes.get(&id).copied() else {
+                continue;
+            };
+            let subscriber = &mut self.subscribers[index];
             subscriber.poll_has_publishers();
+            if subscriber.has_pending_publisher_waits() {
+                self.subscriptions_with_active_waits.insert(id);
+            }
         }
 
         let timeout_nanos = duration_to_rcl_nanos(timeout)?;
@@ -10634,11 +10646,14 @@ mod tests {
             .unwrap();
 
         assert_eq!(subscription.get_publisher_count(&node).unwrap(), 0);
+        assert!(node.subscriptions_with_active_waits.is_empty());
         let timeout = subscription
             .wait_for_publishers_with_timeout(&mut node, Duration::from_millis(1))
             .unwrap();
+        assert_eq!(node.subscriptions_with_active_waits, HashSet::from([subscription.id]));
         assert!(matches!(drive(&mut node, timeout), Err(Error::RCL_RET_TIMEOUT)));
         node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.subscriptions_with_active_waits.is_empty());
 
         let publisher = node
             .create_publisher::<crate::std_msgs::msg::String>(&missing_topic, QosProfile::default())
@@ -10646,7 +10661,9 @@ mod tests {
         let wait = subscription
             .wait_for_publishers_with_timeout(&mut node, Duration::from_secs(1))
             .unwrap();
+        assert_eq!(node.subscriptions_with_active_waits, HashSet::from([subscription.id]));
         drive(&mut node, wait).unwrap();
+        assert!(node.subscriptions_with_active_waits.is_empty());
         assert!(subscription.get_publisher_count(&node).unwrap() >= 1);
 
         node.destroy_publisher(publisher);
@@ -10654,6 +10671,40 @@ mod tests {
         drop(subscription);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert_eq!(node.subscribers.len(), subscriptions_before_drop - 1);
+    }
+
+    #[test]
+    fn subscription_waiters_poll_only_the_active_subscription() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "subscription_sparse_wait_test", "").unwrap();
+        let active = node
+            .subscribe::<crate::std_msgs::msg::String>(
+                "/subscription_sparse_wait",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let _idle = node
+            .subscribe::<crate::std_msgs::msg::String>(
+                "/subscription_without_wait",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let active_index = node.subscription_indexes[&active.id];
+        let idle_index = usize::from(active_index == 0);
+
+        let wait = active.wait_for_publishers(&mut node).unwrap();
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(node.subscribers[active_index].publisher_wait_poll_count(), 1);
+        assert_eq!(node.subscribers[idle_index].publisher_wait_poll_count(), 0);
+        assert_eq!(node.subscriptions_with_active_waits, HashSet::from([active.id]));
+
+        drop(wait);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.subscriptions_with_active_waits.is_empty());
+        assert_eq!(node.subscribers[active_index].publisher_wait_poll_count(), 2);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(node.subscribers[active_index].publisher_wait_poll_count(), 2);
+        assert_eq!(node.subscribers[idle_index].publisher_wait_poll_count(), 0);
     }
 
     #[test]
