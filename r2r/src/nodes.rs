@@ -2488,7 +2488,6 @@ impl Node {
             goal_response_channels: Vec::new(),
             cancel_response_channels: Vec::new(),
             feedback_senders: Vec::new(),
-            pending_feedback: None,
             result_senders: Vec::new(),
             result_requests: Vec::new(),
             goal_status: HashMap::new(),
@@ -2546,7 +2545,6 @@ impl Node {
             goal_response_channels: Vec::new(),
             cancel_response_channels: Vec::new(),
             feedback_senders: Vec::new(),
-            pending_feedback: None,
             result_senders: Vec::new(),
             result_requests: Vec::new(),
             goal_status: HashMap::new(),
@@ -3130,7 +3128,7 @@ impl Node {
                     }
 
                     if is_feedback_ready {
-                        ac.handle_feedback_msg()?;
+                        completions.extend(ac.handle_feedback_msg()?);
                     }
                     if is_status_ready {
                         ac.handle_status_msg()?;
