@@ -119,6 +119,28 @@ pub(crate) fn action_response_completion<T: Send + 'static>(
     }
 }
 
+pub(crate) fn action_response_conversion_completion<N, T>(
+    sender: oneshot::Sender<T>, native: N, convert: impl FnOnce(N) -> T + Send + 'static,
+    description: &'static str, cleanup_goal_on_failure: Option<uuid::Uuid>,
+) -> ActionClientCompletion
+where
+    N: Send + 'static,
+    T: Send + 'static,
+{
+    ActionClientCompletion {
+        notify: Box::new(move || {
+            let response = convert(native);
+            if sender.send(response).is_err() {
+                log::debug!("could not deliver {description}");
+                false
+            } else {
+                true
+            }
+        }),
+        cleanup_goal_on_failure,
+    }
+}
+
 pub(crate) fn action_availability_completion(
     senders: Vec<oneshot::Sender<()>>, available: Result<bool>,
 ) -> Option<ActionClientCompletion> {
@@ -957,10 +979,12 @@ where
                 .position(|(id, _)| id == &request_id.sequence_number)
             {
                 let (_, sender) = self.cancel_response_channels.swap_remove(idx);
-                let response = action_msgs::srv::CancelGoal::Response::from_native(&response_msg);
-                completions.push(action_response_completion(
+                completions.push(action_response_conversion_completion(
                     sender,
-                    response,
+                    response_msg,
+                    |response_msg| {
+                        action_msgs::srv::CancelGoal::Response::from_native(&response_msg)
+                    },
                     "action cancel response",
                     None,
                 ));
@@ -1364,6 +1388,34 @@ mod tests {
 
         assert!(wake.woke.load(Ordering::SeqCst));
         assert!(matches!(Pin::new(&mut receiver).poll(&mut context), Poll::Ready(Ok(()))));
+    }
+
+    #[test]
+    fn action_responses_are_converted_after_releasing_the_client_lock() {
+        let client = Arc::new(Mutex::new(()));
+        let (sender, mut receiver) = oneshot::channel();
+        let client_for_conversion = Arc::clone(&client);
+
+        complete_action_client_operation(
+            &*client,
+            |_, completions| {
+                completions.push(action_response_conversion_completion(
+                    sender,
+                    41,
+                    move |value| {
+                        assert!(client_for_conversion.try_lock().is_some());
+                        value + 1
+                    },
+                    "test response",
+                    None,
+                ));
+                Ok(())
+            },
+            |_, _| {},
+        )
+        .unwrap();
+
+        assert_eq!(receiver.try_recv().unwrap(), Some(42));
     }
 
     #[test]

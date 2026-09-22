@@ -680,10 +680,12 @@ impl ActionClient_ for WrappedActionClientUntyped {
                 .position(|(id, _)| id == &request_id.sequence_number)
             {
                 let (_, sender) = self.cancel_response_channels.swap_remove(idx);
-                let response = action_msgs::srv::CancelGoal::Response::from_native(&response_msg);
-                completions.push(action_response_completion(
+                completions.push(action_response_conversion_completion(
                     sender,
-                    response,
+                    response_msg,
+                    |response_msg| {
+                        action_msgs::srv::CancelGoal::Response::from_native(&response_msg)
+                    },
                     "untyped action cancel response",
                     None,
                 ));
