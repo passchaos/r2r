@@ -138,6 +138,20 @@ fn parameter_value_changed(previous: Option<&ParameterValue>, value: &ParameterV
     previous != Some(value) && !(previous.is_none() && matches!(value, ParameterValue::NotSet))
 }
 
+fn parameter_name_matches(name: &str, prefixes: &[String], depth: u64) -> bool {
+    let recursive = depth == rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE as u64;
+    let within_depth = |suffix: &str| (suffix.matches('.').count() as u64) < depth;
+
+    (prefixes.is_empty() && (recursive || within_depth(name)))
+        || prefixes.iter().any(|prefix| {
+            name == prefix
+                || name
+                    .strip_prefix(prefix)
+                    .and_then(|suffix| suffix.strip_prefix('.'))
+                    .is_some_and(|suffix| recursive || within_depth(suffix))
+        })
+}
+
 /// A ROS Node.
 ///
 /// This struct owns all subscribes, publishers, etc.  To get events
@@ -1136,8 +1150,6 @@ impl Node {
     ) -> future::Ready<()> {
         use rcl_interfaces::srv::ListParameters;
 
-        let depth = req.message.depth;
-        let prefixes = &req.message.prefixes;
         let separator = '.';
         let params = params.lock();
         let mut result = rcl_interfaces::msg::ListParametersResult {
@@ -1145,20 +1157,7 @@ impl Node {
             prefixes: vec![],
         };
         for (name, _) in params.iter().filter(|(name, _)| {
-            let get_all = prefixes.is_empty()
-                && ((depth == ListParameters::Request::DEPTH_RECURSIVE as u64)
-                    || name.matches(separator).count() < depth as usize);
-            let prefix_matches = prefixes.iter().any(|prefix| {
-                if *name == prefix {
-                    return true;
-                } else if name.starts_with(&format!("{prefix}{separator}")) {
-                    let substr = &name[prefix.len()..];
-                    return (depth == ListParameters::Request::DEPTH_RECURSIVE as u64)
-                        || substr.matches(separator).count() < depth as usize;
-                }
-                false
-            });
-            get_all || prefix_matches
+            parameter_name_matches(name, &req.message.prefixes, req.message.depth)
         }) {
             result.names.push(name.clone());
             if let Some(last_separator) = name.rfind(separator) {
@@ -3673,6 +3672,68 @@ mod tests {
             Some(&ParameterValue::Integer(1)),
             &ParameterValue::Integer(1)
         ));
+    }
+
+    #[test]
+    fn parameter_prefix_depth_is_relative_to_the_prefix() {
+        let prefix = vec!["robot".to_owned()];
+        assert!(parameter_name_matches("robot", &prefix, 1));
+        assert!(parameter_name_matches("robot.speed", &prefix, 1));
+        assert!(!parameter_name_matches("robot.motor.speed", &prefix, 1));
+        assert!(parameter_name_matches("robot.motor.speed", &prefix, 2));
+        assert!(parameter_name_matches("robot.motor.speed", &prefix, 0));
+        assert!(!parameter_name_matches("robotic.speed", &prefix, 0));
+
+        assert!(parameter_name_matches("top", &[], 1));
+        assert!(!parameter_name_matches("top.child", &[], 1));
+        assert!(parameter_name_matches("top.child", &[], 0));
+    }
+
+    #[test]
+    fn list_parameters_service_uses_relative_prefix_depth() {
+        use rcl_interfaces::srv::ListParameters;
+
+        fn drive(
+            node: &mut Node, pool: &mut LocalPool,
+            future: impl Future<Output = Result<ListParameters::Response>>,
+        ) -> ListParameters::Response {
+            let mut future = Box::pin(future);
+            loop {
+                node.try_spin_once(Duration::from_millis(10)).unwrap();
+                pool.run_until_stalled();
+                if let Some(result) = future.as_mut().now_or_never() {
+                    return result.unwrap();
+                }
+            }
+        }
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "list_parameter_depth_test", "").unwrap();
+        {
+            let mut params = node.params.lock();
+            for name in ["robot", "robot.speed", "robot.motor.speed", "robotic.speed"] {
+                params.insert(name.into(), Parameter::new(ParameterValue::Integer(1)));
+            }
+        }
+        let (handler, _events) = node.make_parameter_handler().unwrap();
+        let client = node
+            .create_client::<ListParameters::Service>(
+                "list_parameter_depth_test/list_parameters",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let mut pool = LocalPool::new();
+        pool.spawner().spawn_local(handler).unwrap();
+
+        let request = |depth| ListParameters::Request {
+            prefixes: vec!["robot".into()],
+            depth,
+        };
+        let depth_one = drive(&mut node, &mut pool, client.request(&request(1)).unwrap());
+        assert_eq!(depth_one.result.names, vec!["robot", "robot.speed"]);
+
+        let depth_two = drive(&mut node, &mut pool, client.request(&request(2)).unwrap());
+        assert_eq!(depth_two.result.names, vec!["robot", "robot.speed", "robot.motor.speed"]);
     }
 
     #[test]
