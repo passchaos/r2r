@@ -50,6 +50,14 @@ pub(crate) fn complete_client_operation<T: ?Sized>(
     Ok(())
 }
 
+fn with_prepared_client<C: ?Sized, P, T>(
+    client: &Mutex<C>, prepare: impl FnOnce() -> Result<P>,
+    operation: impl FnOnce(&mut C, P) -> Result<T>,
+) -> Result<T> {
+    let prepared = prepare()?;
+    operation(&mut *client.lock(), prepared)
+}
+
 /// ROS service client.
 ///
 /// This is a handle to a service client wrapped in a `Mutex` inside a
@@ -85,8 +93,11 @@ where
     {
         // upgrade to actual ref. if still alive
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
-        let mut client = client.lock();
-        client.request(msg)
+        with_prepared_client(
+            &client,
+            || WrappedNativeMsg::<T::Request>::try_from(msg),
+            TypedClient::request_native,
+        )
     }
 
     /// Make a service request and wait up to `timeout` for its response.
@@ -155,8 +166,16 @@ impl ClientUntyped {
     ) -> Result<impl Future<Output = Result<Result<serde_json::Value>>>> {
         // upgrade to actual ref. if still alive
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
-        let mut client = client.lock();
-        client.request(msg)
+        let make_request_msg = client.lock().service_type.make_request_msg;
+        with_prepared_client(
+            &client,
+            || {
+                let mut native_msg = make_request_msg()?;
+                native_msg.from_json(msg)?;
+                Ok(native_msg)
+            },
+            UntypedClient_::request_native,
+        )
     }
 
     /// Make an untyped service request and wait up to `timeout` for its response.
@@ -244,11 +263,12 @@ impl<T: 'static> TypedClient<T>
 where
     T: WrappedServiceTypeSupport,
 {
-    pub fn request(&mut self, msg: &T::Request) -> Result<impl Future<Output = Result<T::Response>>>
+    fn request_native(
+        &mut self, native_msg: WrappedNativeMsg<T::Request>,
+    ) -> Result<impl Future<Output = Result<T::Response>>>
     where
         T: WrappedServiceTypeSupport,
     {
-        let native_msg = WrappedNativeMsg::<T::Request>::try_from(msg)?;
         let mut seq_no = 0i64;
         let result =
             unsafe { rcl_send_request(&self.rcl_handle, native_msg.void_ptr(), &mut seq_no) };
@@ -269,12 +289,9 @@ where
 unsafe impl Send for UntypedClient_ {}
 
 impl UntypedClient_ {
-    pub fn request(
-        &mut self, msg: serde_json::Value,
+    fn request_native(
+        &mut self, native_msg: WrappedNativeMsgUntyped,
     ) -> Result<impl Future<Output = Result<Result<serde_json::Value>>>> {
-        let mut native_msg = (self.service_type.make_request_msg)()?;
-        native_msg.from_json(msg)?;
-
         let mut seq_no = 0i64;
         let result =
             unsafe { rcl_send_request(&self.rcl_handle, native_msg.void_ptr(), &mut seq_no) };
@@ -591,5 +608,22 @@ mod tests {
 
         assert!(wake.woke.load(Ordering::SeqCst));
         assert!(matches!(Pin::new(&mut receiver).poll(&mut context), Poll::Ready(Ok(()))));
+    }
+
+    #[test]
+    fn client_payloads_are_prepared_before_locking_the_native_handle() {
+        let client = Mutex::new(());
+
+        let prepared = with_prepared_client(
+            &client,
+            || {
+                assert!(client.try_lock().is_some());
+                Ok(41)
+            },
+            |_client, value| Ok(value + 1),
+        )
+        .unwrap();
+
+        assert_eq!(prepared, 42);
     }
 }

@@ -11,6 +11,14 @@ use std::{
 use crate::{error::*, msg_types::*, Node, QosProfile};
 use r2r_rcl::*;
 
+fn with_prepared_service<S: ?Sized, P, T>(
+    service: &Mutex<S>, prepare: impl FnOnce() -> Result<P>,
+    operation: impl FnOnce(&mut S, P) -> Result<T>,
+) -> Result<T> {
+    let prepared = prepare()?;
+    operation(&mut *service.lock(), prepared)
+}
+
 /// Rust-side buffering options for a ROS service request stream.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServiceOptions {
@@ -172,9 +180,11 @@ where
             .service
             .upgrade()
             .ok_or(Error::RCL_RET_SERVICE_INVALID)?;
-        let mut service = service.lock();
-        let native_msg = WrappedNativeMsg::<T::Response>::try_from(&msg)?;
-        service.send_response(self.request_id, Box::new(native_msg))
+        with_prepared_service(
+            &service,
+            || WrappedNativeMsg::<T::Response>::try_from(&msg),
+            |service, native_msg| service.send_response(self.request_id, Box::new(native_msg)),
+        )
     }
 }
 
@@ -400,5 +410,27 @@ pub fn create_service_helper(
         Ok(service_handle)
     } else {
         Err(Error::from_rcl_error(result))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn service_payloads_are_prepared_before_locking_the_native_handle() {
+        let service = Mutex::new(());
+
+        let prepared = with_prepared_service(
+            &service,
+            || {
+                assert!(service.try_lock().is_some());
+                Ok(41)
+            },
+            |_service, value| Ok(value + 1),
+        )
+        .unwrap();
+
+        assert_eq!(prepared, 42);
     }
 }
