@@ -7243,6 +7243,8 @@ mod tests {
         };
 
         let mut goal = server_goal.unwrap();
+        assert!(client_goal.accepted_at().nanosec < 1_000_000_000);
+        assert_eq!(client_goal.clone().accepted_at(), client_goal.accepted_at());
         assert_eq!(goal.action_name().unwrap(), "/scope/fibonacci");
         assert_eq!(goal.goal.as_ref().unwrap(), &serde_json::json!({ "order": 3 }));
         assert_eq!(goal.get_status().unwrap(), GoalStatus::Accepted);
@@ -7503,7 +7505,7 @@ mod tests {
             .unwrap();
         let mut response = Box::pin(response);
         let mut untyped_server_goal = None;
-        let mut untyped_feedback = loop {
+        let (untyped_client_goal, mut untyped_feedback) = loop {
             node.try_spin_once(Duration::from_millis(10)).unwrap();
             if untyped_server_goal.is_none() {
                 if let Some(request) = untyped_requests.next().now_or_never().flatten() {
@@ -7512,10 +7514,12 @@ mod tests {
                 }
             }
             if let Some(response) = response.as_mut().now_or_never() {
-                let (_goal, _result, feedback) = response.unwrap();
-                break feedback;
+                let (goal, _result, feedback) = response.unwrap();
+                break (goal, feedback);
             }
         };
+        assert!(untyped_client_goal.accepted_at().nanosec < 1_000_000_000);
+        assert_eq!(untyped_client_goal.clone().accepted_at(), untyped_client_goal.accepted_at());
         let goal = untyped_server_goal.as_ref().unwrap();
         for value in 1..=3 {
             goal.publish_feedback(Fibonacci::Feedback {

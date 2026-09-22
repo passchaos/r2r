@@ -46,6 +46,7 @@ unsafe impl Send for ActionClientGoalUntyped {}
 pub struct ActionClientGoalUntyped {
     client: Weak<Mutex<WrappedActionClientUntyped>>,
     pub uuid: uuid::Uuid,
+    accepted_at: builtin_interfaces::msg::Time,
     status_registration: Arc<GoalStatusRegistration>,
 }
 
@@ -89,6 +90,7 @@ impl Clone for ActionClientGoalUntyped {
         Self {
             client: self.client.clone(),
             uuid: self.uuid,
+            accepted_at: self.accepted_at.clone(),
             status_registration: self.status_registration.clone(),
         }
     }
@@ -104,6 +106,11 @@ impl ActionClientGoalUntyped {
         let client = client.lock();
 
         Ok(client.get_goal_status(&self.uuid))
+    }
+
+    /// Returns the server timestamp at which this goal was accepted.
+    pub fn accepted_at(&self) -> &builtin_interfaces::msg::Time {
+        &self.accepted_at
     }
 
     /// Send a cancel request for this goal to the server.
@@ -193,7 +200,7 @@ impl ActionClientUntyped {
             };
             let future = async move {
                 match goal_req_receiver.await {
-                    Ok((accepted, _stamp)) => {
+                    Ok((accepted, stamp)) => {
                         if accepted {
                             // on goal accept we immediately send the result request
                             {
@@ -213,6 +220,7 @@ impl ActionClientUntyped {
                                 ActionClientGoalUntyped {
                                     client: fut_client,
                                     uuid,
+                                    accepted_at: stamp,
                                     status_registration,
                                 },
                                 result_receiver.map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID),
