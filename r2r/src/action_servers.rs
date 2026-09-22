@@ -226,6 +226,7 @@ pub trait ActionServer_ {
     ) -> Option<ActionServerCompletion>;
     fn finish_cancel_delivery(&mut self, pending: PendingCancelRequest);
     fn has_pending_cancel_delivery(&self) -> bool;
+    fn has_pending_cancel_work(&self) -> bool;
     fn send_completed_cancel_requests(
         &mut self, server: Arc<Mutex<dyn ActionServer_>>,
         completions: &mut Vec<ActionServerCompletion>,
@@ -1076,6 +1077,10 @@ where
 
     fn has_pending_cancel_delivery(&self) -> bool {
         self.pending_cancel_request.is_some()
+    }
+
+    fn has_pending_cancel_work(&self) -> bool {
+        self.pending_cancel_request.is_some() || !self.active_cancel_requests.is_empty()
     }
 
     fn reject_goal_request(
@@ -1969,6 +1974,24 @@ pub fn create_action_server_helper(
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    static ACTION_SERVER_MAINTENANCE_POLL_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn record_action_server_maintenance_poll() {
+    ACTION_SERVER_MAINTENANCE_POLL_COUNT.set(ACTION_SERVER_MAINTENANCE_POLL_COUNT.get() + 1);
+}
+
+#[cfg(not(test))]
+pub(crate) fn record_action_server_maintenance_poll() {}
+
+#[cfg(test)]
+pub(crate) fn take_action_server_maintenance_poll_count() -> usize {
+    ACTION_SERVER_MAINTENANCE_POLL_COUNT.replace(0)
+}
+
 pub fn action_server_get_num_waits(
     rcl_handle: &rcl_action_server_t, num_subs: &mut usize, num_gc: &mut usize,
     num_timers: &mut usize, num_clients: &mut usize, num_services: &mut usize,
@@ -2103,6 +2126,10 @@ mod tests {
         fn finish_cancel_delivery(&mut self, _pending: PendingCancelRequest) {}
 
         fn has_pending_cancel_delivery(&self) -> bool {
+            false
+        }
+
+        fn has_pending_cancel_work(&self) -> bool {
             false
         }
 

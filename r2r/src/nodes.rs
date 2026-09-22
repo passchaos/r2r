@@ -737,6 +737,7 @@ pub struct Node {
     action_server_indexes: HashMap<uuid::Uuid, usize>,
     dropped_action_servers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
     pending_action_server_removals: HashSet<uuid::Uuid>,
+    action_servers_with_pending_cancels: HashSet<uuid::Uuid>,
     action_wait_set_capacities: WaitSetCapacities,
     // timers,
     timers: Vec<Timer_>,
@@ -1291,6 +1292,7 @@ impl Node {
         if let Some(moved) = self.action_servers.get(index) {
             self.action_server_indexes.insert(moved.lock().id(), index);
         }
+        self.action_servers_with_pending_cancels.remove(&id);
         self.action_wait_set_capacities.subtract(capacities);
         Ok(true)
     }
@@ -1309,6 +1311,7 @@ impl Node {
             self.action_server_indexes.insert(moved.lock().id(), index);
         }
         self.pending_action_server_removals.remove(&id);
+        self.action_servers_with_pending_cancels.remove(&id);
         self.dropped_action_servers
             .lock()
             .retain(|queued| *queued != id);
@@ -1584,6 +1587,7 @@ impl Node {
                 action_server_indexes: HashMap::new(),
                 dropped_action_servers: Arc::new(Mutex::new(VecDeque::new())),
                 pending_action_server_removals: HashSet::new(),
+                action_servers_with_pending_cancels: HashSet::new(),
                 action_wait_set_capacities: WaitSetCapacities::default(),
                 timers: Vec::new(),
                 timer_indexes: HashMap::new(),
@@ -4151,13 +4155,32 @@ impl Node {
             }
         }
 
-        // first handle any completed action cancellation responses
-        for a in &mut self.action_servers {
-            complete_action_server_operation(a, |server, completions| {
-                completions.extend(server.take_pending_cancel_delivery(a.clone()));
-                server.send_completed_cancel_requests(a.clone(), completions)?;
-                Ok(())
-            })?;
+        // Only action servers with an in-flight cancel delivery or decision need maintenance
+        // before waiting. Keep them registered until every response has been sent.
+        let action_servers_with_pending_cancels = self
+            .action_servers_with_pending_cancels
+            .iter()
+            .copied()
+            .collect::<Vec<_>>();
+        for id in action_servers_with_pending_cancels {
+            let Some(index) = self.action_server_indexes.get(&id).copied() else {
+                self.action_servers_with_pending_cancels.remove(&id);
+                continue;
+            };
+            let action_server = &self.action_servers[index];
+            record_action_server_maintenance_poll();
+            let maintenance_result =
+                complete_action_server_operation(action_server, |server, completions| {
+                    completions
+                        .extend(server.take_pending_cancel_delivery(Arc::clone(action_server)));
+                    server
+                        .send_completed_cancel_requests(Arc::clone(action_server), completions)?;
+                    Ok(())
+                });
+            if !action_server.lock().has_pending_cancel_work() {
+                self.action_servers_with_pending_cancels.remove(&id);
+            }
+            maintenance_result?;
         }
 
         {
@@ -4546,6 +4569,7 @@ impl Node {
 
         for s in &self.action_servers {
             let (
+                server_id,
                 is_goal_request_ready,
                 is_cancel_request_ready,
                 is_result_request_ready,
@@ -4572,6 +4596,7 @@ impl Node {
                     return Err(Error::from_rcl_error(ret));
                 }
                 (
+                    server.id(),
                     is_goal_request_ready,
                     is_cancel_request_ready,
                     is_result_request_ready,
@@ -4585,11 +4610,17 @@ impl Node {
                 })?;
             }
             if is_cancel_request_ready {
-                complete_action_server_delivery_batch(
+                let cancel_result = complete_action_server_delivery_batch(
                     s,
                     |server| server.handle_cancel_request(s.clone()),
                     ActionServer_::has_pending_cancel_delivery,
-                )?;
+                );
+                if s.lock().has_pending_cancel_work() {
+                    self.action_servers_with_pending_cancels.insert(server_id);
+                } else {
+                    self.action_servers_with_pending_cancels.remove(&server_id);
+                }
+                cancel_result?;
             }
             if is_result_request_ready {
                 complete_action_server_take_batch(s, |server| {
@@ -10910,6 +10941,7 @@ mod tests {
                     .cancel_request_channel_capacity(8),
             )
             .unwrap();
+        let server_id = requests.id;
         let client = client_node
             .create_action_client_with_options::<Fibonacci::Action>(
                 &action_name,
@@ -10965,6 +10997,9 @@ mod tests {
         server_node
             .try_spin_once(Duration::from_millis(100))
             .unwrap();
+        assert!(server_node
+            .action_servers_with_pending_cancels
+            .contains(&server_id));
 
         let mut cancel_stream = cancel_stream.unwrap();
         for _ in 0..3 {
@@ -10975,6 +11010,10 @@ mod tests {
                 .unwrap()
                 .reject();
         }
+        server_node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(!server_node
+            .action_servers_with_pending_cancels
+            .contains(&server_id));
         drop(cancels);
         drop(server_goal);
     }
@@ -11287,6 +11326,35 @@ mod tests {
         assert!(node.action_clients_with_active_availability.is_empty());
         node.try_spin_once(Duration::ZERO).unwrap();
         assert_eq!(take_action_availability_poll_count(), 0);
+    }
+
+    #[test]
+    fn action_server_cancel_maintenance_skips_idle_servers() {
+        use crate::{
+            action_servers::take_action_server_maintenance_poll_count,
+            example_interfaces::action::Fibonacci,
+        };
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "action_sparse_cancel_maintenance_test", "").unwrap();
+        let active = node
+            .create_action_server::<Fibonacci::Action>("/active_action_cancel_maintenance")
+            .unwrap();
+        let _idle = node
+            .create_action_server::<Fibonacci::Action>("/idle_action_cancel_maintenance")
+            .unwrap();
+        take_action_server_maintenance_poll_count();
+
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(take_action_server_maintenance_poll_count(), 0);
+
+        node.action_servers_with_pending_cancels.insert(active.id);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(take_action_server_maintenance_poll_count(), 1);
+        assert!(node.action_servers_with_pending_cancels.is_empty());
+
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(take_action_server_maintenance_poll_count(), 0);
     }
 
     #[test]
@@ -12948,6 +13016,9 @@ mod tests {
         assert_eq!(node.action_server_indexes.len(), 2);
         assert!(!node.action_server_indexes.contains_key(&removed_id));
         assert!(node.pending_action_server_removals.is_empty());
+        assert!(!node
+            .action_servers_with_pending_cancels
+            .contains(&removed_id));
         assert!(node.dropped_action_servers.lock().is_empty());
         assert_eq!(node.action_wait_set_capacities, expected_capacities);
         assert_eq!(first.action_name(&node).unwrap(), "/destroy_action_server_first");

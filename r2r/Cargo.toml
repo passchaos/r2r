@@ -59,3 +59,7 @@ features = ["doc-only"]
 [[bench]]
 name = "deserialization"
 harness = false
+
+[[bench]]
+name = "spin_idle_action_servers"
+harness = false
