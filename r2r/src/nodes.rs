@@ -6,7 +6,7 @@ use futures::{
 use indexmap::IndexMap;
 use parking_lot::Mutex;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     ffi::{CStr, CString},
     future::Future,
     marker::PhantomPinned,
@@ -192,31 +192,47 @@ type ParameterValidationCallback =
 type ParameterPostSetCallback = dyn Fn(&[(String, ParameterValue)]) + Send + Sync + 'static;
 type ParameterPreSetCallback = dyn Fn(&mut Vec<(String, ParameterValue)>) + Send + Sync + 'static;
 
-struct ParameterValidationCallbackEntry {
-    id: uuid::Uuid,
-    callback: Arc<ParameterValidationCallback>,
+struct ParameterCallbackRegistry<C: ?Sized> {
+    callbacks: BTreeMap<u64, Arc<C>>,
+    next_id: u64,
 }
 
-struct ParameterPostSetCallbackEntry {
-    id: uuid::Uuid,
-    callback: Arc<ParameterPostSetCallback>,
+impl<C: ?Sized> Default for ParameterCallbackRegistry<C> {
+    fn default() -> Self {
+        Self {
+            callbacks: BTreeMap::new(),
+            next_id: 0,
+        }
+    }
 }
 
-struct ParameterPreSetCallbackEntry {
-    id: uuid::Uuid,
-    callback: Arc<ParameterPreSetCallback>,
+impl<C: ?Sized> ParameterCallbackRegistry<C> {
+    fn insert(&mut self, callback: Arc<C>) -> u64 {
+        let id = loop {
+            let id = self.next_id;
+            self.next_id = self.next_id.wrapping_add(1);
+            if !self.callbacks.contains_key(&id) {
+                break id;
+            }
+        };
+        self.callbacks.insert(id, callback);
+        id
+    }
+
+    fn remove(&mut self, id: u64) {
+        self.callbacks.remove(&id);
+    }
+
+    fn reverse_snapshot(&self) -> Vec<Arc<C>> {
+        self.callbacks.values().rev().cloned().collect()
+    }
 }
 
 fn transform_parameter_updates(
     updates: &mut Vec<(String, ParameterValue)>,
-    callbacks: &Arc<Mutex<Vec<ParameterPreSetCallbackEntry>>>,
+    callbacks: &Arc<Mutex<ParameterCallbackRegistry<ParameterPreSetCallback>>>,
 ) -> Result<()> {
-    let callbacks = callbacks
-        .lock()
-        .iter()
-        .rev()
-        .map(|entry| entry.callback.clone())
-        .collect::<Vec<_>>();
+    let callbacks = callbacks.lock().reverse_snapshot();
     let transformed = !callbacks.is_empty();
     for callback in callbacks {
         callback(updates);
@@ -231,14 +247,9 @@ fn transform_parameter_updates(
 
 fn validate_parameter_callbacks(
     updates: &[(String, ParameterValue)],
-    callbacks: &Arc<Mutex<Vec<ParameterValidationCallbackEntry>>>,
+    callbacks: &Arc<Mutex<ParameterCallbackRegistry<ParameterValidationCallback>>>,
 ) -> Result<()> {
-    let callbacks = callbacks
-        .lock()
-        .iter()
-        .rev()
-        .map(|entry| entry.callback.clone())
-        .collect::<Vec<_>>();
+    let callbacks = callbacks.lock().reverse_snapshot();
     for callback in callbacks {
         callback(updates)?;
     }
@@ -247,14 +258,9 @@ fn validate_parameter_callbacks(
 
 fn notify_parameter_post_set_callbacks(
     updates: &[(String, ParameterValue)],
-    callbacks: &Arc<Mutex<Vec<ParameterPostSetCallbackEntry>>>,
+    callbacks: &Arc<Mutex<ParameterCallbackRegistry<ParameterPostSetCallback>>>,
 ) {
-    let callbacks = callbacks
-        .lock()
-        .iter()
-        .rev()
-        .map(|entry| entry.callback.clone())
-        .collect::<Vec<_>>();
+    let callbacks = callbacks.lock().reverse_snapshot();
     for callback in callbacks {
         callback(updates);
     }
@@ -262,42 +268,42 @@ fn notify_parameter_post_set_callbacks(
 
 /// Keeps a parameter validation callback registered until dropped.
 pub struct ParameterCallbackHandle {
-    id: uuid::Uuid,
-    callbacks: std::sync::Weak<Mutex<Vec<ParameterValidationCallbackEntry>>>,
+    id: u64,
+    callbacks: std::sync::Weak<Mutex<ParameterCallbackRegistry<ParameterValidationCallback>>>,
 }
 
 impl Drop for ParameterCallbackHandle {
     fn drop(&mut self) {
         if let Some(callbacks) = self.callbacks.upgrade() {
-            callbacks.lock().retain(|entry| entry.id != self.id);
+            callbacks.lock().remove(self.id);
         }
     }
 }
 
 /// Keeps a post-set parameter callback registered until dropped.
 pub struct ParameterPostSetCallbackHandle {
-    id: uuid::Uuid,
-    callbacks: std::sync::Weak<Mutex<Vec<ParameterPostSetCallbackEntry>>>,
+    id: u64,
+    callbacks: std::sync::Weak<Mutex<ParameterCallbackRegistry<ParameterPostSetCallback>>>,
 }
 
 impl Drop for ParameterPostSetCallbackHandle {
     fn drop(&mut self) {
         if let Some(callbacks) = self.callbacks.upgrade() {
-            callbacks.lock().retain(|entry| entry.id != self.id);
+            callbacks.lock().remove(self.id);
         }
     }
 }
 
 /// Keeps a pre-set parameter callback registered until dropped.
 pub struct ParameterPreSetCallbackHandle {
-    id: uuid::Uuid,
-    callbacks: std::sync::Weak<Mutex<Vec<ParameterPreSetCallbackEntry>>>,
+    id: u64,
+    callbacks: std::sync::Weak<Mutex<ParameterCallbackRegistry<ParameterPreSetCallback>>>,
 }
 
 impl Drop for ParameterPreSetCallbackHandle {
     fn drop(&mut self) {
         if let Some(callbacks) = self.callbacks.upgrade() {
-            callbacks.lock().retain(|entry| entry.id != self.id);
+            callbacks.lock().remove(self.id);
         }
     }
 }
@@ -423,8 +429,8 @@ fn apply_parameter_updates(
     mut updates: Vec<(String, ParameterValue)>, params: &Arc<Mutex<IndexMap<String, Parameter>>>,
     descriptors: &Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
     provider: Option<&Arc<Mutex<dyn RosParams + Send>>>,
-    pre_callbacks: &Arc<Mutex<Vec<ParameterPreSetCallbackEntry>>>,
-    callbacks: &Arc<Mutex<Vec<ParameterValidationCallbackEntry>>>,
+    pre_callbacks: &Arc<Mutex<ParameterCallbackRegistry<ParameterPreSetCallback>>>,
+    callbacks: &Arc<Mutex<ParameterCallbackRegistry<ParameterValidationCallback>>>,
 ) -> Result<AppliedParameterChanges> {
     transform_parameter_updates(&mut updates, pre_callbacks)?;
     {
@@ -502,9 +508,10 @@ pub struct Node {
     parameter_descriptors: Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
     parameter_provider: Option<Arc<Mutex<dyn RosParams + Send>>>,
     parameter_transaction: Arc<Mutex<()>>,
-    parameter_pre_set_callbacks: Arc<Mutex<Vec<ParameterPreSetCallbackEntry>>>,
-    parameter_validation_callbacks: Arc<Mutex<Vec<ParameterValidationCallbackEntry>>>,
-    parameter_post_set_callbacks: Arc<Mutex<Vec<ParameterPostSetCallbackEntry>>>,
+    parameter_pre_set_callbacks: Arc<Mutex<ParameterCallbackRegistry<ParameterPreSetCallback>>>,
+    parameter_validation_callbacks:
+        Arc<Mutex<ParameterCallbackRegistry<ParameterValidationCallback>>>,
+    parameter_post_set_callbacks: Arc<Mutex<ParameterCallbackRegistry<ParameterPostSetCallback>>>,
     parameter_event_sink: Option<ParameterEventSink>,
     parameter_handler_started: bool,
     pub(crate) node_handle: Box<rcl_node_t>,
@@ -978,9 +985,9 @@ impl Node {
                 parameter_descriptors: Arc::new(Mutex::new(IndexMap::new())),
                 parameter_provider: None,
                 parameter_transaction: Arc::new(Mutex::new(())),
-                parameter_pre_set_callbacks: Arc::new(Mutex::new(Vec::new())),
-                parameter_validation_callbacks: Arc::new(Mutex::new(Vec::new())),
-                parameter_post_set_callbacks: Arc::new(Mutex::new(Vec::new())),
+                parameter_pre_set_callbacks: Arc::new(Mutex::new(Default::default())),
+                parameter_validation_callbacks: Arc::new(Mutex::new(Default::default())),
+                parameter_post_set_callbacks: Arc::new(Mutex::new(Default::default())),
                 parameter_event_sink: None,
                 parameter_handler_started: false,
                 node_handle,
@@ -1795,13 +1802,10 @@ impl Node {
     where
         F: Fn(&[(String, ParameterValue)]) -> Result<()> + Send + Sync + 'static,
     {
-        let id = uuid::Uuid::new_v4();
-        self.parameter_validation_callbacks
+        let id = self
+            .parameter_validation_callbacks
             .lock()
-            .push(ParameterValidationCallbackEntry {
-                id,
-                callback: Arc::new(callback),
-            });
+            .insert(Arc::new(callback));
         ParameterCallbackHandle {
             id,
             callbacks: Arc::downgrade(&self.parameter_validation_callbacks),
@@ -1818,13 +1822,10 @@ impl Node {
     where
         F: Fn(&mut Vec<(String, ParameterValue)>) + Send + Sync + 'static,
     {
-        let id = uuid::Uuid::new_v4();
-        self.parameter_pre_set_callbacks
+        let id = self
+            .parameter_pre_set_callbacks
             .lock()
-            .push(ParameterPreSetCallbackEntry {
-                id,
-                callback: Arc::new(callback),
-            });
+            .insert(Arc::new(callback));
         ParameterPreSetCallbackHandle {
             id,
             callbacks: Arc::downgrade(&self.parameter_pre_set_callbacks),
@@ -1840,13 +1841,10 @@ impl Node {
     where
         F: Fn(&[(String, ParameterValue)]) + Send + Sync + 'static,
     {
-        let id = uuid::Uuid::new_v4();
-        self.parameter_post_set_callbacks
+        let id = self
+            .parameter_post_set_callbacks
             .lock()
-            .push(ParameterPostSetCallbackEntry {
-                id,
-                callback: Arc::new(callback),
-            });
+            .insert(Arc::new(callback));
         ParameterPostSetCallbackHandle {
             id,
             callbacks: Arc::downgrade(&self.parameter_post_set_callbacks),
@@ -5052,6 +5050,27 @@ mod tests {
             .unwrap();
         assert!(calls.lock().is_empty());
         assert_eq!(node.get_parameter::<i64>("count").unwrap(), 8);
+    }
+
+    #[test]
+    fn parameter_callback_registry_removes_by_token_and_preserves_reverse_order() {
+        let mut callbacks = ParameterCallbackRegistry::<usize>::default();
+        let first = callbacks.insert(Arc::new(1));
+        let middle = callbacks.insert(Arc::new(2));
+        let last = callbacks.insert(Arc::new(3));
+
+        callbacks.remove(middle);
+
+        assert_eq!(first, 0);
+        assert_eq!(last, 2);
+        assert_eq!(
+            callbacks
+                .reverse_snapshot()
+                .into_iter()
+                .map(|value| *value)
+                .collect::<Vec<_>>(),
+            [3, 1]
+        );
     }
 
     #[test]
