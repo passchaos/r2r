@@ -190,6 +190,10 @@ impl TimeSource {
         }
         Ok(())
     }
+
+    pub(crate) fn has_pending_subscriber_removal(&self) -> bool {
+        matches!(self.inner.lock().subscriber_state, TimeSourceSubscriberState::ToBeDestroyed)
+    }
 }
 
 impl TimeSource_ {
@@ -408,6 +412,18 @@ mod tests {
         time_source.request_sim_time(false);
 
         assert!(time_source.inner.lock().requested_simulated_time.is_none());
+    }
+
+    #[test]
+    fn reactivation_cancels_pending_subscriber_removal() {
+        let mut inner = TimeSource_::new();
+        inner.subscriber_state = TimeSourceSubscriberState::ToBeDestroyed;
+
+        let created = inner.activate_subscriber(|| Ok(())).unwrap();
+
+        assert!(created.is_none());
+        assert!(matches!(inner.subscriber_state, TimeSourceSubscriberState::Active));
+        assert!(!inner.take_subscriber_destruction_request());
     }
 
     #[test]

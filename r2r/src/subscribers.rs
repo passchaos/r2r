@@ -1,12 +1,15 @@
 use futures::{channel::mpsc, task::noop_waker_ref, Future, Stream, TryFutureExt};
+use parking_lot::Mutex;
 use std::{
     any::TypeId,
+    collections::VecDeque,
     ffi::{CStr, CString},
     marker::PhantomData,
     mem::MaybeUninit,
     pin::Pin,
     ptr::NonNull,
     rc::Rc,
+    sync::Arc,
     task::{Context, Poll},
     time::Duration,
 };
@@ -253,11 +256,19 @@ pub(crate) fn attach_message_info<T>(message: T, info: MessageInfo) -> ReceivedM
 pub struct Subscription<T> {
     receiver: mpsc::Receiver<T>,
     id: uuid::Uuid,
+    canceled_subscriptions: Arc<Mutex<VecDeque<uuid::Uuid>>>,
 }
 
 impl<T> Subscription<T> {
-    pub(crate) fn new(receiver: mpsc::Receiver<T>, id: uuid::Uuid) -> Self {
-        Self { receiver, id }
+    pub(crate) fn new(
+        receiver: mpsc::Receiver<T>, id: uuid::Uuid,
+        canceled_subscriptions: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    ) -> Self {
+        Self {
+            receiver,
+            id,
+            canceled_subscriptions,
+        }
     }
 
     /// Gets the number of publishers matched to this subscription.
@@ -401,6 +412,13 @@ impl<T> Stream for Subscription<T> {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Pin::new(&mut self.receiver).poll_next(cx)
+    }
+}
+
+impl<T> Drop for Subscription<T> {
+    fn drop(&mut self) {
+        self.receiver.close();
+        self.canceled_subscriptions.lock().push_back(self.id);
     }
 }
 
@@ -1237,6 +1255,26 @@ mod tests {
     };
 
     static RETURNED_LOANS: AtomicUsize = AtomicUsize::new(0);
+
+    #[test]
+    fn dropping_subscription_queues_only_its_id() {
+        let target = uuid::Uuid::from_u128(1);
+        let canceled_subscriptions = Arc::new(Mutex::new(VecDeque::new()));
+        let (sender, receiver) = mpsc::channel::<()>(1);
+        let subscription = Subscription::new(receiver, target, Arc::clone(&canceled_subscriptions));
+
+        drop(subscription);
+
+        assert_eq!(
+            canceled_subscriptions
+                .lock()
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            [target]
+        );
+        assert!(sender.is_closed());
+    }
 
     struct BatchedTestSubscriber {
         handle: rcl_subscription_t,

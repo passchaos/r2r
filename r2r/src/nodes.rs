@@ -518,6 +518,7 @@ pub struct Node {
     // the node owns the subscribers
     pub(crate) subscribers: Vec<Box<dyn Subscriber_>>,
     subscription_indexes: HashMap<uuid::Uuid, usize>,
+    canceled_subscriptions: Arc<Mutex<VecDeque<uuid::Uuid>>>,
     // services,
     services: Vec<Arc<Mutex<dyn Service_>>>,
     service_indexes: HashMap<uuid::Uuid, usize>,
@@ -631,6 +632,26 @@ impl Node {
                 debug_assert!(indexes.insert(state.id, index).is_none());
             }
         }
+    }
+
+    fn remove_subscription(
+        subscribers: &mut Vec<Box<dyn Subscriber_>>,
+        subscription_indexes: &mut HashMap<uuid::Uuid, usize>, id: uuid::Uuid,
+        node_handle: &mut rcl_node_t,
+    ) -> bool {
+        let Some(index) = subscription_indexes.remove(&id) else {
+            return false;
+        };
+        let mut removed = subscribers.swap_remove(index);
+        debug_assert_eq!(removed.match_state().map(|state| state.id), Some(id));
+        removed.destroy(node_handle);
+        if let Some(moved) = subscribers
+            .get(index)
+            .and_then(|subscriber| subscriber.match_state())
+        {
+            subscription_indexes.insert(moved.id, index);
+        }
+        true
     }
 
     pub(crate) fn subscriber(&self, id: uuid::Uuid) -> Result<&dyn Subscriber_> {
@@ -998,6 +1019,7 @@ impl Node {
                 node_handle,
                 subscribers: Vec::new(),
                 subscription_indexes: HashMap::new(),
+                canceled_subscriptions: Arc::new(Mutex::new(VecDeque::new())),
                 services: Vec::new(),
                 service_indexes: HashMap::new(),
                 clients: Vec::new(),
@@ -1958,7 +1980,7 @@ impl Node {
             match_state: SubscriptionMatchState::new(id),
         };
         self.add_subscriber(Box::new(ws));
-        Ok(Subscription::new(receiver, id))
+        Ok(Subscription::new(receiver, id, Arc::clone(&self.canceled_subscriptions)))
     }
 
     /// Subscribe to standard ROS parameter events, optionally filtering by node and parameter.
@@ -2075,7 +2097,7 @@ impl Node {
             match_state: SubscriptionMatchState::new(id),
         };
         self.add_subscriber(Box::new(ws));
-        Ok(Subscription::new(receiver, id))
+        Ok(Subscription::new(receiver, id, Arc::clone(&self.canceled_subscriptions)))
     }
 
     /// Subscribe to a ROS topic.
@@ -2162,7 +2184,7 @@ impl Node {
             match_state: SubscriptionMatchState::new(id),
         };
         self.add_subscriber(Box::new(ws));
-        Ok(Subscription::new(receiver, id))
+        Ok(Subscription::new(receiver, id, Arc::clone(&self.canceled_subscriptions)))
     }
 
     /// Subscribe to a ROS topic.
@@ -2281,7 +2303,7 @@ impl Node {
             match_state: SubscriptionMatchState::new(id),
         };
         self.add_subscriber(Box::new(ws));
-        Ok(Subscription::new(receiver, id))
+        Ok(Subscription::new(receiver, id, Arc::clone(&self.canceled_subscriptions)))
     }
 
     pub(crate) fn get_subscription_publisher_count(&self, id: uuid::Uuid) -> Result<usize> {
@@ -2923,21 +2945,39 @@ impl Node {
 
         self.graph_change_waiters.prune_canceled();
 
-        // Some internal subscriptions, such as `/clock`, can be disabled without another
-        // message arriving. Remove them before rebuilding the wait set so teardown does not
-        // depend on readiness from the subscription being removed.
+        let canceled_subscriptions = {
+            let mut canceled_subscriptions = self.canceled_subscriptions.lock();
+            canceled_subscriptions.drain(..).collect::<Vec<_>>()
+        };
         let node_handle = self.node_handle.as_mut();
-        let previous_subscriber_count = self.subscribers.len();
-        self.subscribers.retain_mut(|subscriber| {
-            if subscriber.should_remove() {
-                subscriber.destroy(node_handle);
-                false
-            } else {
-                true
+        for id in canceled_subscriptions {
+            Self::remove_subscription(
+                &mut self.subscribers,
+                &mut self.subscription_indexes,
+                id,
+                node_handle,
+            );
+        }
+
+        // Internal subscriptions, such as `/clock`, have no public stream whose Drop can report
+        // an ID. Only inspect them when their owning subsystem has requested a state transition.
+        #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+        if self.time_source.has_pending_subscriber_removal() {
+            let previous_subscriber_count = self.subscribers.len();
+            self.subscribers.retain_mut(|subscriber| {
+                if subscriber.match_state().is_none() && subscriber.should_remove() {
+                    subscriber.destroy(node_handle);
+                    false
+                } else {
+                    true
+                }
+            });
+            if self.subscribers.len() != previous_subscriber_count {
+                Self::rebuild_subscription_indexes(
+                    &self.subscribers,
+                    &mut self.subscription_indexes,
+                );
             }
-        });
-        if self.subscribers.len() != previous_subscriber_count {
-            Self::rebuild_subscription_indexes(&self.subscribers, &mut self.subscription_indexes);
         }
 
         // A dropped service stream cannot receive another request to trigger its old reactive
@@ -3219,17 +3259,16 @@ impl Node {
                 }
             }
         }
-        let node_handle = self.node_handle.as_mut();
-        let previous_subscriber_count = self.subscribers.len();
-        self.subscribers.retain_mut(|subscriber| {
-            if subs_to_remove.contains(&(subscriber.handle() as *const rcl_subscription_t)) {
-                subscriber.destroy(node_handle);
-                false
-            } else {
-                true
-            }
-        });
-        if self.subscribers.len() != previous_subscriber_count {
+        if !subs_to_remove.is_empty() {
+            let node_handle = self.node_handle.as_mut();
+            self.subscribers.retain_mut(|subscriber| {
+                if subs_to_remove.contains(&(subscriber.handle() as *const rcl_subscription_t)) {
+                    subscriber.destroy(node_handle);
+                    false
+                } else {
+                    true
+                }
+            });
             Self::rebuild_subscription_indexes(&self.subscribers, &mut self.subscription_indexes);
         }
         if let Some(err) = subscriber_error {
@@ -9412,13 +9451,29 @@ mod tests {
         let last = node
             .subscribe::<crate::std_msgs::msg::String>(&last_topic, QosProfile::default())
             .unwrap();
+        let removed_id = *node
+            .subscription_indexes
+            .iter()
+            .find_map(|(id, index)| {
+                (node.subscribers[*index].topic_name().unwrap() == removed_topic).then_some(id)
+            })
+            .unwrap();
 
         assert_eq!(node.subscription_indexes.len(), 3);
         drop(removed);
+        assert_eq!(
+            node.canceled_subscriptions
+                .lock()
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            [removed_id]
+        );
         node.try_spin_once(Duration::ZERO).unwrap();
 
         assert_eq!(node.subscribers.len(), 2);
         assert_eq!(node.subscription_indexes.len(), 2);
+        assert!(node.canceled_subscriptions.lock().is_empty());
         assert_eq!(first.topic_name(&node).unwrap(), first_topic);
         assert_eq!(last.topic_name(&node).unwrap(), last_topic);
         for (id, index) in &node.subscription_indexes {
