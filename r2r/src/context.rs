@@ -32,6 +32,9 @@ impl Context {
             .get_or_init(|| Mutex::new(WeakContextHandle::new()))
             .lock();
         if let Some(context_handle) = shared.upgrade() {
+            if !unsafe { rcl_context_is_valid(context_handle.lock().as_mut()) } {
+                return Err(Error::RCL_RET_ALREADY_SHUTDOWN);
+            }
             return Ok(Context { context_handle });
         }
 
@@ -46,6 +49,15 @@ impl Context {
     pub fn is_valid(&self) -> bool {
         let mut ctx = self.context_handle.lock();
         unsafe { rcl_context_is_valid(ctx.as_mut()) }
+    }
+
+    /// Invalidates this context and every ROS entity created from it.
+    ///
+    /// This wakes waits using the context. Native resources remain allocated until their owning
+    /// nodes and the final [`Context`] clone are dropped. Calling this method more than once is
+    /// harmless.
+    pub fn shutdown(&self) -> Result<()> {
+        self.context_handle.lock().request_shutdown()
     }
 }
 
@@ -71,7 +83,7 @@ impl Drop for Context {
         }
 
         *shared = WeakContextHandle::new();
-        self.context_handle.lock().shutdown();
+        self.context_handle.lock().finalize();
     }
 }
 
@@ -147,14 +159,30 @@ impl ContextHandle {
         })
     }
 
-    fn shutdown(&mut self) {
+    fn request_shutdown(&mut self) -> Result<()> {
+        if !self.initialized || !unsafe { rcl_context_is_valid(self.handle.as_mut()) } {
+            return Ok(());
+        }
+
+        let ret = unsafe { rcl_shutdown(self.handle.as_mut()) };
+        if ret == RCL_RET_OK as i32 {
+            Ok(())
+        } else {
+            Err(Error::from_rcl_error(ret))
+        }
+    }
+
+    fn finalize(&mut self) {
         if !self.initialized {
             return;
         }
 
-        unsafe {
-            rcl_shutdown(self.handle.as_mut());
-            rcl_context_fini(self.handle.as_mut());
+        if let Err(err) = self.request_shutdown() {
+            log::error!("could not shut down ROS context: {err}");
+        }
+        let ret = unsafe { rcl_context_fini(self.handle.as_mut()) };
+        if ret != RCL_RET_OK as i32 {
+            log::error!("could not finalize ROS context: {}", Error::from_rcl_error(ret));
         }
         self.initialized = false;
     }
@@ -176,7 +204,7 @@ impl DerefMut for ContextHandle {
 
 impl Drop for ContextHandle {
     fn drop(&mut self) {
-        self.shutdown();
+        self.finalize();
     }
 }
 
