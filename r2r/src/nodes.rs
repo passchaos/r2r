@@ -1837,74 +1837,21 @@ impl Node {
         if self.parameter_handler_started {
             return Err(Error::ParameterHandlerAlreadyCreated);
         }
-        if let Some(ps) = &params_struct {
-            let mut provider = ps.lock();
-            let mut params = self.params.lock();
-            let original_params = params
-                .iter()
-                .map(|(name, parameter)| {
-                    (
-                        name.clone(),
-                        Parameter {
-                            value: parameter.value.clone(),
-                            description: parameter.description,
-                        },
-                    )
-                })
-                .collect();
-            let mut deferred_overrides = Vec::new();
-            if !self.automatically_declare_parameters_from_overrides {
-                for (name, value) in &self.parameter_overrides {
-                    if !params.contains_key(name) {
-                        params.insert(name.clone(), Parameter::new(value.clone()));
-                        deferred_overrides.push(name.clone());
-                    }
-                }
-            }
-            if let Err(err) = provider.register_parameters("", None, &mut params) {
-                *params = original_params;
-                return Err(err);
-            }
-            for name in deferred_overrides {
-                if provider.get_parameter(&name).is_err() {
-                    params.shift_remove(&name);
-                }
-            }
-        }
-        #[cfg(r2r__rosgraph_msgs__msg__Clock)]
-        let use_sim_time = {
-            let mut params = self.params.lock();
-            match params.get("use_sim_time") {
-                Some(Parameter {
-                    value: ParameterValue::Bool(value),
-                    ..
-                }) => *value,
-                Some(_) => {
-                    return Err(Error::InvalidParameterType {
-                        name: "use_sim_time".into(),
-                        ty: "boolean",
-                    });
-                }
-                None => {
-                    let enabled = match self.parameter_overrides.get("use_sim_time") {
-                        Some(ParameterValue::Bool(enabled)) => *enabled,
-                        Some(_) => {
-                            return Err(Error::InvalidParameterType {
-                                name: "use_sim_time".into(),
-                                ty: "boolean",
-                            });
-                        }
-                        None => false,
-                    };
-                    params.insert(
-                        "use_sim_time".into(),
-                        Parameter::new(ParameterValue::Bool(enabled)),
-                    );
-                    enabled
-                }
-            }
-        };
-        self.initialize_parameter_descriptors(params_struct.is_none())?;
+        let original_params = self
+            .params
+            .lock()
+            .iter()
+            .map(|(name, parameter)| {
+                (
+                    name.clone(),
+                    Parameter {
+                        value: parameter.value.clone(),
+                        description: parameter.description,
+                    },
+                )
+            })
+            .collect::<IndexMap<_, _>>();
+        let original_parameter_descriptors = self.parameter_descriptors.lock().clone();
         let service_count = self.services.len();
         let publisher_count = self.pubs.len();
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
@@ -2230,6 +2177,60 @@ impl Node {
                 handlers.push(Box::pin(set_params_atomically_future));
             }
 
+            if let Some(ps) = &params_struct {
+                let mut provider = ps.lock();
+                let mut params = self.params.lock();
+                let mut deferred_overrides = Vec::new();
+                if !self.automatically_declare_parameters_from_overrides {
+                    for (name, value) in &self.parameter_overrides {
+                        if !params.contains_key(name) {
+                            params.insert(name.clone(), Parameter::new(value.clone()));
+                            deferred_overrides.push(name.clone());
+                        }
+                    }
+                }
+                provider.register_parameters("", None, &mut params)?;
+                for name in deferred_overrides {
+                    if provider.get_parameter(&name).is_err() {
+                        params.shift_remove(&name);
+                    }
+                }
+            }
+            #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+            let use_sim_time = {
+                let mut params = self.params.lock();
+                match params.get("use_sim_time") {
+                    Some(Parameter {
+                        value: ParameterValue::Bool(value),
+                        ..
+                    }) => *value,
+                    Some(_) => {
+                        return Err(Error::InvalidParameterType {
+                            name: "use_sim_time".into(),
+                            ty: "boolean",
+                        });
+                    }
+                    None => {
+                        let enabled = match self.parameter_overrides.get("use_sim_time") {
+                            Some(ParameterValue::Bool(enabled)) => *enabled,
+                            Some(_) => {
+                                return Err(Error::InvalidParameterType {
+                                    name: "use_sim_time".into(),
+                                    ty: "boolean",
+                                });
+                            }
+                            None => false,
+                        };
+                        params.insert(
+                            "use_sim_time".into(),
+                            Parameter::new(ParameterValue::Bool(enabled)),
+                        );
+                        enabled
+                    }
+                }
+            };
+            self.initialize_parameter_descriptors(params_struct.is_none())?;
+
             #[cfg(r2r__rosgraph_msgs__msg__Clock)]
             if use_sim_time {
                 let ts = self.time_source.clone();
@@ -2254,6 +2255,8 @@ impl Node {
                     #[cfg(r2r__rosgraph_msgs__msg__Clock)]
                     subscriber_count,
                 );
+                *self.params.lock() = original_params;
+                *self.parameter_descriptors.lock() = original_parameter_descriptors;
                 Err(err)
             }
         }
@@ -5399,6 +5402,49 @@ mod tests {
         count: i64,
     }
 
+    struct HandlerSetupParams {
+        registration_calls: usize,
+        insert_invalid_name: bool,
+    }
+
+    impl RosParams for HandlerSetupParams {
+        fn register_parameters(
+            &mut self, _prefix: &str, _parameter: Option<Parameter>,
+            parameters: &mut IndexMap<String, Parameter>,
+        ) -> Result<()> {
+            self.registration_calls += 1;
+            let name = if self.insert_invalid_name {
+                ""
+            } else {
+                "tracked"
+            };
+            parameters.insert(name.into(), Parameter::new(11_i64));
+            Ok(())
+        }
+
+        fn get_parameter(&mut self, name: &str) -> Result<ParameterValue> {
+            match name {
+                "tracked" => Ok(ParameterValue::Integer(11)),
+                _ => Err(Error::InvalidParameterName { name: name.into() }),
+            }
+        }
+
+        fn set_parameter(&mut self, name: &str, value: &ParameterValue) -> Result<()> {
+            self.check_parameter(name, value)
+        }
+
+        fn check_parameter(&self, name: &str, value: &ParameterValue) -> Result<()> {
+            match (name, value) {
+                ("tracked", ParameterValue::Integer(_)) => Ok(()),
+                ("tracked", _) => Err(Error::InvalidParameterType {
+                    name: name.into(),
+                    ty: "integer",
+                }),
+                _ => Err(Error::InvalidParameterName { name: name.into() }),
+            }
+        }
+    }
+
     impl RosParams for DerivedOverrideParams {
         fn register_parameters(
             &mut self, _prefix: &str, _parameter: Option<Parameter>,
@@ -7334,6 +7380,73 @@ mod tests {
             events.next().now_or_never().flatten(),
             Some(("after_retry".into(), ParameterValue::Integer(7)))
         );
+    }
+
+    #[test]
+    fn endpoint_failure_precedes_derived_parameter_registration() {
+        let context = Context::create().unwrap();
+        let node_name = "n".repeat(230);
+        let mut node = Node::create(context, &node_name, "").unwrap();
+        let provider = Arc::new(Mutex::new(HandlerSetupParams {
+            registration_calls: 0,
+            insert_invalid_name: false,
+        }));
+        let provider_for_handler: Arc<Mutex<dyn RosParams + Send>> = provider.clone();
+
+        assert!(node
+            .make_derived_parameter_handler(provider_for_handler)
+            .is_err());
+        assert_eq!(provider.lock().registration_calls, 0);
+        assert!(!node.has_parameter("tracked"));
+
+        let provider_for_handler: Arc<Mutex<dyn RosParams + Send>> = provider.clone();
+        let (handler, _events) = node
+            .make_derived_parameter_handler_with_options(
+                provider_for_handler,
+                ParameterHandlerOptions::default()
+                    .start_parameter_services(false)
+                    .start_parameter_event_publisher(false),
+            )
+            .unwrap();
+        assert!(handler.now_or_never().is_some());
+        assert_eq!(provider.lock().registration_calls, 1);
+        assert_eq!(node.get_parameter::<i64>("tracked").unwrap(), 11);
+    }
+
+    #[test]
+    fn failed_parameter_handler_initialization_restores_parameter_state() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "parameter_state_rollback_test", "").unwrap();
+        node.declare_parameter("existing", 5_i64).unwrap();
+        let original_descriptor = node.get_parameter_descriptor("existing").unwrap();
+        let provider: Arc<Mutex<dyn RosParams + Send>> = Arc::new(Mutex::new(HandlerSetupParams {
+            registration_calls: 0,
+            insert_invalid_name: true,
+        }));
+
+        assert!(matches!(
+            node.make_derived_parameter_handler_with_options(
+                provider,
+                ParameterHandlerOptions::default()
+                    .start_parameter_services(false)
+                    .start_parameter_event_publisher(false),
+            ),
+            Err(Error::InvalidParameterDescriptor { name, .. }) if name.is_empty()
+        ));
+        assert!(!node.parameter_handler_started);
+        assert!(!node.has_parameter(""));
+        assert!(!node.has_parameter("use_sim_time"));
+        assert_eq!(node.get_parameter::<i64>("existing").unwrap(), 5);
+        assert_eq!(node.get_parameter_descriptor("existing").unwrap(), original_descriptor);
+
+        let (handler, _events) = node
+            .make_parameter_handler_with_options(
+                ParameterHandlerOptions::default()
+                    .start_parameter_services(false)
+                    .start_parameter_event_publisher(false),
+            )
+            .unwrap();
+        assert!(handler.now_or_never().is_some());
     }
 
     #[test]
