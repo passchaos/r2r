@@ -14,7 +14,7 @@ use r2r_rcl::*;
 pub(crate) enum ServiceRequestAction {
     Idle,
     Remove,
-    Deliver(Box<dyn FnOnce() -> bool + Send>),
+    Deliver(Box<dyn FnOnce() -> bool>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,23 +26,35 @@ pub(crate) enum ServiceHandleResult {
 
 const MAX_SERVICE_REQUESTS_PER_SPIN: usize = 16;
 
-fn request_delivery<T: Send + 'static>(
+fn deliver_request<T>(
     sender_slot: Arc<Mutex<Option<mpsc::Sender<T>>>>, mut sender: mpsc::Sender<T>, request: T,
     description: &'static str,
-) -> ServiceRequestAction {
-    ServiceRequestAction::Deliver(Box::new(move || {
-        let remove = if let Err(err) = sender.try_send(request) {
-            if err.is_disconnected() {
-                true
-            } else {
-                log::debug!("{description} channel was unexpectedly full ({err})");
-                false
-            }
+) -> bool {
+    let remove = if let Err(err) = sender.try_send(request) {
+        if err.is_disconnected() {
+            true
         } else {
+            log::debug!("{description} channel was unexpectedly full ({err})");
             false
-        };
-        *sender_slot.lock() = Some(sender);
-        remove
+        }
+    } else {
+        false
+    };
+    *sender_slot.lock() = Some(sender);
+    remove
+}
+
+fn request_conversion_delivery<N, T>(
+    sender_slot: Arc<Mutex<Option<mpsc::Sender<T>>>>, sender: mpsc::Sender<T>, native: N,
+    convert: impl FnOnce(N) -> T + 'static, description: &'static str,
+) -> ServiceRequestAction
+where
+    N: 'static,
+    T: 'static,
+{
+    ServiceRequestAction::Deliver(Box::new(move || {
+        let request = convert(native);
+        deliver_request(sender_slot, sender, request, description)
     }))
 }
 
@@ -372,21 +384,24 @@ impl Service_ for UntypedService {
             return Err(Error::from_rcl_error(ret));
         }
 
-        let request = ServiceRequestUntyped {
-            message: request_msg.to_json(),
-            request_id: unsafe { request_id.assume_init() },
-            service: Arc::downgrade(&service),
-            make_response_msg: self.service_type.make_response_msg,
-        };
+        let request_id = unsafe { request_id.assume_init() };
+        let service = Arc::downgrade(&service);
+        let make_response_msg = self.service_type.make_response_msg;
         let sender = self
             .sender
             .lock()
             .take()
             .ok_or(Error::RCL_RET_SERVICE_INVALID)?;
-        Ok(request_delivery(
+        Ok(request_conversion_delivery(
             Arc::clone(&self.sender),
             sender,
-            request,
+            request_msg,
+            move |request_msg| ServiceRequestUntyped {
+                message: request_msg.to_json(),
+                request_id,
+                service,
+                make_response_msg,
+            },
             "untyped service request",
         ))
     }
@@ -460,18 +475,23 @@ where
         }
 
         let request_id = unsafe { request_id.assume_init() };
-        let request_msg = T::Request::from_native(&request_msg);
-        let request = ServiceRequest::<T> {
-            message: request_msg,
-            request_id,
-            service: Arc::downgrade(&service),
-        };
+        let service = Arc::downgrade(&service);
         let sender = self
             .sender
             .lock()
             .take()
             .ok_or(Error::RCL_RET_SERVICE_INVALID)?;
-        Ok(request_delivery(Arc::clone(&self.sender), sender, request, "service request"))
+        Ok(request_conversion_delivery(
+            Arc::clone(&self.sender),
+            sender,
+            request_msg,
+            move |request_msg| ServiceRequest::<T> {
+                message: T::Request::from_native(&request_msg),
+                request_id,
+                service,
+            },
+            "service request",
+        ))
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -569,11 +589,43 @@ mod tests {
 
         complete_service_request(&service, |_| {
             let detached = sender.lock().take().unwrap();
-            Ok(request_delivery(Arc::clone(&sender), detached, 42, "test service request"))
+            let sender = Arc::clone(&sender);
+            Ok(ServiceRequestAction::Deliver(Box::new(move || {
+                deliver_request(sender, detached, 42, "test service request")
+            })))
         })
         .unwrap();
 
         assert!(wake.woke.load(Ordering::SeqCst));
         assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Ready(Some(42))));
+    }
+
+    #[test]
+    fn service_requests_are_converted_after_releasing_the_service_lock() {
+        let service = Arc::new(Mutex::new(()));
+        let (sender, mut receiver) = mpsc::channel(1);
+        let sender = Arc::new(Mutex::new(Some(sender)));
+        let service_for_conversion = Arc::clone(&service);
+
+        complete_service_request(&*service, |_| {
+            let detached = sender.lock().take().unwrap();
+            Ok(request_conversion_delivery(
+                Arc::clone(&sender),
+                detached,
+                41,
+                move |value| {
+                    assert!(service_for_conversion.try_lock().is_some());
+                    value + 1
+                },
+                "test service request",
+            ))
+        })
+        .unwrap();
+
+        assert!(matches!(
+            Pin::new(&mut receiver)
+                .poll_next(&mut Context::from_waker(futures::task::noop_waker_ref())),
+            Poll::Ready(Some(42))
+        ));
     }
 }
