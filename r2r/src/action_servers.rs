@@ -43,6 +43,22 @@ pub(crate) enum ActionServerDeliveryAction {
     Deliver(ActionServerCompletion),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ActionServerSenderState {
+    Ready,
+    Backpressured,
+    Closed,
+}
+
+fn action_server_sender_state<T>(sender: &mut mpsc::Sender<T>) -> ActionServerSenderState {
+    let mut context = Context::from_waker(noop_waker_ref());
+    match sender.poll_ready(&mut context) {
+        Poll::Ready(Ok(())) => ActionServerSenderState::Ready,
+        Poll::Pending => ActionServerSenderState::Backpressured,
+        Poll::Ready(Err(_)) => ActionServerSenderState::Closed,
+    }
+}
+
 fn finish_action_server_operation(
     operation_result: Result<()>, completions: Vec<ActionServerCompletion>,
 ) -> Result<()> {
@@ -1177,9 +1193,9 @@ where
             let Some(goal_request_sender) = goal_request_sender.as_mut() else {
                 return Ok(None);
             };
-            if !goal_request_sender.is_closed() {
-                let mut cx = Context::from_waker(noop_waker_ref());
-                if goal_request_sender.poll_ready(&mut cx) == Poll::Pending {
+            match action_server_sender_state(goal_request_sender) {
+                ActionServerSenderState::Ready => {}
+                ActionServerSenderState::Backpressured | ActionServerSenderState::Closed => {
                     return Ok(None);
                 }
             }
@@ -2629,6 +2645,25 @@ mod tests {
         )
         .unwrap();
         assert_eq!(server.lock().0, MAX_ACTION_SERVER_REQUESTS_PER_SPIN);
+    }
+
+    #[test]
+    fn closed_goal_request_sender_is_not_ready_for_native_take() {
+        let (mut sender, receiver) = mpsc::channel::<i32>(1);
+        drop(receiver);
+
+        assert_eq!(action_server_sender_state(&mut sender), ActionServerSenderState::Closed);
+    }
+
+    #[test]
+    fn full_goal_request_sender_reports_backpressure() {
+        let (mut sender, mut receiver) = mpsc::channel(0);
+        let mut context = std::task::Context::from_waker(noop_waker_ref());
+        assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Pending));
+        sender.try_send(41).unwrap();
+
+        assert_eq!(action_server_sender_state(&mut sender), ActionServerSenderState::Backpressured);
+        assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Ready(Some(41))));
     }
 
     #[test]
