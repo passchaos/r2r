@@ -301,35 +301,116 @@ pub struct UntypedActionSupport {
         crate::ActionServerOptions,
     ) -> Result<crate::action_servers::ActionServerUntyped>,
 
-    pub(crate) make_goal_request_msg: Box<
-        dyn Fn(
-                unique_identifier_msgs::msg::UUID,
-                serde_json::Value,
-            ) -> Result<WrappedNativeMsgUntyped>
-            + Send
-            + Sync,
-    >,
-    pub(crate) make_goal_response_msg:
-        Box<dyn Fn() -> Result<WrappedNativeMsgUntyped> + Send + Sync>,
+    pub(crate) make_goal_request_msg:
+        fn(unique_identifier_msgs::msg::UUID, serde_json::Value) -> Result<WrappedNativeMsgUntyped>,
+    pub(crate) make_goal_response_msg: fn() -> Result<WrappedNativeMsgUntyped>,
     pub(crate) destructure_goal_response_msg:
-        Box<dyn Fn(WrappedNativeMsgUntyped) -> (bool, builtin_interfaces::msg::Time) + Send + Sync>,
+        fn(WrappedNativeMsgUntyped) -> (bool, builtin_interfaces::msg::Time),
 
     pub(crate) make_feedback_msg: fn() -> Result<WrappedNativeMsgUntyped>,
-    pub(crate) destructure_feedback_msg: Box<
-        dyn Fn(
-                WrappedNativeMsgUntyped,
-            ) -> (unique_identifier_msgs::msg::UUID, Result<serde_json::Value>)
-            + Send
-            + Sync,
-    >,
+    pub(crate) destructure_feedback_msg:
+        fn(
+            WrappedNativeMsgUntyped,
+        ) -> (unique_identifier_msgs::msg::UUID, Result<serde_json::Value>),
 
-    pub(crate) make_result_request_msg: Box<
-        dyn Fn(unique_identifier_msgs::msg::UUID) -> Result<WrappedNativeMsgUntyped> + Send + Sync,
-    >,
-    pub(crate) make_result_response_msg:
-        Box<dyn Fn() -> Result<WrappedNativeMsgUntyped> + Send + Sync>,
+    pub(crate) make_result_request_msg:
+        fn(unique_identifier_msgs::msg::UUID) -> Result<WrappedNativeMsgUntyped>,
+    pub(crate) make_result_response_msg: fn() -> Result<WrappedNativeMsgUntyped>,
     pub(crate) destructure_result_response_msg:
-        Box<dyn Fn(WrappedNativeMsgUntyped) -> (i8, Result<serde_json::Value>) + Send + Sync>,
+        fn(WrappedNativeMsgUntyped) -> (i8, Result<serde_json::Value>),
+}
+
+fn make_action_goal_request<T>(
+    goal_id: unique_identifier_msgs::msg::UUID, goal: serde_json::Value,
+) -> Result<WrappedNativeMsgUntyped>
+where
+    T: WrappedActionTypeSupport,
+{
+    let goal = serde_json::from_value(goal).map_err(|err| Error::SerdeError {
+        err: err.to_string(),
+    })?;
+    let request = T::make_goal_request_msg(goal_id, goal);
+    WrappedNativeMsgUntyped::try_from_typed(&request)
+}
+
+fn make_action_goal_response<T>() -> Result<WrappedNativeMsgUntyped>
+where
+    T: WrappedActionTypeSupport,
+{
+    WrappedNativeMsgUntyped::try_new::<
+        <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
+    >()
+}
+
+fn destructure_action_goal_response<T>(
+    msg: WrappedNativeMsgUntyped,
+) -> (bool, builtin_interfaces::msg::Time)
+where
+    T: WrappedActionTypeSupport,
+{
+    let msg = unsafe {
+        <<T::SendGoal as WrappedServiceTypeSupport>::Response>::from_native(
+            &*(msg.msg
+                as *const <<T::SendGoal as WrappedServiceTypeSupport>::Response as WrappedTypesupport>::CStruct),
+        )
+    };
+    T::destructure_goal_response_msg(msg)
+}
+
+fn destructure_action_feedback<T>(
+    msg: WrappedNativeMsgUntyped,
+) -> (unique_identifier_msgs::msg::UUID, Result<serde_json::Value>)
+where
+    T: WrappedActionTypeSupport,
+{
+    let msg = unsafe {
+        T::FeedbackMessage::from_native(
+            &*(msg.msg as *const <T::FeedbackMessage as WrappedTypesupport>::CStruct),
+        )
+    };
+    let (uuid, feedback) = T::destructure_feedback_msg(msg);
+    let json = serde_json::to_value(feedback).map_err(|err| Error::SerdeError {
+        err: err.to_string(),
+    });
+    (uuid, json)
+}
+
+fn make_action_result_request<T>(
+    goal_id: unique_identifier_msgs::msg::UUID,
+) -> Result<WrappedNativeMsgUntyped>
+where
+    T: WrappedActionTypeSupport,
+{
+    let request = T::make_result_request_msg(goal_id);
+    WrappedNativeMsgUntyped::try_from_typed(&request)
+}
+
+fn make_action_result_response<T>() -> Result<WrappedNativeMsgUntyped>
+where
+    T: WrappedActionTypeSupport,
+{
+    WrappedNativeMsgUntyped::try_new::<
+        <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
+    >()
+}
+
+fn destructure_action_result_response<T>(
+    msg: WrappedNativeMsgUntyped,
+) -> (i8, Result<serde_json::Value>)
+where
+    T: WrappedActionTypeSupport,
+{
+    let msg = unsafe {
+        <<T::GetResult as WrappedServiceTypeSupport>::Response>::from_native(
+            &*(msg.msg
+                as *const <<T::GetResult as WrappedServiceTypeSupport>::Response as WrappedTypesupport>::CStruct),
+        )
+    };
+    let (status, result) = T::destructure_result_response_msg(msg);
+    let json = serde_json::to_value(result).map_err(|err| Error::SerdeError {
+        err: err.to_string(),
+    });
+    (status, json)
 }
 
 impl UntypedActionSupport {
@@ -337,109 +418,31 @@ impl UntypedActionSupport {
     where
         T: WrappedActionTypeSupport + 'static,
     {
-        // TODO: this is terrible. These closures perform json (de)serialization just to move the data.
-        // FIX.
-
-        let make_goal_request_msg = Box::new(|goal_id, goal| {
-            let goal_msg: T::Goal =
-                serde_json::from_value(goal).map_err(|serde_err| Error::SerdeError {
-                    err: serde_err.to_string(),
-                })?;
-            let request_msg = T::make_goal_request_msg(goal_id, goal_msg);
-            let json =
-                serde_json::to_value(request_msg).map_err(|serde_err| Error::SerdeError {
-                    err: serde_err.to_string(),
-                })?;
-            let mut native_untyped = WrappedNativeMsgUntyped::try_new::<
-                <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Request,
-            >()?;
-            native_untyped.from_json(json)?;
-            Ok(native_untyped)
-        });
-
-        let make_goal_response_msg = Box::new(|| {
-            WrappedNativeMsgUntyped::try_new::<
-                <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
-            >()
-        });
-
-        let destructure_goal_response_msg = Box::new(|msg: WrappedNativeMsgUntyped| {
-            let msg = unsafe {
-                <<<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response>
-                 ::from_native(&*(msg.msg as *const <<<T as WrappedActionTypeSupport>::SendGoal as
-                                                      WrappedServiceTypeSupport>::Response as WrappedTypesupport>::CStruct))
-            };
-            T::destructure_goal_response_msg(msg)
-        });
-
-        let make_feedback_msg = WrappedNativeMsgUntyped::try_new::<T::FeedbackMessage>;
-
-        let destructure_feedback_msg = Box::new(|msg: WrappedNativeMsgUntyped| {
-            let msg = unsafe {
-                T::FeedbackMessage::from_native(
-                    &*(msg.msg as *const <T::FeedbackMessage as WrappedTypesupport>::CStruct),
-                )
-            };
-            let (uuid, feedback) = T::destructure_feedback_msg(msg);
-            let json = serde_json::to_value(feedback).map_err(|serde_err| Error::SerdeError {
-                err: serde_err.to_string(),
-            });
-            (uuid, json)
-        });
-
-        let make_result_request_msg = Box::new(|uuid_msg: unique_identifier_msgs::msg::UUID| {
-            let request_msg = T::make_result_request_msg(uuid_msg);
-            let json =
-                serde_json::to_value(request_msg).map_err(|serde_err| Error::SerdeError {
-                    err: serde_err.to_string(),
-                })?;
-
-            let mut native_untyped = WrappedNativeMsgUntyped::try_new::<
-                <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
-            >()?;
-
-            native_untyped.from_json(json)?;
-            Ok(native_untyped)
-        });
-
-        let make_result_response_msg = Box::new(|| {
-            WrappedNativeMsgUntyped::try_new::<
-                <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
-            >()
-        });
-
-        let destructure_result_response_msg = Box::new(|msg: WrappedNativeMsgUntyped| {
-            let msg = unsafe {
-                <<<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response>
-                 ::from_native(&*(msg.msg as *const <<<T as WrappedActionTypeSupport>::GetResult as
-                                                      WrappedServiceTypeSupport>::Response as WrappedTypesupport>::CStruct))
-            };
-            let (status, result) = T::destructure_result_response_msg(msg);
-            let json = serde_json::to_value(result).map_err(|serde_err| Error::SerdeError {
-                err: serde_err.to_string(),
-            });
-            (status, json)
-        });
-
         UntypedActionSupport {
             ts: T::get_ts(),
             create_server: crate::action_servers::create_action_server_untyped_for::<T>,
-            make_goal_request_msg,
-            make_goal_response_msg,
-            destructure_goal_response_msg,
-            make_feedback_msg,
-            destructure_feedback_msg,
-            make_result_request_msg,
-            make_result_response_msg,
-            destructure_result_response_msg,
-            // destructure_goal_response_msg,
-            // make_request_msg,
-            // make_response_msg,
+            make_goal_request_msg: make_action_goal_request::<T>,
+            make_goal_response_msg: make_action_goal_response::<T>,
+            destructure_goal_response_msg: destructure_action_goal_response::<T>,
+            make_feedback_msg: WrappedNativeMsgUntyped::try_new::<T::FeedbackMessage>,
+            destructure_feedback_msg: destructure_action_feedback::<T>,
+            make_result_request_msg: make_action_result_request::<T>,
+            make_result_response_msg: make_action_result_response::<T>,
+            destructure_result_response_msg: destructure_action_result_response::<T>,
         }
     }
 }
 
 impl WrappedNativeMsgUntyped {
+    fn try_from_typed<T>(msg: &T) -> Result<Self>
+    where
+        T: WrappedTypesupport,
+    {
+        let native = Self::try_new::<T>()?;
+        unsafe { msg.try_copy_to_native(&mut *(native.msg as *mut T::CStruct))? };
+        Ok(native)
+    }
+
     #[allow(dead_code)] // Used by checked-in doc-only bindings generated by older releases.
     fn new<T>() -> Self
     where
@@ -1093,15 +1096,50 @@ mod tests {
         use example_interfaces::action::Fibonacci;
 
         let ts = UntypedActionSupport::new_from("example_interfaces/action/Fibonacci").unwrap();
-        let uuid = unique_identifier_msgs::msg::UUID::default();
+        let uuid = unique_identifier_msgs::msg::UUID { uuid: vec![7; 16] };
         let goal = Fibonacci::Goal { order: 5 };
         let json_goal = serde_json::to_value(&goal).unwrap();
-        let json_request = (ts.make_goal_request_msg)(uuid, json_goal)
+        let json_request = (ts.make_goal_request_msg)(uuid.clone(), json_goal)
             .unwrap()
             .to_json()
             .unwrap();
-        // the message should contain something (default msg)
-        assert!(!json_request.to_string().is_empty());
+        let typed_request = Fibonacci::Action::make_goal_request_msg(uuid.clone(), goal);
+        assert_eq!(json_request, serde_json::to_value(typed_request).unwrap());
+
+        let json_result_request = (ts.make_result_request_msg)(uuid.clone())
+            .unwrap()
+            .to_json()
+            .unwrap();
+        let typed_result_request = Fibonacci::Action::make_result_request_msg(uuid);
+        assert_eq!(json_result_request, serde_json::to_value(typed_result_request).unwrap());
+    }
+
+    #[cfg(r2r__example_interfaces__action__Fibonacci)]
+    #[test]
+    #[ignore = "manual microbenchmark; run with --release --ignored --nocapture"]
+    fn benchmark_untyped_action_goal_request_conversion() {
+        let iterations = std::env::var("R2R_BENCH_ITERATIONS")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .unwrap_or(200_000);
+        let ts = UntypedActionSupport::new_from("example_interfaces/action/Fibonacci").unwrap();
+        let uuid = unique_identifier_msgs::msg::UUID { uuid: vec![7; 16] };
+        let goal = serde_json::json!({ "order": 21 });
+        let start = std::time::Instant::now();
+        for _ in 0..iterations {
+            let native = (ts.make_goal_request_msg)(
+                std::hint::black_box(uuid.clone()),
+                std::hint::black_box(goal.clone()),
+            )
+            .unwrap();
+            std::hint::black_box(native);
+        }
+        let elapsed = start.elapsed();
+        eprintln!(
+            "untyped_action_goal_request: iterations={iterations} elapsed_ns={} ns_per_op={:.2}",
+            elapsed.as_nanos(),
+            elapsed.as_nanos() as f64 / iterations as f64
+        );
     }
 
     #[cfg(r2r__example_interfaces__action__Fibonacci)]
