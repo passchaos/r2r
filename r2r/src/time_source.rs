@@ -242,6 +242,19 @@ impl TimeSource_ {
         }
     }
 
+    fn subscriber_should_remove_after_take(&mut self) -> bool {
+        match self.subscriber_state {
+            TimeSourceSubscriberState::Active => false,
+            TimeSourceSubscriberState::ToBeDestroyed => {
+                self.subscriber_state = TimeSourceSubscriberState::None;
+                true
+            }
+            // A subscriber whose state was already consumed is stale. Remove it idempotently
+            // instead of turning an internal lifecycle mismatch into a process panic.
+            TimeSourceSubscriberState::None => true,
+        }
+    }
+
     // this is similar to internal rclcpp function `set_all_clocks` in `time_source.cpp`
     fn set_clock_time(&mut self, time_msg: Time) {
         let time = time_msg.into();
@@ -308,18 +321,7 @@ impl Subscriber_ for TimeSourceSubscriber {
                 .set_clock_time(rosgraph_msgs::msg::Clock::from_native(&clock_msg).clock);
         }
 
-        Ok(match inner_time_source.subscriber_state {
-            TimeSourceSubscriberState::Active => {
-                // keep the subscriber
-                false
-            }
-            TimeSourceSubscriberState::ToBeDestroyed => {
-                inner_time_source.subscriber_state = TimeSourceSubscriberState::None;
-                // destroy the subscriber
-                true
-            }
-            TimeSourceSubscriberState::None => unreachable!(),
-        })
+        Ok(inner_time_source.subscriber_should_remove_after_take())
     }
 
     fn destroy(&mut self, node: &mut rcl_node_t) {
@@ -341,6 +343,22 @@ mod tests {
         assert!(inner.take_subscriber_destruction_request());
         assert!(matches!(inner.subscriber_state, TimeSourceSubscriberState::None));
         assert!(!inner.take_subscriber_destruction_request());
+    }
+
+    #[test]
+    fn subscriber_post_take_state_is_panic_free_and_idempotent() {
+        let mut inner = TimeSource_::new();
+        assert!(inner.subscriber_should_remove_after_take());
+        assert!(matches!(inner.subscriber_state, TimeSourceSubscriberState::None));
+
+        inner.subscriber_state = TimeSourceSubscriberState::Active;
+        assert!(!inner.subscriber_should_remove_after_take());
+        assert!(matches!(inner.subscriber_state, TimeSourceSubscriberState::Active));
+
+        inner.subscriber_state = TimeSourceSubscriberState::ToBeDestroyed;
+        assert!(inner.subscriber_should_remove_after_take());
+        assert!(matches!(inner.subscriber_state, TimeSourceSubscriberState::None));
+        assert!(inner.subscriber_should_remove_after_take());
     }
 
     #[test]
