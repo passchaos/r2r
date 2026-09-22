@@ -625,7 +625,7 @@ where
                 });
                 client
                     .goal_response_channels
-                    .push((seq_no, uuid, goal_req_sender));
+                    .insert(seq_no, (uuid, goal_req_sender));
                 client.goal_status.insert(uuid, GoalStatus::Unknown);
                 let mut pending_registration = PendingGoalRegistration {
                     client: fut_client.clone(),
@@ -717,7 +717,7 @@ where
     }
 }
 
-type GoalResponseSender = oneshot::Sender<(bool, builtin_interfaces::msg::Time)>;
+type GoalResponseSender = (uuid::Uuid, oneshot::Sender<(bool, builtin_interfaces::msg::Time)>);
 
 pub fn make_action_client<T>(client: Weak<Mutex<WrappedActionClient<T>>>) -> ActionClient<T>
 where
@@ -732,11 +732,11 @@ where
     T: WrappedActionTypeSupport,
 {
     pub rcl_handle: rcl_action_client_t,
-    pub goal_response_channels: Vec<(i64, uuid::Uuid, GoalResponseSender)>,
+    pub goal_response_channels: HashMap<i64, GoalResponseSender>,
     pub cancel_response_channels:
-        Vec<(i64, oneshot::Sender<action_msgs::srv::CancelGoal::Response>)>,
+        HashMap<i64, oneshot::Sender<action_msgs::srv::CancelGoal::Response>>,
     pub feedback_senders: Vec<FeedbackSender<T::Feedback>>,
-    pub result_requests: Vec<(i64, uuid::Uuid)>,
+    pub result_requests: HashMap<i64, uuid::Uuid>,
     pub result_senders: Vec<ResultSender<T::Result>>,
     pub goal_status: HashMap<uuid::Uuid, GoalStatus>,
     pub feedback_channel_capacity: usize,
@@ -786,10 +786,18 @@ where
 
     fn forget_goal(&mut self, uuid: &uuid::Uuid) -> Vec<ActionClientCompletion> {
         let mut completions = Vec::new();
-        let (removed, retained) = std::mem::take(&mut self.goal_response_channels)
+        let removed = self
+            .goal_response_channels
+            .iter()
+            .filter_map(|(sequence, (id, _))| (id == uuid).then_some(*sequence))
+            .collect::<Vec<_>>()
             .into_iter()
-            .partition(|(_, id, _)| id == uuid);
-        self.goal_response_channels = retained;
+            .filter_map(|sequence| {
+                self.goal_response_channels
+                    .remove(&sequence)
+                    .map(|(_, sender)| sender)
+            })
+            .collect::<Vec<_>>();
         if !removed.is_empty() {
             completions.push(drop_action_client_resources_completion(removed));
         }
@@ -803,14 +811,14 @@ where
         if !removed.is_empty() {
             completions.push(drop_action_client_resources_completion(removed));
         }
-        self.result_requests.retain(|(_, id)| id != uuid);
+        self.result_requests.retain(|_, id| id != uuid);
         self.goal_status.remove(uuid);
         completions
     }
 
     fn forget_result(&mut self, uuid: &uuid::Uuid) -> Option<ActionClientCompletion> {
         self.result_senders.retain(|(id, _)| id != uuid);
-        self.result_requests.retain(|(_, id)| id != uuid);
+        self.result_requests.retain(|_, id| id != uuid);
         if self.get_goal_status(uuid).is_terminal() {
             return self
                 .take_feedback_sender(uuid)
@@ -826,7 +834,7 @@ where
             .take_feedback_sender(uuid)
             .map(|(_, channel)| close_feedback_completion(channel));
         self.result_senders.retain(|(id, _)| id != uuid);
-        self.result_requests.retain(|(_, id)| id != uuid);
+        self.result_requests.retain(|_, id| id != uuid);
         if let Some(tracked_status) = self.goal_status.get_mut(uuid) {
             *tracked_status = status;
         }
@@ -838,15 +846,15 @@ where
         let canceled_goals: Vec<_> = self
             .goal_response_channels
             .iter()
-            .filter_map(|(_, uuid, sender)| sender.is_canceled().then_some(*uuid))
+            .filter_map(|(_, (uuid, sender))| sender.is_canceled().then_some(*uuid))
             .collect();
         self.goal_response_channels
-            .retain(|(_, _, sender)| !sender.is_canceled());
+            .retain(|_, (_, sender)| !sender.is_canceled());
         for uuid in canceled_goals {
             completions.extend(self.forget_goal(&uuid));
         }
         self.cancel_response_channels
-            .retain(|(_, sender)| !sender.is_canceled());
+            .retain(|_, sender| !sender.is_canceled());
         self.feedback_senders
             .retain(|(_, channel)| !channel.lock().is_closed());
         let canceled_results: Vec<_> = self
@@ -878,7 +886,7 @@ where
     ) -> (Result<()>, Vec<ActionClientCompletion>) {
         match result {
             Ok(seq_no) => {
-                self.result_requests.push((seq_no, uuid));
+                self.result_requests.insert(seq_no, uuid);
                 (Ok(()), Vec::new())
             }
             Err(err) => (Err(err), self.forget_goal(&uuid)),
@@ -898,7 +906,7 @@ where
                 oneshot::channel::<action_msgs::srv::CancelGoal::Response>();
 
             self.cancel_response_channels
-                .push((seq_no, cancel_req_sender));
+                .insert(seq_no, cancel_req_sender);
             Ok(cancel_response_future(cancel_req_receiver))
         } else {
             log::error!("could not send goal request {}", result);
@@ -957,12 +965,10 @@ where
         };
         if action_client_take_succeeded(ret)? {
             let request_id = unsafe { request_id.assume_init() };
-            if let Some(idx) = self
+            if let Some((uuid, sender)) = self
                 .goal_response_channels
-                .iter()
-                .position(|(id, _, _)| id == &request_id.sequence_number)
+                .remove(&request_id.sequence_number)
             {
-                let (_, uuid, sender) = self.goal_response_channels.swap_remove(idx);
                 let response = <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response::from_native(&response_msg);
                 let (accept, stamp) = T::destructure_goal_response_msg(response);
                 if !accept {
@@ -977,8 +983,8 @@ where
             } else {
                 let we_have: String = self
                     .goal_response_channels
-                    .iter()
-                    .map(|(id, _, _)| id.to_string())
+                    .keys()
+                    .map(i64::to_string)
                     .collect::<Vec<_>>()
                     .join(",");
                 log::error!(
@@ -1009,12 +1015,10 @@ where
         };
         if action_client_take_succeeded(ret)? {
             let request_id = unsafe { request_id.assume_init() };
-            if let Some(idx) = self
+            if let Some(sender) = self
                 .cancel_response_channels
-                .iter()
-                .position(|(id, _)| id == &request_id.sequence_number)
+                .remove(&request_id.sequence_number)
             {
-                let (_, sender) = self.cancel_response_channels.swap_remove(idx);
                 completions.push(action_response_conversion_completion(
                     sender,
                     response_msg,
@@ -1027,8 +1031,8 @@ where
             } else {
                 let we_have: String = self
                     .cancel_response_channels
-                    .iter()
-                    .map(|(id, _)| id.to_string())
+                    .keys()
+                    .map(i64::to_string)
                     .collect::<Vec<_>>()
                     .join(",");
                 log::error!(
@@ -1115,12 +1119,7 @@ where
 
         if action_client_take_succeeded(ret)? {
             let request_id = unsafe { request_id.assume_init() };
-            if let Some(idx) = self
-                .result_requests
-                .iter()
-                .position(|(id, _)| id == &request_id.sequence_number)
-            {
-                let (_, uuid) = self.result_requests.swap_remove(idx);
+            if let Some(uuid) = self.result_requests.remove(&request_id.sequence_number) {
                 if let Some(idx) = self
                     .result_senders
                     .iter()
@@ -1142,8 +1141,8 @@ where
             } else {
                 let we_have: String = self
                     .result_requests
-                    .iter()
-                    .map(|(id, _)| id.to_string())
+                    .keys()
+                    .map(i64::to_string)
                     .collect::<Vec<_>>()
                     .join(",");
                 log::error!(
@@ -1181,7 +1180,7 @@ where
     fn has_pending_work(&mut self) -> bool {
         self.goal_response_channels
             .iter()
-            .any(|(_, _, sender)| !sender.is_canceled())
+            .any(|(_, (_, sender))| !sender.is_canceled())
             || self
                 .cancel_response_channels
                 .iter()
@@ -1512,6 +1511,25 @@ mod tests {
     }
 
     #[test]
+    fn action_response_indexes_support_out_of_order_lookup() {
+        let entries = (0..128_i64)
+            .map(|sequence| {
+                let uuid = uuid::Uuid::from_u128(sequence as u128 + 1);
+                let (sender, _receiver) =
+                    oneshot::channel::<(bool, builtin_interfaces::msg::Time)>();
+                (sequence, (uuid, sender))
+            })
+            .collect::<HashMap<_, _>>();
+        let mut entries = entries;
+
+        for sequence in (0..128_i64).rev() {
+            let (uuid, _sender) = entries.remove(&sequence).unwrap();
+            assert_eq!(uuid, uuid::Uuid::from_u128(sequence as u128 + 1));
+        }
+        assert!(entries.is_empty());
+    }
+
+    #[test]
     fn action_feedback_batches_stop_at_idle_and_fairness_limit() {
         let client = Mutex::new(0usize);
         let calls = std::cell::Cell::new(0);
@@ -1631,13 +1649,13 @@ mod tests {
         let (result_sender, mut result_receiver) = oneshot::channel();
         let client = Arc::new(Mutex::new(WrappedActionClient::<Fibonacci::Action> {
             rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
-            goal_response_channels: Vec::new(),
-            cancel_response_channels: Vec::new(),
+            goal_response_channels: HashMap::new(),
+            cancel_response_channels: HashMap::new(),
             feedback_senders: vec![(
                 target,
                 Arc::new(Mutex::new(FeedbackChannel::new(feedback_sender))),
             )],
-            result_requests: vec![(1, target)],
+            result_requests: HashMap::from([(1, target)]),
             result_senders: vec![(target, result_sender)],
             goal_status: HashMap::from([(target, GoalStatus::Accepted)]),
             feedback_channel_capacity: 0,
@@ -1680,8 +1698,8 @@ mod tests {
         let (result_sender, _result_receiver) = oneshot::channel();
         let client = Mutex::new(WrappedActionClient::<Fibonacci::Action> {
             rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
-            goal_response_channels: Vec::new(),
-            cancel_response_channels: Vec::new(),
+            goal_response_channels: HashMap::new(),
+            cancel_response_channels: HashMap::new(),
             feedback_senders: vec![(
                 target,
                 Arc::new(Mutex::new(FeedbackChannel {
@@ -1690,7 +1708,7 @@ mod tests {
                     closing: false,
                 })),
             )],
-            result_requests: vec![(1, target)],
+            result_requests: HashMap::from([(1, target)]),
             result_senders: vec![(target, result_sender)],
             goal_status: HashMap::from([(target, GoalStatus::Accepted)]),
             feedback_channel_capacity: 1,
@@ -1817,8 +1835,8 @@ mod tests {
         let (other_result, _) = oneshot::channel();
         let mut client = WrappedActionClient::<Fibonacci::Action> {
             rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
-            goal_response_channels: Vec::new(),
-            cancel_response_channels: Vec::new(),
+            goal_response_channels: HashMap::new(),
+            cancel_response_channels: HashMap::new(),
             feedback_senders: vec![
                 (
                     target,
@@ -1830,7 +1848,7 @@ mod tests {
                 ),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),
             ],
-            result_requests: vec![(10, target), (11, other)],
+            result_requests: HashMap::from([(10, target), (11, other)]),
             result_senders: vec![(target, target_result), (other, other_result)],
             goal_status: HashMap::from([
                 (target, GoalStatus::Accepted),
@@ -1881,8 +1899,8 @@ mod tests {
         let client = Arc::new(Mutex::new(WrappedActionClient::<Fibonacci::Action> {
             rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
             // The target response has already been delivered, so only the other request remains.
-            goal_response_channels: vec![(12, other, other_goal)],
-            cancel_response_channels: Vec::new(),
+            goal_response_channels: HashMap::from([(12, (other, other_goal))]),
+            cancel_response_channels: HashMap::new(),
             feedback_senders: vec![
                 (
                     target,
@@ -1894,7 +1912,7 @@ mod tests {
                 ),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),
             ],
-            result_requests: Vec::new(),
+            result_requests: HashMap::new(),
             result_senders: vec![(target, target_result), (other, other_result)],
             goal_status: HashMap::from([
                 (target, GoalStatus::Accepted),
