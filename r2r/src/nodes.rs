@@ -540,7 +540,9 @@ pub struct Node {
     canceled_services: Arc<Mutex<VecDeque<uuid::Uuid>>>,
     // service clients
     clients: Vec<Arc<Mutex<dyn Client_>>>,
-    client_identities: HashSet<usize>,
+    client_identities: HashMap<usize, usize>,
+    dropped_clients: Arc<Mutex<VecDeque<usize>>>,
+    pending_client_removals: HashSet<usize>,
     // action clients
     action_clients: Vec<Arc<Mutex<dyn ActionClient_>>>,
     action_client_identities: HashSet<usize>,
@@ -819,12 +821,25 @@ impl Node {
         Arc::as_ptr(client).cast::<()>() as usize
     }
 
-    fn rebuild_client_identities(
-        clients: &[Arc<Mutex<dyn Client_>>], identities: &mut HashSet<usize>,
-    ) {
-        identities.clear();
-        identities.reserve(clients.len());
-        identities.extend(clients.iter().map(Self::client_identity));
+    fn remove_client(&mut self, identity: usize) -> bool {
+        let Some(index) = self.client_identities.get(&identity).copied() else {
+            return true;
+        };
+        let client = &self.clients[index];
+        let mut handle = client.lock();
+        if handle.has_pending_work() {
+            return false;
+        }
+        handle.destroy(self.node_handle.as_mut());
+        drop(handle);
+
+        self.client_identities.remove(&identity);
+        self.clients.swap_remove(index);
+        if let Some(moved) = self.clients.get(index) {
+            self.client_identities
+                .insert(Self::client_identity(moved), index);
+        }
+        true
     }
 
     fn action_client_identity<T: ?Sized>(client: &Arc<Mutex<T>>) -> usize {
@@ -881,7 +896,7 @@ impl Node {
         T: Client_ + ?Sized,
     {
         self.client_identities
-            .contains(&Self::client_identity(client))
+            .contains_key(&Self::client_identity(client))
     }
 
     pub(crate) fn owns_action_client<T>(&self, client: &Arc<Mutex<T>>) -> bool
@@ -1114,7 +1129,9 @@ impl Node {
                 service_indexes: HashMap::new(),
                 canceled_services: Arc::new(Mutex::new(VecDeque::new())),
                 clients: Vec::new(),
-                client_identities: HashSet::new(),
+                client_identities: HashMap::new(),
+                dropped_clients: Arc::new(Mutex::new(VecDeque::new())),
+                pending_client_removals: HashSet::new(),
                 action_clients: Vec::new(),
                 action_client_identities: HashSet::new(),
                 action_servers: Vec::new(),
@@ -2796,9 +2813,10 @@ impl Node {
         };
 
         let client_arc = Arc::new(Mutex::new(ws));
-        let c = make_client(Arc::downgrade(&client_arc));
-        self.client_identities
-            .insert(Self::client_identity(&client_arc));
+        let identity = Self::client_identity(&client_arc);
+        let c =
+            make_client(Arc::downgrade(&client_arc), identity, Arc::clone(&self.dropped_clients));
+        self.client_identities.insert(identity, self.clients.len());
         self.clients.push(client_arc);
         Ok(c)
     }
@@ -2855,9 +2873,13 @@ impl Node {
         };
 
         let client_arc = Arc::new(Mutex::new(client));
-        let c = make_untyped_client(Arc::downgrade(&client_arc));
-        self.client_identities
-            .insert(Self::client_identity(&client_arc));
+        let identity = Self::client_identity(&client_arc);
+        let c = make_untyped_client(
+            Arc::downgrade(&client_arc),
+            identity,
+            Arc::clone(&self.dropped_clients),
+        );
+        self.client_identities.insert(identity, self.clients.len());
         self.clients.push(client_arc);
         Ok(c)
     }
@@ -3290,22 +3312,15 @@ impl Node {
             Self::remove_service(&mut self.services, &mut self.service_indexes, id, node_handle);
         }
 
-        // Public clients only keep weak references to their native state. Retain a client while
-        // any request or availability future is still live, then release it once both the public
-        // handle and all asynchronous work have gone away.
-        let node_handle = self.node_handle.as_mut();
-        let previous_client_count = self.clients.len();
-        self.clients.retain(|client| {
-            let mut handle = client.lock();
-            if Arc::weak_count(client) == 0 && !handle.has_pending_work() {
-                handle.destroy(node_handle);
-                false
-            } else {
-                true
+        {
+            let mut dropped = self.dropped_clients.lock();
+            self.pending_client_removals.extend(dropped.drain(..));
+        }
+        let pending_client_removals = std::mem::take(&mut self.pending_client_removals);
+        for identity in pending_client_removals {
+            if !self.remove_client(identity) {
+                self.pending_client_removals.insert(identity);
             }
-        });
-        if self.clients.len() != previous_client_count {
-            Self::rebuild_client_identities(&self.clients, &mut self.client_identities);
         }
 
         // A publisher handle is represented by a Weak reference, while the node owns the native
@@ -10287,13 +10302,16 @@ mod tests {
         let availability = Node::is_available(&client).unwrap();
 
         drop(client);
+        assert_eq!(node.dropped_clients.lock().len(), 1);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert_eq!(node.clients.len(), 1);
+        assert_eq!(node.pending_client_removals.len(), 1);
 
         drop(availability);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.clients.is_empty());
         assert!(node.client_identities.is_empty());
+        assert!(node.pending_client_removals.is_empty());
 
         let untyped = node
             .create_client_untyped(
@@ -10368,6 +10386,9 @@ mod tests {
 
         assert_eq!(node.clients.len(), 2);
         assert_eq!(node.client_identities.len(), 2);
+        for (identity, index) in &node.client_identities {
+            assert_eq!(Node::client_identity(&node.clients[*index]), *identity);
+        }
         assert!(!first.is_available(&node).unwrap());
         assert!(!last.is_available(&node).unwrap());
         assert!(matches!(last.is_available(&other), Err(Error::RCL_RET_INVALID_ARGUMENT)));

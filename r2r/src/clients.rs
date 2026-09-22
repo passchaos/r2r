@@ -1,7 +1,7 @@
 use futures::channel::oneshot;
 use parking_lot::Mutex;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     ffi::{CStr, CString},
     fmt::Debug,
     future::Future,
@@ -155,6 +155,18 @@ where
     T: WrappedServiceTypeSupport,
 {
     client: Weak<Mutex<TypedClient<T>>>,
+    lifecycle: Arc<ClientHandleLifecycle>,
+}
+
+pub(crate) struct ClientHandleLifecycle {
+    identity: usize,
+    dropped_clients: Arc<Mutex<VecDeque<usize>>>,
+}
+
+impl Drop for ClientHandleLifecycle {
+    fn drop(&mut self) {
+        self.dropped_clients.lock().push_back(self.identity);
+    }
 }
 
 impl<T> Clone for Client<T>
@@ -164,6 +176,7 @@ where
     fn clone(&self) -> Self {
         Self {
             client: self.client.clone(),
+            lifecycle: Arc::clone(&self.lifecycle),
         }
     }
 }
@@ -239,9 +252,18 @@ where
 ///
 /// This is a handle to a service client wrapped in a `Mutex` inside a
 /// `Weak` `Arc`. As such you can pass it between threads safely.
-#[derive(Clone)]
 pub struct ClientUntyped {
     client: Weak<Mutex<UntypedClient_>>,
+    lifecycle: Arc<ClientHandleLifecycle>,
+}
+
+impl Clone for ClientUntyped {
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+            lifecycle: Arc::clone(&self.lifecycle),
+        }
+    }
 }
 
 impl ClientUntyped {
@@ -338,15 +360,33 @@ fn client_response_subscription_actual_qos(handle: &rcl_client_t) -> Result<QosP
     QosProfile::try_from(qos)
 }
 
-pub fn make_client<T>(client: Weak<Mutex<TypedClient<T>>>) -> Client<T>
+pub(crate) fn make_client<T>(
+    client: Weak<Mutex<TypedClient<T>>>, identity: usize,
+    dropped_clients: Arc<Mutex<VecDeque<usize>>>,
+) -> Client<T>
 where
     T: WrappedServiceTypeSupport,
 {
-    Client { client }
+    Client {
+        client,
+        lifecycle: Arc::new(ClientHandleLifecycle {
+            identity,
+            dropped_clients,
+        }),
+    }
 }
 
-pub fn make_untyped_client(client: Weak<Mutex<UntypedClient_>>) -> ClientUntyped {
-    ClientUntyped { client }
+pub(crate) fn make_untyped_client(
+    client: Weak<Mutex<UntypedClient_>>, identity: usize,
+    dropped_clients: Arc<Mutex<VecDeque<usize>>>,
+) -> ClientUntyped {
+    ClientUntyped {
+        client,
+        lifecycle: Arc::new(ClientHandleLifecycle {
+            identity,
+            dropped_clients,
+        }),
+    }
 }
 
 unsafe impl<T> Send for TypedClient<T> where T: WrappedServiceTypeSupport {}
@@ -677,6 +717,25 @@ mod tests {
     fn service_client_handles_are_cloneable() {
         assert_clone::<Client<AddTwoInts::Service>>();
         assert_clone::<ClientUntyped>();
+    }
+
+    #[test]
+    fn final_client_handle_drop_queues_its_identity_once() {
+        let dropped_clients = Arc::new(Mutex::new(VecDeque::new()));
+        let client = Arc::new(Mutex::new(TypedClient::<AddTwoInts::Service> {
+            rcl_handle: unsafe { rcl_get_zero_initialized_client() },
+            response_channels: HashMap::new(),
+            poll_available_channels: AvailabilityWaiters::default(),
+        }));
+        let identity = Arc::as_ptr(&client).cast::<()>() as usize;
+        let handle = make_client(Arc::downgrade(&client), identity, Arc::clone(&dropped_clients));
+        let clone = handle.clone();
+
+        drop(handle);
+        assert!(dropped_clients.lock().is_empty());
+        drop(clone);
+
+        assert_eq!(dropped_clients.lock().iter().copied().collect::<Vec<_>>(), [identity]);
     }
 
     #[test]
