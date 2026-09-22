@@ -2879,7 +2879,7 @@ impl Node {
         for a in &mut self.action_servers {
             complete_action_server_operation(a, |server, completions| {
                 completions.extend(server.take_pending_cancel_delivery(a.clone()));
-                server.send_completed_cancel_requests()?;
+                server.send_completed_cancel_requests(a.clone(), completions)?;
                 Ok(())
             })?;
         }

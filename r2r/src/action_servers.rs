@@ -55,6 +55,21 @@ fn finish_action_server_operation(
     first_error.map_or(Ok(()), Err)
 }
 
+fn action_server_response_completion<S, N, M>(
+    server: Arc<Mutex<S>>, native: N, convert: impl FnOnce(N) -> Result<M> + 'static,
+    send: impl FnOnce(&mut S, M) -> Result<()> + 'static,
+) -> ActionServerCompletion
+where
+    S: ?Sized + 'static,
+    N: 'static,
+    M: 'static,
+{
+    Box::new(move || {
+        let message = convert(native)?;
+        send(&mut *server.lock(), message)
+    })
+}
+
 pub(crate) fn complete_action_server_operation<S: ?Sized>(
     server: &Mutex<S>,
     operation: impl FnOnce(&mut S, &mut Vec<ActionServerCompletion>) -> Result<()>,
@@ -194,7 +209,10 @@ pub trait ActionServer_ {
     ) -> Option<ActionServerCompletion>;
     fn finish_cancel_delivery(&mut self, pending: PendingCancelRequest);
     fn has_pending_cancel_delivery(&self) -> bool;
-    fn send_completed_cancel_requests(&mut self) -> Result<()>;
+    fn send_completed_cancel_requests(
+        &mut self, server: Arc<Mutex<dyn ActionServer_>>,
+        completions: &mut Vec<ActionServerCompletion>,
+    ) -> Result<()>;
     fn handle_cancel_request(
         &mut self, server: Arc<Mutex<dyn ActionServer_>>,
     ) -> Result<ActionServerDeliveryAction>;
@@ -1060,7 +1078,10 @@ where
         }
     }
 
-    fn send_completed_cancel_requests(&mut self) -> Result<()> {
+    fn send_completed_cancel_requests(
+        &mut self, server: Arc<Mutex<dyn ActionServer_>>,
+        completions: &mut Vec<ActionServerCompletion>,
+    ) -> Result<()> {
         let mut canceled = vec![];
         let mut responses = vec![];
         let mut first_error = None;
@@ -1104,31 +1125,33 @@ where
             }
         }
 
-        // send out responses
-        for (mut request_id, response_msg) in responses {
-            // send out response msg.
-            let mut native_msg =
-                match WrappedNativeMsg::<action_msgs::srv::CancelGoal::Response>::try_from(
-                    &response_msg,
-                ) {
-                    Ok(message) => message,
-                    Err(err) => {
-                        first_error.get_or_insert(err);
-                        continue;
+        completions.extend(responses.into_iter().map(|response| {
+            action_server_response_completion(
+                Arc::clone(&server),
+                response,
+                |(request_id, response)| {
+                    let native =
+                        WrappedNativeMsg::<action_msgs::srv::CancelGoal::Response>::try_from(
+                            &response,
+                        )?;
+                    Ok((request_id, native))
+                },
+                |server, (mut request_id, mut native)| {
+                    let ret = unsafe {
+                        rcl_action_send_cancel_response(
+                            server.handle(),
+                            &mut request_id,
+                            native.void_ptr_mut(),
+                        )
+                    };
+                    if ret == RCL_RET_OK as i32 {
+                        Ok(())
+                    } else {
+                        Err(Error::from_rcl_error(ret))
                     }
-                };
-            let ret = unsafe {
-                rcl_action_send_cancel_response(
-                    &self.rcl_handle,
-                    &mut request_id,
-                    native_msg.void_ptr_mut(),
-                )
-            };
-
-            if ret != RCL_RET_OK as i32 {
-                first_error.get_or_insert_with(|| Error::from_rcl_error(ret));
-            }
-        }
+                },
+            )
+        }));
         first_error.map_or(Ok(()), Err)
     }
 
@@ -1925,7 +1948,10 @@ mod tests {
             unreachable!()
         }
 
-        fn send_completed_cancel_requests(&mut self) -> Result<()> {
+        fn send_completed_cancel_requests(
+            &mut self, _server: Arc<Mutex<dyn ActionServer_>>,
+            _completions: &mut Vec<ActionServerCompletion>,
+        ) -> Result<()> {
             unreachable!()
         }
 
@@ -2353,6 +2379,54 @@ mod tests {
         assert!(matches!(result, Err(Error::RCL_RET_ERROR)));
         assert!(sender.lock().is_some());
         assert_eq!(receiver.next().now_or_never().flatten(), Some(42));
+    }
+
+    #[test]
+    fn action_server_responses_are_converted_after_releasing_the_server_lock() {
+        let server = Arc::new(Mutex::new(0usize));
+        let server_for_conversion = Arc::clone(&server);
+        let server_for_completion = Arc::clone(&server);
+
+        complete_action_server_operation(&*server, move |_, completions| {
+            completions.push(action_server_response_completion(
+                server_for_completion,
+                41,
+                move |value| {
+                    assert!(server_for_conversion.try_lock().is_some());
+                    Ok(value + 1)
+                },
+                |server, value| {
+                    *server = value;
+                    Ok(())
+                },
+            ));
+            Ok(())
+        })
+        .unwrap();
+
+        assert_eq!(*server.lock(), 42);
+    }
+
+    #[test]
+    fn failed_action_server_response_conversion_skips_send() {
+        let server = Arc::new(Mutex::new(0usize));
+        let server_for_completion = Arc::clone(&server);
+
+        let result = complete_action_server_operation(&*server, move |_, completions| {
+            completions.push(action_server_response_completion(
+                server_for_completion,
+                (),
+                |_| Err::<usize, _>(Error::RCL_RET_BAD_ALLOC),
+                |server, value| {
+                    *server = value;
+                    Ok(())
+                },
+            ));
+            Ok(())
+        });
+
+        assert!(matches!(result, Err(Error::RCL_RET_BAD_ALLOC)));
+        assert_eq!(*server.lock(), 0);
     }
 
     #[test]
