@@ -3233,7 +3233,7 @@ impl Node {
                     server.handle_result_request()?;
                 }
                 if is_goal_expired {
-                    server.handle_goal_expired()?;
+                    server.handle_goal_expired(completions)?;
                 }
                 Ok(())
             })?;

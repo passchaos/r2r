@@ -29,6 +29,18 @@ use r2r_rcl::*;
 
 pub(crate) type ActionServerCompletion = Box<dyn FnOnce() -> Result<()>>;
 
+fn finish_action_server_operation(
+    operation_result: Result<()>, completions: Vec<ActionServerCompletion>,
+) -> Result<()> {
+    let mut first_error = operation_result.err();
+    for completion in completions {
+        if let Err(err) = completion() {
+            first_error.get_or_insert(err);
+        }
+    }
+    first_error.map_or(Ok(()), Err)
+}
+
 pub(crate) fn complete_action_server_operation<S: ?Sized>(
     server: &Mutex<S>,
     operation: impl FnOnce(&mut S, &mut Vec<ActionServerCompletion>) -> Result<()>,
@@ -38,13 +50,7 @@ pub(crate) fn complete_action_server_operation<S: ?Sized>(
         let mut server = server.lock();
         operation(&mut *server, &mut completions)
     };
-    let mut first_error = operation_result.err();
-    for completion in completions {
-        if let Err(err) = completion() {
-            first_error.get_or_insert(err);
-        }
-    }
-    first_error.map_or(Ok(()), Err)
+    finish_action_server_operation(operation_result, completions)
 }
 
 fn request_delivery<T: Send + 'static>(
@@ -61,6 +67,17 @@ fn request_delivery<T: Send + 'static>(
     })
 }
 
+fn sender_drop_completion<T: Send + 'static>(
+    sender_slot: Arc<Mutex<Option<mpsc::Sender<T>>>>,
+) -> ActionServerCompletion {
+    let sender = sender_slot.lock().take();
+    Box::new(move || {
+        drop(sender);
+        drop(sender_slot);
+        Ok(())
+    })
+}
+
 fn with_prepared_action_server<S: ?Sized, P, T>(
     server: &Mutex<S>, prepare: impl FnOnce() -> Result<P>,
     operation: impl FnOnce(&mut S, P) -> Result<T>,
@@ -74,6 +91,7 @@ pub trait ActionServer_ {
     fn handle_mut(&mut self) -> &mut rcl_action_server_t;
     fn reject_goal_request(
         &mut self, uuid: &uuid::Uuid, request_id: &mut rmw_request_id_t,
+        completions: &mut Vec<ActionServerCompletion>,
     ) -> Result<()>;
     fn handle_goal_request(
         &mut self, server: Arc<Mutex<dyn ActionServer_>>,
@@ -87,7 +105,7 @@ pub trait ActionServer_ {
         &mut self, server: Arc<Mutex<dyn ActionServer_>>,
     ) -> Result<Option<ActionServerCompletion>>;
     fn handle_result_request(&mut self) -> Result<()>;
-    fn handle_goal_expired(&mut self) -> Result<()>;
+    fn handle_goal_expired(&mut self, completions: &mut Vec<ActionServerCompletion>) -> Result<()>;
     fn action_name(&self) -> Result<String>;
     fn publish_status(&self) -> Result<()>;
     fn set_goal_state(
@@ -100,7 +118,9 @@ pub trait ActionServer_ {
     fn get_goal_status(&self, uuid: &uuid::Uuid) -> Result<GoalStatus>;
     fn is_cancelling(&self, uuid: &uuid::Uuid) -> Result<bool>;
     fn add_goal_handle(&mut self, uuid: uuid::Uuid, goal_handle: *mut rcl_action_goal_handle_t);
-    fn forget_cancel_sender(&mut self, uuid: &uuid::Uuid);
+    fn forget_cancel_sender(
+        &mut self, uuid: &uuid::Uuid, completions: &mut Vec<ActionServerCompletion>,
+    );
     fn should_remove(&self) -> bool;
     fn destroy(&mut self, node: &mut rcl_node_t);
 }
@@ -466,14 +486,20 @@ where
                 )
             };
             if ret != RCL_RET_OK as i32 {
+                let mut completions = Vec::new();
                 if let Err(rollback_err) = abort_goal_after_failed_accept(&mut *server, &self.uuid)
                 {
                     log::error!(
                         "could not abort goal after execution setup failed: {rollback_err}"
                     );
                 }
-                server.forget_cancel_sender(&self.uuid);
-                return Err(Error::from_rcl_error(ret));
+                server.forget_cancel_sender(&self.uuid, &mut completions);
+                drop(server);
+                return finish_action_server_operation(
+                    Err(Error::from_rcl_error(ret)),
+                    completions,
+                )
+                .map(|()| unreachable!());
             }
         }
 
@@ -487,13 +513,16 @@ where
             )
         };
         if ret != RCL_RET_OK as i32 {
+            let mut completions = Vec::new();
             if let Err(rollback_err) = abort_goal_after_failed_accept(&mut *server, &self.uuid) {
                 log::error!(
                     "could not abort goal after sending its response failed: {rollback_err}"
                 );
             }
-            server.forget_cancel_sender(&self.uuid);
-            return Err(Error::from_rcl_error(ret));
+            server.forget_cancel_sender(&self.uuid, &mut completions);
+            drop(server);
+            return finish_action_server_operation(Err(Error::from_rcl_error(ret)), completions)
+                .map(|()| unreachable!());
         }
 
         let g = ActionServerGoal {
@@ -523,9 +552,10 @@ where
             .server
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
-        let mut server = server.lock();
         self.response.response_sent = true;
-        server.reject_goal_request(&self.uuid, &mut self.response.request_id)
+        complete_action_server_operation(&server, |server, completions| {
+            server.reject_goal_request(&self.uuid, &mut self.response.request_id, completions)
+        })
     }
 }
 
@@ -537,9 +567,9 @@ impl Drop for GoalRequestResponseGuard {
         let Some(server) = self.server.upgrade() else {
             return;
         };
-        let mut server = server.lock();
-
-        if let Err(err) = server.reject_goal_request(&self.uuid, &mut self.request_id) {
+        if let Err(err) = complete_action_server_operation(&server, |server, completions| {
+            server.reject_goal_request(&self.uuid, &mut self.request_id, completions)
+        }) {
             log::error!("could not reject dropped action goal request: {err}");
         }
         self.response_sent = true;
@@ -764,8 +794,9 @@ where
 
     fn reject_goal_request(
         &mut self, uuid: &uuid::Uuid, request_id: &mut rmw_request_id_t,
+        completions: &mut Vec<ActionServerCompletion>,
     ) -> Result<()> {
-        self.forget_cancel_sender(uuid);
+        self.forget_cancel_sender(uuid, completions);
         let response = T::make_goal_response_msg(false, builtin_interfaces::msg::Time::default());
         let mut response = WrappedNativeMsg::<
             <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
@@ -989,8 +1020,9 @@ where
         let uuid = match uuid_msg_to_uuid(&uuid_msg) {
             Ok(uuid) => uuid,
             Err(err) => {
+                let mut completions = Vec::new();
                 if let Err(reject_err) =
-                    self.reject_goal_request(&uuid::Uuid::nil(), &mut request_id)
+                    self.reject_goal_request(&uuid::Uuid::nil(), &mut request_id, &mut completions)
                 {
                     log::error!("could not reject malformed action goal request: {reject_err}");
                 }
@@ -1029,10 +1061,13 @@ where
                 .server
                 .upgrade()
                 .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
-            let result = server
-                .lock()
-                .reject_goal_request(&request.uuid, &mut request.response.request_id);
-            result
+            complete_action_server_operation(&server, |server, completions| {
+                server.reject_goal_request(
+                    &request.uuid,
+                    &mut request.response.request_id,
+                    completions,
+                )
+            })
         })))
     }
 
@@ -1105,7 +1140,7 @@ where
         Ok(self.take_pending_cancel_delivery(server))
     }
 
-    fn handle_goal_expired(&mut self) -> Result<()> {
+    fn handle_goal_expired(&mut self, completions: &mut Vec<ActionServerCompletion>) -> Result<()> {
         let mut goal_info = WrappedNativeMsg::<action_msgs::msg::GoalInfo>::try_new()?;
 
         loop {
@@ -1124,7 +1159,7 @@ where
             let uuid = uuid_msg_to_uuid(&gi.goal_id)?;
             log::debug!("goal expired: {} - {}", uuid, num_expired);
             self.goals.remove(&uuid);
-            self.cancel_senders.remove(&uuid);
+            self.forget_cancel_sender(&uuid, completions);
             self.result_msgs.remove(&uuid);
             self.result_requests.remove(&uuid);
         }
@@ -1153,8 +1188,12 @@ where
             .insert(uuid, unsafe { OwnedGoalHandle::copy_from(goal_handle) });
     }
 
-    fn forget_cancel_sender(&mut self, uuid: &uuid::Uuid) {
-        self.cancel_senders.remove(uuid);
+    fn forget_cancel_sender(
+        &mut self, uuid: &uuid::Uuid, completions: &mut Vec<ActionServerCompletion>,
+    ) {
+        if let Some(sender_slot) = self.cancel_senders.remove(uuid) {
+            completions.push(sender_drop_completion(sender_slot));
+        }
     }
 
     fn should_remove(&self) -> bool {
@@ -1685,6 +1724,7 @@ mod tests {
 
         fn reject_goal_request(
             &mut self, _uuid: &uuid::Uuid, _request_id: &mut rmw_request_id_t,
+            _completions: &mut Vec<ActionServerCompletion>,
         ) -> Result<()> {
             unreachable!()
         }
@@ -1717,7 +1757,9 @@ mod tests {
             unreachable!()
         }
 
-        fn handle_goal_expired(&mut self) -> Result<()> {
+        fn handle_goal_expired(
+            &mut self, _completions: &mut Vec<ActionServerCompletion>,
+        ) -> Result<()> {
             unreachable!()
         }
 
@@ -1785,7 +1827,9 @@ mod tests {
             unreachable!()
         }
 
-        fn forget_cancel_sender(&mut self, _uuid: &uuid::Uuid) {
+        fn forget_cancel_sender(
+            &mut self, _uuid: &uuid::Uuid, _completions: &mut Vec<ActionServerCompletion>,
+        ) {
             unreachable!()
         }
 
@@ -2023,6 +2067,29 @@ mod tests {
         assert!(wake.woke.load(Ordering::SeqCst));
         assert!(sender_slot.lock().is_some());
         assert_eq!(receiver.next().now_or_never().flatten().unwrap().uuid, uuid);
+    }
+
+    #[test]
+    fn cancel_streams_close_after_releasing_the_server_lock() {
+        let server = Arc::new(Mutex::new(()));
+        let (sender, mut receiver) = mpsc::channel::<ActionServerCancelRequest>(0);
+        let sender_slot = Arc::new(Mutex::new(Some(sender)));
+        let wake = Arc::new(LockingWake {
+            server: Arc::clone(&server),
+            woke: AtomicBool::new(false),
+        });
+        let waker = waker_ref(&wake);
+        let mut context = std::task::Context::from_waker(&waker);
+        assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Pending));
+
+        complete_action_server_operation(&*server, |_, completions| {
+            completions.push(sender_drop_completion(Arc::clone(&sender_slot)));
+            Ok(())
+        })
+        .unwrap();
+
+        assert!(wake.woke.load(Ordering::SeqCst));
+        assert!(matches!(Pin::new(&mut receiver).poll_next(&mut context), Poll::Ready(None)));
     }
 
     #[test]
