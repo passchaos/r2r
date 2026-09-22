@@ -152,6 +152,83 @@ fn parameter_name_matches(name: &str, prefixes: &[String], depth: u64) -> bool {
         })
 }
 
+fn read_parameter_values(
+    names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
+    provider: Option<&Arc<Mutex<dyn RosParams + Send>>>,
+) -> Vec<ParameterValue> {
+    let provider_values = provider.map(|provider| {
+        let mut provider = provider.lock();
+        names
+            .iter()
+            .map(|name| provider.get_parameter(name).ok())
+            .collect::<Vec<_>>()
+    });
+    let params = params.lock();
+    names
+        .iter()
+        .enumerate()
+        .map(|(index, name)| {
+            provider_values
+                .as_ref()
+                .and_then(|values| values[index].clone())
+                .or_else(|| params.get(name).map(|parameter| parameter.value.clone()))
+                .unwrap_or(ParameterValue::NotSet)
+        })
+        .collect()
+}
+
+fn list_parameter_values(
+    params: &IndexMap<String, Parameter>, prefixes: &[String], depth: u64,
+) -> rcl_interfaces::msg::ListParametersResult {
+    let mut result = rcl_interfaces::msg::ListParametersResult::default();
+    for name in params
+        .keys()
+        .filter(|name| parameter_name_matches(name, prefixes, depth))
+    {
+        result.names.push(name.clone());
+        if let Some(last_separator) = name.rfind('.') {
+            let prefix = &name[..last_separator];
+            if result.prefixes.iter().all(|candidate| candidate != prefix) {
+                result.prefixes.push(prefix.to_owned());
+            }
+        }
+    }
+    result
+}
+
+fn describe_parameter_values(
+    names: &[String], params: &IndexMap<String, Parameter>,
+    registered: &IndexMap<String, ParameterDescriptor>,
+) -> Vec<ParameterDescriptor> {
+    names
+        .iter()
+        .map(|name| {
+            registered.get(name).cloned().unwrap_or_else(|| {
+                params.get(name).map_or_else(
+                    || ParameterDescriptor {
+                        name: name.clone(),
+                        ..Default::default()
+                    },
+                    |parameter| Node::default_parameter_descriptor(name, parameter, true),
+                )
+            })
+        })
+        .collect()
+}
+
+fn parameter_types(names: &[String], params: &IndexMap<String, Parameter>) -> Vec<u8> {
+    names
+        .iter()
+        .map(|name| {
+            params
+                .get(name)
+                .map_or(rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET as u8, |parameter| {
+                    parameter.value.parameter_type()
+                })
+        })
+        .collect()
+}
+
 /// A ROS Node.
 ///
 /// This struct owns all subscribes, publishers, etc.  To get events
@@ -161,6 +238,7 @@ pub struct Node {
     /// ROS parameters.
     pub params: Arc<Mutex<IndexMap<String, Parameter>>>,
     parameter_descriptors: Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
+    parameter_provider: Option<Arc<Mutex<dyn RosParams + Send>>>,
     pub(crate) node_handle: Box<rcl_node_t>,
     // the node owns the subscribers
     pub(crate) subscribers: Vec<Box<dyn Subscriber_>>,
@@ -479,6 +557,7 @@ impl Node {
             let mut node = Node {
                 params: Arc::new(Mutex::new(IndexMap::new())),
                 parameter_descriptors: Arc::new(Mutex::new(IndexMap::new())),
+                parameter_provider: None,
                 node_handle,
                 subscribers: Vec::new(),
                 services: Vec::new(),
@@ -841,26 +920,14 @@ impl Node {
         let atomic_parameter_event_node = fully_qualified_node_name;
         let get_params_future = get_params_request_stream.for_each(
             move |req: ServiceRequest<rcl_interfaces::srv::GetParameters::Service>| {
-                let params = params.lock();
-                let values = req
-                    .message
-                    .names
-                    .iter()
-                    .map(|n| {
-                        // First try to get the parameter from the param structure
-                        if let Some(ps) = &params_struct_clone {
-                            if let Ok(value) = ps.lock().get_parameter(n) {
-                                return value;
-                            }
-                        }
-                        // Otherwise get it from node HashMap
-                        match params.get(n) {
-                            Some(v) => v.value.clone(),
-                            None => ParameterValue::NotSet,
-                        }
-                    })
-                    .map(|v| v.into_parameter_value_msg())
-                    .collect::<Vec<rcl_interfaces::msg::ParameterValue>>();
+                let values = read_parameter_values(
+                    &req.message.names,
+                    &params,
+                    params_struct_clone.as_ref(),
+                )
+                .into_iter()
+                .map(|v| v.into_parameter_value_msg())
+                .collect::<Vec<rcl_interfaces::msg::ParameterValue>>();
 
                 let result = rcl_interfaces::srv::GetParameters::Response { values };
                 if let Err(err) = req.respond(result) {
@@ -916,15 +983,7 @@ impl Node {
         let get_param_types_future = get_param_types_request_stream.for_each(
             move |req: ServiceRequest<GetParameterTypes::Service>| {
                 let params = params.lock();
-                let types = req
-                    .message
-                    .names
-                    .iter()
-                    .map(|name| match params.get(name) {
-                        Some(param) => param.value.parameter_type(),
-                        None => rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET as u8,
-                    })
-                    .collect();
+                let types = parameter_types(&req.message.names, &params);
                 if let Err(err) = req.respond(GetParameterTypes::Response { types }) {
                     log::warn!("could not send reply to get parameter types request: {err}");
                 }
@@ -1066,6 +1125,7 @@ impl Node {
             let ts = self.time_source.clone();
             ts.enable_sim_time(self)?;
         }
+        self.parameter_provider = params_struct;
 
         // we don't care about the result, the futures will not complete anyway.
         Ok((join_all(handlers).map(|_| ()), event_rx))
@@ -1150,23 +1210,8 @@ impl Node {
     ) -> future::Ready<()> {
         use rcl_interfaces::srv::ListParameters;
 
-        let separator = '.';
         let params = params.lock();
-        let mut result = rcl_interfaces::msg::ListParametersResult {
-            names: vec![],
-            prefixes: vec![],
-        };
-        for (name, _) in params.iter().filter(|(name, _)| {
-            parameter_name_matches(name, &req.message.prefixes, req.message.depth)
-        }) {
-            result.names.push(name.clone());
-            if let Some(last_separator) = name.rfind(separator) {
-                let prefix = &name[0..last_separator];
-                if result.prefixes.iter().all(|p| p != prefix) {
-                    result.prefixes.push(prefix.to_string());
-                }
-            }
-        }
+        let result = list_parameter_values(&params, &req.message.prefixes, req.message.depth);
         if let Err(err) = req.respond(ListParameters::Response { result }) {
             log::warn!("could not send reply to list parameter request: {err}");
         }
@@ -1179,24 +1224,96 @@ impl Node {
         parameter_descriptors: &Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
     ) -> future::Ready<()> {
         use rcl_interfaces::srv::DescribeParameters;
-        let mut descriptors = Vec::<ParameterDescriptor>::new();
         let params = params.lock();
         let registered = parameter_descriptors.lock();
-        for name in &req.message.names {
-            descriptors.push(registered.get(name).cloned().unwrap_or_else(|| {
-                params.get(name).map_or_else(
-                    || ParameterDescriptor {
-                        name: name.clone(),
-                        ..Default::default()
-                    },
-                    |parameter| Self::default_parameter_descriptor(name, parameter, true),
-                )
-            }));
-        }
+        let descriptors = describe_parameter_values(&req.message.names, &params, &registered);
         if let Err(err) = req.respond(DescribeParameters::Response { descriptors }) {
             log::warn!("could not send reply to describe parameters request: {err}");
         }
         future::ready(())
+    }
+
+    /// Returns raw parameter values in the same order as `names`.
+    ///
+    /// Undeclared names produce [`ParameterValue::NotSet`], matching the ROS
+    /// `GetParameters` service.
+    pub fn get_parameters<I, S>(&self, names: I) -> Vec<ParameterValue>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let names = names
+            .into_iter()
+            .map(|name| name.as_ref().to_owned())
+            .collect::<Vec<_>>();
+        read_parameter_values(&names, &self.params, self.parameter_provider.as_ref())
+    }
+
+    /// Returns parameters below `prefix`, keyed by their name relative to the prefix.
+    pub fn get_parameters_by_prefix(&self, prefix: &str) -> IndexMap<String, ParameterValue> {
+        let qualified_prefix = (!prefix.is_empty()).then(|| format!("{prefix}."));
+        let names = self
+            .params
+            .lock()
+            .keys()
+            .filter(|name| {
+                qualified_prefix
+                    .as_ref()
+                    .is_none_or(|prefix| name.starts_with(prefix))
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        let values = read_parameter_values(&names, &self.params, self.parameter_provider.as_ref());
+        let trim = qualified_prefix.as_ref().map_or(0, String::len);
+        names
+            .into_iter()
+            .map(|name| name[trim..].to_owned())
+            .zip(values)
+            .collect()
+    }
+
+    /// Lists declared parameter names and namespaces filtered by prefixes and relative depth.
+    ///
+    /// A depth of [`rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE`] recursively
+    /// lists every matching parameter.
+    pub fn list_parameters<I, S>(
+        &self, prefixes: I, depth: u64,
+    ) -> rcl_interfaces::msg::ListParametersResult
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let prefixes = prefixes
+            .into_iter()
+            .map(|prefix| prefix.as_ref().to_owned())
+            .collect::<Vec<_>>();
+        list_parameter_values(&self.params.lock(), &prefixes, depth)
+    }
+
+    /// Returns full ROS descriptors in the same order as `names`.
+    pub fn describe_parameters<I, S>(&self, names: I) -> Vec<ParameterDescriptor>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let names = names
+            .into_iter()
+            .map(|name| name.as_ref().to_owned())
+            .collect::<Vec<_>>();
+        describe_parameter_values(&names, &self.params.lock(), &self.parameter_descriptors.lock())
+    }
+
+    /// Returns ROS parameter type identifiers in the same order as `names`.
+    pub fn get_parameter_types<I, S>(&self, names: I) -> Vec<u8>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let names = names
+            .into_iter()
+            .map(|name| name.as_ref().to_owned())
+            .collect::<Vec<_>>();
+        parameter_types(&names, &self.params.lock())
     }
 
     /// Fetch a single ROS parameter.
@@ -1204,10 +1321,9 @@ impl Node {
     where
         ParameterValue: TryInto<T, Error = WrongParameterType>,
     {
-        let params = self.params.lock();
-        let value = params
-            .get(name)
-            .map(|parameter| parameter.value.clone())
+        let value = self
+            .get_parameters([name])
+            .pop()
             .unwrap_or(ParameterValue::NotSet);
 
         let value: T =
@@ -1220,6 +1336,29 @@ impl Node {
                 })?;
 
         Ok(value)
+    }
+
+    /// Fetches a parameter or returns `alternative` when it is not set.
+    ///
+    /// A declared value with the wrong type still returns [`Error::ParameterWrongType`].
+    pub fn get_parameter_or<T>(&self, name: &str, alternative: T) -> Result<T>
+    where
+        ParameterValue: TryInto<T, Error = WrongParameterType>,
+    {
+        let value = self
+            .get_parameters([name])
+            .pop()
+            .unwrap_or(ParameterValue::NotSet);
+        if matches!(value, ParameterValue::NotSet) {
+            return Ok(alternative);
+        }
+        value
+            .try_into()
+            .map_err(|error: WrongParameterType| Error::ParameterWrongType {
+                name: name.to_owned(),
+                expected_type: error.expected_type_name,
+                actual_type: error.actual_type_name,
+            })
     }
 
     /// Subscribe to a ROS topic.
@@ -3734,6 +3873,142 @@ mod tests {
 
         let depth_two = drive(&mut node, &mut pool, client.request(&request(2)).unwrap());
         assert_eq!(depth_two.result.names, vec!["robot", "robot.speed", "robot.motor.speed"]);
+    }
+
+    #[test]
+    fn local_parameter_introspection_matches_services() {
+        use rcl_interfaces::srv::{
+            DescribeParameters, GetParameterTypes, GetParameters, ListParameters,
+        };
+
+        fn drive<T>(
+            node: &mut Node, pool: &mut LocalPool, future: impl Future<Output = Result<T>>,
+        ) -> T {
+            let mut future = Box::pin(future);
+            loop {
+                node.try_spin_once(Duration::from_millis(10)).unwrap();
+                pool.run_until_stalled();
+                if let Some(result) = future.as_mut().now_or_never() {
+                    return result.unwrap();
+                }
+            }
+        }
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "local_parameter_introspection_test", "").unwrap();
+        node.declare_parameter_with_descriptor(
+            "robot.speed",
+            ParameterValue::Integer(4),
+            ParameterDescriptor {
+                description: "wheel speed".into(),
+                integer_range: vec![IntegerRange {
+                    from_value: 0,
+                    to_value: 10,
+                    step: 2,
+                }],
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        node.declare_parameter("robot.motor.speed", ParameterValue::Integer(6))
+            .unwrap();
+        node.declare_parameter("label", ParameterValue::String("drive".into()))
+            .unwrap();
+
+        let names = vec!["robot.speed".to_owned(), "missing".to_owned()];
+        let local_values = node.get_parameters(&names);
+        let local_types = node.get_parameter_types(&names);
+        let local_descriptors = node.describe_parameters(&names);
+        let local_list = node.list_parameters(["robot"], 1);
+        let local_prefix = node.get_parameters_by_prefix("robot");
+        assert_eq!(local_values, vec![ParameterValue::Integer(4), ParameterValue::NotSet]);
+        assert_eq!(node.get_parameter_or("missing", 99_i64).unwrap(), 99);
+        assert!(node.get_parameter_or("label", 99_i64).is_err());
+        assert_eq!(
+            local_prefix.keys().map(String::as_str).collect::<Vec<_>>(),
+            vec!["speed", "motor.speed"]
+        );
+        assert_eq!(
+            local_prefix.values().cloned().collect::<Vec<_>>(),
+            vec![ParameterValue::Integer(4), ParameterValue::Integer(6)]
+        );
+
+        let (handler, _events) = node.make_parameter_handler().unwrap();
+        let get = node
+            .create_client::<GetParameters::Service>(
+                "local_parameter_introspection_test/get_parameters",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let get_types = node
+            .create_client::<GetParameterTypes::Service>(
+                "local_parameter_introspection_test/get_parameter_types",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let describe = node
+            .create_client::<DescribeParameters::Service>(
+                "local_parameter_introspection_test/describe_parameters",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let list = node
+            .create_client::<ListParameters::Service>(
+                "local_parameter_introspection_test/list_parameters",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let mut pool = LocalPool::new();
+        pool.spawner().spawn_local(handler).unwrap();
+
+        let remote_values = drive(
+            &mut node,
+            &mut pool,
+            get.request(&GetParameters::Request {
+                names: names.clone(),
+            })
+            .unwrap(),
+        )
+        .values
+        .into_iter()
+        .map(ParameterValue::try_from_parameter_value_msg)
+        .collect::<Result<Vec<_>>>()
+        .unwrap();
+        let remote_types = drive(
+            &mut node,
+            &mut pool,
+            get_types
+                .request(&GetParameterTypes::Request {
+                    names: names.clone(),
+                })
+                .unwrap(),
+        )
+        .types;
+        let remote_descriptors = drive(
+            &mut node,
+            &mut pool,
+            describe
+                .request(&DescribeParameters::Request {
+                    names: names.clone(),
+                })
+                .unwrap(),
+        )
+        .descriptors;
+        let remote_list = drive(
+            &mut node,
+            &mut pool,
+            list.request(&ListParameters::Request {
+                prefixes: vec!["robot".into()],
+                depth: 1,
+            })
+            .unwrap(),
+        )
+        .result;
+
+        assert_eq!(remote_values, local_values);
+        assert_eq!(remote_types, local_types);
+        assert_eq!(remote_descriptors, local_descriptors);
+        assert_eq!(remote_list, local_list);
     }
 
     #[test]
