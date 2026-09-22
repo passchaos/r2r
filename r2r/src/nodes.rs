@@ -164,10 +164,16 @@ struct AppliedParameterChanges {
 
 type ParameterValidationCallback =
     dyn Fn(&[(String, ParameterValue)]) -> Result<()> + Send + Sync + 'static;
+type ParameterPostSetCallback = dyn Fn(&[(String, ParameterValue)]) + Send + Sync + 'static;
 
 struct ParameterValidationCallbackEntry {
     id: uuid::Uuid,
     callback: Arc<ParameterValidationCallback>,
+}
+
+struct ParameterPostSetCallbackEntry {
+    id: uuid::Uuid,
+    callback: Arc<ParameterPostSetCallback>,
 }
 
 fn validate_parameter_callbacks(
@@ -186,6 +192,21 @@ fn validate_parameter_callbacks(
     Ok(())
 }
 
+fn notify_parameter_post_set_callbacks(
+    updates: &[(String, ParameterValue)],
+    callbacks: &Arc<Mutex<Vec<ParameterPostSetCallbackEntry>>>,
+) {
+    let callbacks = callbacks
+        .lock()
+        .iter()
+        .rev()
+        .map(|entry| entry.callback.clone())
+        .collect::<Vec<_>>();
+    for callback in callbacks {
+        callback(updates);
+    }
+}
+
 /// Keeps a parameter validation callback registered until dropped.
 pub struct ParameterCallbackHandle {
     id: uuid::Uuid,
@@ -193,6 +214,20 @@ pub struct ParameterCallbackHandle {
 }
 
 impl Drop for ParameterCallbackHandle {
+    fn drop(&mut self) {
+        if let Some(callbacks) = self.callbacks.upgrade() {
+            callbacks.lock().retain(|entry| entry.id != self.id);
+        }
+    }
+}
+
+/// Keeps a post-set parameter callback registered until dropped.
+pub struct ParameterPostSetCallbackHandle {
+    id: uuid::Uuid,
+    callbacks: std::sync::Weak<Mutex<Vec<ParameterPostSetCallbackEntry>>>,
+}
+
+impl Drop for ParameterPostSetCallbackHandle {
     fn drop(&mut self) {
         if let Some(callbacks) = self.callbacks.upgrade() {
             callbacks.lock().retain(|entry| entry.id != self.id);
@@ -324,9 +359,11 @@ fn apply_parameter_updates(
             .filter(|(name, _)| name != "use_sim_time")
             .cloned()
             .collect::<Vec<_>>();
-        provider
-            .lock()
-            .set_parameters_atomically(&derived_updates)?;
+        if !derived_updates.is_empty() {
+            provider
+                .lock()
+                .set_parameters_atomically(&derived_updates)?;
+        }
     }
 
     let mut changed = Vec::new();
@@ -374,6 +411,7 @@ pub struct Node {
     parameter_provider: Option<Arc<Mutex<dyn RosParams + Send>>>,
     parameter_transaction: Arc<Mutex<()>>,
     parameter_validation_callbacks: Arc<Mutex<Vec<ParameterValidationCallbackEntry>>>,
+    parameter_post_set_callbacks: Arc<Mutex<Vec<ParameterPostSetCallbackEntry>>>,
     parameter_event_sink: Option<ParameterEventSink>,
     pub(crate) node_handle: Box<rcl_node_t>,
     // the node owns the subscribers
@@ -696,6 +734,7 @@ impl Node {
                 parameter_provider: None,
                 parameter_transaction: Arc::new(Mutex::new(())),
                 parameter_validation_callbacks: Arc::new(Mutex::new(Vec::new())),
+                parameter_post_set_callbacks: Arc::new(Mutex::new(Vec::new())),
                 parameter_event_sink: None,
                 node_handle,
                 subscribers: Vec::new(),
@@ -798,8 +837,15 @@ impl Node {
         }
         descriptors.insert(name.clone(), descriptor);
         params
-            .entry(name)
+            .entry(name.clone())
             .or_insert_with(|| Parameter::new(value.clone()));
+        drop(descriptors);
+        drop(params);
+        drop(_transaction);
+        notify_parameter_post_set_callbacks(
+            &[(name, value.clone())],
+            &self.parameter_post_set_callbacks,
+        );
         Ok(value)
     }
 
@@ -963,6 +1009,7 @@ impl Node {
         let parameter_descriptors = self.parameter_descriptors.clone();
         let parameter_transaction = self.parameter_transaction.clone();
         let parameter_validation_callbacks = self.parameter_validation_callbacks.clone();
+        let parameter_post_set_callbacks = self.parameter_post_set_callbacks.clone();
         let params_struct_clone = params_struct.clone();
         let set_parameter_event_sink = parameter_event_sink.clone();
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
@@ -1001,6 +1048,10 @@ impl Node {
                                 set_params_time_source.request_sim_time(enabled);
                             }
                             set_parameter_event_sink.notify(applied.changed, applied.ros_events);
+                            notify_parameter_post_set_callbacks(
+                                &update,
+                                &parameter_post_set_callbacks,
+                            );
                             result
                                 .results
                                 .push(rcl_interfaces::msg::SetParametersResult {
@@ -1121,6 +1172,7 @@ impl Node {
         let parameter_descriptors = self.parameter_descriptors.clone();
         let parameter_transaction = self.parameter_transaction.clone();
         let parameter_validation_callbacks = self.parameter_validation_callbacks.clone();
+        let parameter_post_set_callbacks = self.parameter_post_set_callbacks.clone();
         let params_struct_clone = params_struct.clone();
         let atomic_parameter_event_sink = parameter_event_sink.clone();
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
@@ -1171,6 +1223,10 @@ impl Node {
                             atomic_time_source.request_sim_time(enabled);
                         }
                         atomic_parameter_event_sink.notify(applied.changed, applied.ros_events);
+                        notify_parameter_post_set_callbacks(
+                            &updates,
+                            &parameter_post_set_callbacks,
+                        );
                     }
                     Err(err) => {
                         result.result.successful = false;
@@ -1475,6 +1531,28 @@ impl Node {
         }
     }
 
+    /// Registers a callback invoked after a parameter transaction succeeds.
+    ///
+    /// Callbacks run in reverse registration order. They receive the complete successful input
+    /// batch and execute after all internal parameter locks are released, so they may inspect the
+    /// committed node state. Keep the returned handle alive to keep the callback registered.
+    pub fn add_post_set_parameters_callback<F>(&self, callback: F) -> ParameterPostSetCallbackHandle
+    where
+        F: Fn(&[(String, ParameterValue)]) + Send + Sync + 'static,
+    {
+        let id = uuid::Uuid::new_v4();
+        self.parameter_post_set_callbacks
+            .lock()
+            .push(ParameterPostSetCallbackEntry {
+                id,
+                callback: Arc::new(callback),
+            });
+        ParameterPostSetCallbackHandle {
+            id,
+            callbacks: Arc::downgrade(&self.parameter_post_set_callbacks),
+        }
+    }
+
     /// Validates and sets a batch of parameters as one transaction.
     pub fn set_parameters_atomically<I, N>(&self, parameters: I) -> Result<()>
     where
@@ -1502,6 +1580,7 @@ impl Node {
         if let Some(sink) = &self.parameter_event_sink {
             sink.notify(applied.changed, applied.ros_events);
         }
+        notify_parameter_post_set_callbacks(&updates, &self.parameter_post_set_callbacks);
         Ok(())
     }
 
@@ -4424,6 +4503,112 @@ mod tests {
             .unwrap();
         assert!(calls.lock().is_empty());
         assert_eq!(node.get_parameter::<i64>("count").unwrap(), 8);
+    }
+
+    #[test]
+    fn post_set_callbacks_observe_only_successful_committed_batches() {
+        use rcl_interfaces::{msg, srv::SetParametersAtomically};
+
+        fn drive<T>(
+            node: &mut Node, pool: &mut LocalPool, future: impl Future<Output = Result<T>>,
+        ) -> T {
+            let mut future = Box::pin(future);
+            loop {
+                node.try_spin_once(Duration::from_millis(10)).unwrap();
+                pool.run_until_stalled();
+                if let Some(result) = future.as_mut().now_or_never() {
+                    return result.unwrap();
+                }
+            }
+        }
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "post_parameter_callback_test", "").unwrap();
+        let observed = Arc::new(Mutex::new(Vec::new()));
+        let first_observed = observed.clone();
+        let first = node.add_post_set_parameters_callback(move |updates| {
+            first_observed.lock().push(("first", updates.to_vec()));
+        });
+        let second_observed = observed.clone();
+        let second = node.add_post_set_parameters_callback(move |updates| {
+            second_observed.lock().push(("second", updates.to_vec()));
+        });
+
+        node.declare_parameter("count", ParameterValue::Integer(1))
+            .unwrap();
+        assert_eq!(
+            observed.lock().as_slice(),
+            &[
+                ("second", vec![("count".into(), ParameterValue::Integer(1))]),
+                ("first", vec![("count".into(), ParameterValue::Integer(1))]),
+            ]
+        );
+
+        let reject = node.add_on_set_parameters_callback(|updates| {
+            if updates
+                .iter()
+                .any(|(_, value)| value == &ParameterValue::Integer(3))
+            {
+                Err(Error::ParameterConstraintViolation {
+                    name: "count".into(),
+                    reason: "rejected".into(),
+                })
+            } else {
+                Ok(())
+            }
+        });
+        observed.lock().clear();
+        assert!(node
+            .set_parameter("count", ParameterValue::Integer(3))
+            .is_err());
+        assert!(observed.lock().is_empty());
+
+        node.set_parameters_atomically([
+            ("count", ParameterValue::Integer(2)),
+            ("label", ParameterValue::String("ok".into())),
+        ])
+        .unwrap();
+        assert_eq!(observed.lock().len(), 2);
+        assert_eq!(observed.lock()[0].0, "second");
+        assert_eq!(observed.lock()[0].1.len(), 2);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 2);
+
+        let (handler, _events) = node.make_parameter_handler().unwrap();
+        let client = node
+            .create_client::<SetParametersAtomically::Service>(
+                "post_parameter_callback_test/set_parameters_atomically",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let mut pool = LocalPool::new();
+        pool.spawner().spawn_local(handler).unwrap();
+        observed.lock().clear();
+        let response = drive(
+            &mut node,
+            &mut pool,
+            client
+                .request(&SetParametersAtomically::Request {
+                    parameters: vec![msg::Parameter {
+                        name: "count".into(),
+                        value: ParameterValue::Integer(4).into_parameter_value_msg(),
+                    }],
+                })
+                .unwrap(),
+        );
+        assert!(response.result.successful);
+        assert_eq!(observed.lock().len(), 2);
+        assert_eq!(node.get_parameter::<i64>("count").unwrap(), 4);
+
+        drop(second);
+        observed.lock().clear();
+        node.set_parameter("count", ParameterValue::Integer(6))
+            .unwrap();
+        assert_eq!(
+            observed.lock().as_slice(),
+            &[("first", vec![("count".into(), ParameterValue::Integer(6))])]
+        );
+        drop(first);
+        drop(reject);
     }
 
     #[test]

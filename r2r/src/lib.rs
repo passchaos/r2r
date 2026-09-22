@@ -143,7 +143,9 @@ mod clocks;
 pub use clocks::{Clock, ClockType};
 
 mod nodes;
-pub use nodes::{Node, NodeOptions, ParameterCallbackHandle, Timer};
+pub use nodes::{
+    Node, NodeOptions, ParameterCallbackHandle, ParameterPostSetCallbackHandle, Timer,
+};
 
 pub mod qos;
 
