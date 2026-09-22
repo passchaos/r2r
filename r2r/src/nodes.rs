@@ -666,6 +666,8 @@ pub struct Node {
     publisher_indexes: HashMap<uuid::Uuid, usize>,
     dropped_publishers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
     pending_publisher_removals: HashSet<uuid::Uuid>,
+    active_wait_publishers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    publishers_with_active_waits: HashSet<uuid::Uuid>,
     // RosTime clock used by all timers created by create_timer()
     ros_clock: Arc<Mutex<Clock>>,
     // time source that provides simulated time
@@ -1290,6 +1292,8 @@ impl Node {
                 publisher_indexes: HashMap::new(),
                 dropped_publishers: Arc::new(Mutex::new(VecDeque::new())),
                 pending_publisher_removals: HashSet::new(),
+                active_wait_publishers: Arc::new(Mutex::new(VecDeque::new())),
+                publishers_with_active_waits: HashSet::new(),
                 ros_clock,
                 #[cfg(r2r__rosgraph_msgs__msg__Clock)]
                 time_source,
@@ -3334,17 +3338,18 @@ impl Node {
     where
         T: WrappedTypesupport,
     {
+        let id = uuid::Uuid::new_v4();
         let publisher_handle = create_publisher_helper(
             self.node_handle.as_mut(),
             topic,
             T::get_ts(),
             qos_profile,
             options,
+            id,
+            Arc::clone(&self.active_wait_publishers),
         )?;
         let arc = Arc::new(publisher_handle);
-        let identity = Self::publisher_identity(&arc);
-        let p =
-            make_publisher(Arc::downgrade(&arc), identity, Arc::clone(&self.dropped_publishers));
+        let p = make_publisher(Arc::downgrade(&arc), id, Arc::clone(&self.dropped_publishers));
         self.add_publisher(arc);
         Ok(p)
     }
@@ -3369,18 +3374,20 @@ impl Node {
         options: PublisherOptions,
     ) -> Result<PublisherUntyped> {
         let dummy = WrappedNativeMsgUntyped::new_from(topic_type)?;
+        let id = uuid::Uuid::new_v4();
         let publisher_handle = create_publisher_helper(
             self.node_handle.as_mut(),
             topic,
             dummy.ts,
             qos_profile,
             options,
+            id,
+            Arc::clone(&self.active_wait_publishers),
         )?;
         let arc = Arc::new(publisher_handle);
-        let identity = Self::publisher_identity(&arc);
         let p = make_publisher_untyped(
             Arc::downgrade(&arc),
-            identity,
+            id,
             Arc::clone(&self.dropped_publishers),
             topic_type.to_owned(),
         );
@@ -3602,10 +3609,18 @@ impl Node {
             )?;
         }
 
-        for p in &self.pubs {
-            p.poll_has_subscribers();
-            #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
-            p.poll_all_acked();
+        {
+            let mut active = self.active_wait_publishers.lock();
+            self.publishers_with_active_waits.extend(active.drain(..));
+        }
+        let publishers_with_active_waits = std::mem::take(&mut self.publishers_with_active_waits);
+        for id in publishers_with_active_waits {
+            let Some(index) = self.publisher_indexes.get(&id).copied() else {
+                continue;
+            };
+            if self.pubs[index].poll_waits() {
+                self.publishers_with_active_waits.insert(id);
+            }
         }
         for subscriber in &mut self.subscribers {
             subscriber.poll_has_publishers();
@@ -10952,6 +10967,77 @@ mod tests {
         drop(untyped);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.pubs.is_empty());
+    }
+
+    #[test]
+    fn publisher_waiters_activate_and_leave_the_sparse_poll_set() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "publisher_sparse_wait_test", "").unwrap();
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(
+                "/publisher_sparse_wait",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let id = publisher.handle.upgrade().unwrap().id;
+        let idle = node
+            .create_publisher::<crate::std_msgs::msg::String>(
+                "/publisher_without_wait",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let active_state = publisher.handle.upgrade().unwrap();
+        let idle_state = idle.handle.upgrade().unwrap();
+
+        assert!(node.active_wait_publishers.lock().is_empty());
+        assert!(node.publishers_with_active_waits.is_empty());
+        let wait = publisher.wait_for_subscribers().unwrap();
+        assert_eq!(
+            node.active_wait_publishers
+                .lock()
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            [id]
+        );
+
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(node.publishers_with_active_waits, HashSet::from([id]));
+        assert_eq!(
+            active_state
+                .wait_poll_count
+                .load(std::sync::atomic::Ordering::Relaxed),
+            1
+        );
+        assert_eq!(
+            idle_state
+                .wait_poll_count
+                .load(std::sync::atomic::Ordering::Relaxed),
+            0
+        );
+        drop(wait);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(node.publishers_with_active_waits.is_empty());
+        assert_eq!(
+            active_state
+                .wait_poll_count
+                .load(std::sync::atomic::Ordering::Relaxed),
+            2
+        );
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(
+            active_state
+                .wait_poll_count
+                .load(std::sync::atomic::Ordering::Relaxed),
+            2
+        );
+        assert_eq!(
+            idle_state
+                .wait_poll_count
+                .load(std::sync::atomic::Ordering::Relaxed),
+            0
+        );
+        assert_eq!(node.pubs.len(), 2);
     }
 
     #[test]

@@ -1,5 +1,7 @@
 use futures::{channel::oneshot, Future, TryFutureExt};
 use parking_lot::{ArcMutexGuard, Mutex, RawMutex};
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
 #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
 use std::time::Duration;
 use std::{
@@ -181,6 +183,9 @@ unsafe impl<T> Send for Publisher<T> where T: WrappedTypesupport {}
 pub(crate) struct Publisher_ {
     pub(crate) id: uuid::Uuid,
     handle: Arc<Mutex<PublisherHandle>>,
+    active_wait_publishers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    #[cfg(test)]
+    pub(crate) wait_poll_count: AtomicUsize,
 
     poll_subscriber_channels: Mutex<Waiters<()>>,
     #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
@@ -288,6 +293,8 @@ mod waiter_tests {
                 offered_deadline_missed: None,
                 liveliness_lost: None,
             })),
+            active_wait_publishers: Arc::new(Mutex::new(VecDeque::new())),
+            wait_poll_count: AtomicUsize::new(0),
             poll_subscriber_channels: Mutex::new(Waiters::default()),
             #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
             poll_ack_channels: Mutex::new(Waiters::default()),
@@ -324,6 +331,8 @@ mod waiter_tests {
                 offered_deadline_missed: None,
                 liveliness_lost: None,
             })),
+            active_wait_publishers: Arc::new(Mutex::new(VecDeque::new())),
+            wait_poll_count: AtomicUsize::new(0),
             poll_subscriber_channels: Mutex::new(Waiters::default()),
             #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
             poll_ack_channels: Mutex::new(Waiters::default()),
@@ -555,6 +564,12 @@ impl Publisher_ {
     #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     fn register_ack_wait(&self, sender: oneshot::Sender<Result<()>>) {
         self.poll_ack_channels.lock().register(sender);
+        self.active_wait_publishers.lock().push_back(self.id);
+    }
+
+    fn register_subscriber_wait(&self, sender: oneshot::Sender<()>) {
+        self.poll_subscriber_channels.lock().register(sender);
+        self.active_wait_publishers.lock().push_back(self.id);
     }
 
     fn get_actual_qos(&self) -> Result<QosProfile> {
@@ -628,6 +643,15 @@ impl Publisher_ {
         return has_active_waiters(&self.poll_ack_channels);
         #[cfg(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic))]
         false
+    }
+
+    pub(crate) fn poll_waits(&self) -> bool {
+        #[cfg(test)]
+        self.wait_poll_count.fetch_add(1, Ordering::Relaxed);
+        self.poll_has_subscribers();
+        #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+        self.poll_all_acked();
+        self.has_pending_waits()
     }
 
     pub(crate) fn destroy(&self, node: &mut rcl_node_t) {
@@ -812,7 +836,8 @@ pub(crate) fn make_publisher_untyped(
 
 pub fn create_publisher_helper(
     node: &mut rcl_node_t, topic: &str, typesupport: *const rosidl_message_type_support_t,
-    qos_profile: QosProfile, options: PublisherOptions,
+    qos_profile: QosProfile, options: PublisherOptions, id: uuid::Uuid,
+    active_wait_publishers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
 ) -> Result<Publisher_> {
     let mut publisher_handle = unsafe { rcl_get_zero_initialized_publisher() };
     let topic_c_string = CString::new(topic).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
@@ -833,13 +858,16 @@ pub fn create_publisher_helper(
     };
     if result == RCL_RET_OK as i32 {
         Ok(Publisher_ {
-            id: uuid::Uuid::new_v4(),
+            id,
             handle: Arc::new(Mutex::new(PublisherHandle {
                 publisher: Some(publisher_handle),
                 offered_incompatible_qos: None,
                 offered_deadline_missed: None,
                 liveliness_lost: None,
             })),
+            active_wait_publishers,
+            #[cfg(test)]
+            wait_poll_count: AtomicUsize::new(0),
             poll_subscriber_channels: Mutex::new(Waiters::default()),
             #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
             poll_ack_channels: Mutex::new(Waiters::default()),
@@ -1042,9 +1070,7 @@ impl PublisherUntyped {
         self.handle
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
-            .poll_subscriber_channels
-            .lock()
-            .register(sender);
+            .register_subscriber_wait(sender);
 
         Ok(receiver.map_err(|_| Error::RCL_RET_PUBLISHER_INVALID))
     }
@@ -1287,9 +1313,7 @@ where
         self.handle
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
-            .poll_subscriber_channels
-            .lock()
-            .register(sender);
+            .register_subscriber_wait(sender);
 
         Ok(receiver.map_err(|_| Error::RCL_RET_PUBLISHER_INVALID))
     }
