@@ -147,6 +147,9 @@ pub enum Error {
     #[error("Parameter update was rejected: {reason}")]
     ParameterUpdateRejected { reason: String },
 
+    #[error("A parameter handler has already been created for this node")]
+    ParameterHandlerAlreadyCreated,
+
     #[error(
         "Parameter {name} was expected to be of type {expected_type} but was of type {actual_type}"
     )]

@@ -460,6 +460,7 @@ pub struct Node {
     parameter_validation_callbacks: Arc<Mutex<Vec<ParameterValidationCallbackEntry>>>,
     parameter_post_set_callbacks: Arc<Mutex<Vec<ParameterPostSetCallbackEntry>>>,
     parameter_event_sink: Option<ParameterEventSink>,
+    parameter_handler_started: bool,
     pub(crate) node_handle: Box<rcl_node_t>,
     // the node owns the subscribers
     pub(crate) subscribers: Vec<Box<dyn Subscriber_>>,
@@ -784,6 +785,7 @@ impl Node {
                 parameter_validation_callbacks: Arc::new(Mutex::new(Vec::new())),
                 parameter_post_set_callbacks: Arc::new(Mutex::new(Vec::new())),
                 parameter_event_sink: None,
+                parameter_handler_started: false,
                 node_handle,
                 subscribers: Vec::new(),
                 services: Vec::new(),
@@ -1000,6 +1002,10 @@ impl Node {
         &mut self, params_struct: Option<Arc<Mutex<dyn RosParams + Send>>>,
     ) -> Result<(impl Future<Output = ()> + Send, impl Stream<Item = (String, ParameterValue)>)>
     {
+        if self.parameter_handler_started {
+            return Err(Error::ParameterHandlerAlreadyCreated);
+        }
+        self.parameter_handler_started = true;
         if let Some(ps) = &params_struct {
             // register all parameters
             ps.lock()
@@ -5088,6 +5094,41 @@ mod tests {
             node.make_derived_parameter_handler(params),
             Err(Error::InvalidParameterName { name }) if name.is_empty()
         ));
+    }
+
+    #[test]
+    fn parameter_handler_can_only_be_created_once() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "single_parameter_handler_test", "").unwrap();
+        let (handler, _events) = node.make_parameter_handler().unwrap();
+        let service_count = node.services.len();
+        let publisher_count = node.pubs.len();
+
+        assert!(matches!(
+            node.make_parameter_handler(),
+            Err(Error::ParameterHandlerAlreadyCreated)
+        ));
+        assert_eq!(node.services.len(), service_count);
+        assert_eq!(node.pubs.len(), publisher_count);
+        drop(handler);
+    }
+
+    #[test]
+    fn failed_parameter_handler_initialization_cannot_leave_a_second_handler() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "failed_parameter_handler_test", "").unwrap();
+        let params: Arc<Mutex<dyn RosParams + Send>> = Arc::new(Mutex::new(42_i64));
+
+        assert!(matches!(
+            node.make_derived_parameter_handler(params),
+            Err(Error::InvalidParameterName { .. })
+        ));
+        assert!(matches!(
+            node.make_parameter_handler(),
+            Err(Error::ParameterHandlerAlreadyCreated)
+        ));
+        assert!(node.services.is_empty());
+        assert!(node.pubs.is_empty());
     }
 
     #[test]
