@@ -2350,7 +2350,7 @@ impl Node {
             .match_state_mut()
             .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
         let (sender, receiver) = oneshot::channel();
-        state.waiters.push(sender);
+        state.waiters.register(sender);
         Ok(receiver)
     }
 

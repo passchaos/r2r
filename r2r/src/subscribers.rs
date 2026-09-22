@@ -1,8 +1,4 @@
-use futures::{
-    channel::{mpsc, oneshot},
-    task::noop_waker_ref,
-    Future, Stream, TryFutureExt,
-};
+use futures::{channel::mpsc, task::noop_waker_ref, Future, Stream, TryFutureExt};
 use std::{
     any::TypeId,
     ffi::{CStr, CString},
@@ -16,6 +12,7 @@ use std::{
 };
 
 use crate::{
+    availability::AvailabilityWaiters,
     error::*,
     msg_types::*,
     nodes::Node,
@@ -409,7 +406,7 @@ impl<T> Stream for Subscription<T> {
 
 pub(crate) struct SubscriptionMatchState {
     pub(crate) id: uuid::Uuid,
-    pub(crate) waiters: Vec<oneshot::Sender<()>>,
+    pub(crate) waiters: AvailabilityWaiters,
     requested_incompatible_qos: Option<SubscriptionEvent>,
     requested_deadline_missed: Option<SubscriptionEvent>,
     liveliness_changed: Option<SubscriptionEvent>,
@@ -420,7 +417,7 @@ impl SubscriptionMatchState {
     pub(crate) fn new(id: uuid::Uuid) -> Self {
         Self {
             id,
-            waiters: Vec::new(),
+            waiters: AvailabilityWaiters::default(),
             requested_incompatible_qos: None,
             requested_deadline_missed: None,
             liveliness_changed: None,
@@ -702,14 +699,14 @@ pub(crate) trait Subscriber_ {
         state.take_message_lost(subscription)
     }
     fn poll_has_publishers(&mut self) {
-        {
+        let boundary = {
             let Some(state) = self.match_state_mut() else {
                 return;
             };
-            state.waiters.retain(|sender| !sender.is_canceled());
-            if state.waiters.is_empty() {
+            let Some(boundary) = state.waiters.poll_boundary() else {
                 return;
-            }
+            };
+            boundary
         };
 
         match self.publisher_count() {
@@ -718,13 +715,13 @@ pub(crate) trait Subscriber_ {
                 let Some(state) = self.match_state_mut() else {
                     return;
                 };
-                while let Some(sender) = state.waiters.pop() {
+                for sender in state.waiters.take_through(boundary) {
                     let _ = sender.send(());
                 }
             }
             Err(_) => {
                 if let Some(state) = self.match_state_mut() {
-                    state.waiters.clear();
+                    drop(state.waiters.take_through(boundary));
                 }
             }
         }
@@ -1233,6 +1230,7 @@ pub(crate) fn create_subscription_helper(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::channel::oneshot;
     use std::{
         cell::Cell,
         sync::atomic::{AtomicUsize, Ordering},
@@ -1355,7 +1353,7 @@ mod tests {
                 publisher_count,
             };
             let (sender, _receiver) = oneshot::channel();
-            subscriber.state.waiters.push(sender);
+            subscriber.state.waiters.register(sender);
 
             subscriber.poll_has_publishers();
 
