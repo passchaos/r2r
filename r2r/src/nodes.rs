@@ -42,6 +42,45 @@ use crate::{
 
 const SPIN_UNTIL_FUTURE_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
+/// Options controlling native timer startup and Rust-side tick buffering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TimerOptions {
+    /// Whether the timer starts running immediately after creation.
+    pub autostart: bool,
+    /// Number of pending ticks retained for the returned [`Timer`].
+    pub channel_capacity: usize,
+}
+
+impl Default for TimerOptions {
+    fn default() -> Self {
+        Self {
+            autostart: true,
+            channel_capacity: 1,
+        }
+    }
+}
+
+impl TimerOptions {
+    /// Selects whether the native timer starts immediately.
+    pub const fn autostart(mut self, autostart: bool) -> Self {
+        self.autostart = autostart;
+        self
+    }
+
+    /// Sets the Rust-side tick stream capacity.
+    pub const fn channel_capacity(mut self, channel_capacity: usize) -> Self {
+        self.channel_capacity = channel_capacity;
+        self
+    }
+
+    fn validate(self) -> Result<Self> {
+        if self.channel_capacity >= usize::MAX >> 2 {
+            return Err(Error::RCL_RET_INVALID_ARGUMENT);
+        }
+        Ok(self)
+    }
+}
+
 thread_local! {
     static ACTIVE_PARAMETER_TRANSACTIONS: RefCell<HashSet<usize>> = RefCell::new(HashSet::new());
 }
@@ -5057,10 +5096,18 @@ impl Node {
     ///
     /// This timer uses [`ClockType::SteadyTime`] clock.
     pub fn create_wall_timer(&mut self, period: Duration) -> Result<Timer> {
-        let mut clock = Clock::create(ClockType::SteadyTime)?;
-        let timer_handle = self.create_timer_helper(&mut clock, period)?;
+        self.create_wall_timer_with_options(period, TimerOptions::default())
+    }
 
-        let (tx, rx) = mpsc::channel::<Duration>(1);
+    /// Creates a steady-clock timer with explicit startup and buffering options.
+    pub fn create_wall_timer_with_options(
+        &mut self, period: Duration, options: TimerOptions,
+    ) -> Result<Timer> {
+        let options = options.validate()?;
+        let mut clock = Clock::create(ClockType::SteadyTime)?;
+        let timer_handle = self.create_timer_helper(&mut clock, period, options.autostart)?;
+
+        let (tx, rx) = mpsc::channel::<Duration>(options.channel_capacity);
 
         let timer = Timer_ {
             timer_handle,
@@ -5086,12 +5133,20 @@ impl Node {
     ///
     /// This timer uses node's [`ClockType::RosTime`] clock.
     pub fn create_timer(&mut self, period: Duration) -> Result<Timer> {
+        self.create_timer_with_options(period, TimerOptions::default())
+    }
+
+    /// Creates a ROS-clock timer with explicit startup and buffering options.
+    pub fn create_timer_with_options(
+        &mut self, period: Duration, options: TimerOptions,
+    ) -> Result<Timer> {
+        let options = options.validate()?;
         let timer_handle = {
             let mut clock = self.ros_clock.lock();
-            self.create_timer_helper(&mut clock, period)?
+            self.create_timer_helper(&mut clock, period, options.autostart)?
         };
 
-        let (tx, rx) = mpsc::channel::<Duration>(1);
+        let (tx, rx) = mpsc::channel::<Duration>(options.channel_capacity);
 
         let timer = Timer_ {
             timer_handle,
@@ -5125,7 +5180,7 @@ impl Node {
     }
 
     fn create_timer_helper(
-        &self, clock: &mut Clock, period: Duration,
+        &self, clock: &mut Clock, period: Duration, autostart: bool,
     ) -> Result<Pin<Box<RclTimer>>> {
         // rcl expects that the address of the rcl_timer_t does not change.
         let mut timer_handle = unsafe { Box::pin(RclTimer::new()) };
@@ -5139,6 +5194,7 @@ impl Node {
                 duration_to_rcl_nanos(period)?,
                 None,
                 rcutils_get_default_allocator(),
+                autostart,
             )
         };
 
@@ -5317,9 +5373,17 @@ fn qualify_node_name(name: &str, namespace: &str) -> String {
 #[inline]
 pub unsafe fn init_timer(
     timer: *mut rcl_timer_t, clock: *mut rcl_clock_t, context: *mut rcl_context_t, period: i64,
-    callback: rcl_timer_callback_t, allocator: rcl_allocator_t,
+    callback: rcl_timer_callback_t, allocator: rcl_allocator_t, autostart: bool,
 ) -> rcl_ret_t {
-    rcl_timer_init(timer, clock, context, period, callback, allocator)
+    let ret = rcl_timer_init(timer, clock, context, period, callback, allocator);
+    if ret != RCL_RET_OK as i32 || autostart {
+        return ret;
+    }
+    let cancel_ret = rcl_timer_cancel(timer);
+    if cancel_ret != RCL_RET_OK as i32 {
+        rcl_timer_fini(timer);
+    }
+    cancel_ret
 }
 
 // For Jazzy, Rolling, and newer
@@ -5332,9 +5396,9 @@ pub unsafe fn init_timer(
 #[inline]
 pub unsafe fn init_timer(
     timer: *mut rcl_timer_t, clock: *mut rcl_clock_t, context: *mut rcl_context_t, period: i64,
-    callback: rcl_timer_callback_t, allocator: rcl_allocator_t,
+    callback: rcl_timer_callback_t, allocator: rcl_allocator_t, autostart: bool,
 ) -> rcl_ret_t {
-    rcl_timer_init2(timer, clock, context, period, callback, allocator, true)
+    rcl_timer_init2(timer, clock, context, period, callback, allocator, autostart)
 }
 
 #[derive(Debug)]
@@ -13126,6 +13190,54 @@ mod tests {
         timer.reset(&mut node).unwrap();
         assert!(timer.is_ready(&node).unwrap());
         assert_eq!(timer.time_until_next_call(&node).unwrap(), Duration::ZERO);
+    }
+
+    #[test]
+    fn timer_options_control_startup_and_tick_buffering() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "timer_options_test", "").unwrap();
+        assert_eq!(
+            TimerOptions::default(),
+            TimerOptions {
+                autostart: true,
+                channel_capacity: 1,
+            }
+        );
+
+        let timer_count = node.timers.len();
+        assert!(matches!(
+            node.create_wall_timer_with_options(
+                Duration::from_millis(1),
+                TimerOptions::default().channel_capacity(usize::MAX),
+            ),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert_eq!(node.timers.len(), timer_count);
+
+        let mut wall = node
+            .create_wall_timer_with_options(
+                Duration::ZERO,
+                TimerOptions::default().autostart(false).channel_capacity(0),
+            )
+            .unwrap();
+        let ros = node
+            .create_timer_with_options(
+                Duration::from_secs(1),
+                TimerOptions::default().autostart(false),
+            )
+            .unwrap();
+        assert!(wall.is_canceled(&node).unwrap());
+        assert!(ros.is_canceled(&node).unwrap());
+        assert!(wall.tick().now_or_never().is_none());
+
+        wall.reset(&mut node).unwrap();
+        node.try_spin_once(Duration::ZERO).unwrap();
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(matches!(wall.tick().now_or_never(), Some(Ok(_))));
+        assert!(wall.tick().now_or_never().is_none());
+
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(matches!(wall.tick().now_or_never(), Some(Ok(_))));
     }
 
     #[test]
