@@ -54,6 +54,10 @@ impl ParameterClient {
         &self.resolved_remote_node_name
     }
 
+    fn validate_owner(&self, node: &Node) -> Result<()> {
+        self.get_parameters.validate_owner(node)
+    }
+
     /// Subscribes to standard parameter events from this client's target node.
     ///
     /// When `parameter` is set, changes for other parameters on the target node are filtered out.
@@ -107,6 +111,7 @@ impl ParameterClient {
     pub fn wait_for_services_with_timeout(
         &self, node: &mut Node, timeout: Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
+        self.validate_owner(node)?;
         let wait = self.wait_for_services()?;
         node.with_timeout(wait, timeout)
     }
@@ -140,6 +145,7 @@ impl ParameterClient {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
+        self.validate_owner(node)?;
         let response = self.get_parameters(names)?;
         node.with_timeout(response, timeout)
     }
@@ -160,6 +166,7 @@ impl ParameterClient {
     pub fn has_parameter_with_timeout(
         &self, node: &mut Node, name: impl Into<String>, timeout: Duration,
     ) -> Result<impl Future<Output = Result<bool>>> {
+        self.validate_owner(node)?;
         let response = self.has_parameter(name)?;
         node.with_timeout(response, timeout)
     }
@@ -194,6 +201,7 @@ impl ParameterClient {
     where
         ParameterValue: TryInto<T, Error = WrongParameterType>,
     {
+        self.validate_owner(node)?;
         let response = self.get_parameter(name)?;
         node.with_timeout(response, timeout)
     }
@@ -232,6 +240,7 @@ impl ParameterClient {
     where
         ParameterValue: TryInto<T, Error = WrongParameterType>,
     {
+        self.validate_owner(node)?;
         let response = self.get_parameter_or(name, alternative)?;
         node.with_timeout(response, timeout)
     }
@@ -265,6 +274,7 @@ impl ParameterClient {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
+        self.validate_owner(node)?;
         let response = self.get_parameter_types(names)?;
         node.with_timeout(response, timeout)
     }
@@ -287,6 +297,7 @@ impl ParameterClient {
     pub fn get_parameter_type_with_timeout(
         &self, node: &mut Node, name: impl Into<String>, timeout: Duration,
     ) -> Result<impl Future<Output = Result<ParameterType>>> {
+        self.validate_owner(node)?;
         let response = self.get_parameter_type(name)?;
         node.with_timeout(response, timeout)
     }
@@ -316,6 +327,7 @@ impl ParameterClient {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
+        self.validate_owner(node)?;
         let response = self.describe_parameters(names)?;
         node.with_timeout(response, timeout)
     }
@@ -340,6 +352,7 @@ impl ParameterClient {
     pub fn describe_parameter_with_timeout(
         &self, node: &mut Node, name: impl Into<String>, timeout: Duration,
     ) -> Result<impl Future<Output = Result<msg::ParameterDescriptor>>> {
+        self.validate_owner(node)?;
         let response = self.describe_parameter(name)?;
         node.with_timeout(response, timeout)
     }
@@ -367,6 +380,7 @@ impl ParameterClient {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
+        self.validate_owner(node)?;
         let response = self.list_parameters(prefixes, depth)?;
         node.with_timeout(response, timeout)
     }
@@ -409,6 +423,7 @@ impl ParameterClient {
     pub fn get_parameters_by_prefix_with_timeout(
         &self, node: &mut Node, prefix: impl Into<String>, timeout: Duration,
     ) -> Result<impl Future<Output = Result<IndexMap<String, ParameterValue>>>> {
+        self.validate_owner(node)?;
         let response = self.get_parameters_by_prefix(prefix)?;
         node.with_timeout(response, timeout)
     }
@@ -440,6 +455,7 @@ impl ParameterClient {
         S: Into<String>,
         V: Into<ParameterValue>,
     {
+        self.validate_owner(node)?;
         let response = self.set_parameters(parameters)?;
         node.with_timeout(response, timeout)
     }
@@ -463,6 +479,7 @@ impl ParameterClient {
         &self, node: &mut Node, name: impl Into<String>, value: impl Into<ParameterValue>,
         timeout: Duration,
     ) -> Result<impl Future<Output = Result<msg::SetParametersResult>>> {
+        self.validate_owner(node)?;
         let response = self.set_parameter(name, value)?;
         node.with_timeout(response, timeout)
     }
@@ -491,6 +508,7 @@ impl ParameterClient {
         S: Into<String>,
         V: Into<ParameterValue>,
     {
+        self.validate_owner(node)?;
         let response = self.set_parameters_atomically(parameters)?;
         node.with_timeout(response, timeout)
     }
@@ -513,6 +531,7 @@ impl ParameterClient {
         I: IntoIterator<Item = S>,
         S: Into<String>,
     {
+        self.validate_owner(node)?;
         let response = self.delete_parameters(names)?;
         node.with_timeout(response, timeout)
     }
@@ -528,6 +547,7 @@ impl ParameterClient {
     pub fn delete_parameter_with_timeout(
         &self, node: &mut Node, name: impl Into<String>, timeout: Duration,
     ) -> Result<impl Future<Output = Result<msg::SetParametersResult>>> {
+        self.validate_owner(node)?;
         let response = self.delete_parameter(name)?;
         node.with_timeout(response, timeout)
     }
@@ -1036,6 +1056,69 @@ mod tests {
         assert_times_out!(client
             .delete_parameter_with_timeout(&mut node, "value", timeout)
             .unwrap());
+    }
+
+    #[test]
+    fn parameter_client_timeout_helpers_reject_foreign_nodes_before_sending() {
+        let context = Context::create().unwrap();
+        let mut owner = Node::create(context.clone(), "parameter_timeout_owner", "").unwrap();
+        let mut other = Node::create(context, "parameter_timeout_other", "").unwrap();
+        let client = owner.create_parameter_client("/remote_parameters").unwrap();
+        let timeout = Duration::from_secs(1);
+
+        macro_rules! assert_rejected {
+            ($call:expr) => {
+                assert!(matches!($call, Err(Error::RCL_RET_INVALID_ARGUMENT)));
+            };
+        }
+
+        assert_rejected!(client.wait_for_services_with_timeout(&mut other, timeout));
+        assert_rejected!(client.get_parameters_with_timeout(&mut other, ["value"], timeout));
+        assert_rejected!(client.has_parameter_with_timeout(&mut other, "value", timeout));
+        assert_rejected!(client.get_parameter_with_timeout::<i64>(&mut other, "value", timeout));
+        assert_rejected!(client.get_parameter_or_with_timeout(&mut other, "value", 42_i64, timeout));
+        assert_rejected!(client.get_parameter_types_with_timeout(&mut other, ["value"], timeout));
+        assert_rejected!(client.get_parameter_type_with_timeout(&mut other, "value", timeout));
+        assert_rejected!(client.describe_parameters_with_timeout(&mut other, ["value"], timeout));
+        assert_rejected!(client.describe_parameter_with_timeout(&mut other, "value", timeout));
+        assert_rejected!(client.list_parameters_with_timeout(&mut other, ["prefix"], 1, timeout));
+        assert_rejected!(
+            client.get_parameters_by_prefix_with_timeout(&mut other, "prefix", timeout,)
+        );
+        assert_rejected!(client.set_parameters_with_timeout(
+            &mut other,
+            [("value", ParameterValue::Integer(1))],
+            timeout,
+        ));
+        assert_rejected!(client.set_parameter_with_timeout(
+            &mut other,
+            "value",
+            ParameterValue::Integer(1),
+            timeout,
+        ));
+        assert_rejected!(client.set_parameters_atomically_with_timeout(
+            &mut other,
+            [("value", ParameterValue::Integer(1))],
+            timeout,
+        ));
+        assert_rejected!(client.delete_parameters_with_timeout(&mut other, ["value"], timeout));
+        assert_rejected!(client.delete_parameter_with_timeout(&mut other, "value", timeout));
+
+        macro_rules! assert_client_idle {
+            ($field:expr) => {
+                let state = $field.client.upgrade().unwrap();
+                let state = state.lock();
+                assert!(state.response_channels.is_empty());
+                assert!(state.poll_available_channels.is_empty());
+            };
+        }
+        assert_client_idle!(client.get_parameters);
+        assert_client_idle!(client.get_parameter_types);
+        assert_client_idle!(client.set_parameters);
+        assert_client_idle!(client.set_parameters_atomically);
+        assert_client_idle!(client.list_parameters);
+        assert_client_idle!(client.describe_parameters);
+        assert_eq!(other.timer_count(), 0);
     }
 
     #[test]

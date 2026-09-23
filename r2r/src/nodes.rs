@@ -5251,6 +5251,11 @@ impl Node {
             .and_then(|index| self.timers.get_mut(*index))
             .ok_or(Error::RCL_RET_TIMER_INVALID)
     }
+
+    #[cfg(test)]
+    pub(crate) fn timer_count(&self) -> usize {
+        self.timers.len()
+    }
 }
 
 struct NamesAndTypes(rmw_names_and_types_t);

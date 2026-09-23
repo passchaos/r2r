@@ -366,7 +366,7 @@ where
         service_available_helper(node.node_handle.as_ref(), client.handle())
     }
 
-    fn validate_owner(&self, node: &Node) -> Result<()> {
+    pub(crate) fn validate_owner(&self, node: &Node) -> Result<()> {
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
         if node.owns_client(&client) {
             Ok(())
