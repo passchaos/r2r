@@ -5,7 +5,10 @@ use std::{
     ffi::{CStr, CString},
     mem::MaybeUninit,
     pin::Pin,
-    sync::{Arc, Weak},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Weak,
+    },
     task::{Context, Poll},
 };
 
@@ -264,6 +267,7 @@ where
     pub message: T::Request,
     request_id: rmw_request_id_t,
     service: Weak<Mutex<dyn Service_>>,
+    response_sent: Arc<AtomicBool>,
 }
 
 /// A request received by a runtime-typed service.
@@ -298,6 +302,10 @@ where
     T: 'static + WrappedServiceTypeSupport,
 {
     /// Complete the service request, consuming the request in the process.
+    ///
+    /// Cloned requests share response state. After one clone sends a response successfully, later
+    /// calls return [`Error::ServiceRequestAlreadyResponded`]. A failed send does not consume the
+    /// response opportunity, allowing another clone to retry.
     pub fn respond(self, msg: T::Response) -> Result<()> {
         let service = self
             .service
@@ -306,7 +314,16 @@ where
         with_prepared_service(
             &service,
             || WrappedNativeMsg::<T::Response>::try_from(&msg),
-            |service, native_msg| service.send_response(self.request_id, Box::new(native_msg)),
+            |service, native_msg| {
+                self.response_sent
+                    .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                    .map_err(|_| Error::ServiceRequestAlreadyResponded)?;
+                let result = service.send_response(self.request_id, Box::new(native_msg));
+                if result.is_err() {
+                    self.response_sent.store(false, Ordering::Release);
+                }
+                result
+            },
         )
     }
 }
@@ -510,6 +527,7 @@ where
                 message: T::Request::from_native(&request_msg),
                 request_id,
                 service,
+                response_sent: Arc::new(AtomicBool::new(false)),
             },
             "service request",
         ))
@@ -568,6 +586,89 @@ mod tests {
             let _service = arc_self.service.lock();
             arc_self.woke.store(true, Ordering::SeqCst);
         }
+    }
+
+    struct ResponseTrackingService {
+        handle: rcl_service_t,
+        send_attempts: usize,
+        fail_next_send: bool,
+    }
+
+    // SAFETY: the test double never dereferences or passes its zero-initialized native handle to
+    // RCL; all mutable test state is accessed through the enclosing mutex.
+    unsafe impl Send for ResponseTrackingService {}
+
+    impl Service_ for ResponseTrackingService {
+        fn handle(&self) -> &rcl_service_t {
+            &self.handle
+        }
+
+        fn send_response(
+            &mut self, _request_id: rmw_request_id_t, _msg: Box<dyn VoidPtr>,
+        ) -> Result<()> {
+            self.send_attempts += 1;
+            if std::mem::take(&mut self.fail_next_send) {
+                Err(Error::RCL_RET_ERROR)
+            } else {
+                Ok(())
+            }
+        }
+
+        fn handle_request(
+            &mut self, _service: Arc<Mutex<dyn Service_>>,
+        ) -> Result<ServiceRequestAction> {
+            unreachable!()
+        }
+
+        fn destroy(&mut self, _node: &mut rcl_node_t) {}
+    }
+
+    fn test_service_request(
+        service: &Arc<Mutex<ResponseTrackingService>>,
+    ) -> ServiceRequest<AddTwoInts::Service> {
+        let service: Arc<Mutex<dyn Service_>> = service.clone();
+        ServiceRequest {
+            message: AddTwoInts::Request { a: 1, b: 2 },
+            request_id: unsafe { std::mem::zeroed() },
+            service: Arc::downgrade(&service),
+            response_sent: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    #[test]
+    fn cloned_service_request_can_respond_only_once() {
+        let service = Arc::new(Mutex::new(ResponseTrackingService {
+            handle: unsafe { rcl_get_zero_initialized_service() },
+            send_attempts: 0,
+            fail_next_send: false,
+        }));
+        let request = test_service_request(&service);
+        let clone = request.clone();
+
+        request.respond(AddTwoInts::Response { sum: 3 }).unwrap();
+        assert!(matches!(
+            clone.respond(AddTwoInts::Response { sum: 4 }),
+            Err(Error::ServiceRequestAlreadyResponded)
+        ));
+        assert_eq!(service.lock().send_attempts, 1);
+    }
+
+    #[test]
+    fn failed_service_response_allows_a_clone_to_retry() {
+        let service = Arc::new(Mutex::new(ResponseTrackingService {
+            handle: unsafe { rcl_get_zero_initialized_service() },
+            send_attempts: 0,
+            fail_next_send: true,
+        }));
+        let request = test_service_request(&service);
+        let clone = request.clone();
+
+        assert!(matches!(
+            request.respond(AddTwoInts::Response { sum: 3 }),
+            Err(Error::RCL_RET_ERROR)
+        ));
+        clone.respond(AddTwoInts::Response { sum: 3 }).unwrap();
+        assert_eq!(service.lock().send_attempts, 2);
     }
 
     #[test]

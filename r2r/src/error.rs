@@ -167,6 +167,9 @@ pub enum Error {
     #[error("Parameter modification from within a parameter callback is not allowed")]
     RecursiveParameterMutation,
 
+    #[error("Service request has already been responded to")]
+    ServiceRequestAlreadyResponded,
+
     #[error("A parameter handler has already been created for this node")]
     ParameterHandlerAlreadyCreated,
 
