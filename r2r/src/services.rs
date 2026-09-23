@@ -270,6 +270,25 @@ where
     response_sent: Arc<AtomicBool>,
 }
 
+/// Middleware identity attached to a received service request.
+///
+/// The sequence number and writer GUID can be used to correlate application logs and detect
+/// duplicate requests without exposing the native RMW request header.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ServiceRequestInfo {
+    pub writer_guid: [u8; 16],
+    pub sequence_number: i64,
+}
+
+impl From<&rmw_request_id_t> for ServiceRequestInfo {
+    fn from(request_id: &rmw_request_id_t) -> Self {
+        Self {
+            writer_guid: request_id.writer_guid.map(|byte| byte.to_ne_bytes()[0]),
+            sequence_number: request_id.sequence_number,
+        }
+    }
+}
+
 /// A request received by a runtime-typed service.
 pub struct ServiceRequestUntyped {
     /// JSON conversion result for the request payload.
@@ -282,6 +301,11 @@ pub struct ServiceRequestUntyped {
 unsafe impl Send for ServiceRequestUntyped {}
 
 impl ServiceRequestUntyped {
+    /// Returns a stable snapshot of the middleware request identity.
+    pub fn request_info(&self) -> ServiceRequestInfo {
+        ServiceRequestInfo::from(&self.request_id)
+    }
+
     /// Completes the request with a runtime-typed JSON response.
     pub fn respond(self, msg: serde_json::Value) -> Result<()> {
         let mut native_msg = (self.make_response_msg)()?;
@@ -301,6 +325,11 @@ impl<T> ServiceRequest<T>
 where
     T: 'static + WrappedServiceTypeSupport,
 {
+    /// Returns a stable snapshot of the middleware request identity.
+    pub fn request_info(&self) -> ServiceRequestInfo {
+        ServiceRequestInfo::from(&self.request_id)
+    }
+
     /// Complete the service request, consuming the request in the process.
     ///
     /// Cloned requests share response state. After one clone sends a response successfully, later
@@ -682,6 +711,18 @@ mod tests {
 
         assert_eq!(canceled_services.lock().iter().copied().collect::<Vec<_>>(), [id]);
         assert!(sender.is_closed());
+    }
+
+    #[test]
+    fn service_request_info_copies_native_identity() {
+        let request_id = rmw_request_id_t {
+            writer_guid: [128, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 126, 127],
+            sequence_number: -42,
+        };
+        let info = ServiceRequestInfo::from(&request_id);
+
+        assert_eq!(info.writer_guid, [128, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 126, 127]);
+        assert_eq!(info.sequence_number, -42);
     }
 
     #[test]

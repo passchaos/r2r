@@ -106,7 +106,8 @@ pub use publishers::{
 
 mod services;
 pub use services::{
-    Service, ServiceOptions, ServiceRequest, ServiceRequestUntyped, ServiceUntyped,
+    Service, ServiceOptions, ServiceRequest, ServiceRequestInfo, ServiceRequestUntyped,
+    ServiceUntyped,
 };
 
 mod availability;

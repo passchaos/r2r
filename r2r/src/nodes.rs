@@ -9236,9 +9236,19 @@ mod tests {
         node.try_spin_once(Duration::from_millis(100)).unwrap();
 
         let received = (0..3)
-            .map(|_| service.next().now_or_never().flatten().unwrap().message.a)
+            .map(|_| {
+                let request = service.next().now_or_never().flatten().unwrap();
+                (request.message.a, request.request_info())
+            })
             .collect::<Vec<_>>();
-        assert_eq!(received, vec![1, 2, 3]);
+        assert_eq!(received.iter().map(|(value, _)| *value).collect::<Vec<_>>(), vec![1, 2, 3]);
+        assert!(received
+            .windows(2)
+            .all(|pair| pair[0].1.sequence_number != pair[1].1.sequence_number));
+        assert!(received
+            .windows(2)
+            .all(|pair| pair[0].1.writer_guid == pair[1].1.writer_guid));
+        assert!(received[0].1.writer_guid.iter().any(|byte| *byte != 0));
         drop(responses);
     }
 
@@ -9331,13 +9341,18 @@ mod tests {
             node.try_spin_once(Duration::from_millis(10)).unwrap();
         }
         let request = requests.next().now_or_never().flatten().unwrap();
+        let first_info = request.request_info();
         assert_eq!(request.message.as_ref().unwrap(), &serde_json::json!({ "a": 1, "b": 2 }));
         request.respond(serde_json::json!({ "sum": 3 })).unwrap();
         assert!(requests.next().now_or_never().is_none());
         node.try_spin_once(Duration::from_millis(10)).unwrap();
         let request = requests.next().now_or_never().flatten().unwrap();
+        let second_info = request.request_info();
         assert_eq!(request.message.as_ref().unwrap(), &serde_json::json!({ "a": 20, "b": 22 }));
         request.respond(serde_json::json!({ "sum": 42 })).unwrap();
+        assert_ne!(first_info.sequence_number, second_info.sequence_number);
+        assert_eq!(first_info.writer_guid, second_info.writer_guid);
+        assert!(first_info.writer_guid.iter().any(|byte| *byte != 0));
 
         let mut first_result = None;
         let mut second_result = None;
