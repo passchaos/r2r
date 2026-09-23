@@ -12026,6 +12026,79 @@ mod tests {
     }
 
     #[test]
+    fn service_client_timeout_helpers_reject_foreign_nodes_before_sending() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut owner = Node::create(context.clone(), "service_timeout_owner", "").unwrap();
+        let mut other = Node::create(context, "service_timeout_other", "").unwrap();
+        let typed = owner
+            .create_client::<AddTwoInts::Service>(
+                "/foreign_node_typed_timeout",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let untyped = owner
+            .create_client_untyped(
+                "/foreign_node_untyped_timeout",
+                "example_interfaces/srv/AddTwoInts",
+                QosProfile::default(),
+            )
+            .unwrap();
+
+        assert!(matches!(
+            typed.request_with_timeout(
+                &mut other,
+                &AddTwoInts::Request { a: 1, b: 2 },
+                Duration::from_secs(1),
+            ),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            typed.request_with_info_with_timeout(
+                &mut other,
+                &AddTwoInts::Request { a: 1, b: 2 },
+                Duration::from_secs(1),
+            ),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            typed.wait_for_service_with_timeout(&mut other, Duration::from_secs(1)),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        let typed_state = typed.client.upgrade().unwrap();
+        let typed_state = typed_state.lock();
+        assert!(typed_state.response_channels.is_empty());
+        assert!(typed_state.poll_available_channels.is_empty());
+        drop(typed_state);
+
+        assert!(matches!(
+            untyped.request_with_timeout(
+                &mut other,
+                serde_json::json!({ "a": 1, "b": 2 }),
+                Duration::from_secs(1),
+            ),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            untyped.request_with_info_with_timeout(
+                &mut other,
+                serde_json::json!({ "a": 1, "b": 2 }),
+                Duration::from_secs(1),
+            ),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            untyped.wait_for_service_with_timeout(&mut other, Duration::from_secs(1)),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        let untyped_state = untyped.client.upgrade().unwrap();
+        let untyped_state = untyped_state.lock();
+        assert!(untyped_state.response_channels.is_empty());
+        assert!(untyped_state.poll_available_channels.is_empty());
+    }
+
+    #[test]
     fn action_requests_support_runtime_agnostic_timeouts() {
         use crate::example_interfaces::action::Fibonacci;
 

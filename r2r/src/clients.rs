@@ -319,6 +319,7 @@ where
     pub fn request_with_timeout(
         &self, node: &mut Node, msg: &T::Request, timeout: Duration,
     ) -> Result<impl Future<Output = Result<T::Response>>> {
+        self.validate_owner(node)?;
         let response = self.request(msg)?;
         node.with_timeout(response, timeout)
     }
@@ -329,6 +330,7 @@ where
     pub fn request_with_info_with_timeout(
         &self, node: &mut Node, msg: &T::Request, timeout: Duration,
     ) -> Result<impl Future<Output = Result<ServiceResponse<T::Response>>>> {
+        self.validate_owner(node)?;
         let response = self.request_with_info(msg)?;
         node.with_timeout(response, timeout)
     }
@@ -364,6 +366,15 @@ where
         service_available_helper(node.node_handle.as_ref(), client.handle())
     }
 
+    fn validate_owner(&self, node: &Node) -> Result<()> {
+        let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
+        if node.owns_client(&client) {
+            Ok(())
+        } else {
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        }
+    }
+
     /// Waits asynchronously until the service is available.
     ///
     /// The owning node must be spun while awaiting.
@@ -377,6 +388,7 @@ where
     pub fn wait_for_service_with_timeout(
         &self, node: &mut Node, timeout: Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
+        self.validate_owner(node)?;
         let available = self.wait_for_service()?;
         node.with_timeout(available, timeout)
     }
@@ -462,6 +474,7 @@ impl ClientUntyped {
     pub fn request_with_timeout(
         &self, node: &mut Node, msg: serde_json::Value, timeout: Duration,
     ) -> Result<impl Future<Output = Result<Result<serde_json::Value>>>> {
+        self.validate_owner(node)?;
         let response = self.request(msg)?;
         node.with_timeout(response, timeout)
     }
@@ -472,6 +485,7 @@ impl ClientUntyped {
     pub fn request_with_info_with_timeout(
         &self, node: &mut Node, msg: serde_json::Value, timeout: Duration,
     ) -> Result<impl Future<Output = Result<ServiceResponse<Result<serde_json::Value>>>>> {
+        self.validate_owner(node)?;
         let response = self.request_with_info(msg)?;
         node.with_timeout(response, timeout)
     }
@@ -507,6 +521,15 @@ impl ClientUntyped {
         service_available_helper(node.node_handle.as_ref(), client.handle())
     }
 
+    fn validate_owner(&self, node: &Node) -> Result<()> {
+        let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
+        if node.owns_client(&client) {
+            Ok(())
+        } else {
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        }
+    }
+
     /// Waits asynchronously until the service is available.
     ///
     /// The owning node must be spun while awaiting.
@@ -520,6 +543,7 @@ impl ClientUntyped {
     pub fn wait_for_service_with_timeout(
         &self, node: &mut Node, timeout: Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
+        self.validate_owner(node)?;
         let available = self.wait_for_service()?;
         node.with_timeout(available, timeout)
     }
