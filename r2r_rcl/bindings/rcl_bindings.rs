@@ -1677,6 +1677,15 @@ fn bindgen_test_layout_rmw_liveliness_lost_status_s() {
 pub type rmw_liveliness_lost_status_t = rmw_liveliness_lost_status_s;
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq)]
+pub struct rmw_matched_status_s {
+    pub total_count: usize,
+    pub total_count_change: usize,
+    pub current_count: usize,
+    pub current_count_change: i32,
+}
+pub type rmw_matched_status_t = rmw_matched_status_s;
+#[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct rmw_message_lost_status_s {
     pub total_count: usize,
     pub total_count_change: usize,
@@ -6715,6 +6724,8 @@ pub enum rcl_publisher_event_type_e {
     RCL_PUBLISHER_OFFERED_DEADLINE_MISSED = 0,
     RCL_PUBLISHER_LIVELINESS_LOST = 1,
     RCL_PUBLISHER_OFFERED_INCOMPATIBLE_QOS = 2,
+    RCL_PUBLISHER_INCOMPATIBLE_TYPE = 3,
+    RCL_PUBLISHER_MATCHED = 4,
 }
 pub use self::rcl_publisher_event_type_e as rcl_publisher_event_type_t;
 #[repr(u32)]
@@ -6724,6 +6735,8 @@ pub enum rcl_subscription_event_type_e {
     RCL_SUBSCRIPTION_LIVELINESS_CHANGED = 1,
     RCL_SUBSCRIPTION_REQUESTED_INCOMPATIBLE_QOS = 2,
     RCL_SUBSCRIPTION_MESSAGE_LOST = 3,
+    RCL_SUBSCRIPTION_INCOMPATIBLE_TYPE = 4,
+    RCL_SUBSCRIPTION_MATCHED = 5,
 }
 pub use self::rcl_subscription_event_type_e as rcl_subscription_event_type_t;
 #[repr(C)]

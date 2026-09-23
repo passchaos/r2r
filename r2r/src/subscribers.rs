@@ -20,7 +20,8 @@ use crate::{
     msg_types::*,
     nodes::Node,
     publishers::{
-        subscription_network_flow_endpoints, NetworkFlowEndpoint, UniqueNetworkFlowRequirement,
+        subscription_network_flow_endpoints, MatchedStatus, NetworkFlowEndpoint,
+        UniqueNetworkFlowRequirement,
     },
     qos::QosProfile,
     QosPolicyKind,
@@ -350,6 +351,16 @@ impl<T> Subscription<T> {
         node.take_subscription_message_lost(self.id)
     }
 
+    /// Takes subscription matching changes without blocking.
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    pub fn take_matched(&self, node: &mut Node) -> Result<Option<MatchedStatus>> {
+        node.take_subscription_matched(self.id)
+    }
+
     /// Tries to take a message loaned directly by the middleware without copying it.
     ///
     /// This is a non-blocking operation and returns `Ok(None)` when no message is available. It
@@ -432,6 +443,12 @@ pub(crate) struct SubscriptionMatchState {
     requested_deadline_missed: Option<SubscriptionEvent>,
     liveliness_changed: Option<SubscriptionEvent>,
     message_lost: Option<SubscriptionEvent>,
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    matched: Option<SubscriptionEvent>,
 }
 
 impl SubscriptionMatchState {
@@ -445,6 +462,12 @@ impl SubscriptionMatchState {
             requested_deadline_missed: None,
             liveliness_changed: None,
             message_lost: None,
+            #[cfg(not(any(
+                r2r__ros__distro__foxy,
+                r2r__ros__distro__galactic,
+                r2r__ros__distro__humble
+            )))]
+            matched: None,
         }
     }
 
@@ -496,11 +519,36 @@ impl SubscriptionMatchState {
         event.take_message_lost()
     }
 
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    fn take_matched(
+        &mut self, subscription: *const rcl_subscription_t,
+    ) -> Result<Option<MatchedStatus>> {
+        let event = self.matched.get_or_insert_with(|| {
+            SubscriptionEvent::uninitialized(
+                rcl_subscription_event_type_t::RCL_SUBSCRIPTION_MATCHED,
+            )
+        });
+        event.ensure_initialized(subscription)?;
+        event.take_matched()
+    }
+
     fn clear_events(&mut self) {
         self.requested_incompatible_qos = None;
         self.requested_deadline_missed = None;
         self.liveliness_changed = None;
         self.message_lost = None;
+        #[cfg(not(any(
+            r2r__ros__distro__foxy,
+            r2r__ros__distro__galactic,
+            r2r__ros__distro__humble
+        )))]
+        {
+            self.matched = None;
+        }
     }
 }
 
@@ -598,6 +646,30 @@ impl SubscriptionEvent {
         Ok(Some(MessageLostStatus {
             total_count: status.total_count,
             total_count_change: status.total_count_change,
+        }))
+    }
+
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    fn take_matched(&self) -> Result<Option<MatchedStatus>> {
+        let mut status = MaybeUninit::<rmw_matched_status_t>::uninit();
+        let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
+        if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
+            return Ok(None);
+        }
+        check_subscription_ret(ret)?;
+        let status = unsafe { status.assume_init() };
+        if status.total_count_change == 0 && status.current_count_change == 0 {
+            return Ok(None);
+        }
+        Ok(Some(MatchedStatus {
+            total_count: status.total_count,
+            total_count_change: status.total_count_change,
+            current_count: status.current_count,
+            current_count_change: status.current_count_change,
         }))
     }
 }
@@ -720,6 +792,18 @@ pub(crate) trait Subscriber_ {
             .match_state_mut()
             .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
         state.take_message_lost(subscription)
+    }
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    fn take_matched(&mut self) -> Result<Option<MatchedStatus>> {
+        let subscription = self.handle() as *const rcl_subscription_t;
+        let state = self
+            .match_state_mut()
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
+        state.take_matched(subscription)
     }
     fn poll_has_publishers(&mut self) {
         let boundary = {

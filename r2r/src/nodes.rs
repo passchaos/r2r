@@ -3457,6 +3457,17 @@ impl Node {
         self.subscriber_mut(id)?.take_message_lost()
     }
 
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    pub(crate) fn take_subscription_matched(
+        &mut self, id: uuid::Uuid,
+    ) -> Result<Option<MatchedStatus>> {
+        self.subscriber_mut(id)?.take_matched()
+    }
+
     pub(crate) fn register_subscription_publisher_wait(
         &mut self, id: uuid::Uuid,
     ) -> Result<oneshot::Receiver<()>> {
@@ -10090,6 +10101,87 @@ mod tests {
         assert_eq!(received.data, 42);
         subscription.clear_content_filter(&mut node).unwrap();
         assert!(!subscription.is_content_filter_enabled(&node).unwrap());
+    }
+
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    #[test]
+    fn publishers_and_subscriptions_report_matching_changes() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "matched_event_test", "").unwrap();
+
+        let publisher_topic = format!("/publisher_matched_{}", uuid::Uuid::new_v4().simple());
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::Int32>(
+                &publisher_topic,
+                QosProfile::default(),
+            )
+            .unwrap();
+        match publisher.take_matched() {
+            Ok(None) => {}
+            Err(Error::RCL_RET_UNSUPPORTED) => return,
+            result => panic!("unexpected initial publisher matched status: {result:?}"),
+        }
+        let subscription = node
+            .subscribe::<crate::std_msgs::msg::Int32>(&publisher_topic, QosProfile::default())
+            .unwrap();
+        let connected = (0..100).find_map(|_| {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            publisher.take_matched().unwrap()
+        });
+        let connected = connected.expect("publisher did not report a matched subscription");
+        assert!(connected.total_count >= 1);
+        assert!(connected.total_count_change >= 1);
+        assert!(connected.current_count >= 1);
+        assert!(connected.current_count_change > 0);
+
+        node.destroy_subscription(subscription);
+        let disconnected = (0..100).find_map(|_| {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            publisher.take_matched().unwrap()
+        });
+        let disconnected = disconnected.expect("publisher did not report the disconnection");
+        assert_eq!(disconnected.total_count_change, 0);
+        assert_eq!(disconnected.current_count, 0);
+        assert!(disconnected.current_count_change < 0);
+
+        let subscription_topic = format!("/subscription_matched_{}", uuid::Uuid::new_v4().simple());
+        let subscription = node
+            .subscribe::<crate::std_msgs::msg::Int32>(&subscription_topic, QosProfile::default())
+            .unwrap();
+        match subscription.take_matched(&mut node) {
+            Ok(None) => {}
+            Err(Error::RCL_RET_UNSUPPORTED) => return,
+            result => panic!("unexpected initial subscription matched status: {result:?}"),
+        }
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::Int32>(
+                &subscription_topic,
+                QosProfile::default(),
+            )
+            .unwrap();
+        let connected = (0..100).find_map(|_| {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            subscription.take_matched(&mut node).unwrap()
+        });
+        let connected = connected.expect("subscription did not report a matched publisher");
+        assert!(connected.total_count >= 1);
+        assert!(connected.total_count_change >= 1);
+        assert!(connected.current_count >= 1);
+        assert!(connected.current_count_change > 0);
+
+        node.destroy_publisher(publisher);
+        let disconnected = (0..100).find_map(|_| {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            subscription.take_matched(&mut node).unwrap()
+        });
+        let disconnected = disconnected.expect("subscription did not report the disconnection");
+        assert_eq!(disconnected.total_count_change, 0);
+        assert_eq!(disconnected.current_count, 0);
+        assert!(disconnected.current_count_change < 0);
     }
 
     #[test]

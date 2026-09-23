@@ -87,6 +87,19 @@ pub struct LivelinessLostStatus {
     pub total_count_change: i32,
 }
 
+/// Cumulative and current endpoint matching status.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MatchedStatus {
+    /// Total number of endpoints that have ever matched.
+    pub total_count: usize,
+    /// Increase in `total_count` since this status was last taken.
+    pub total_count_change: usize,
+    /// Number of endpoints currently matched.
+    pub current_count: usize,
+    /// Change in `current_count`, negative when endpoints disconnect.
+    pub current_count_change: i32,
+}
+
 impl Default for PublisherOptions {
     fn default() -> Self {
         Self {
@@ -295,6 +308,12 @@ mod waiter_tests {
                 offered_incompatible_qos: None,
                 offered_deadline_missed: None,
                 liveliness_lost: None,
+                #[cfg(not(any(
+                    r2r__ros__distro__foxy,
+                    r2r__ros__distro__galactic,
+                    r2r__ros__distro__humble
+                )))]
+                matched: None,
             })),
             active_wait_publishers: Arc::new(Mutex::new(VecDeque::new())),
             wait_poll_count: AtomicUsize::new(0),
@@ -335,6 +354,12 @@ mod waiter_tests {
                 offered_incompatible_qos: None,
                 offered_deadline_missed: None,
                 liveliness_lost: None,
+                #[cfg(not(any(
+                    r2r__ros__distro__foxy,
+                    r2r__ros__distro__galactic,
+                    r2r__ros__distro__humble
+                )))]
+                matched: None,
             })),
             active_wait_publishers: Arc::clone(&active),
             wait_poll_count: AtomicUsize::new(0),
@@ -365,6 +390,12 @@ mod waiter_tests {
                 offered_incompatible_qos: None,
                 offered_deadline_missed: None,
                 liveliness_lost: None,
+                #[cfg(not(any(
+                    r2r__ros__distro__foxy,
+                    r2r__ros__distro__galactic,
+                    r2r__ros__distro__humble
+                )))]
+                matched: None,
             })),
             active_wait_publishers: Arc::new(Mutex::new(VecDeque::new())),
             wait_poll_count: AtomicUsize::new(0),
@@ -392,6 +423,12 @@ struct PublisherHandle {
     offered_incompatible_qos: Option<PublisherEvent>,
     offered_deadline_missed: Option<PublisherEvent>,
     liveliness_lost: Option<PublisherEvent>,
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    matched: Option<PublisherEvent>,
 }
 
 struct PublisherEvent {
@@ -468,6 +505,30 @@ impl PublisherEvent {
         Ok(Some(LivelinessLostStatus {
             total_count: status.total_count,
             total_count_change: status.total_count_change,
+        }))
+    }
+
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    fn take_matched(&self) -> Result<Option<MatchedStatus>> {
+        let mut status = MaybeUninit::<rmw_matched_status_t>::uninit();
+        let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
+        if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
+            return Ok(None);
+        }
+        check_publisher_ret(ret)?;
+        let status = unsafe { status.assume_init() };
+        if status.total_count_change == 0 && status.current_count_change == 0 {
+            return Ok(None);
+        }
+        Ok(Some(MatchedStatus {
+            total_count: status.total_count,
+            total_count_change: status.total_count_change,
+            current_count: status.current_count,
+            current_count_change: status.current_count_change,
         }))
     }
 }
@@ -553,6 +614,25 @@ impl Publisher_ {
         });
         event.ensure_initialized(publisher)?;
         event.take_liveliness_lost()
+    }
+
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    fn take_matched(&self) -> Result<Option<MatchedStatus>> {
+        let mut handle = self.handle.lock();
+        let publisher = handle
+            .publisher
+            .as_ref()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            as *const rcl_publisher_t;
+        let event = handle.matched.get_or_insert_with(|| {
+            PublisherEvent::uninitialized(rcl_publisher_event_type_t::RCL_PUBLISHER_MATCHED)
+        });
+        event.ensure_initialized(publisher)?;
+        event.take_matched()
     }
 
     fn assert_liveliness(&self) -> Result<()> {
@@ -696,6 +776,14 @@ impl Publisher_ {
         state.offered_incompatible_qos = None;
         state.offered_deadline_missed = None;
         state.liveliness_lost = None;
+        #[cfg(not(any(
+            r2r__ros__distro__foxy,
+            r2r__ros__distro__galactic,
+            r2r__ros__distro__humble
+        )))]
+        {
+            state.matched = None;
+        }
         if let Some(mut handle) = state.publisher.take() {
             let ret = unsafe { rcl_publisher_fini(&mut handle, node) };
             if ret != RCL_RET_OK as i32 {
@@ -935,6 +1023,12 @@ pub fn create_publisher_helper(
                 offered_incompatible_qos: None,
                 offered_deadline_missed: None,
                 liveliness_lost: None,
+                #[cfg(not(any(
+                    r2r__ros__distro__foxy,
+                    r2r__ros__distro__galactic,
+                    r2r__ros__distro__humble
+                )))]
+                matched: None,
             })),
             active_wait_publishers,
             #[cfg(test)]
@@ -974,6 +1068,19 @@ impl PublisherUntyped {
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
             .take_offered_incompatible_qos()
+    }
+
+    /// Takes publisher matching changes without blocking.
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    pub fn take_matched(&self) -> Result<Option<MatchedStatus>> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .take_matched()
     }
 
     /// Returns the QoS profile resolved by the RMW implementation.
@@ -1217,6 +1324,19 @@ where
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
             .take_offered_incompatible_qos()
+    }
+
+    /// Takes publisher matching changes without blocking.
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    pub fn take_matched(&self) -> Result<Option<MatchedStatus>> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .take_matched()
     }
 
     /// Returns the QoS profile resolved by the RMW implementation.
