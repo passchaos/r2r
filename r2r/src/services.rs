@@ -266,25 +266,35 @@ where
 {
     pub message: T::Request,
     request_id: rmw_request_id_t,
+    request_info: ServiceRequestInfo,
     service: Weak<Mutex<dyn Service_>>,
     response_sent: Arc<AtomicBool>,
 }
 
 /// Middleware identity attached to a received service request.
 ///
-/// The sequence number and writer GUID can be used to correlate application logs and detect
-/// duplicate requests without exposing the native RMW request header.
+/// The timestamps, sequence number, and writer GUID can be used to trace requests and detect
+/// duplicates without exposing the native RMW request header.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ServiceRequestInfo {
+    /// Source timestamp in nanoseconds, or zero when unsupported by the RMW implementation.
+    pub source_timestamp: i64,
+    /// Receive timestamp in nanoseconds, or zero when unsupported by the RMW implementation.
+    pub received_timestamp: i64,
     pub writer_guid: [u8; 16],
     pub sequence_number: i64,
 }
 
-impl From<&rmw_request_id_t> for ServiceRequestInfo {
-    fn from(request_id: &rmw_request_id_t) -> Self {
+impl From<&rmw_service_info_t> for ServiceRequestInfo {
+    fn from(info: &rmw_service_info_t) -> Self {
         Self {
-            writer_guid: request_id.writer_guid.map(|byte| byte.to_ne_bytes()[0]),
-            sequence_number: request_id.sequence_number,
+            source_timestamp: info.source_timestamp,
+            received_timestamp: info.received_timestamp,
+            writer_guid: info
+                .request_id
+                .writer_guid
+                .map(|byte| byte.to_ne_bytes()[0]),
+            sequence_number: info.request_id.sequence_number,
         }
     }
 }
@@ -294,6 +304,7 @@ pub struct ServiceRequestUntyped {
     /// JSON conversion result for the request payload.
     pub message: Result<serde_json::Value>,
     request_id: rmw_request_id_t,
+    request_info: ServiceRequestInfo,
     service: Weak<Mutex<dyn Service_>>,
     make_response_msg: fn() -> Result<WrappedNativeMsgUntyped>,
 }
@@ -303,7 +314,7 @@ unsafe impl Send for ServiceRequestUntyped {}
 impl ServiceRequestUntyped {
     /// Returns a stable snapshot of the middleware request identity.
     pub fn request_info(&self) -> ServiceRequestInfo {
-        ServiceRequestInfo::from(&self.request_id)
+        self.request_info
     }
 
     /// Completes the request with a runtime-typed JSON response.
@@ -327,7 +338,7 @@ where
 {
     /// Returns a stable snapshot of the middleware request identity.
     pub fn request_info(&self) -> ServiceRequestInfo {
-        ServiceRequestInfo::from(&self.request_id)
+        self.request_info
     }
 
     /// Complete the service request, consuming the request in the process.
@@ -448,10 +459,14 @@ impl Service_ for UntypedService {
             }
         }
 
-        let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
+        let mut request_info = MaybeUninit::<rmw_service_info_t>::uninit();
         let mut request_msg = (self.service_type.make_request_msg)()?;
         let ret = unsafe {
-            rcl_take_request(&self.rcl_handle, request_id.as_mut_ptr(), request_msg.void_ptr_mut())
+            rcl_take_request_with_info(
+                &self.rcl_handle,
+                request_info.as_mut_ptr(),
+                request_msg.void_ptr_mut(),
+            )
         };
         if ret == RCL_RET_SERVICE_TAKE_FAILED as i32 {
             return Ok(ServiceRequestAction::Idle);
@@ -460,7 +475,9 @@ impl Service_ for UntypedService {
             return Err(Error::from_rcl_error(ret));
         }
 
-        let request_id = unsafe { request_id.assume_init() };
+        let request_info = unsafe { request_info.assume_init() };
+        let request_id = request_info.request_id;
+        let request_info = ServiceRequestInfo::from(&request_info);
         let service = Arc::downgrade(&service);
         let make_response_msg = self.service_type.make_response_msg;
         let sender = self
@@ -475,6 +492,7 @@ impl Service_ for UntypedService {
             move |request_msg| ServiceRequestUntyped {
                 message: request_msg.to_json(),
                 request_id,
+                request_info,
                 service,
                 make_response_msg,
             },
@@ -528,11 +546,15 @@ where
             }
         }
 
-        let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
+        let mut request_info = MaybeUninit::<rmw_service_info_t>::uninit();
         let mut request_msg = WrappedNativeMsg::<T::Request>::try_new()?;
 
         let ret = unsafe {
-            rcl_take_request(&self.rcl_handle, request_id.as_mut_ptr(), request_msg.void_ptr_mut())
+            rcl_take_request_with_info(
+                &self.rcl_handle,
+                request_info.as_mut_ptr(),
+                request_msg.void_ptr_mut(),
+            )
         };
         if ret == RCL_RET_SERVICE_TAKE_FAILED as i32 {
             return Ok(ServiceRequestAction::Idle);
@@ -541,7 +563,9 @@ where
             return Err(Error::from_rcl_error(ret));
         }
 
-        let request_id = unsafe { request_id.assume_init() };
+        let request_info = unsafe { request_info.assume_init() };
+        let request_id = request_info.request_id;
+        let request_info = ServiceRequestInfo::from(&request_info);
         let service = Arc::downgrade(&service);
         let sender = self
             .sender
@@ -555,6 +579,7 @@ where
             move |request_msg| ServiceRequest::<T> {
                 message: T::Request::from_native(&request_msg),
                 request_id,
+                request_info,
                 service,
                 response_sent: Arc::new(AtomicBool::new(false)),
             },
@@ -659,6 +684,12 @@ mod tests {
         ServiceRequest {
             message: AddTwoInts::Request { a: 1, b: 2 },
             request_id: unsafe { std::mem::zeroed() },
+            request_info: ServiceRequestInfo {
+                source_timestamp: 0,
+                received_timestamp: 0,
+                writer_guid: [0; 16],
+                sequence_number: 0,
+            },
             service: Arc::downgrade(&service),
             response_sent: Arc::new(AtomicBool::new(false)),
         }
@@ -715,12 +746,18 @@ mod tests {
 
     #[test]
     fn service_request_info_copies_native_identity() {
-        let request_id = rmw_request_id_t {
-            writer_guid: [128, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 126, 127],
-            sequence_number: -42,
+        let request_info = rmw_service_info_t {
+            source_timestamp: 41,
+            received_timestamp: 42,
+            request_id: rmw_request_id_t {
+                writer_guid: [128, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 126, 127],
+                sequence_number: -42,
+            },
         };
-        let info = ServiceRequestInfo::from(&request_id);
+        let info = ServiceRequestInfo::from(&request_info);
 
+        assert_eq!(info.source_timestamp, 41);
+        assert_eq!(info.received_timestamp, 42);
         assert_eq!(info.writer_guid, [128, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 126, 127]);
         assert_eq!(info.sequence_number, -42);
     }

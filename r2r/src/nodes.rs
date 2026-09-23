@@ -9249,6 +9249,9 @@ mod tests {
             .windows(2)
             .all(|pair| pair[0].1.writer_guid == pair[1].1.writer_guid));
         assert!(received[0].1.writer_guid.iter().any(|byte| *byte != 0));
+        assert!(received
+            .iter()
+            .all(|(_, info)| { info.source_timestamp >= 0 && info.received_timestamp >= 0 }));
         drop(responses);
     }
 
@@ -9353,6 +9356,10 @@ mod tests {
         assert_ne!(first_info.sequence_number, second_info.sequence_number);
         assert_eq!(first_info.writer_guid, second_info.writer_guid);
         assert!(first_info.writer_guid.iter().any(|byte| *byte != 0));
+        assert!(first_info.source_timestamp >= 0);
+        assert!(first_info.received_timestamp >= 0);
+        assert!(second_info.source_timestamp >= 0);
+        assert!(second_info.received_timestamp >= 0);
 
         let mut first_result = None;
         let mut second_result = None;
