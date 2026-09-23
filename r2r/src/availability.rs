@@ -39,7 +39,8 @@ impl<T> Default for Waiters<T> {
 }
 
 impl<T> Waiters<T> {
-    pub(crate) fn register(&mut self, mut sender: oneshot::Sender<T>) {
+    pub(crate) fn register(&mut self, mut sender: oneshot::Sender<T>) -> bool {
+        let was_empty = self.senders.is_empty();
         let token = loop {
             let token = self.next_token;
             self.next_token = self.next_token.wrapping_add(1);
@@ -55,7 +56,9 @@ impl<T> Waiters<T> {
         let mut context = Context::from_waker(&waker);
         if matches!(sender.poll_canceled(&mut context), Poll::Pending) {
             self.senders.insert(token, sender);
+            return was_empty;
         }
+        false
     }
 
     pub(crate) fn prune_canceled(&mut self) {
@@ -157,6 +160,20 @@ mod tests {
 
         assert!(waiters.is_empty());
         assert!(waiters.canceled_waiters.lock().is_empty());
+    }
+
+    #[test]
+    fn registration_reports_only_empty_to_nonempty_transitions() {
+        let mut waiters = AvailabilityWaiters::default();
+        let (first, _first_receiver) = oneshot::channel();
+        let (second, _second_receiver) = oneshot::channel();
+
+        assert!(waiters.register(first));
+        assert!(!waiters.register(second));
+        waiters.take_all();
+
+        let (third, _third_receiver) = oneshot::channel();
+        assert!(waiters.register(third));
     }
 
     #[test]

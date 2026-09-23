@@ -11240,6 +11240,7 @@ mod tests {
         let idle_index = usize::from(active_index == 0);
 
         let wait = Node::is_available(&active).unwrap();
+        let second_wait = Node::is_available(&active).unwrap();
         assert_eq!(
             node.active_availability_clients
                 .lock()
@@ -11254,11 +11255,37 @@ mod tests {
         assert_eq!(node.clients[idle_index].lock().availability_poll_count(), 0);
 
         drop(wait);
+        drop(second_wait);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.clients_with_active_availability.is_empty());
         node.try_spin_once(Duration::ZERO).unwrap();
         assert_eq!(node.clients[active_index].lock().availability_poll_count(), 2);
         assert_eq!(node.clients[idle_index].lock().availability_poll_count(), 0);
+
+        let untyped = node
+            .create_client_untyped(
+                "/active_untyped_client_availability",
+                "example_interfaces/srv/AddTwoInts",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let untyped_identity = untyped.identity();
+        let first_untyped_wait = Node::is_available(&untyped).unwrap();
+        let second_untyped_wait = Node::is_available(&untyped).unwrap();
+        assert_eq!(
+            node.active_availability_clients
+                .lock()
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            [untyped_identity]
+        );
+        drop(first_untyped_wait);
+        drop(second_untyped_wait);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(!node
+            .clients_with_active_availability
+            .contains(&untyped_identity));
     }
 
     #[test]

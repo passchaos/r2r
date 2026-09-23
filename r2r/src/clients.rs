@@ -484,7 +484,7 @@ impl UntypedClient_ {
 pub trait Client_ {
     fn handle(&self) -> &rcl_client_t;
     fn handle_response(&mut self) -> Result<ClientResponseAction>;
-    fn register_poll_available(&mut self, s: oneshot::Sender<()>);
+    fn register_poll_available(&mut self, s: oneshot::Sender<()>) -> bool;
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ClientCompletion>;
     fn has_pending_availability(&mut self) -> bool;
     #[cfg(test)]
@@ -562,8 +562,8 @@ where
         }
     }
 
-    fn register_poll_available(&mut self, s: oneshot::Sender<()>) {
-        self.poll_available_channels.register(s);
+    fn register_poll_available(&mut self, s: oneshot::Sender<()>) -> bool {
+        self.poll_available_channels.register(s)
     }
 
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ClientCompletion> {
@@ -665,8 +665,8 @@ impl Client_ for UntypedClient_ {
         }
     }
 
-    fn register_poll_available(&mut self, s: oneshot::Sender<()>) {
-        self.poll_available_channels.register(s);
+    fn register_poll_available(&mut self, s: oneshot::Sender<()>) -> bool {
+        self.poll_available_channels.register(s)
     }
 
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ClientCompletion> {
@@ -753,11 +753,12 @@ where
     fn register_poll_available(&self, sender: oneshot::Sender<()>) -> Result<()> {
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
         let mut client = client.lock();
-        client.register_poll_available(sender);
-        self.lifecycle
-            .active_availability_clients
-            .lock()
-            .push_back(self.lifecycle.identity);
+        if client.register_poll_available(sender) {
+            self.lifecycle
+                .active_availability_clients
+                .lock()
+                .push_back(self.lifecycle.identity);
+        }
         Ok(())
     }
 }
@@ -766,11 +767,12 @@ impl IsAvailablePollable for ClientUntyped {
     fn register_poll_available(&self, sender: oneshot::Sender<()>) -> Result<()> {
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
         let mut client = client.lock();
-        client.register_poll_available(sender);
-        self.lifecycle
-            .active_availability_clients
-            .lock()
-            .push_back(self.lifecycle.identity);
+        if client.register_poll_available(sender) {
+            self.lifecycle
+                .active_availability_clients
+                .lock()
+                .push_back(self.lifecycle.identity);
+        }
         Ok(())
     }
 }
@@ -798,6 +800,28 @@ mod tests {
     fn service_client_handles_are_cloneable() {
         assert_clone::<Client<AddTwoInts::Service>>();
         assert_clone::<ClientUntyped>();
+    }
+
+    #[test]
+    fn availability_registration_keeps_all_waiters_while_scheduling_once() {
+        let mut client = TypedClient::<AddTwoInts::Service> {
+            rcl_handle: unsafe { rcl_get_zero_initialized_client() },
+            response_channels: HashMap::new(),
+            poll_available_channels: AvailabilityWaiters::default(),
+            availability_poll_count: AtomicUsize::new(0),
+        };
+        let (first_sender, first_receiver) = oneshot::channel();
+        let (second_sender, second_receiver) = oneshot::channel();
+
+        assert!(client.register_poll_available(first_sender));
+        assert!(!client.register_poll_available(second_sender));
+        let senders = client.poll_available_channels.take_all();
+        assert_eq!(senders.len(), 2);
+        for sender in senders {
+            sender.send(()).unwrap();
+        }
+        assert_eq!(futures::executor::block_on(first_receiver), Ok(()));
+        assert_eq!(futures::executor::block_on(second_receiver), Ok(()));
     }
 
     #[test]
