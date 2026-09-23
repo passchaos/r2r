@@ -239,6 +239,7 @@ impl ActionClientGoalUntyped {
         &self, node: &mut Node, timeout: std::time::Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
         self.validate_owner(node)?;
+        Node::validate_timeout(timeout)?;
         let response = self.cancel()?;
         node.with_timeout(response, timeout)
     }
@@ -289,6 +290,7 @@ impl ActionClientUntyped {
         &self, node: &mut Node, timeout: std::time::Duration,
     ) -> Result<impl Future<Output = Result<Vec<uuid::Uuid>>>> {
         self.validate_owner(node)?;
+        Node::validate_timeout(timeout)?;
         let response = self.cancel_all()?;
         node.with_timeout(response, timeout)
     }
@@ -297,6 +299,7 @@ impl ActionClientUntyped {
         &self, node: &mut Node, stamp: builtin_interfaces::msg::Time, timeout: std::time::Duration,
     ) -> Result<impl Future<Output = Result<Vec<uuid::Uuid>>>> {
         self.validate_owner(node)?;
+        Node::validate_timeout(timeout)?;
         let response = self.cancel_before(stamp)?;
         node.with_timeout(response, timeout)
     }
@@ -467,6 +470,7 @@ impl ActionClientUntyped {
         >,
     > {
         self.validate_owner(node)?;
+        Node::validate_timeout(timeout)?;
         let response = self.send_goal_request(goal)?;
         node.with_timeout(response, timeout)
     }
@@ -480,6 +484,7 @@ impl ActionClientUntyped {
         timeout: std::time::Duration,
     ) -> Result<impl Future<Output = Result<ActionClientGoalResponseUntyped>>> {
         self.validate_owner(node)?;
+        Node::validate_timeout(timeout)?;
         let response = self.send_goal_request_with_options(goal, options)?;
         node.with_timeout(response, timeout)
     }
@@ -523,6 +528,7 @@ impl ActionClientUntyped {
         &self, node: &mut Node, timeout: std::time::Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
         self.validate_owner(node)?;
+        Node::validate_timeout(timeout)?;
         let available = self.wait_for_action_server()?;
         node.with_timeout(available, timeout)
     }

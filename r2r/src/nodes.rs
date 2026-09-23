@@ -3716,6 +3716,7 @@ impl Node {
         &mut self, client: &dyn IsAvailablePollable, timeout: Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
         client.validate_availability_owner(self)?;
+        Self::validate_timeout(timeout)?;
         let available = Self::is_available(client)?;
         self.with_timeout(available, timeout)
     }
@@ -3728,6 +3729,10 @@ impl Node {
     ) -> Result<impl Future<Output = Result<T>>> {
         let timer = self.create_wall_timer(timeout)?;
         Ok(future_with_timeout(future, timer))
+    }
+
+    pub(crate) fn validate_timeout(timeout: Duration) -> Result<()> {
+        duration_to_rcl_nanos(timeout).map(|_| ())
     }
 
     /// Create a ROS action client.
@@ -4789,6 +4794,7 @@ impl Node {
     pub fn wait_for_graph_change_with_timeout(
         &mut self, timeout: Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
+        Self::validate_timeout(timeout)?;
         let changed = self.wait_for_graph_change();
         self.with_timeout(changed, timeout)
     }
@@ -11673,6 +11679,68 @@ mod tests {
     }
 
     #[test]
+    fn oversized_wait_timeouts_do_not_register_waiters() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "oversized_wait_timeout_test", "").unwrap();
+        let oversized = Duration::from_nanos(i64::MAX as u64 + 1);
+        let client = node
+            .create_client::<AddTwoInts::Service>(
+                "/oversized_availability_timeout",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(
+                "/oversized_publisher_timeout",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let subscription = node
+            .subscribe::<crate::std_msgs::msg::String>(
+                "/oversized_subscription_timeout",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let timer_count = node.timer_count();
+
+        assert!(matches!(
+            node.is_available_with_timeout(&client, oversized),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            publisher.wait_for_subscribers_with_timeout(&mut node, oversized),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+        assert!(matches!(
+            publisher.wait_for_all_acked_async_with_timeout(&mut node, oversized),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            subscription.wait_for_publishers_with_timeout(&mut node, oversized),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            node.wait_for_graph_change_with_timeout(oversized),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+
+        assert_eq!(node.timer_count(), timer_count);
+        assert!(!publisher.handle.upgrade().unwrap().has_pending_waits());
+        assert!(node.active_wait_publishers.lock().is_empty());
+        assert!(node.graph_change_waiters.is_empty());
+        assert!(node
+            .subscriber(subscription.id)
+            .unwrap()
+            .match_state()
+            .unwrap()
+            .waiters
+            .is_empty());
+    }
+
+    #[test]
     fn clients_can_check_availability_without_registering_waiters() {
         use crate::example_interfaces::{action::Fibonacci, srv::AddTwoInts};
 
@@ -12200,6 +12268,41 @@ mod tests {
     }
 
     #[test]
+    fn oversized_service_timeouts_do_not_send_requests_or_register_waiters() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "oversized_service_timeout_test", "").unwrap();
+        let service_name = format!("/oversized_service_timeout_{}", uuid::Uuid::new_v4().simple());
+        let mut service = node
+            .create_service::<AddTwoInts::Service>(&service_name, QosProfile::default())
+            .unwrap();
+        let client = node
+            .create_client::<AddTwoInts::Service>(&service_name, QosProfile::default())
+            .unwrap();
+        let oversized = Duration::from_nanos(i64::MAX as u64 + 1);
+        let timer_count = node.timer_count();
+
+        assert!(matches!(
+            client.request_with_timeout(&mut node, &AddTwoInts::Request { a: 1, b: 2 }, oversized,),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            client.wait_for_service_with_timeout(&mut node, oversized),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert_eq!(node.timer_count(), timer_count);
+        let client_state = client.client.upgrade().unwrap();
+        let client_state = client_state.lock();
+        assert!(client_state.response_channels.is_empty());
+        assert!(client_state.poll_available_channels.is_empty());
+        drop(client_state);
+
+        node.try_spin_once(Duration::from_millis(10)).unwrap();
+        assert!(service.next().now_or_never().is_none());
+    }
+
+    #[test]
     fn action_requests_support_runtime_agnostic_timeouts() {
         use crate::example_interfaces::action::Fibonacci;
 
@@ -12416,6 +12519,43 @@ mod tests {
             .lock()
             .has_pending_work());
         assert!(owner.active_availability_action_clients.lock().is_empty());
+    }
+
+    #[test]
+    fn oversized_action_timeouts_do_not_send_goals_or_register_waiters() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "oversized_action_timeout_test", "").unwrap();
+        let action_name = format!("/oversized_action_timeout_{}", uuid::Uuid::new_v4().simple());
+        let mut server = node
+            .create_action_server::<Fibonacci::Action>(&action_name)
+            .unwrap();
+        let client = node
+            .create_action_client::<Fibonacci::Action>(&action_name)
+            .unwrap();
+        let oversized = Duration::from_nanos(i64::MAX as u64 + 1);
+        let timer_count = node.timer_count();
+
+        assert!(matches!(
+            client.send_goal_request_with_options_and_timeout(
+                &mut node,
+                Fibonacci::Goal { order: 1 },
+                ActionGoalOptions::fire_and_forget(),
+                oversized,
+            ),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            client.wait_for_action_server_with_timeout(&mut node, oversized),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert_eq!(node.timer_count(), timer_count);
+        let client_index = node.action_client_identities[&client.identity()];
+        assert!(!node.action_clients[client_index].lock().has_pending_work());
+
+        node.try_spin_once(Duration::from_millis(10)).unwrap();
+        assert!(server.next().now_or_never().is_none());
     }
 
     #[test]

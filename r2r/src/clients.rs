@@ -320,6 +320,7 @@ where
         &self, node: &mut Node, msg: &T::Request, timeout: Duration,
     ) -> Result<impl Future<Output = Result<T::Response>>> {
         self.validate_owner(node)?;
+        Node::validate_timeout(timeout)?;
         let response = self.request(msg)?;
         node.with_timeout(response, timeout)
     }
@@ -331,6 +332,7 @@ where
         &self, node: &mut Node, msg: &T::Request, timeout: Duration,
     ) -> Result<impl Future<Output = Result<ServiceResponse<T::Response>>>> {
         self.validate_owner(node)?;
+        Node::validate_timeout(timeout)?;
         let response = self.request_with_info(msg)?;
         node.with_timeout(response, timeout)
     }
@@ -389,6 +391,7 @@ where
         &self, node: &mut Node, timeout: Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
         self.validate_owner(node)?;
+        Node::validate_timeout(timeout)?;
         let available = self.wait_for_service()?;
         node.with_timeout(available, timeout)
     }
@@ -475,6 +478,7 @@ impl ClientUntyped {
         &self, node: &mut Node, msg: serde_json::Value, timeout: Duration,
     ) -> Result<impl Future<Output = Result<Result<serde_json::Value>>>> {
         self.validate_owner(node)?;
+        Node::validate_timeout(timeout)?;
         let response = self.request(msg)?;
         node.with_timeout(response, timeout)
     }
@@ -486,6 +490,7 @@ impl ClientUntyped {
         &self, node: &mut Node, msg: serde_json::Value, timeout: Duration,
     ) -> Result<impl Future<Output = Result<ServiceResponse<Result<serde_json::Value>>>>> {
         self.validate_owner(node)?;
+        Node::validate_timeout(timeout)?;
         let response = self.request_with_info(msg)?;
         node.with_timeout(response, timeout)
     }
@@ -544,6 +549,7 @@ impl ClientUntyped {
         &self, node: &mut Node, timeout: Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
         self.validate_owner(node)?;
+        Node::validate_timeout(timeout)?;
         let available = self.wait_for_service()?;
         node.with_timeout(available, timeout)
     }

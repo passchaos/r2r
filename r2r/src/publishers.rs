@@ -1052,6 +1052,7 @@ impl PublisherUntyped {
         &self, node: &mut Node, timeout: Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
         self.validate_owner(node)?;
+        Node::validate_timeout(timeout)?;
         let acked = self.wait_for_all_acked_async()?;
         node.with_timeout(acked, timeout)
     }
@@ -1152,6 +1153,7 @@ impl PublisherUntyped {
         &self, node: &mut Node, timeout: std::time::Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
         self.validate_owner(node)?;
+        Node::validate_timeout(timeout)?;
         let available = self.wait_for_subscribers()?;
         node.with_timeout(available, timeout)
     }
@@ -1293,6 +1295,7 @@ where
         &self, node: &mut Node, timeout: Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
         self.validate_owner(node)?;
+        Node::validate_timeout(timeout)?;
         let acked = self.wait_for_all_acked_async()?;
         node.with_timeout(acked, timeout)
     }
@@ -1409,6 +1412,7 @@ where
         &self, node: &mut Node, timeout: std::time::Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
         self.validate_owner(node)?;
+        Node::validate_timeout(timeout)?;
         let available = self.wait_for_subscribers()?;
         node.with_timeout(available, timeout)
     }

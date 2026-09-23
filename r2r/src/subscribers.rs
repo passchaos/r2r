@@ -402,6 +402,7 @@ impl<T> Subscription<T> {
     pub fn wait_for_publishers_with_timeout(
         &self, node: &mut Node, timeout: Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
+        Node::validate_timeout(timeout)?;
         let available = self.wait_for_publishers(node)?;
         node.with_timeout(available, timeout)
     }
