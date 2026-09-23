@@ -68,10 +68,21 @@ impl TimeSource {
         let Some(clock_arc) = clock.upgrade() else {
             return Ok(());
         };
-        let (simulated_time_enabled, last_time_msg) = {
-            let inner = self.inner.lock();
-            (inner.simulated_time_enabled, inner.last_time_msg)
+        let (simulated_time_enabled, last_time_msg, already_attached) = {
+            let mut inner = self.inner.lock();
+            inner
+                .managed_clocks
+                .retain(|managed| managed.strong_count() > 0);
+            let already_attached = inner
+                .managed_clocks
+                .iter()
+                .filter_map(Weak::upgrade)
+                .any(|managed| Arc::ptr_eq(&managed, &clock_arc));
+            (inner.simulated_time_enabled, inner.last_time_msg, already_attached)
         };
+        if already_attached {
+            return Ok(());
+        }
         {
             let mut clock_guard = clock_arc.lock();
             if !matches!(clock_guard.get_clock_type(), ClockType::RosTime) {
@@ -446,5 +457,28 @@ mod tests {
         .unwrap();
 
         assert!(visited);
+    }
+
+    #[test]
+    fn attaching_clocks_is_idempotent_and_prunes_expired_entries() {
+        let time_source = TimeSource::new();
+        let clock = Arc::new(Mutex::new(Clock::create(ClockType::RosTime).unwrap()));
+
+        time_source
+            .attach_ros_clock(Arc::downgrade(&clock))
+            .unwrap();
+        time_source
+            .attach_ros_clock(Arc::downgrade(&clock))
+            .unwrap();
+        assert_eq!(time_source.inner.lock().managed_clocks.len(), 1);
+
+        drop(clock);
+        let replacement = Arc::new(Mutex::new(Clock::create(ClockType::RosTime).unwrap()));
+        time_source
+            .attach_ros_clock(Arc::downgrade(&replacement))
+            .unwrap();
+        let inner = time_source.inner.lock();
+        assert_eq!(inner.managed_clocks.len(), 1);
+        assert!(inner.managed_clocks[0].ptr_eq(&Arc::downgrade(&replacement)));
     }
 }
