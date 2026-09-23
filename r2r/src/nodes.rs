@@ -4775,8 +4775,23 @@ impl Node {
     /// Returns a map of topic names and type names of the publishers
     /// visible to this node.
     pub fn get_topic_names_and_types(&self) -> Result<HashMap<String, Vec<String>>> {
+        self.get_topic_names_and_types_impl(false)
+    }
+
+    /// Returns raw middleware topic names and type names without ROS demangling.
+    ///
+    /// This exposes non-ROS topics and their middleware-specific names for diagnostics and
+    /// interoperability. Prefer [`Node::get_topic_names_and_types`] for normal ROS topic
+    /// discovery.
+    pub fn get_raw_topic_names_and_types(&self) -> Result<HashMap<String, Vec<String>>> {
+        self.get_topic_names_and_types_impl(true)
+    }
+
+    fn get_topic_names_and_types_impl(
+        &self, no_demangle: bool,
+    ) -> Result<HashMap<String, Vec<String>>> {
         self.get_names_and_types(|node, allocator, names_and_types| unsafe {
-            rcl_get_topic_names_and_types(node, allocator, false, names_and_types)
+            rcl_get_topic_names_and_types(node, allocator, no_demangle, names_and_types)
         })
     }
 
@@ -8549,10 +8564,15 @@ mod tests {
             .unwrap();
 
         let topics = node.get_topic_names_and_types().unwrap();
+        let raw_topics = node.get_raw_topic_names_and_types().unwrap();
         let publishers = node.get_publishers_info_by_topic(&topic, false).unwrap();
         let subscriptions = node.get_subscriptions_info_by_topic(&topic, false).unwrap();
 
         assert_eq!(topics.get(&topic), Some(&vec!["std_msgs/msg/String".to_owned()]));
+        assert_eq!(
+            raw_topics.get(&format!("rt{}", topic)),
+            Some(&vec!["std_msgs::msg::dds_::String_".to_owned()])
+        );
         assert!(publishers.iter().any(|publisher| {
             publisher.topic_type == "std_msgs/msg/String"
                 && publisher.endpoint_type == TopicEndpointType::Publisher
