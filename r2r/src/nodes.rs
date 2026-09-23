@@ -12843,6 +12843,7 @@ mod tests {
         assert!(node.active_wait_publishers.lock().is_empty());
         assert!(node.publishers_with_active_waits.is_empty());
         let wait = publisher.wait_for_subscribers().unwrap();
+        let second_wait = publisher.wait_for_subscribers().unwrap();
         assert_eq!(
             node.active_wait_publishers
                 .lock()
@@ -12867,6 +12868,7 @@ mod tests {
             0
         );
         drop(wait);
+        drop(second_wait);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert!(node.publishers_with_active_waits.is_empty());
         assert_eq!(

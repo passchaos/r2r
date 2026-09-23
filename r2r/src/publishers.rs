@@ -324,6 +324,38 @@ mod waiter_tests {
         );
     }
 
+    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+    #[test]
+    fn publisher_wait_types_schedule_once_per_nonempty_queue() {
+        let active = Arc::new(Mutex::new(VecDeque::new()));
+        let publisher = Publisher_ {
+            id: uuid::Uuid::from_u128(1),
+            handle: Arc::new(Mutex::new(PublisherHandle {
+                publisher: Some(unsafe { rcl_get_zero_initialized_publisher() }),
+                offered_incompatible_qos: None,
+                offered_deadline_missed: None,
+                liveliness_lost: None,
+            })),
+            active_wait_publishers: Arc::clone(&active),
+            wait_poll_count: AtomicUsize::new(0),
+            poll_subscriber_channels: Mutex::new(Waiters::default()),
+            poll_ack_channels: Mutex::new(Waiters::default()),
+        };
+        let (subscriber_a, _subscriber_a_receiver) = oneshot::channel();
+        let (subscriber_b, _subscriber_b_receiver) = oneshot::channel();
+        let (ack_a, _ack_a_receiver) = oneshot::channel();
+        let (ack_b, _ack_b_receiver) = oneshot::channel();
+
+        publisher.register_subscriber_wait(subscriber_a);
+        publisher.register_subscriber_wait(subscriber_b);
+        publisher.register_ack_wait(ack_a);
+        publisher.register_ack_wait(ack_b);
+
+        assert_eq!(active.lock().iter().copied().collect::<Vec<_>>(), [publisher.id, publisher.id]);
+        assert_eq!(publisher.poll_subscriber_channels.lock().len(), 2);
+        assert_eq!(publisher.poll_ack_channels.lock().len(), 2);
+    }
+
     #[test]
     fn publisher_payloads_are_prepared_before_locking_the_native_handle() {
         let publisher = Publisher_ {
@@ -566,13 +598,15 @@ impl Publisher_ {
 
     #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     fn register_ack_wait(&self, sender: oneshot::Sender<Result<()>>) {
-        self.poll_ack_channels.lock().register(sender);
-        self.active_wait_publishers.lock().push_back(self.id);
+        if self.poll_ack_channels.lock().register(sender) {
+            self.active_wait_publishers.lock().push_back(self.id);
+        }
     }
 
     fn register_subscriber_wait(&self, sender: oneshot::Sender<()>) {
-        self.poll_subscriber_channels.lock().register(sender);
-        self.active_wait_publishers.lock().push_back(self.id);
+        if self.poll_subscriber_channels.lock().register(sender) {
+            self.active_wait_publishers.lock().push_back(self.id);
+        }
     }
 
     fn get_actual_qos(&self) -> Result<QosProfile> {

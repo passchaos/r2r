@@ -116,11 +116,45 @@ fn action_availability_notifications(c: &mut Criterion) {
     });
 }
 
+fn publisher_wait_notifications(c: &mut Criterion) {
+    let context = Context::create().expect("could not create benchmark context");
+    let mut node = Node::create(context, "publisher_wait_benchmark", "")
+        .expect("could not create benchmark node");
+    let publishers = (0..ACTION_ENDPOINT_COUNT)
+        .map(|index| {
+            node.create_publisher::<r2r::std_msgs::msg::String>(
+                &format!("/publisher_wait_benchmark_{index}"),
+                QosProfile::default(),
+            )
+            .expect("could not create benchmark publisher")
+        })
+        .collect::<Vec<_>>();
+
+    c.bench_function("schedule_and_cancel_128x16_publisher_waits", |b| {
+        b.iter(|| {
+            let waits = publishers
+                .iter()
+                .flat_map(|publisher| {
+                    (0..16).map(|_| {
+                        publisher
+                            .wait_for_subscribers()
+                            .expect("could not register subscriber wait")
+                    })
+                })
+                .collect::<Vec<_>>();
+            drop(waits);
+            node.try_spin_once(black_box(Duration::ZERO))
+                .expect("could not clean canceled publisher waits")
+        })
+    });
+}
+
 criterion_group!(
     benches,
     idle_action_servers,
     idle_action_clients,
     service_availability_notifications,
-    action_availability_notifications
+    action_availability_notifications,
+    publisher_wait_notifications
 );
 criterion_main!(benches);
