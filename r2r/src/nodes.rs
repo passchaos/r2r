@@ -2760,10 +2760,15 @@ impl Node {
     where
         ParameterValue: TryInto<T, Error = WrongParameterType>,
     {
-        let value = self
-            .get_parameters([name])
-            .pop()
-            .unwrap_or(ParameterValue::NotSet);
+        let value = read_parameter_values_impl(
+            &[name.to_owned()],
+            &self.params,
+            self.parameter_provider.as_ref(),
+            true,
+            true,
+        )?
+        .pop()
+        .unwrap_or(ParameterValue::NotSet);
         if matches!(value, ParameterValue::NotSet) {
             return Ok(alternative);
         }
@@ -7279,6 +7284,11 @@ mod tests {
             node.get_parameter::<i64>("provider_value"),
             Err(Error::ParameterValueConv { name, .. }) if name == "provider_value"
         ));
+        assert!(matches!(
+            node.get_parameter_or("provider_value", 99_i64),
+            Err(Error::ParameterValueConv { name, .. }) if name == "provider_value"
+        ));
+        assert_eq!(node.get_parameter_or("missing", 99_i64).unwrap(), 99);
         assert_eq!(node.get_parameters(["provider_value"]), [ParameterValue::NotSet]);
         assert_eq!(node.params.lock()["provider_value"].value, ParameterValue::Integer(7));
 
