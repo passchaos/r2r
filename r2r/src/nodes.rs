@@ -5238,6 +5238,14 @@ impl Node {
         self.ros_clock.clone()
     }
 
+    /// Returns the current time from this node's ROS clock.
+    ///
+    /// This follows system time until simulated time is enabled, then reflects the latest
+    /// `/clock` update. A negative ROS time is rejected because [`Duration`] cannot represent it.
+    pub fn now(&self) -> Result<Duration> {
+        self.ros_clock.lock().get_now()
+    }
+
     fn timer(&self, id: uuid::Uuid) -> Result<&Timer_> {
         self.timer_indexes
             .get(&id)
@@ -10102,6 +10110,24 @@ mod tests {
                 .unwrap()
                 .dynamic_typing
         );
+    }
+
+    #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+    #[test]
+    fn node_now_follows_its_managed_ros_clock() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "node_now_test", "").unwrap();
+
+        assert!(node.now().unwrap() > Duration::ZERO);
+        node.get_time_source().enable_sim_time(&mut node).unwrap();
+        assert_eq!(node.now().unwrap(), Duration::ZERO);
+
+        let expected = Duration::new(42, 123);
+        node.ros_clock
+            .lock()
+            .set_ros_time_override(i64::try_from(expected.as_nanos()).unwrap())
+            .unwrap();
+        assert_eq!(node.now().unwrap(), expected);
     }
 
     #[cfg(r2r__rosgraph_msgs__msg__Clock)]
