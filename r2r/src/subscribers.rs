@@ -765,6 +765,7 @@ pub(crate) trait Subscriber_ {
         self.match_state().map_or(0, |state| state.wait_poll_count)
     }
     /// Returns true when the subscriber should be destroyed before entering the next wait.
+    #[cfg_attr(not(r2r__rosgraph_msgs__msg__Clock), allow(dead_code))]
     fn should_remove(&mut self) -> bool {
         false
     }
