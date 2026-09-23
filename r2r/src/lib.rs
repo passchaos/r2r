@@ -112,6 +112,8 @@ pub use services::{
 
 mod availability;
 mod clients;
+#[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+pub use clients::ClientGid;
 pub use clients::{Client, ClientUntyped, ServiceResponse, ServiceResponseInfo};
 
 mod parameter_clients;

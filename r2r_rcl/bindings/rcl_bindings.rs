@@ -6540,6 +6540,12 @@ extern "C" {
     ) -> rmw_ret_t;
 }
 extern "C" {
+    pub fn rmw_get_gid_for_client(
+        client: *const rmw_client_t,
+        gid: *mut rmw_gid_t,
+    ) -> rmw_ret_t;
+}
+extern "C" {
     pub fn rmw_compare_gids_equal(
         gid1: *const rmw_gid_t,
         gid2: *const rmw_gid_t,

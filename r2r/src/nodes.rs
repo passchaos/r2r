@@ -9656,6 +9656,33 @@ mod tests {
         assert_eq!(values, vec![1, 2, 3]);
     }
 
+    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+    #[test]
+    fn client_gids_are_stable_and_unique() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "client_gid_test", "").unwrap();
+        let typed = node
+            .create_client::<AddTwoInts::Service>("/client_gid_typed", QosProfile::default())
+            .unwrap();
+        let untyped = node
+            .create_client_untyped(
+                "/client_gid_untyped",
+                "example_interfaces/srv/AddTwoInts",
+                QosProfile::default(),
+            )
+            .unwrap();
+
+        let typed_gid = typed.get_gid().unwrap();
+        assert_eq!(typed.get_gid().unwrap(), typed_gid);
+        let untyped_gid = untyped.get_gid().unwrap();
+        assert!(!typed_gid.implementation_identifier.is_empty());
+        assert_eq!(typed_gid.implementation_identifier, untyped_gid.implementation_identifier);
+        assert!(typed_gid.data.iter().any(|byte| *byte != 0));
+        assert_ne!(typed_gid.data, untyped_gid.data);
+    }
+
     #[test]
     fn service_clients_can_return_response_metadata() {
         use crate::example_interfaces::srv::AddTwoInts;
