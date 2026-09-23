@@ -11969,9 +11969,10 @@ mod tests {
             .create_action_client::<Fibonacci::Action>("/missing_action_request_timeout")
             .unwrap();
         let timeout = missing
-            .send_goal_request_with_timeout(
+            .send_goal_request_with_options_and_timeout(
                 &mut node,
                 Fibonacci::Goal { order: 1 },
+                ActionGoalOptions::fire_and_forget(),
                 Duration::from_millis(1),
             )
             .unwrap();
@@ -12002,9 +12003,10 @@ mod tests {
             )
             .unwrap();
         let timeout = missing_untyped
-            .send_goal_request_with_timeout(
+            .send_goal_request_with_options_and_timeout(
                 &mut node,
                 serde_json::json!({ "order": 1 }),
+                ActionGoalOptions::fire_and_forget(),
                 Duration::from_millis(1),
             )
             .unwrap();
@@ -12138,9 +12140,11 @@ mod tests {
             .create_action_client::<Fibonacci::Action>("/typed_fire_and_forget")
             .unwrap();
         let response = typed_client
-            .send_goal_request_with_options(
+            .send_goal_request_with_options_and_timeout(
+                &mut node,
                 Fibonacci::Goal { order: 1 },
                 ActionGoalOptions::fire_and_forget(),
+                Duration::from_secs(1),
             )
             .unwrap();
         let mut response = Box::pin(response);
@@ -12180,9 +12184,11 @@ mod tests {
             )
             .unwrap();
         let response = untyped_client
-            .send_goal_request_with_options(
+            .send_goal_request_with_options_and_timeout(
+                &mut node,
                 serde_json::json!({ "order": 1 }),
                 ActionGoalOptions::fire_and_forget(),
+                Duration::from_secs(1),
             )
             .unwrap();
         let mut response = Box::pin(response);

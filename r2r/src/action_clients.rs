@@ -1231,6 +1231,21 @@ where
         node.with_timeout(response, timeout)
     }
 
+    /// Sends a goal with tracking options and waits up to `timeout` for acceptance.
+    ///
+    /// The timeout only covers the goal response. Wrap a returned result future with
+    /// [`Node::with_timeout`] when a separate execution deadline is required.
+    pub fn send_goal_request_with_options_and_timeout(
+        &self, node: &mut Node, goal: T::Goal, options: ActionGoalOptions,
+        timeout: std::time::Duration,
+    ) -> Result<impl Future<Output = Result<ActionClientGoalResponse<T>>>>
+    where
+        T: WrappedActionTypeSupport,
+    {
+        let response = self.send_goal_request_with_options(goal, options)?;
+        node.with_timeout(response, timeout)
+    }
+
     /// Checks whether the action server is currently available without registering a waiter.
     pub fn is_available(&self, node: &Node) -> Result<bool> {
         let client = self
