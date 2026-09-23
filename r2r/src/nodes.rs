@@ -2378,27 +2378,39 @@ impl Node {
             if let Some(provider_state) = &parameter_provider {
                 let mut provider = provider_state.provider.lock();
                 let mut params = self.params.lock();
-                let mut deferred_overrides = Vec::new();
+                let mut deferred_overrides = HashSet::new();
                 if !self.automatically_declare_parameters_from_overrides {
                     for (name, value) in &self.parameter_overrides {
                         if !params.contains_key(name) {
                             params.insert(name.clone(), Parameter::new(value.clone()));
-                            deferred_overrides.push(name.clone());
+                            deferred_overrides.insert(name.clone());
                         }
                     }
                 }
                 provider.register_parameters("", None, &mut params)?;
-                for name in deferred_overrides {
-                    if provider.get_parameter(&name).is_err() {
-                        params.shift_remove(&name);
-                    }
-                }
-                let parameter_names = params
+                let candidates = params
                     .keys()
                     .filter(|name| name.as_str() != "use_sim_time")
-                    .filter(|name| provider.get_parameter(name).is_ok())
                     .cloned()
-                    .collect();
+                    .collect::<Vec<_>>();
+                let mut parameter_names = HashSet::new();
+                let mut unused_deferred_overrides = Vec::new();
+                for name in candidates {
+                    match provider.get_parameter(&name) {
+                        Ok(_) => {
+                            parameter_names.insert(name);
+                        }
+                        Err(Error::InvalidParameterName { .. }) => {
+                            if deferred_overrides.contains(&name) {
+                                unused_deferred_overrides.push(name);
+                            }
+                        }
+                        Err(err) => return Err(err),
+                    }
+                }
+                for name in unused_deferred_overrides {
+                    params.shift_remove(&name);
+                }
                 debug_assert!(provider_state.parameter_names.set(parameter_names).is_ok());
             }
             #[cfg(r2r__rosgraph_msgs__msg__Clock)]
@@ -8067,6 +8079,37 @@ mod tests {
             )
             .unwrap();
         assert!(handler.now_or_never().is_some());
+    }
+
+    #[test]
+    fn provider_ownership_probe_propagates_read_failures_and_can_retry() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "provider_ownership_failure_test", "").unwrap();
+        node.declare_parameter("runtime_value", 3_i64).unwrap();
+        let fail_reads = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let provider = Arc::new(Mutex::new(FailingReadParams {
+            fail_reads: Arc::clone(&fail_reads),
+        }));
+        let provider_for_handler: Arc<Mutex<dyn RosParams + Send>> = provider.clone();
+
+        assert!(matches!(
+            node.make_derived_parameter_handler(provider_for_handler),
+            Err(Error::ParameterValueConv { name, .. }) if name == "provider_value"
+        ));
+        assert!(!node.parameter_handler_started);
+        assert!(!node.has_parameter("provider_value"));
+        assert_eq!(node.get_parameter::<i64>("runtime_value").unwrap(), 3);
+        assert!(node.services.is_empty());
+        assert!(node.pubs.is_empty());
+
+        fail_reads.store(false, std::sync::atomic::Ordering::Release);
+        let provider_for_handler: Arc<Mutex<dyn RosParams + Send>> = provider;
+        let (handler, _events) = node
+            .make_derived_parameter_handler(provider_for_handler)
+            .unwrap();
+        assert!(handler.now_or_never().is_none());
+        assert_eq!(node.get_parameter::<i64>("provider_value").unwrap(), 7);
+        assert_eq!(node.get_parameter::<i64>("runtime_value").unwrap(), 3);
     }
 
     #[test]
