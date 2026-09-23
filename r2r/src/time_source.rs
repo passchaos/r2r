@@ -97,6 +97,27 @@ impl TimeSource {
         Ok(())
     }
 
+    /// Stops distributing future `/clock` updates to an attached clock.
+    ///
+    /// Returns whether the clock was attached. As in rclcpp, detaching does not change the
+    /// clock's current ROS time override state or value.
+    pub fn detach_ros_clock(&self, clock: &Arc<Mutex<Clock>>) -> bool {
+        let _operation = self.operations.lock();
+        let target = Arc::downgrade(clock);
+        let mut removed = false;
+        self.inner.lock().managed_clocks.retain(|managed| {
+            if managed.strong_count() == 0 {
+                return false;
+            }
+            if managed.ptr_eq(&target) {
+                removed = true;
+                return false;
+            }
+            true
+        });
+        removed
+    }
+
     /// Enables usage of simulated time
     ///
     /// Simulated time is provided on topic `"/clock"` in the message [rosgraph_msgs::msg::Clock].
@@ -480,5 +501,31 @@ mod tests {
         let inner = time_source.inner.lock();
         assert_eq!(inner.managed_clocks.len(), 1);
         assert!(inner.managed_clocks[0].ptr_eq(&Arc::downgrade(&replacement)));
+    }
+
+    #[test]
+    fn detaching_a_clock_preserves_other_registrations() {
+        let time_source = TimeSource::new();
+        let first = Arc::new(Mutex::new(Clock::create(ClockType::RosTime).unwrap()));
+        let second = Arc::new(Mutex::new(Clock::create(ClockType::RosTime).unwrap()));
+        first.lock().enable_ros_time_override(1).unwrap();
+        second.lock().enable_ros_time_override(1).unwrap();
+        time_source
+            .attach_ros_clock(Arc::downgrade(&first))
+            .unwrap();
+        time_source
+            .attach_ros_clock(Arc::downgrade(&second))
+            .unwrap();
+
+        assert!(time_source.detach_ros_clock(&first));
+        assert!(!time_source.detach_ros_clock(&first));
+        let inner = time_source.inner.lock();
+        assert_eq!(inner.managed_clocks.len(), 1);
+        assert!(inner.managed_clocks[0].ptr_eq(&Arc::downgrade(&second)));
+        drop(inner);
+
+        time_source.set_clock_time(Time { sec: 2, nanosec: 3 });
+        assert_eq!(first.lock().get_now_ns().unwrap(), 1);
+        assert_eq!(second.lock().get_now_ns().unwrap(), 2_000_000_003);
     }
 }
