@@ -12,7 +12,7 @@ use std::{
     mem::MaybeUninit,
     pin::Pin,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc, Weak,
     },
     task::{Context, Poll},
@@ -53,11 +53,96 @@ pub(crate) enum PendingFeedbackAction {
 pub(crate) struct PendingFeedbackQueue {
     goals: VecDeque<uuid::Uuid>,
     queued: HashSet<uuid::Uuid>,
+    maintenance_notifier: Option<Arc<ActionClientMaintenanceNotifier>>,
 }
 
-pub(crate) type CanceledResultQueue = Arc<Mutex<VecDeque<uuid::Uuid>>>;
-pub(crate) type CanceledCancelQueue = Arc<Mutex<VecDeque<i64>>>;
-pub(crate) type CanceledFeedbackQueue = Arc<Mutex<VecDeque<uuid::Uuid>>>;
+pub(crate) struct ActionClientMaintenanceNotifier {
+    identity: AtomicUsize,
+    active_clients: Arc<Mutex<VecDeque<usize>>>,
+}
+
+impl ActionClientMaintenanceNotifier {
+    pub(crate) fn new(active_clients: Arc<Mutex<VecDeque<usize>>>) -> Self {
+        Self {
+            identity: AtomicUsize::new(0),
+            active_clients,
+        }
+    }
+
+    pub(crate) fn set_identity(&self, identity: usize) {
+        debug_assert_ne!(identity, 0);
+        let previous = self.identity.swap(identity, Ordering::Release);
+        debug_assert_eq!(previous, 0);
+    }
+
+    fn notify(&self) {
+        let mut active_clients = self.active_clients.lock();
+        let identity = self.identity.load(Ordering::Acquire);
+        if identity != 0 {
+            active_clients.push_back(identity);
+        }
+    }
+
+    fn disable(&self) {
+        let mut active_clients = self.active_clients.lock();
+        let identity = self.identity.swap(0, Ordering::AcqRel);
+        active_clients.retain(|queued| *queued != identity);
+    }
+}
+
+pub(crate) struct ActionClientMaintenanceQueue<T> {
+    entries: VecDeque<T>,
+    notifier: Option<Arc<ActionClientMaintenanceNotifier>>,
+}
+
+impl<T> ActionClientMaintenanceQueue<T> {
+    pub(crate) fn new(notifier: Arc<ActionClientMaintenanceNotifier>) -> Self {
+        Self {
+            entries: VecDeque::new(),
+            notifier: Some(notifier),
+        }
+    }
+
+    fn push_back(&mut self, entry: T) {
+        self.entries.push_back(entry);
+        if let Some(notifier) = &self.notifier {
+            notifier.notify();
+        }
+    }
+
+    pub(crate) fn disable_notifier(&self) {
+        if let Some(notifier) = &self.notifier {
+            notifier.disable();
+        }
+    }
+}
+
+impl<T> Default for ActionClientMaintenanceQueue<T> {
+    fn default() -> Self {
+        Self {
+            entries: VecDeque::new(),
+            notifier: None,
+        }
+    }
+}
+
+impl<T> std::ops::Deref for ActionClientMaintenanceQueue<T> {
+    type Target = VecDeque<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.entries
+    }
+}
+
+impl<T> std::ops::DerefMut for ActionClientMaintenanceQueue<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.entries
+    }
+}
+
+pub(crate) type CanceledResultQueue = Arc<Mutex<ActionClientMaintenanceQueue<uuid::Uuid>>>;
+pub(crate) type CanceledCancelQueue = Arc<Mutex<ActionClientMaintenanceQueue<i64>>>;
+pub(crate) type CanceledFeedbackQueue = Arc<Mutex<ActionClientMaintenanceQueue<uuid::Uuid>>>;
 
 pub(crate) struct FeedbackStreamRegistration {
     canceled_feedback: CanceledFeedbackQueue,
@@ -241,9 +326,20 @@ pub(crate) fn take_canceled_feedback_goals<T>(
 }
 
 impl PendingFeedbackQueue {
+    pub(crate) fn new(notifier: Arc<ActionClientMaintenanceNotifier>) -> Self {
+        Self {
+            goals: VecDeque::new(),
+            queued: HashSet::new(),
+            maintenance_notifier: Some(notifier),
+        }
+    }
+
     fn push(&mut self, uuid: uuid::Uuid) {
         if self.queued.insert(uuid) {
             self.goals.push_back(uuid);
+            if let Some(notifier) = &self.maintenance_notifier {
+                notifier.notify();
+            }
         }
     }
 
@@ -257,7 +353,7 @@ impl PendingFeedbackQueue {
         self.goals.len()
     }
 
-    fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.goals.is_empty()
     }
 }
@@ -1247,6 +1343,8 @@ pub trait ActionClient_ {
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>);
     fn poll_maintenance(&mut self) -> Vec<ActionClientCompletion>;
+    fn has_pending_maintenance(&self) -> bool;
+    fn disable_maintenance_notifications(&self);
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Vec<ActionClientCompletion>;
     fn has_pending_availability(&mut self) -> bool;
 }
@@ -1707,6 +1805,17 @@ where
         completions
     }
 
+    fn has_pending_maintenance(&self) -> bool {
+        !self.canceled_cancel_requests.lock().is_empty()
+            || !self.canceled_feedback_goals.lock().is_empty()
+            || !self.canceled_result_goals.lock().is_empty()
+            || !self.pending_feedback_goals.lock().is_empty()
+    }
+
+    fn disable_maintenance_notifications(&self) {
+        self.canceled_cancel_requests.lock().disable_notifier();
+    }
+
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Vec<ActionClientCompletion> {
         self.poll_available_channels.prune_canceled();
         if self.poll_available_channels.is_empty() {
@@ -1924,6 +2033,24 @@ pub(crate) fn take_action_availability_poll_count() -> usize {
     ACTION_AVAILABILITY_POLL_COUNT.replace(0)
 }
 
+#[cfg(test)]
+thread_local! {
+    static ACTION_CLIENT_MAINTENANCE_POLL_COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn record_action_client_maintenance_poll() {
+    ACTION_CLIENT_MAINTENANCE_POLL_COUNT.set(ACTION_CLIENT_MAINTENANCE_POLL_COUNT.get() + 1);
+}
+
+#[cfg(not(test))]
+pub(crate) fn record_action_client_maintenance_poll() {}
+
+#[cfg(test)]
+pub(crate) fn take_action_client_maintenance_poll_count() -> usize {
+    ACTION_CLIENT_MAINTENANCE_POLL_COUNT.replace(0)
+}
+
 pub fn action_server_available_helper(
     node: &rcl_node_t, client: &rcl_action_client_t,
 ) -> Result<bool> {
@@ -1965,6 +2092,26 @@ mod tests {
         sync::atomic::{AtomicBool, Ordering},
         task::{Context, Poll},
     };
+
+    #[test]
+    fn maintenance_queues_notify_until_disabled() {
+        let active_clients = Arc::new(Mutex::new(VecDeque::new()));
+        let notifier = Arc::new(ActionClientMaintenanceNotifier::new(Arc::clone(&active_clients)));
+        notifier.set_identity(42);
+        let canceled =
+            Arc::new(Mutex::new(ActionClientMaintenanceQueue::new(Arc::clone(&notifier))));
+        let mut pending = PendingFeedbackQueue::new(Arc::clone(&notifier));
+
+        canceled.lock().push_back(1_i64);
+        pending.push(uuid::Uuid::from_u128(1));
+        assert_eq!(active_clients.lock().iter().copied().collect::<Vec<_>>(), [42, 42]);
+
+        canceled.lock().disable_notifier();
+        assert!(active_clients.lock().is_empty());
+        canceled.lock().push_back(2);
+        pending.push(uuid::Uuid::from_u128(2));
+        assert!(active_clients.lock().is_empty());
+    }
 
     #[test]
     fn final_action_client_handle_drop_queues_its_identity_once() {
@@ -2234,6 +2381,12 @@ mod tests {
             fn poll_maintenance(&mut self) -> Vec<ActionClientCompletion> {
                 Vec::new()
             }
+
+            fn has_pending_maintenance(&self) -> bool {
+                false
+            }
+
+            fn disable_maintenance_notifications(&self) {}
             fn poll_available(&mut self, _node: &mut rcl_node_t) -> Vec<ActionClientCompletion> {
                 Vec::new()
             }
@@ -2392,7 +2545,7 @@ mod tests {
     fn dropping_result_future_queues_only_its_goal_for_cleanup() {
         let target = uuid::Uuid::from_u128(1);
         let other = uuid::Uuid::from_u128(2);
-        let canceled_results = Arc::new(Mutex::new(VecDeque::new()));
+        let canceled_results = Arc::new(Mutex::new(ActionClientMaintenanceQueue::default()));
         let (target_sender, target_receiver) = oneshot::channel();
         let (other_sender, _other_receiver) = oneshot::channel();
         let result_senders = HashMap::from([(target, target_sender), (other, other_sender)]);
@@ -2410,7 +2563,7 @@ mod tests {
     #[test]
     fn completed_result_future_does_not_queue_cleanup() {
         let uuid = uuid::Uuid::from_u128(1);
-        let canceled_results = Arc::new(Mutex::new(VecDeque::new()));
+        let canceled_results = Arc::new(Mutex::new(ActionClientMaintenanceQueue::default()));
         let (sender, receiver) = oneshot::channel();
         let mut future = Box::pin(ActionResultFuture::<Fibonacci::Action> {
             receiver,
@@ -2430,7 +2583,7 @@ mod tests {
     fn dropping_feedback_stream_queues_only_its_goal_for_cleanup() {
         let target = uuid::Uuid::from_u128(1);
         let other = uuid::Uuid::from_u128(2);
-        let canceled_feedback = Arc::new(Mutex::new(VecDeque::new()));
+        let canceled_feedback = Arc::new(Mutex::new(ActionClientMaintenanceQueue::default()));
         let (target_sender, target_receiver) = mpsc::channel::<Fibonacci::Feedback>(1);
         let (other_sender, _other_receiver) = mpsc::channel::<Fibonacci::Feedback>(1);
         let feedback_senders = HashMap::from([
@@ -2451,7 +2604,7 @@ mod tests {
     #[test]
     fn completed_feedback_stream_does_not_queue_cleanup() {
         let uuid = uuid::Uuid::from_u128(1);
-        let canceled_feedback = Arc::new(Mutex::new(VecDeque::new()));
+        let canceled_feedback = Arc::new(Mutex::new(ActionClientMaintenanceQueue::default()));
         let (sender, receiver) = mpsc::channel::<Fibonacci::Feedback>(1);
         let mut stream = ActionFeedbackStream::<Fibonacci::Action> {
             receiver,
@@ -2468,11 +2621,13 @@ mod tests {
     #[test]
     fn canceled_feedback_cleanup_is_bounded_and_retries_in_flight_sends() {
         let in_flight = uuid::Uuid::from_u128(1);
-        let canceled_feedback = Arc::new(Mutex::new(
-            (1..=20_u128)
+        let canceled_feedback_queue = ActionClientMaintenanceQueue {
+            entries: (1..=20_u128)
                 .map(uuid::Uuid::from_u128)
                 .collect::<VecDeque<_>>(),
-        ));
+            ..Default::default()
+        };
+        let canceled_feedback = Arc::new(Mutex::new(canceled_feedback_queue));
         let feedback_senders = (1..=20_u128)
             .map(|value| {
                 let uuid = uuid::Uuid::from_u128(value);
@@ -2509,11 +2664,13 @@ mod tests {
 
     #[test]
     fn canceled_result_cleanup_is_bounded() {
-        let canceled_results = Arc::new(Mutex::new(
-            (1..=20_u128)
+        let canceled_results_queue = ActionClientMaintenanceQueue {
+            entries: (1..=20_u128)
                 .map(uuid::Uuid::from_u128)
                 .collect::<VecDeque<_>>(),
-        ));
+            ..Default::default()
+        };
+        let canceled_results = Arc::new(Mutex::new(canceled_results_queue));
         let result_senders = (1..=20_u128)
             .map(|value| {
                 let (sender, receiver) = oneshot::channel::<()>();
@@ -2538,7 +2695,7 @@ mod tests {
     #[test]
     fn canceled_terminal_result_closes_feedback_and_request_state() {
         let uuid = uuid::Uuid::from_u128(1);
-        let canceled_results = Arc::new(Mutex::new(VecDeque::new()));
+        let canceled_results = Arc::new(Mutex::new(ActionClientMaintenanceQueue::default()));
         let (result_sender, result_receiver) = oneshot::channel();
         let (feedback_sender, mut feedback_receiver) = mpsc::channel(1);
         let mut client = WrappedActionClient::<Fibonacci::Action> {
@@ -3162,7 +3319,7 @@ mod tests {
 
     #[test]
     fn dropping_cancel_future_queues_only_its_sequence_for_cleanup() {
-        let canceled_cancels = Arc::new(Mutex::new(VecDeque::new()));
+        let canceled_cancels = Arc::new(Mutex::new(ActionClientMaintenanceQueue::default()));
         let (target_sender, target_receiver) = oneshot::channel();
         let (other_sender, _other_receiver) = oneshot::channel();
         let senders = HashMap::from([(10, target_sender), (11, other_sender)]);
@@ -3177,7 +3334,7 @@ mod tests {
 
     #[test]
     fn completed_cancel_future_does_not_queue_cleanup() {
-        let canceled_cancels = Arc::new(Mutex::new(VecDeque::new()));
+        let canceled_cancels = Arc::new(Mutex::new(ActionClientMaintenanceQueue::default()));
         let (sender, receiver) = oneshot::channel();
         let future = registered_cancel_response_future(receiver, Arc::clone(&canceled_cancels), 10);
         sender
@@ -3194,7 +3351,11 @@ mod tests {
     #[test]
     fn canceled_cancel_cleanup_is_bounded_and_ignores_stale_sequences() {
         let stale_sequence = 1;
-        let canceled_cancels = Arc::new(Mutex::new((stale_sequence..=20).collect::<VecDeque<_>>()));
+        let canceled_cancel_queue = ActionClientMaintenanceQueue {
+            entries: (stale_sequence..=20).collect::<VecDeque<_>>(),
+            ..Default::default()
+        };
+        let canceled_cancels = Arc::new(Mutex::new(canceled_cancel_queue));
         let mut receivers = Vec::new();
         let senders = (stale_sequence..=20)
             .map(|sequence| {
@@ -3221,7 +3382,7 @@ mod tests {
 
     #[test]
     fn pending_work_prunes_dropped_cancel_future() {
-        let canceled_cancels = Arc::new(Mutex::new(VecDeque::new()));
+        let canceled_cancels = Arc::new(Mutex::new(ActionClientMaintenanceQueue::default()));
         let (sender, receiver) = oneshot::channel();
         let mut client = WrappedActionClient::<Fibonacci::Action> {
             rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
@@ -3251,7 +3412,7 @@ mod tests {
     #[test]
     fn pending_work_prunes_dropped_feedback_stream() {
         let uuid = uuid::Uuid::from_u128(1);
-        let canceled_feedback = Arc::new(Mutex::new(VecDeque::new()));
+        let canceled_feedback = Arc::new(Mutex::new(ActionClientMaintenanceQueue::default()));
         let (sender, receiver) = mpsc::channel(1);
         let mut client = WrappedActionClient::<Fibonacci::Action> {
             rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },

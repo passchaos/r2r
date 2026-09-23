@@ -971,6 +971,17 @@ impl ActionClient_ for WrappedActionClientUntyped {
         completions
     }
 
+    fn has_pending_maintenance(&self) -> bool {
+        !self.canceled_cancel_requests.lock().is_empty()
+            || !self.canceled_feedback_goals.lock().is_empty()
+            || !self.canceled_result_goals.lock().is_empty()
+            || !self.pending_feedback_goals.lock().is_empty()
+    }
+
+    fn disable_maintenance_notifications(&self) {
+        self.canceled_cancel_requests.lock().disable_notifier();
+    }
+
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Vec<ActionClientCompletion> {
         self.poll_available_channels.prune_canceled();
         if self.poll_available_channels.is_empty() {
@@ -1035,7 +1046,7 @@ mod tests {
 
     #[test]
     fn pending_work_prunes_dropped_cancel_future() {
-        let canceled_cancels = Arc::new(Mutex::new(std::collections::VecDeque::new()));
+        let canceled_cancels = Arc::new(Mutex::new(ActionClientMaintenanceQueue::default()));
         let (sender, receiver) = oneshot::channel();
         let mut client = WrappedActionClientUntyped {
             action_type_support: UntypedActionSupport::new_from(
@@ -1069,7 +1080,7 @@ mod tests {
     #[test]
     fn pending_work_prunes_dropped_feedback_stream() {
         let uuid = uuid::Uuid::from_u128(1);
-        let canceled_feedback = Arc::new(Mutex::new(std::collections::VecDeque::new()));
+        let canceled_feedback = Arc::new(Mutex::new(ActionClientMaintenanceQueue::default()));
         let (sender, receiver) = mpsc::channel(1);
         let mut client = WrappedActionClientUntyped {
             action_type_support: UntypedActionSupport::new_from(

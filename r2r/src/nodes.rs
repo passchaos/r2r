@@ -732,6 +732,8 @@ pub struct Node {
     pending_action_client_removals: HashSet<usize>,
     active_availability_action_clients: Arc<Mutex<VecDeque<usize>>>,
     action_clients_with_active_availability: HashSet<usize>,
+    active_maintenance_action_clients: Arc<Mutex<VecDeque<usize>>>,
+    action_clients_with_pending_maintenance: HashSet<usize>,
     // action servers
     action_servers: Vec<Arc<Mutex<dyn ActionServer_>>>,
     action_server_indexes: HashMap<uuid::Uuid, usize>,
@@ -1223,6 +1225,7 @@ impl Node {
             return Ok(false);
         }
         let capacities = action_client_wait_set_capacities(handle.handle())?;
+        handle.disable_maintenance_notifications();
         handle.destroy(self.node_handle.as_mut());
         drop(handle);
 
@@ -1232,6 +1235,8 @@ impl Node {
             self.action_client_identities
                 .insert(Self::action_client_identity(moved), index);
         }
+        self.action_clients_with_pending_maintenance
+            .remove(&identity);
         self.action_wait_set_capacities.subtract(capacities);
         Ok(true)
     }
@@ -1242,7 +1247,9 @@ impl Node {
         };
         let capacities = {
             let client = self.action_clients[index].lock();
-            action_client_wait_set_capacities(client.handle())?
+            let capacities = action_client_wait_set_capacities(client.handle())?;
+            client.disable_maintenance_notifications();
+            capacities
         };
         let client = self.action_clients.swap_remove(index);
         self.action_client_identities.remove(&identity);
@@ -1253,10 +1260,15 @@ impl Node {
         self.pending_action_client_removals.remove(&identity);
         self.action_clients_with_active_availability
             .remove(&identity);
+        self.action_clients_with_pending_maintenance
+            .remove(&identity);
         self.dropped_action_clients
             .lock()
             .retain(|queued| *queued != identity);
         self.active_availability_action_clients
+            .lock()
+            .retain(|queued| *queued != identity);
+        self.active_maintenance_action_clients
             .lock()
             .retain(|queued| *queued != identity);
         client.lock().destroy(self.node_handle.as_mut());
@@ -1583,6 +1595,8 @@ impl Node {
                 pending_action_client_removals: HashSet::new(),
                 active_availability_action_clients: Arc::new(Mutex::new(VecDeque::new())),
                 action_clients_with_active_availability: HashSet::new(),
+                active_maintenance_action_clients: Arc::new(Mutex::new(VecDeque::new())),
+                action_clients_with_pending_maintenance: HashSet::new(),
                 action_servers: Vec::new(),
                 action_server_indexes: HashMap::new(),
                 dropped_action_servers: Arc::new(Mutex::new(VecDeque::new())),
@@ -3675,17 +3689,28 @@ impl Node {
                 return Err(err);
             }
         };
+        let maintenance_notifier = Arc::new(ActionClientMaintenanceNotifier::new(Arc::clone(
+            &self.active_maintenance_action_clients,
+        )));
         let client = WrappedActionClient::<T> {
             rcl_handle: client_handle,
             goal_response_channels: HashMap::new(),
             goal_response_sequences: HashMap::new(),
             cancel_response_channels: HashMap::new(),
-            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
+            canceled_cancel_requests: Arc::new(Mutex::new(ActionClientMaintenanceQueue::new(
+                Arc::clone(&maintenance_notifier),
+            ))),
             feedback_senders: HashMap::new(),
-            canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
-            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            canceled_feedback_goals: Arc::new(Mutex::new(ActionClientMaintenanceQueue::new(
+                Arc::clone(&maintenance_notifier),
+            ))),
+            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::new(Arc::clone(
+                &maintenance_notifier,
+            )))),
             result_senders: HashMap::new(),
-            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
+            canceled_result_goals: Arc::new(Mutex::new(ActionClientMaintenanceQueue::new(
+                Arc::clone(&maintenance_notifier),
+            ))),
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             goal_status: HashMap::new(),
@@ -3695,6 +3720,7 @@ impl Node {
 
         let client_arc = Arc::new(Mutex::new(client));
         let identity = Self::action_client_identity(&client_arc);
+        maintenance_notifier.set_identity(identity);
         self.action_client_identities
             .insert(identity, self.action_clients.len());
         self.action_clients.push(client_arc.clone());
@@ -3745,18 +3771,29 @@ impl Node {
                 return Err(err);
             }
         };
+        let maintenance_notifier = Arc::new(ActionClientMaintenanceNotifier::new(Arc::clone(
+            &self.active_maintenance_action_clients,
+        )));
         let client = WrappedActionClientUntyped {
             action_type_support,
             rcl_handle: client_handle,
             goal_response_channels: HashMap::new(),
             goal_response_sequences: HashMap::new(),
             cancel_response_channels: HashMap::new(),
-            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
+            canceled_cancel_requests: Arc::new(Mutex::new(ActionClientMaintenanceQueue::new(
+                Arc::clone(&maintenance_notifier),
+            ))),
             feedback_senders: HashMap::new(),
-            canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
-            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            canceled_feedback_goals: Arc::new(Mutex::new(ActionClientMaintenanceQueue::new(
+                Arc::clone(&maintenance_notifier),
+            ))),
+            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::new(Arc::clone(
+                &maintenance_notifier,
+            )))),
             result_senders: HashMap::new(),
-            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
+            canceled_result_goals: Arc::new(Mutex::new(ActionClientMaintenanceQueue::new(
+                Arc::clone(&maintenance_notifier),
+            ))),
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             goal_status: HashMap::new(),
@@ -3766,6 +3803,7 @@ impl Node {
 
         let client_arc = Arc::new(Mutex::new(client));
         let identity = Self::action_client_identity(&client_arc);
+        maintenance_notifier.set_identity(identity);
         self.action_client_identities
             .insert(identity, self.action_clients.len());
         self.action_clients.push(client_arc.clone());
@@ -4223,17 +4261,32 @@ impl Node {
             }
         }
 
-        // Canceled requests and released feedback capacity need maintenance every spin, even when
-        // no action-server availability future is active.
-        for c in &mut self.action_clients {
-            complete_action_client_operation(
-                c,
+        {
+            let mut active = self.active_maintenance_action_clients.lock();
+            self.action_clients_with_pending_maintenance
+                .extend(active.drain(..));
+        }
+        let action_clients_with_pending_maintenance =
+            std::mem::take(&mut self.action_clients_with_pending_maintenance);
+        for identity in action_clients_with_pending_maintenance {
+            let Some(index) = self.action_client_identities.get(&identity).copied() else {
+                continue;
+            };
+            let client = &self.action_clients[index];
+            record_action_client_maintenance_poll();
+            let maintenance_result = complete_action_client_operation(
+                client,
                 |client, completions| {
                     completions.extend(client.poll_maintenance());
                     Ok(())
                 },
                 |client, uuid| client.forget_goal(uuid),
-            )?;
+            );
+            if client.lock().has_pending_maintenance() {
+                self.action_clients_with_pending_maintenance
+                    .insert(identity);
+            }
+            maintenance_result?;
         }
 
         {
@@ -5445,7 +5498,9 @@ impl Drop for Node {
             s.lock().destroy(&mut self.node_handle);
         }
         for c in &mut self.action_clients {
-            c.lock().destroy(&mut self.node_handle);
+            let mut client = c.lock();
+            client.disable_maintenance_notifications();
+            client.destroy(&mut self.node_handle);
         }
         for s in &mut self.action_servers {
             s.lock().destroy(&mut self.node_handle);
@@ -11329,6 +11384,50 @@ mod tests {
     }
 
     #[test]
+    fn action_client_maintenance_skips_idle_clients() {
+        use crate::{
+            action_clients::take_action_client_maintenance_poll_count,
+            example_interfaces::action::Fibonacci,
+        };
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "action_sparse_maintenance_test", "").unwrap();
+        let active = node
+            .create_action_client::<Fibonacci::Action>("/active_action_maintenance")
+            .unwrap();
+        let _idle = node
+            .create_action_client::<Fibonacci::Action>("/idle_action_maintenance")
+            .unwrap();
+        let active_identity = active.identity();
+        take_action_client_maintenance_poll_count();
+
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(take_action_client_maintenance_poll_count(), 0);
+
+        let canceled = active.cancel_all().unwrap();
+        std::thread::scope(|scope| {
+            scope.spawn(move || drop(canceled)).join().unwrap();
+        });
+        assert_eq!(
+            node.active_maintenance_action_clients
+                .lock()
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            [active_identity]
+        );
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(take_action_client_maintenance_poll_count(), 1);
+        assert!(node.action_clients_with_pending_maintenance.is_empty());
+        assert!(!node.action_clients[node.action_client_identities[&active_identity]]
+            .lock()
+            .has_pending_work());
+
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert_eq!(take_action_client_maintenance_poll_count(), 0);
+    }
+
+    #[test]
     fn action_server_cancel_maintenance_skips_idle_servers() {
         use crate::{
             action_servers::take_action_server_maintenance_poll_count,
@@ -12382,6 +12481,7 @@ mod tests {
             .send_goal_request(Fibonacci::Goal { order: 1 })
             .unwrap();
         let availability = Node::is_available(&removed).unwrap();
+        let canceled = removed.cancel_all().unwrap();
 
         node.destroy_action_client(removed).unwrap();
 
@@ -12398,10 +12498,16 @@ mod tests {
             .contains(&removed_identity));
         assert!(node.dropped_action_clients.lock().is_empty());
         assert!(node.active_availability_action_clients.lock().is_empty());
+        assert!(node.active_maintenance_action_clients.lock().is_empty());
+        assert!(!node
+            .action_clients_with_pending_maintenance
+            .contains(&removed_identity));
         assert_eq!(node.action_wait_set_capacities, expected_capacities);
         assert!(matches!(goal.now_or_never(), Some(Err(Error::RCL_RET_ACTION_CLIENT_INVALID))));
         assert!(matches!(availability.now_or_never(), Some(Err(Error::RCL_RET_CLIENT_INVALID))));
         assert!(matches!(removed_clone.action_name(), Err(Error::RCL_RET_ACTION_CLIENT_INVALID)));
+        drop(canceled);
+        assert!(node.active_maintenance_action_clients.lock().is_empty());
         assert_eq!(first.action_name().unwrap(), "/destroy_action_client_first");
         assert_eq!(last.action_name().unwrap(), "/destroy_action_client_last");
         drop(removed_clone);
@@ -12419,6 +12525,21 @@ mod tests {
         assert_eq!(node.action_clients.len(), 2);
         assert_eq!(first.action_name().unwrap(), "/destroy_action_client_first");
         assert_eq!(last.action_name().unwrap(), "/destroy_action_client_last");
+
+        let removed_untyped = node
+            .create_action_client_untyped(
+                "/destroy_untyped_action_client",
+                "example_interfaces/action/Fibonacci",
+            )
+            .unwrap();
+        let removed_untyped_identity = removed_untyped.identity();
+        let canceled_untyped = removed_untyped.cancel_all().unwrap();
+        node.destroy_action_client_untyped(removed_untyped).unwrap();
+        drop(canceled_untyped);
+        assert!(!node
+            .action_client_identities
+            .contains_key(&removed_untyped_identity));
+        assert!(node.active_maintenance_action_clients.lock().is_empty());
     }
 
     #[test]
