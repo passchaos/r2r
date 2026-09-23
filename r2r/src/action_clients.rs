@@ -1259,6 +1259,23 @@ where
         action_server_available_helper(node.node_handle.as_ref(), client.handle())
     }
 
+    /// Waits asynchronously until the action server is available.
+    ///
+    /// The owning node must be spun while awaiting.
+    pub fn wait_for_action_server(&self) -> Result<impl Future<Output = Result<()>>> {
+        Node::is_available(self)
+    }
+
+    /// Waits asynchronously until the action server is available or `timeout` expires.
+    ///
+    /// This future is runtime-agnostic and advances while `node` is spun.
+    pub fn wait_for_action_server_with_timeout(
+        &self, node: &mut Node, timeout: std::time::Duration,
+    ) -> Result<impl Future<Output = Result<()>>> {
+        let available = self.wait_for_action_server()?;
+        node.with_timeout(available, timeout)
+    }
+
     /// Returns the fully resolved action name used by the native client.
     pub fn action_name(&self) -> Result<String> {
         let client = self

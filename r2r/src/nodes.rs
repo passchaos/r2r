@@ -11432,7 +11432,7 @@ mod tests {
 
     #[test]
     fn availability_waits_support_runtime_agnostic_timeouts() {
-        use crate::example_interfaces::srv::AddTwoInts;
+        use crate::example_interfaces::{action::Fibonacci, srv::AddTwoInts};
 
         fn drive<T>(node: &mut Node, future: impl Future<Output = Result<T>>) -> Result<T> {
             futures::pin_mut!(future);
@@ -11480,6 +11480,26 @@ mod tests {
             )
             .unwrap();
         let wait = untyped.wait_for_service().unwrap();
+        drive(&mut node, wait).unwrap();
+
+        let _action_server = node
+            .create_action_server::<Fibonacci::Action>("/available_timeout_action")
+            .unwrap();
+        let action_client = node
+            .create_action_client::<Fibonacci::Action>("/available_timeout_action")
+            .unwrap();
+        let wait = action_client
+            .wait_for_action_server_with_timeout(&mut node, Duration::from_secs(1))
+            .unwrap();
+        drive(&mut node, wait).unwrap();
+
+        let untyped_action_client = node
+            .create_action_client_untyped(
+                "/available_timeout_action",
+                "example_interfaces/action/Fibonacci",
+            )
+            .unwrap();
+        let wait = untyped_action_client.wait_for_action_server().unwrap();
         drive(&mut node, wait).unwrap();
 
         let publisher = node
@@ -11978,6 +11998,10 @@ mod tests {
         let missing = node
             .create_action_client::<Fibonacci::Action>("/missing_action_request_timeout")
             .unwrap();
+        let availability = missing
+            .wait_for_action_server_with_timeout(&mut node, Duration::from_millis(1))
+            .unwrap();
+        assert!(matches!(drive(&mut node, availability), Err(Error::RCL_RET_TIMEOUT)));
         let timeout = missing
             .send_goal_request_with_options_and_timeout(
                 &mut node,
@@ -12012,6 +12036,11 @@ mod tests {
                 "example_interfaces/action/Fibonacci",
             )
             .unwrap();
+        let availability = missing_untyped.wait_for_action_server().unwrap();
+        let availability = node
+            .with_timeout(availability, Duration::from_millis(1))
+            .unwrap();
+        assert!(matches!(drive(&mut node, availability), Err(Error::RCL_RET_TIMEOUT)));
         let timeout = missing_untyped
             .send_goal_request_with_options_and_timeout(
                 &mut node,
