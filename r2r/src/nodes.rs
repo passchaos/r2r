@@ -5129,6 +5129,7 @@ impl Node {
         let out_timer = Timer {
             receiver: rx,
             id,
+            clock_type: ClockType::SteadyTime,
             canceled_timers: Arc::clone(&self.canceled_timers),
         };
 
@@ -5168,6 +5169,7 @@ impl Node {
         let out_timer = Timer {
             receiver: rx,
             id,
+            clock_type: ClockType::RosTime,
             canceled_timers: Arc::clone(&self.canceled_timers),
         };
 
@@ -5507,6 +5509,7 @@ impl Drop for Timer_ {
 pub struct Timer {
     receiver: mpsc::Receiver<Duration>,
     id: uuid::Uuid,
+    clock_type: ClockType,
     canceled_timers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
 }
 
@@ -5518,6 +5521,16 @@ impl Drop for Timer {
 }
 
 impl Timer {
+    /// Returns the type of clock driving this timer.
+    pub const fn clock_type(&self) -> ClockType {
+        self.clock_type
+    }
+
+    /// Returns whether this timer uses a monotonic steady clock.
+    pub const fn is_steady(&self) -> bool {
+        matches!(self.clock_type, ClockType::SteadyTime)
+    }
+
     /// Completes when the next instant in the interval has been reached.
     ///
     /// Returns the time passed since the timer was last woken up.
@@ -13794,6 +13807,8 @@ mod tests {
         let other = Node::create(context, "timer_controls_other", "").unwrap();
         let timer = node.create_wall_timer(Duration::from_millis(100)).unwrap();
 
+        assert_eq!(timer.clock_type(), ClockType::SteadyTime);
+        assert!(timer.is_steady());
         assert_eq!(timer.period(&node).unwrap(), Duration::from_millis(100));
         assert!(!timer.is_canceled(&node).unwrap());
         assert!(!timer.is_ready(&node).unwrap());
@@ -13836,6 +13851,10 @@ mod tests {
         assert!(timer.is_ready(&node).unwrap());
         assert_eq!(timer.time_until_next_call(&node).unwrap(), Duration::ZERO);
         assert!(timer.time_until_next_call_ns(&node).unwrap() <= 0);
+
+        let ros_timer = node.create_timer(Duration::from_secs(1)).unwrap();
+        assert_eq!(ros_timer.clock_type(), ClockType::RosTime);
+        assert!(!ros_timer.is_steady());
     }
 
     #[test]
