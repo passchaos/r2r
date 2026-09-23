@@ -4117,6 +4117,10 @@ impl Node {
 
     /// Spin the ROS node and report errors from the underlying RCL wait set.
     pub fn try_spin_once(&mut self, timeout: Duration) -> Result<()> {
+        if !self.context.is_valid() {
+            return Err(Error::RCL_RET_NOT_INIT);
+        }
+
         #[cfg(r2r__rosgraph_msgs__msg__Clock)]
         {
             let time_source = self.time_source.clone();

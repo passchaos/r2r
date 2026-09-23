@@ -2,6 +2,7 @@ use r2r::{
     parking_lot::{Mutex, MutexGuard},
     Context, ContextOptions, Error, Node,
 };
+use std::time::{Duration, Instant};
 
 fn context_test_lock() -> MutexGuard<'static, ()> {
     static LOCK: Mutex<()> = Mutex::new(());
@@ -58,4 +59,23 @@ fn context_options_reject_arguments_with_nul_bytes() {
         Context::create_with_options(ContextOptions::default().arguments(["r2r\0test"])),
         Err(Error::RCL_RET_INVALID_ARGUMENT)
     ));
+}
+
+#[test]
+fn reports_spin_results_after_context_shutdown() {
+    let _lock = context_test_lock();
+    let context = Context::create().unwrap();
+    let mut empty = Node::create(context.clone(), "shutdown_empty_spin", "").unwrap();
+    let mut waitable = Node::create(context.clone(), "shutdown_waitable_spin", "").unwrap();
+    let _timer = waitable.create_wall_timer(Duration::from_secs(1)).unwrap();
+
+    context.shutdown().unwrap();
+
+    let started = Instant::now();
+    let empty_result = empty.try_spin_once(Duration::from_secs(1));
+    let waitable_result = waitable.try_spin_once(Duration::ZERO);
+
+    assert!(matches!(empty_result, Err(Error::RCL_RET_NOT_INIT)));
+    assert!(matches!(waitable_result, Err(Error::RCL_RET_NOT_INIT)));
+    assert!(started.elapsed() < Duration::from_millis(100));
 }
