@@ -3715,6 +3715,7 @@ impl Node {
     pub fn is_available_with_timeout(
         &mut self, client: &dyn IsAvailablePollable, timeout: Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
+        client.validate_availability_owner(self)?;
         let available = Self::is_available(client)?;
         self.with_timeout(available, timeout)
     }
@@ -5784,6 +5785,9 @@ fn duration_from_nonnegative_nanos(nanos: i64) -> Result<Duration> {
 
 pub trait IsAvailablePollable {
     fn register_poll_available(&self, sender: oneshot::Sender<()>) -> Result<()>;
+    fn validate_availability_owner(&self, _node: &Node) -> Result<()> {
+        Ok(())
+    }
 
     fn availability_closed_error(&self) -> Error {
         Error::RCL_RET_CLIENT_INVALID
@@ -12112,6 +12116,10 @@ mod tests {
             typed.wait_for_service_with_timeout(&mut other, Duration::from_secs(1)),
             Err(Error::RCL_RET_INVALID_ARGUMENT)
         ));
+        assert!(matches!(
+            other.is_available_with_timeout(&typed, Duration::from_secs(1)),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
         let typed_state = typed.client.upgrade().unwrap();
         let typed_state = typed_state.lock();
         assert!(typed_state.response_channels.is_empty());
@@ -12136,6 +12144,10 @@ mod tests {
         ));
         assert!(matches!(
             untyped.wait_for_service_with_timeout(&mut other, Duration::from_secs(1)),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            other.is_available_with_timeout(&untyped, Duration::from_secs(1)),
             Err(Error::RCL_RET_INVALID_ARGUMENT)
         ));
         let untyped_state = untyped.client.upgrade().unwrap();
@@ -12311,6 +12323,10 @@ mod tests {
             typed.wait_for_action_server_with_timeout(&mut other, Duration::from_secs(1)),
             Err(Error::RCL_RET_INVALID_ARGUMENT)
         ));
+        assert!(matches!(
+            other.is_available_with_timeout(&typed, Duration::from_secs(1)),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
 
         assert!(matches!(
             untyped.send_goal_request_with_timeout(
@@ -12343,6 +12359,10 @@ mod tests {
         ));
         assert!(matches!(
             untyped.wait_for_action_server_with_timeout(&mut other, Duration::from_secs(1)),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            other.is_available_with_timeout(&untyped, Duration::from_secs(1)),
             Err(Error::RCL_RET_INVALID_ARGUMENT)
         ));
 

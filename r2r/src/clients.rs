@@ -980,6 +980,10 @@ where
         }
         Ok(())
     }
+
+    fn validate_availability_owner(&self, node: &Node) -> Result<()> {
+        self.validate_owner(node)
+    }
 }
 
 impl IsAvailablePollable for ClientUntyped {
@@ -993,6 +997,10 @@ impl IsAvailablePollable for ClientUntyped {
                 .push_back(self.lifecycle.identity);
         }
         Ok(())
+    }
+
+    fn validate_availability_owner(&self, node: &Node) -> Result<()> {
+        self.validate_owner(node)
     }
 }
 

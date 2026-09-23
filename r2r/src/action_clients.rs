@@ -2077,6 +2077,10 @@ where
         Ok(())
     }
 
+    fn validate_availability_owner(&self, node: &Node) -> Result<()> {
+        self.validate_owner(node)
+    }
+
     fn availability_closed_error(&self) -> Error {
         Error::RCL_RET_ACTION_CLIENT_INVALID
     }
