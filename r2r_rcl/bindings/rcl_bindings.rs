@@ -1569,6 +1569,13 @@ pub type rmw_requested_qos_incompatible_event_status_t = rmw_qos_incompatible_ev
 pub type rmw_offered_qos_incompatible_event_status_t = rmw_qos_incompatible_event_status_t;
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq)]
+pub struct rmw_incompatible_type_status_s {
+    pub total_count: i32,
+    pub total_count_change: i32,
+}
+pub type rmw_incompatible_type_status_t = rmw_incompatible_type_status_s;
+#[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct rmw_liveliness_changed_status_s {
     pub alive_count: i32,
     pub not_alive_count: i32,

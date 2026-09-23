@@ -100,6 +100,29 @@ pub struct MatchedStatus {
     pub current_count_change: i32,
 }
 
+/// Cumulative status for endpoints discovered with an incompatible ROS type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IncompatibleTypeStatus {
+    /// Lifetime number of incompatible endpoint types detected.
+    pub total_count: i32,
+    /// Number detected since this status was last taken.
+    pub total_count_change: i32,
+}
+
+#[cfg(not(any(
+    r2r__ros__distro__foxy,
+    r2r__ros__distro__galactic,
+    r2r__ros__distro__humble
+)))]
+impl From<rmw_incompatible_type_status_t> for IncompatibleTypeStatus {
+    fn from(status: rmw_incompatible_type_status_t) -> Self {
+        Self {
+            total_count: status.total_count,
+            total_count_change: status.total_count_change,
+        }
+    }
+}
+
 impl Default for PublisherOptions {
     fn default() -> Self {
         Self {
@@ -166,6 +189,22 @@ mod option_tests {
                 ..
             })
         ));
+    }
+
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    #[test]
+    fn preserves_native_incompatible_type_counts() {
+        let status = IncompatibleTypeStatus::from(rmw_incompatible_type_status_t {
+            total_count: 7,
+            total_count_change: 2,
+        });
+
+        assert_eq!(status.total_count, 7);
+        assert_eq!(status.total_count_change, 2);
     }
 }
 
@@ -314,6 +353,12 @@ mod waiter_tests {
                     r2r__ros__distro__humble
                 )))]
                 matched: None,
+                #[cfg(not(any(
+                    r2r__ros__distro__foxy,
+                    r2r__ros__distro__galactic,
+                    r2r__ros__distro__humble
+                )))]
+                incompatible_type: None,
             })),
             active_wait_publishers: Arc::new(Mutex::new(VecDeque::new())),
             wait_poll_count: AtomicUsize::new(0),
@@ -360,6 +405,12 @@ mod waiter_tests {
                     r2r__ros__distro__humble
                 )))]
                 matched: None,
+                #[cfg(not(any(
+                    r2r__ros__distro__foxy,
+                    r2r__ros__distro__galactic,
+                    r2r__ros__distro__humble
+                )))]
+                incompatible_type: None,
             })),
             active_wait_publishers: Arc::clone(&active),
             wait_poll_count: AtomicUsize::new(0),
@@ -396,6 +447,12 @@ mod waiter_tests {
                     r2r__ros__distro__humble
                 )))]
                 matched: None,
+                #[cfg(not(any(
+                    r2r__ros__distro__foxy,
+                    r2r__ros__distro__galactic,
+                    r2r__ros__distro__humble
+                )))]
+                incompatible_type: None,
             })),
             active_wait_publishers: Arc::new(Mutex::new(VecDeque::new())),
             wait_poll_count: AtomicUsize::new(0),
@@ -429,6 +486,12 @@ struct PublisherHandle {
         r2r__ros__distro__humble
     )))]
     matched: Option<PublisherEvent>,
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    incompatible_type: Option<PublisherEvent>,
 }
 
 struct PublisherEvent {
@@ -530,6 +593,25 @@ impl PublisherEvent {
             current_count: status.current_count,
             current_count_change: status.current_count_change,
         }))
+    }
+
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    fn take_incompatible_type(&self) -> Result<Option<IncompatibleTypeStatus>> {
+        let mut status = MaybeUninit::<rmw_incompatible_type_status_t>::uninit();
+        let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
+        if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
+            return Ok(None);
+        }
+        check_publisher_ret(ret)?;
+        let status = unsafe { status.assume_init() };
+        if status.total_count_change == 0 {
+            return Ok(None);
+        }
+        Ok(Some(status.into()))
     }
 }
 
@@ -633,6 +715,27 @@ impl Publisher_ {
         });
         event.ensure_initialized(publisher)?;
         event.take_matched()
+    }
+
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    fn take_incompatible_type(&self) -> Result<Option<IncompatibleTypeStatus>> {
+        let mut handle = self.handle.lock();
+        let publisher = handle
+            .publisher
+            .as_ref()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            as *const rcl_publisher_t;
+        let event = handle.incompatible_type.get_or_insert_with(|| {
+            PublisherEvent::uninitialized(
+                rcl_publisher_event_type_t::RCL_PUBLISHER_INCOMPATIBLE_TYPE,
+            )
+        });
+        event.ensure_initialized(publisher)?;
+        event.take_incompatible_type()
     }
 
     fn assert_liveliness(&self) -> Result<()> {
@@ -783,6 +886,7 @@ impl Publisher_ {
         )))]
         {
             state.matched = None;
+            state.incompatible_type = None;
         }
         if let Some(mut handle) = state.publisher.take() {
             let ret = unsafe { rcl_publisher_fini(&mut handle, node) };
@@ -1029,6 +1133,12 @@ pub fn create_publisher_helper(
                     r2r__ros__distro__humble
                 )))]
                 matched: None,
+                #[cfg(not(any(
+                    r2r__ros__distro__foxy,
+                    r2r__ros__distro__galactic,
+                    r2r__ros__distro__humble
+                )))]
+                incompatible_type: None,
             })),
             active_wait_publishers,
             #[cfg(test)]
@@ -1081,6 +1191,19 @@ impl PublisherUntyped {
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
             .take_matched()
+    }
+
+    /// Takes incompatible-type discovery events without blocking.
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    pub fn take_incompatible_type(&self) -> Result<Option<IncompatibleTypeStatus>> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .take_incompatible_type()
     }
 
     /// Returns the QoS profile resolved by the RMW implementation.
@@ -1337,6 +1460,19 @@ where
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
             .take_matched()
+    }
+
+    /// Takes incompatible-type discovery events without blocking.
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    pub fn take_incompatible_type(&self) -> Result<Option<IncompatibleTypeStatus>> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .take_incompatible_type()
     }
 
     /// Returns the QoS profile resolved by the RMW implementation.

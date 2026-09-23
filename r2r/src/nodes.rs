@@ -3468,6 +3468,17 @@ impl Node {
         self.subscriber_mut(id)?.take_matched()
     }
 
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    pub(crate) fn take_subscription_incompatible_type(
+        &mut self, id: uuid::Uuid,
+    ) -> Result<Option<IncompatibleTypeStatus>> {
+        self.subscriber_mut(id)?.take_incompatible_type()
+    }
+
     pub(crate) fn register_subscription_publisher_wait(
         &mut self, id: uuid::Uuid,
     ) -> Result<oneshot::Receiver<()>> {
@@ -10182,6 +10193,48 @@ mod tests {
         assert_eq!(disconnected.total_count_change, 0);
         assert_eq!(disconnected.current_count, 0);
         assert!(disconnected.current_count_change < 0);
+    }
+
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    #[test]
+    fn incompatible_type_event_queries_initialize_when_supported() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "incompatible_type_event_test", "").unwrap();
+
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::Int32>(
+                "/publisher_incompatible_type_event",
+                QosProfile::default(),
+            )
+            .unwrap();
+        match publisher.take_incompatible_type() {
+            Ok(None) => {}
+            Err(Error::RCL_RET_UNSUPPORTED) => return,
+            result => panic!("unexpected initial publisher incompatible-type status: {result:?}"),
+        }
+        assert!(publisher.take_incompatible_type().unwrap().is_none());
+
+        let subscription = node
+            .subscribe::<crate::std_msgs::msg::Int32>(
+                "/subscription_incompatible_type_event",
+                QosProfile::default(),
+            )
+            .unwrap();
+        match subscription.take_incompatible_type(&mut node) {
+            Ok(None) => {}
+            Err(Error::RCL_RET_UNSUPPORTED) => return,
+            result => {
+                panic!("unexpected initial subscription incompatible-type status: {result:?}")
+            }
+        }
+        assert!(subscription
+            .take_incompatible_type(&mut node)
+            .unwrap()
+            .is_none());
     }
 
     #[test]

@@ -20,8 +20,8 @@ use crate::{
     msg_types::*,
     nodes::Node,
     publishers::{
-        subscription_network_flow_endpoints, MatchedStatus, NetworkFlowEndpoint,
-        UniqueNetworkFlowRequirement,
+        subscription_network_flow_endpoints, IncompatibleTypeStatus, MatchedStatus,
+        NetworkFlowEndpoint, UniqueNetworkFlowRequirement,
     },
     qos::QosProfile,
     QosPolicyKind,
@@ -361,6 +361,18 @@ impl<T> Subscription<T> {
         node.take_subscription_matched(self.id)
     }
 
+    /// Takes incompatible-type discovery events without blocking.
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    pub fn take_incompatible_type(
+        &self, node: &mut Node,
+    ) -> Result<Option<IncompatibleTypeStatus>> {
+        node.take_subscription_incompatible_type(self.id)
+    }
+
     /// Tries to take a message loaned directly by the middleware without copying it.
     ///
     /// This is a non-blocking operation and returns `Ok(None)` when no message is available. It
@@ -449,6 +461,12 @@ pub(crate) struct SubscriptionMatchState {
         r2r__ros__distro__humble
     )))]
     matched: Option<SubscriptionEvent>,
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    incompatible_type: Option<SubscriptionEvent>,
 }
 
 impl SubscriptionMatchState {
@@ -468,6 +486,12 @@ impl SubscriptionMatchState {
                 r2r__ros__distro__humble
             )))]
             matched: None,
+            #[cfg(not(any(
+                r2r__ros__distro__foxy,
+                r2r__ros__distro__galactic,
+                r2r__ros__distro__humble
+            )))]
+            incompatible_type: None,
         }
     }
 
@@ -536,6 +560,23 @@ impl SubscriptionMatchState {
         event.take_matched()
     }
 
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    fn take_incompatible_type(
+        &mut self, subscription: *const rcl_subscription_t,
+    ) -> Result<Option<IncompatibleTypeStatus>> {
+        let event = self.incompatible_type.get_or_insert_with(|| {
+            SubscriptionEvent::uninitialized(
+                rcl_subscription_event_type_t::RCL_SUBSCRIPTION_INCOMPATIBLE_TYPE,
+            )
+        });
+        event.ensure_initialized(subscription)?;
+        event.take_incompatible_type()
+    }
+
     fn clear_events(&mut self) {
         self.requested_incompatible_qos = None;
         self.requested_deadline_missed = None;
@@ -548,6 +589,7 @@ impl SubscriptionMatchState {
         )))]
         {
             self.matched = None;
+            self.incompatible_type = None;
         }
     }
 }
@@ -671,6 +713,25 @@ impl SubscriptionEvent {
             current_count: status.current_count,
             current_count_change: status.current_count_change,
         }))
+    }
+
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    fn take_incompatible_type(&self) -> Result<Option<IncompatibleTypeStatus>> {
+        let mut status = MaybeUninit::<rmw_incompatible_type_status_t>::uninit();
+        let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
+        if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
+            return Ok(None);
+        }
+        check_subscription_ret(ret)?;
+        let status = unsafe { status.assume_init() };
+        if status.total_count_change == 0 {
+            return Ok(None);
+        }
+        Ok(Some(status.into()))
     }
 }
 
@@ -804,6 +865,18 @@ pub(crate) trait Subscriber_ {
             .match_state_mut()
             .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
         state.take_matched(subscription)
+    }
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble
+    )))]
+    fn take_incompatible_type(&mut self) -> Result<Option<IncompatibleTypeStatus>> {
+        let subscription = self.handle() as *const rcl_subscription_t;
+        let state = self
+            .match_state_mut()
+            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
+        state.take_incompatible_type(subscription)
     }
     fn poll_has_publishers(&mut self) {
         let boundary = {
