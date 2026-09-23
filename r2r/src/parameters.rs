@@ -443,14 +443,14 @@ impl ParameterValue {
     }
 }
 
-const PARAMETER_FLOAT_RELATIVE_TOLERANCE: f64 = 1.0e-6;
+const PARAMETER_FLOAT_ULP_TOLERANCE: f64 = 100.0;
 
 fn floats_close(left: f64, right: f64) -> bool {
     left == right
         || (left.is_finite()
             && right.is_finite()
             && (left - right).abs()
-                <= PARAMETER_FLOAT_RELATIVE_TOLERANCE * left.abs().max(right.abs()))
+                <= f64::EPSILON * (left + right).abs() * PARAMETER_FLOAT_ULP_TOLERANCE)
 }
 
 pub(crate) fn validate_parameter_descriptor(
@@ -1108,6 +1108,27 @@ mod tests {
             true,
         )
         .unwrap();
+        validate_parameter_update(
+            "value",
+            &ParameterValue::Double(1.0 + 32.0 * f64::EPSILON),
+            &descriptor,
+            true,
+        )
+        .unwrap();
+        assert!(validate_parameter_update(
+            "value",
+            &ParameterValue::Double(1.0000005),
+            &descriptor,
+            true,
+        )
+        .is_err());
+        assert!(validate_parameter_update(
+            "value",
+            &ParameterValue::Double(0.3000002),
+            &descriptor,
+            true,
+        )
+        .is_err());
         assert!(validate_parameter_update(
             "value",
             &ParameterValue::Double(0.35),
