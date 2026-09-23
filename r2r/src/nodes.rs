@@ -5354,6 +5354,26 @@ impl Node {
         c_str_to_str(s, "node logger name")
     }
 
+    /// Sets the explicit severity level for this node's logger.
+    pub fn set_logger_level(&self, severity: crate::LogSeverity) -> Result<()> {
+        crate::set_logger_level(self.try_logger()?, severity)
+    }
+
+    /// Returns this node logger's explicitly configured severity.
+    pub fn logger_level(&self) -> Result<crate::LogSeverity> {
+        crate::logger_level(self.try_logger()?)
+    }
+
+    /// Returns this node logger's effective severity, including inherited levels.
+    pub fn logger_effective_level(&self) -> Result<crate::LogSeverity> {
+        crate::logger_effective_level(self.try_logger()?)
+    }
+
+    /// Returns whether this node logger will emit messages at `severity`.
+    pub fn logger_is_enabled(&self, severity: crate::LogSeverity) -> Result<bool> {
+        crate::logger_is_enabled(self.try_logger()?, severity)
+    }
+
     /// Get TimeSource of the node
     ///
     /// See: [`TimeSource`]
@@ -8729,6 +8749,22 @@ mod tests {
         assert_eq!(configured_qos.reliability, QosProfile::sensor_data().reliability);
         assert_eq!(configured_qos.depth, 5);
         drop(disabled);
+    }
+
+    #[test]
+    fn node_logger_helpers_control_the_resolved_logger() {
+        let context = Context::create().unwrap();
+        let node = Node::create(context, "logger_level_test", "/logging_ns").unwrap();
+        let logger_name = node.try_logger().unwrap().to_owned();
+
+        node.set_logger_level(crate::LogSeverity::Error).unwrap();
+        assert_eq!(node.logger_level().unwrap(), crate::LogSeverity::Error);
+        assert_eq!(node.logger_effective_level().unwrap(), crate::LogSeverity::Error);
+        assert!(!node.logger_is_enabled(crate::LogSeverity::Warn).unwrap());
+        assert!(node.logger_is_enabled(crate::LogSeverity::Fatal).unwrap());
+        assert_eq!(crate::logger_level(&logger_name).unwrap(), crate::LogSeverity::Error);
+
+        node.set_logger_level(crate::LogSeverity::Unset).unwrap();
     }
 
     #[test]

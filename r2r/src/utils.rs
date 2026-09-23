@@ -1,5 +1,7 @@
 use parking_lot::{Mutex, MutexGuard};
 use r2r_rcl::*;
+
+use crate::{Error, Result};
 use std::{
     ffi::CString,
     sync::atomic::{AtomicBool, Ordering},
@@ -15,29 +17,53 @@ pub(crate) fn log_guard() -> MutexGuard<'static, ()> {
     LOG_GUARD.lock()
 }
 
+pub(crate) fn mark_logging_initialized() {
+    IS_INIT.store(true, Ordering::Relaxed);
+}
+
 // for some hidden reason g_rcutils_logging_initialized
 // is not found on windows even when rcutils.lib is linked
 // as a work around using onwned is_init
 static IS_INIT: AtomicBool = AtomicBool::new(false);
 
-/// Don't call this directly, use the logging macros instead.
-#[doc(hidden)]
-pub fn log(msg: &str, logger_name: &str, file: &str, line: u32, severity: LogSeverity) {
-    let _guard = log_guard();
+fn ensure_logging_initialized() -> Result<()> {
     let is_init = if cfg!(target_os = "windows") {
         IS_INIT.load(Ordering::Relaxed)
     } else {
         unsafe { g_rcutils_logging_initialized }
     };
-    if !is_init {
-        if cfg!(target_os = "windows") {
-            IS_INIT.store(true, Ordering::Relaxed);
-        }
-        let ret = unsafe { rcutils_logging_initialize() };
-        if ret != RCL_RET_OK as i32 {
-            log::error!("could not create logging system (Err: {})", ret);
-            return;
-        }
+    if is_init {
+        return Ok(());
+    }
+
+    let ret = unsafe { rcutils_logging_initialize() };
+    if ret != RCUTILS_RET_OK as i32 {
+        return Err(rcutils_logging_error(ret));
+    }
+    IS_INIT.store(true, Ordering::Relaxed);
+    Ok(())
+}
+
+fn rcutils_logging_error(ret: rcutils_ret_t) -> Error {
+    unsafe { rcutils_reset_error() };
+    match ret as u32 {
+        RCUTILS_RET_INVALID_ARGUMENT => Error::RCL_RET_INVALID_ARGUMENT,
+        RCUTILS_RET_BAD_ALLOC => Error::RCL_RET_BAD_ALLOC,
+        _ => Error::RcutilsLoggingError(ret),
+    }
+}
+
+fn logger_name(name: &str) -> Result<CString> {
+    CString::new(name).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)
+}
+
+/// Don't call this directly, use the logging macros instead.
+#[doc(hidden)]
+pub fn log(msg: &str, logger_name: &str, file: &str, line: u32, severity: LogSeverity) {
+    let _guard = log_guard();
+    if let Err(err) = ensure_logging_initialized() {
+        log::error!("could not create logging system: {err}");
+        return;
     }
     // currently not possible to get function name in rust.
     // see https://github.com/rust-lang/rfcs/pull/2818
@@ -71,6 +97,7 @@ fn cstring_without_nul(value: &str) -> CString {
 }
 
 /// Logging severity
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LogSeverity {
     Unset,
     Debug,
@@ -81,7 +108,7 @@ pub enum LogSeverity {
 }
 
 impl LogSeverity {
-    fn to_native(&self) -> RCUTILS_LOG_SEVERITY {
+    fn to_native(self) -> RCUTILS_LOG_SEVERITY {
         use RCUTILS_LOG_SEVERITY::*;
         match self {
             LogSeverity::Unset => RCUTILS_LOG_SEVERITY_UNSET,
@@ -92,6 +119,84 @@ impl LogSeverity {
             LogSeverity::Fatal => RCUTILS_LOG_SEVERITY_FATAL,
         }
     }
+
+    fn from_native(level: i32) -> Result<Self> {
+        match level {
+            value if value == RCUTILS_LOG_SEVERITY::RCUTILS_LOG_SEVERITY_UNSET as i32 => {
+                Ok(Self::Unset)
+            }
+            value if value == RCUTILS_LOG_SEVERITY::RCUTILS_LOG_SEVERITY_DEBUG as i32 => {
+                Ok(Self::Debug)
+            }
+            value if value == RCUTILS_LOG_SEVERITY::RCUTILS_LOG_SEVERITY_INFO as i32 => {
+                Ok(Self::Info)
+            }
+            value if value == RCUTILS_LOG_SEVERITY::RCUTILS_LOG_SEVERITY_WARN as i32 => {
+                Ok(Self::Warn)
+            }
+            value if value == RCUTILS_LOG_SEVERITY::RCUTILS_LOG_SEVERITY_ERROR as i32 => {
+                Ok(Self::Error)
+            }
+            value if value == RCUTILS_LOG_SEVERITY::RCUTILS_LOG_SEVERITY_FATAL as i32 => {
+                Ok(Self::Fatal)
+            }
+            _ => Err(Error::RcutilsLoggingError(level)),
+        }
+    }
+}
+
+/// Sets the explicit severity level for a named logger.
+///
+/// [`LogSeverity::Unset`] restores inheritance from the nearest configured ancestor.
+pub fn set_logger_level(name: &str, severity: LogSeverity) -> Result<()> {
+    let name = logger_name(name)?;
+    let _guard = log_guard();
+    ensure_logging_initialized()?;
+    let ret =
+        unsafe { rcutils_logging_set_logger_level(name.as_ptr(), severity.to_native() as i32) };
+    if ret == RCUTILS_RET_OK as i32 {
+        Ok(())
+    } else {
+        Err(rcutils_logging_error(ret))
+    }
+}
+
+/// Returns the explicitly configured severity for a named logger.
+pub fn logger_level(name: &str) -> Result<LogSeverity> {
+    let name = logger_name(name)?;
+    let _guard = log_guard();
+    ensure_logging_initialized()?;
+    let level = unsafe { rcutils_logging_get_logger_level(name.as_ptr()) };
+    if level < 0 {
+        unsafe { rcutils_reset_error() };
+        return Err(Error::RcutilsLoggingError(level));
+    }
+    LogSeverity::from_native(level)
+}
+
+/// Returns a logger's effective severity after applying ancestor and default levels.
+pub fn logger_effective_level(name: &str) -> Result<LogSeverity> {
+    let name = logger_name(name)?;
+    let _guard = log_guard();
+    ensure_logging_initialized()?;
+    let level = unsafe { rcutils_logging_get_logger_effective_level(name.as_ptr()) };
+    if level < 0 {
+        unsafe { rcutils_reset_error() };
+        return Err(Error::RcutilsLoggingError(level));
+    }
+    LogSeverity::from_native(level)
+}
+
+/// Returns whether a named logger will emit a message at `severity`.
+pub fn logger_is_enabled(name: &str, severity: LogSeverity) -> Result<bool> {
+    let name = logger_name(name)?;
+    let _guard = log_guard();
+    ensure_logging_initialized()?;
+    Ok(
+        unsafe {
+            rcutils_logging_logger_is_enabled_for(name.as_ptr(), severity.to_native() as i32)
+        },
+    )
 }
 
 // A helper macro to log the message.
@@ -99,7 +204,11 @@ impl LogSeverity {
 #[macro_export]
 macro_rules! __impl_log {
     ($logger_name:expr, $msg:expr, $file:expr, $line:expr, $severity:expr) => {{
-        $crate::log(&std::fmt::format($msg), $logger_name, $file, $line, $severity);
+        let logger_name = $logger_name;
+        let severity = $severity;
+        if $crate::logger_is_enabled(logger_name, severity).unwrap_or(true) {
+            $crate::log(&std::fmt::format($msg), logger_name, $file, $line, severity);
+        }
     }};
 }
 
@@ -176,4 +285,34 @@ fn test_log() {
 #[test]
 fn log_fields_with_nul_bytes_do_not_panic() {
     log("message\0suffix", "logger\0suffix", "file\0suffix", 1, LogSeverity::Info);
+}
+
+#[test]
+fn logger_levels_inherit_and_disabled_macros_do_not_evaluate_arguments() {
+    let parent = format!("r2r_test_{}", uuid::Uuid::new_v4().simple());
+    let child = format!("{parent}.child");
+    set_logger_level(&parent, LogSeverity::Warn).unwrap();
+    assert_eq!(logger_level(&child).unwrap(), LogSeverity::Unset);
+    assert_eq!(logger_effective_level(&child).unwrap(), LogSeverity::Warn);
+    assert!(!logger_is_enabled(&child, LogSeverity::Info).unwrap());
+    assert!(logger_is_enabled(&child, LogSeverity::Error).unwrap());
+
+    let evaluated = AtomicBool::new(false);
+    log_debug!(&child, "{}", {
+        evaluated.store(true, Ordering::Relaxed);
+        "unused"
+    });
+    assert!(!evaluated.load(Ordering::Relaxed));
+
+    set_logger_level(&child, LogSeverity::Debug).unwrap();
+    assert_eq!(logger_level(&child).unwrap(), LogSeverity::Debug);
+    assert_eq!(logger_effective_level(&child).unwrap(), LogSeverity::Debug);
+    assert!(logger_is_enabled(&child, LogSeverity::Debug).unwrap());
+
+    set_logger_level(&child, LogSeverity::Unset).unwrap();
+    set_logger_level(&parent, LogSeverity::Unset).unwrap();
+    assert!(matches!(
+        set_logger_level("invalid\0logger", LogSeverity::Info),
+        Err(Error::RCL_RET_INVALID_ARGUMENT)
+    ));
 }

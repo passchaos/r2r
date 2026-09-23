@@ -116,6 +116,8 @@ pub enum Error {
     SerdeError { err: String },
     #[error("Invalid UTF-8 in {context}: {err}")]
     InvalidUtf8 { context: &'static str, err: String },
+    #[error("RCUTILS logging error code: {0}")]
+    RcutilsLoggingError(i32),
 
     // action errors.
     #[error("RCL_RET_ACTION_NAME_INVALID")]

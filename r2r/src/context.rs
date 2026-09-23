@@ -6,7 +6,7 @@ use std::{
     sync::{Arc, OnceLock},
 };
 
-use crate::{error::*, log_guard};
+use crate::{error::*, log_guard, utils::mark_logging_initialized};
 use r2r_rcl::*;
 
 /// Options used to initialize the process-wide ROS context.
@@ -275,10 +275,14 @@ impl ContextHandle {
 
         let logging_ret = unsafe {
             let _guard = log_guard();
-            rcl_logging_configure(
+            let ret = rcl_logging_configure(
                 &context.as_ref().global_arguments,
                 &rcutils_get_default_allocator(),
-            )
+            );
+            if ret == RCL_RET_OK as i32 {
+                mark_logging_initialized();
+            }
+            ret
         };
         if logging_ret != RCL_RET_OK as i32 {
             unsafe {
@@ -287,7 +291,6 @@ impl ContextHandle {
             }
             return Err(Error::from_rcl_error(logging_ret));
         }
-
         Ok(Self {
             handle: context,
             initialized: true,
