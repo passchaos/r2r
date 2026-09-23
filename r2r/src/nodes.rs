@@ -11449,8 +11449,8 @@ mod tests {
         let missing = node
             .create_client::<AddTwoInts::Service>("/missing_timeout_service", QosProfile::default())
             .unwrap();
-        let timeout = node
-            .is_available_with_timeout(&missing, Duration::from_millis(1))
+        let timeout = missing
+            .wait_for_service_with_timeout(&mut node, Duration::from_millis(1))
             .unwrap();
         assert!(matches!(drive(&mut node, timeout), Err(Error::RCL_RET_TIMEOUT)));
         node.try_spin_once(Duration::ZERO).unwrap();
@@ -11467,9 +11467,19 @@ mod tests {
                 QosProfile::default(),
             )
             .unwrap();
-        let wait = node
-            .is_available_with_timeout(&available, Duration::from_secs(1))
+        let wait = available
+            .wait_for_service_with_timeout(&mut node, Duration::from_secs(1))
             .unwrap();
+        drive(&mut node, wait).unwrap();
+
+        let untyped = node
+            .create_client_untyped(
+                "/available_timeout_service",
+                "example_interfaces/srv/AddTwoInts",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let wait = untyped.wait_for_service().unwrap();
         drive(&mut node, wait).unwrap();
 
         let publisher = node

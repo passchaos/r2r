@@ -363,6 +363,23 @@ where
         let client = client.lock();
         service_available_helper(node.node_handle.as_ref(), client.handle())
     }
+
+    /// Waits asynchronously until the service is available.
+    ///
+    /// The owning node must be spun while awaiting.
+    pub fn wait_for_service(&self) -> Result<impl Future<Output = Result<()>>> {
+        Node::is_available(self)
+    }
+
+    /// Waits asynchronously until the service is available or `timeout` expires.
+    ///
+    /// This future is runtime-agnostic and advances while `node` is spun.
+    pub fn wait_for_service_with_timeout(
+        &self, node: &mut Node, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<()>>> {
+        let available = self.wait_for_service()?;
+        node.with_timeout(available, timeout)
+    }
 }
 
 /// ROS "untyped" service client.
@@ -488,6 +505,23 @@ impl ClientUntyped {
         }
         let client = client.lock();
         service_available_helper(node.node_handle.as_ref(), client.handle())
+    }
+
+    /// Waits asynchronously until the service is available.
+    ///
+    /// The owning node must be spun while awaiting.
+    pub fn wait_for_service(&self) -> Result<impl Future<Output = Result<()>>> {
+        Node::is_available(self)
+    }
+
+    /// Waits asynchronously until the service is available or `timeout` expires.
+    ///
+    /// This future is runtime-agnostic and advances while `node` is spun.
+    pub fn wait_for_service_with_timeout(
+        &self, node: &mut Node, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<()>>> {
+        let available = self.wait_for_service()?;
+        node.with_timeout(available, timeout)
     }
 }
 
