@@ -4880,6 +4880,9 @@ extern "C" {
     pub fn rcl_clock_valid(clock: *mut rcl_clock_t) -> bool;
 }
 extern "C" {
+    pub fn rcl_clock_time_started(clock: *mut rcl_clock_t) -> bool;
+}
+extern "C" {
     pub fn rcl_clock_init(
         clock_type: rcl_clock_type_t,
         clock: *mut rcl_clock_t,

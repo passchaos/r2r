@@ -176,6 +176,17 @@ impl Clock {
         unsafe { rcl_clock_valid(self.handle_ptr()) }
     }
 
+    /// Returns whether this clock currently reports a value strictly greater than zero.
+    ///
+    /// For a ROS clock with simulated time enabled, this remains `false` until a positive clock
+    /// value is received. System and steady clocks are normally already started.
+    pub fn started(&self) -> Result<bool> {
+        if !self.is_valid() {
+            return Err(Error::RCL_RET_INVALID_ARGUMENT);
+        }
+        Ok(unsafe { rcl_clock_time_started(self.handle_ptr()) })
+    }
+
     /// Returns whether ROS time override is active for this ROS clock.
     pub fn ros_time_override_enabled(&self) -> Result<bool> {
         if self.clock_type != ClockType::RosTime {
@@ -410,6 +421,7 @@ mod tests {
         let clock = Clock::create(ClockType::SteadyTime).unwrap();
 
         assert!(clock.is_valid());
+        assert!(clock.started().unwrap());
         assert_eq!(clock.get_clock_type(), ClockType::SteadyTime);
         assert!(clock.get_now().unwrap() > Duration::ZERO);
         assert!(clock.get_now_ns().unwrap() > 0);
@@ -420,14 +432,21 @@ mod tests {
     #[test]
     fn rejects_negative_ros_clock_values_instead_of_wrapping() {
         let mut clock = Clock::create(ClockType::RosTime).unwrap();
+        assert!(clock.started().unwrap());
         assert!(!clock.ros_time_override_enabled().unwrap());
-        clock.enable_ros_time_override(-1).unwrap();
+        clock.enable_ros_time_override(0).unwrap();
         assert!(clock.ros_time_override_enabled().unwrap());
+        assert!(!clock.started().unwrap());
+        clock.set_ros_time_override(-1).unwrap();
+        assert!(!clock.started().unwrap());
 
         assert_eq!(clock.get_now_ns().unwrap(), -1);
         assert!(matches!(clock.get_now(), Err(Error::RCL_RET_INVALID_ARGUMENT)));
+        clock.set_ros_time_override(1).unwrap();
+        assert!(clock.started().unwrap());
         clock.disable_ros_time_override().unwrap();
         assert!(!clock.ros_time_override_enabled().unwrap());
+        assert!(clock.started().unwrap());
     }
 
     #[cfg(r2r__rosgraph_msgs__msg__Clock)]
