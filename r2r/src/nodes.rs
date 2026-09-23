@@ -5246,6 +5246,13 @@ impl Node {
         self.ros_clock.lock().get_now()
     }
 
+    /// Returns the signed current ROS clock value in nanoseconds.
+    ///
+    /// Unlike [`Node::now`], this preserves simulated clock values before zero.
+    pub fn now_ns(&self) -> Result<i64> {
+        self.ros_clock.lock().get_now_ns()
+    }
+
     fn timer(&self, id: uuid::Uuid) -> Result<&Timer_> {
         self.timer_indexes
             .get(&id)
@@ -10128,6 +10135,11 @@ mod tests {
             .set_ros_time_override(i64::try_from(expected.as_nanos()).unwrap())
             .unwrap();
         assert_eq!(node.now().unwrap(), expected);
+        assert_eq!(node.now_ns().unwrap(), i64::try_from(expected.as_nanos()).unwrap());
+
+        node.ros_clock.lock().set_ros_time_override(-1).unwrap();
+        assert_eq!(node.now_ns().unwrap(), -1);
+        assert!(matches!(node.now(), Err(Error::RCL_RET_INVALID_ARGUMENT)));
     }
 
     #[cfg(r2r__rosgraph_msgs__msg__Clock)]
