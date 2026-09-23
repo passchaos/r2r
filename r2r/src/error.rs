@@ -40,6 +40,14 @@ pub enum Error {
     RCL_RET_UNKNOWN_SUBSTITUTION,
     #[error("RCL_RET_ALREADY_SHUTDOWN")]
     RCL_RET_ALREADY_SHUTDOWN,
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble,
+        r2r__ros__distro__iron
+    )))]
+    #[error("RCL_RET_NOT_FOUND")]
+    RCL_RET_NOT_FOUND,
     #[error("RCL_RET_NODE_INVALID")]
     RCL_RET_NODE_INVALID,
     #[error("RCL_RET_NODE_INVALID_NAME")]
@@ -86,6 +94,18 @@ pub enum Error {
     RCL_RET_EVENT_INVALID,
     #[error("RCL_RET_EVENT_TAKE_FAILED")]
     RCL_RET_EVENT_TAKE_FAILED,
+    #[error("RCL_RET_LIFECYCLE_STATE_REGISTERED")]
+    RCL_RET_LIFECYCLE_STATE_REGISTERED,
+    #[error("RCL_RET_LIFECYCLE_STATE_NOT_REGISTERED")]
+    RCL_RET_LIFECYCLE_STATE_NOT_REGISTERED,
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble,
+        r2r__ros__distro__iron
+    )))]
+    #[error("RCL_ACTION_RET_NOT_TERMINATED_YET")]
+    RCL_ACTION_RET_NOT_TERMINATED_YET,
 
     // Our own errors
     #[error("Clock type is not RosTime")]
@@ -219,6 +239,13 @@ impl Error {
             _ if e == RCL_RET_SERVICE_NAME_INVALID => Error::RCL_RET_SERVICE_NAME_INVALID,
             _ if e == RCL_RET_UNKNOWN_SUBSTITUTION => Error::RCL_RET_UNKNOWN_SUBSTITUTION,
             _ if e == RCL_RET_ALREADY_SHUTDOWN => Error::RCL_RET_ALREADY_SHUTDOWN,
+            #[cfg(not(any(
+                r2r__ros__distro__foxy,
+                r2r__ros__distro__galactic,
+                r2r__ros__distro__humble,
+                r2r__ros__distro__iron
+            )))]
+            _ if e == RCL_RET_NOT_FOUND => Error::RCL_RET_NOT_FOUND,
             _ if e == RCL_RET_NODE_INVALID => Error::RCL_RET_NODE_INVALID,
             _ if e == RCL_RET_NODE_INVALID_NAME => Error::RCL_RET_NODE_INVALID_NAME,
             _ if e == RCL_RET_NODE_INVALID_NAMESPACE => Error::RCL_RET_NODE_INVALID_NAMESPACE,
@@ -242,6 +269,19 @@ impl Error {
             _ if e == RCL_RET_INVALID_ROS_ARGS => Error::RCL_RET_INVALID_ROS_ARGS,
             _ if e == RCL_RET_EVENT_INVALID => Error::RCL_RET_EVENT_INVALID,
             _ if e == RCL_RET_EVENT_TAKE_FAILED => Error::RCL_RET_EVENT_TAKE_FAILED,
+            _ if e == RCL_RET_LIFECYCLE_STATE_REGISTERED => {
+                Error::RCL_RET_LIFECYCLE_STATE_REGISTERED
+            }
+            _ if e == RCL_RET_LIFECYCLE_STATE_NOT_REGISTERED => {
+                Error::RCL_RET_LIFECYCLE_STATE_NOT_REGISTERED
+            }
+            #[cfg(not(any(
+                r2r__ros__distro__foxy,
+                r2r__ros__distro__galactic,
+                r2r__ros__distro__humble,
+                r2r__ros__distro__iron
+            )))]
+            _ if e == RCL_ACTION_RET_NOT_TERMINATED_YET => Error::RCL_ACTION_RET_NOT_TERMINATED_YET,
             _ if e == r2r_actions::RCL_RET_ACTION_NAME_INVALID => {
                 Error::RCL_RET_ACTION_NAME_INVALID
             }
@@ -314,6 +354,36 @@ mod tests {
         assert!(matches!(
             Error::from_rcl_error(RMW_RET_INCORRECT_RMW_IMPLEMENTATION as i32),
             Error::RMW_RET_INCORRECT_RMW_IMPLEMENTATION
+        ));
+    }
+
+    #[test]
+    fn maps_lifecycle_status_codes() {
+        assert!(matches!(
+            Error::from_rcl_error(RCL_RET_LIFECYCLE_STATE_REGISTERED as i32),
+            Error::RCL_RET_LIFECYCLE_STATE_REGISTERED
+        ));
+        assert!(matches!(
+            Error::from_rcl_error(RCL_RET_LIFECYCLE_STATE_NOT_REGISTERED as i32),
+            Error::RCL_RET_LIFECYCLE_STATE_NOT_REGISTERED
+        ));
+    }
+
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble,
+        r2r__ros__distro__iron
+    )))]
+    #[test]
+    fn maps_newer_rcl_status_codes() {
+        assert!(matches!(
+            Error::from_rcl_error(RCL_RET_NOT_FOUND as i32),
+            Error::RCL_RET_NOT_FOUND
+        ));
+        assert!(matches!(
+            Error::from_rcl_error(RCL_ACTION_RET_NOT_TERMINATED_YET as i32),
+            Error::RCL_ACTION_RET_NOT_TERMINATED_YET
         ));
     }
 
