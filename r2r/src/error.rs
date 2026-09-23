@@ -30,6 +30,8 @@ pub enum Error {
     RCL_RET_NOT_INIT,
     #[error("RCL_RET_MISMATCHED_RMW_ID")]
     RCL_RET_MISMATCHED_RMW_ID,
+    #[error("RMW_RET_INCORRECT_RMW_IMPLEMENTATION")]
+    RMW_RET_INCORRECT_RMW_IMPLEMENTATION,
     #[error("RCL_RET_TOPIC_NAME_INVALID")]
     RCL_RET_TOPIC_NAME_INVALID,
     #[error("RCL_RET_SERVICE_NAME_INVALID")]
@@ -201,6 +203,9 @@ impl Error {
             _ if e == RCL_RET_ALREADY_INIT => Error::RCL_RET_ALREADY_INIT,
             _ if e == RCL_RET_NOT_INIT => Error::RCL_RET_NOT_INIT,
             _ if e == RCL_RET_MISMATCHED_RMW_ID => Error::RCL_RET_MISMATCHED_RMW_ID,
+            _ if e == RMW_RET_INCORRECT_RMW_IMPLEMENTATION => {
+                Error::RMW_RET_INCORRECT_RMW_IMPLEMENTATION
+            }
             _ if e == RCL_RET_TOPIC_NAME_INVALID => Error::RCL_RET_TOPIC_NAME_INVALID,
             _ if e == RCL_RET_SERVICE_NAME_INVALID => Error::RCL_RET_SERVICE_NAME_INVALID,
             _ if e == RCL_RET_UNKNOWN_SUBSTITUTION => Error::RCL_RET_UNKNOWN_SUBSTITUTION,
@@ -292,6 +297,14 @@ mod tests {
         assert!(matches!(
             Error::from_rcl_error(RCL_RET_NODE_NAME_NON_EXISTENT as i32),
             Error::RCL_RET_NODE_NAME_NON_EXISTENT
+        ));
+    }
+
+    #[test]
+    fn maps_incorrect_rmw_implementation_error() {
+        assert!(matches!(
+            Error::from_rcl_error(RMW_RET_INCORRECT_RMW_IMPLEMENTATION as i32),
+            Error::RMW_RET_INCORRECT_RMW_IMPLEMENTATION
         ));
     }
 }
