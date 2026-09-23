@@ -63,3 +63,7 @@ harness = false
 [[bench]]
 name = "spin_idle_action_servers"
 harness = false
+
+[[bench]]
+name = "message_info"
+harness = false

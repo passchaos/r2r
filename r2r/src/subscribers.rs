@@ -157,8 +157,8 @@ pub struct MessageInfo {
     pub publication_sequence_number: Option<u64>,
     /// Sequence number assigned by the subscription, when supported.
     pub reception_sequence_number: Option<u64>,
-    /// Publisher GID bytes. The length is RMW implementation dependent.
-    pub publisher_gid: Vec<u8>,
+    /// Publisher GID bytes in the fixed-size RMW storage representation.
+    pub publisher_gid: [u8; RMW_GID_STORAGE_SIZE as usize],
     /// Whether the message was delivered through intra-process communication.
     pub from_intra_process: bool,
 }
@@ -174,7 +174,7 @@ impl From<rmw_message_info_t> for MessageInfo {
             received_timestamp: info.received_timestamp,
             publication_sequence_number: sequence_number(info.publication_sequence_number),
             reception_sequence_number: sequence_number(info.reception_sequence_number),
-            publisher_gid: info.publisher_gid.data.to_vec(),
+            publisher_gid: info.publisher_gid.data,
             from_intra_process: info.from_intra_process,
         }
     }
@@ -1433,6 +1433,19 @@ mod tests {
     };
 
     static RETURNED_LOANS: AtomicUsize = AtomicUsize::new(0);
+
+    #[test]
+    fn message_info_preserves_fixed_publisher_gid_without_heap_storage() {
+        let mut native = rmw_message_info_t::default();
+        for (index, byte) in native.publisher_gid.data.iter_mut().enumerate() {
+            *byte = index as u8;
+        }
+
+        let info = MessageInfo::from(native);
+
+        assert_eq!(info.publisher_gid, native.publisher_gid.data);
+        assert_eq!(std::mem::size_of_val(&info.publisher_gid), RMW_GID_STORAGE_SIZE as usize);
+    }
 
     #[test]
     fn dropping_subscription_queues_only_its_id() {

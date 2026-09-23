@@ -9172,7 +9172,7 @@ mod tests {
         assert_eq!(native.message.data, 42);
         assert_eq!(untyped.message.unwrap()["data"], 42);
         assert!(!raw.message.is_empty());
-        assert!(!typed.info.publisher_gid.is_empty());
+        assert!(typed.info.publisher_gid.iter().any(|byte| *byte != 0));
         assert_eq!(typed.info.publisher_gid, native.info.publisher_gid);
         assert_eq!(typed.info.publisher_gid, untyped.info.publisher_gid);
         assert_eq!(typed.info.publisher_gid, raw.info.publisher_gid);
