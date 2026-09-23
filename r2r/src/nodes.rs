@@ -5540,11 +5540,44 @@ impl Timer {
     /// A timer that is ready or overdue returns [`Duration::ZERO`]. A canceled timer returns
     /// [`Error::RCL_RET_TIMER_CANCELED`].
     pub fn time_until_next_call(&self, node: &Node) -> Result<Duration> {
+        Ok(Duration::from_nanos(
+            self.time_until_next_call_ns(node)?.try_into().unwrap_or(0),
+        ))
+    }
+
+    /// Returns the signed number of nanoseconds until the next trigger.
+    ///
+    /// Unlike [`Timer::time_until_next_call`], this preserves negative values, which indicate
+    /// how far an active timer is overdue. A canceled timer returns
+    /// [`Error::RCL_RET_TIMER_CANCELED`].
+    pub fn time_until_next_call_ns(&self, node: &Node) -> Result<i64> {
         let timer = node.timer(self.id)?;
         let mut nanos = 0;
         let ret = unsafe { rcl_timer_get_time_until_next_call(timer.get_handle(), &mut nanos) };
         check_rcl_ret(ret)?;
-        Ok(Duration::from_nanos(u64::try_from(nanos).unwrap_or(0)))
+        Ok(nanos)
+    }
+
+    /// Returns the signed number of nanoseconds since the previous timer call.
+    ///
+    /// The value may be negative when a ROS clock moves backwards.
+    pub fn time_since_last_call_ns(&self, node: &Node) -> Result<i64> {
+        let timer = node.timer(self.id)?;
+        let mut nanos = 0;
+        let ret = unsafe { rcl_timer_get_time_since_last_call(timer.get_handle(), &mut nanos) };
+        check_rcl_ret(ret)?;
+        Ok(nanos)
+    }
+
+    /// Returns the absolute next call time in nanoseconds in the timer's clock domain.
+    ///
+    /// A canceled timer returns [`Error::RCL_RET_TIMER_CANCELED`].
+    pub fn next_call_time_ns(&self, node: &Node) -> Result<i64> {
+        let timer = node.timer(self.id)?;
+        let mut nanos = 0;
+        let ret = unsafe { rcl_timer_get_next_call_time(timer.get_handle(), &mut nanos) };
+        check_rcl_ret(ret)?;
+        Ok(nanos)
     }
 
     /// Returns the timer period.
@@ -13341,12 +13374,24 @@ mod tests {
         assert!(!timer.is_canceled(&node).unwrap());
         assert!(!timer.is_ready(&node).unwrap());
         assert!(timer.time_until_next_call(&node).unwrap() <= Duration::from_millis(100));
+        assert!(timer.time_until_next_call_ns(&node).unwrap() > 0);
+        assert!(timer.time_since_last_call_ns(&node).unwrap() >= 0);
+        assert!(timer.next_call_time_ns(&node).unwrap() > 0);
         timer.cancel(&mut node).unwrap();
         assert!(timer.is_canceled(&node).unwrap());
         assert!(!timer.is_ready(&node).unwrap());
         assert!(matches!(timer.time_until_next_call(&node), Err(Error::RCL_RET_TIMER_CANCELED)));
+        assert!(matches!(
+            timer.time_until_next_call_ns(&node),
+            Err(Error::RCL_RET_TIMER_CANCELED)
+        ));
+        assert!(matches!(timer.next_call_time_ns(&node), Err(Error::RCL_RET_TIMER_CANCELED)));
         assert!(matches!(timer.period(&other), Err(Error::RCL_RET_TIMER_INVALID)));
         assert!(matches!(timer.is_ready(&other), Err(Error::RCL_RET_TIMER_INVALID)));
+        assert!(matches!(
+            timer.time_since_last_call_ns(&other),
+            Err(Error::RCL_RET_TIMER_INVALID)
+        ));
 
         let previous = timer
             .set_period(&mut node, Duration::from_millis(25))
@@ -13360,11 +13405,13 @@ mod tests {
 
         timer.reset(&mut node).unwrap();
         assert!(!timer.is_canceled(&node).unwrap());
+        assert!(timer.time_since_last_call_ns(&node).unwrap() >= 0);
 
         timer.set_period(&mut node, Duration::ZERO).unwrap();
         timer.reset(&mut node).unwrap();
         assert!(timer.is_ready(&node).unwrap());
         assert_eq!(timer.time_until_next_call(&node).unwrap(), Duration::ZERO);
+        assert!(timer.time_until_next_call_ns(&node).unwrap() <= 0);
     }
 
     #[test]
