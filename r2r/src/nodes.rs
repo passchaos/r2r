@@ -3703,9 +3703,10 @@ impl Node {
     pub fn is_available(
         client: &dyn IsAvailablePollable,
     ) -> Result<impl Future<Output = Result<()>>> {
+        let closed_error = client.availability_closed_error();
         let (sender, receiver) = oneshot::channel();
         client.register_poll_available(sender)?;
-        Ok(receiver.map_err(|_| Error::RCL_RET_CLIENT_INVALID))
+        Ok(receiver.map_err(move |_| closed_error))
     }
 
     /// Wait for a service or action server to become available, up to `timeout`.
@@ -5750,6 +5751,10 @@ fn duration_from_nonnegative_nanos(nanos: i64) -> Result<Duration> {
 
 pub trait IsAvailablePollable {
     fn register_poll_available(&self, sender: oneshot::Sender<()>) -> Result<()>;
+
+    fn availability_closed_error(&self) -> Error {
+        Error::RCL_RET_CLIENT_INVALID
+    }
 }
 
 /// Whether graph endpoint information describes a publisher or a subscription.
@@ -12965,7 +12970,10 @@ mod tests {
             .contains(&removed_identity));
         assert_eq!(node.action_wait_set_capacities, expected_capacities);
         assert!(matches!(goal.now_or_never(), Some(Err(Error::RCL_RET_ACTION_CLIENT_INVALID))));
-        assert!(matches!(availability.now_or_never(), Some(Err(Error::RCL_RET_CLIENT_INVALID))));
+        assert!(matches!(
+            availability.now_or_never(),
+            Some(Err(Error::RCL_RET_ACTION_CLIENT_INVALID))
+        ));
         assert!(matches!(removed_clone.action_name(), Err(Error::RCL_RET_ACTION_CLIENT_INVALID)));
         drop(canceled);
         assert!(node.active_maintenance_action_clients.lock().is_empty());
@@ -12995,8 +13003,13 @@ mod tests {
             .unwrap();
         let removed_untyped_identity = removed_untyped.identity();
         let canceled_untyped = removed_untyped.cancel_all().unwrap();
+        let availability_untyped = removed_untyped.wait_for_action_server().unwrap();
         node.destroy_action_client_untyped(removed_untyped).unwrap();
         drop(canceled_untyped);
+        assert!(matches!(
+            availability_untyped.now_or_never(),
+            Some(Err(Error::RCL_RET_ACTION_CLIENT_INVALID))
+        ));
         assert!(!node
             .action_client_identities
             .contains_key(&removed_untyped_identity));

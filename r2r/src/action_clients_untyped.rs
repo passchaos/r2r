@@ -1067,6 +1067,10 @@ impl IsAvailablePollable for ActionClientUntyped {
         }
         Ok(())
     }
+
+    fn availability_closed_error(&self) -> Error {
+        Error::RCL_RET_ACTION_CLIENT_INVALID
+    }
 }
 
 #[cfg(test)]
