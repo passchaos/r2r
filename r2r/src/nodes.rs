@@ -4396,10 +4396,8 @@ impl Node {
         };
         if capacities == WaitSetCapacities::default() {
             // RCL rejects an empty wait set instead of treating it as an idle wait. Honor the
-            // documented spin timeout and avoid a busy loop for nodes that only publish or have
-            // not created any waitables yet.
-            std::thread::sleep(timeout);
-            return Ok(());
+            // documented spin timeout while still allowing context shutdown to wake the spin.
+            return self.context.wait_for_shutdown_or_timeout(timeout);
         }
         {
             let mut ctx = self.context.context_handle.lock();

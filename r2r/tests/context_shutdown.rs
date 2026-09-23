@@ -79,3 +79,45 @@ fn reports_spin_results_after_context_shutdown() {
     assert!(matches!(waitable_result, Err(Error::RCL_RET_NOT_INIT)));
     assert!(started.elapsed() < Duration::from_millis(100));
 }
+
+#[test]
+fn shutdown_wakes_an_empty_node_spin() {
+    let _lock = context_test_lock();
+    let context = Context::create().unwrap();
+    let mut node = Node::create(context.clone(), "shutdown_wakes_empty_spin", "").unwrap();
+    let shutdown_context = context.clone();
+    let shutdown = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(20));
+        shutdown_context.shutdown().unwrap();
+    });
+
+    let started = Instant::now();
+    let result = node.try_spin_once(Duration::from_secs(5));
+    let elapsed = started.elapsed();
+    shutdown.join().unwrap();
+
+    assert!(matches!(result, Err(Error::RCL_RET_NOT_INIT)));
+    assert!(elapsed >= Duration::from_millis(10));
+    assert!(elapsed < Duration::from_millis(500));
+}
+
+#[test]
+fn independently_created_context_handle_wakes_an_empty_node_spin() {
+    let _lock = context_test_lock();
+    let context = Context::create().unwrap();
+    let shutdown_context = Context::create().unwrap();
+    let mut node = Node::create(context, "shared_shutdown_wakes_empty_spin", "").unwrap();
+    let shutdown = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(20));
+        shutdown_context.shutdown().unwrap();
+    });
+
+    let started = Instant::now();
+    let result = node.try_spin_once(Duration::from_secs(5));
+    let elapsed = started.elapsed();
+    shutdown.join().unwrap();
+
+    assert!(matches!(result, Err(Error::RCL_RET_NOT_INIT)));
+    assert!(elapsed >= Duration::from_millis(10));
+    assert!(elapsed < Duration::from_millis(500));
+}

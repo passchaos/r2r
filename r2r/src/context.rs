@@ -1,4 +1,4 @@
-use parking_lot::Mutex;
+use parking_lot::{Condvar, Mutex};
 use std::{
     ffi::CString,
     fmt::Debug,
@@ -63,6 +63,7 @@ struct ContextConfiguration {
 #[derive(Debug)]
 pub struct Context {
     pub(crate) context_handle: Arc<Mutex<ContextHandle>>,
+    shutdown_changed: Arc<Condvar>,
 }
 
 // Memory corruption (double free and others) was observed creating multiple
@@ -72,6 +73,7 @@ pub struct Context {
 // without this OnceLock
 
 static CONTEXT: OnceLock<Mutex<WeakContextHandle>> = OnceLock::new();
+static CONTEXT_SHUTDOWN_CHANGED: OnceLock<Arc<Condvar>> = OnceLock::new();
 
 type WeakContextHandle = std::sync::Weak<Mutex<ContextHandle>>;
 
@@ -84,6 +86,8 @@ impl Context {
     /// Creates a ROS context with explicit process arguments and initialization options.
     pub fn create_with_options(options: ContextOptions) -> Result<Context> {
         let configuration = options.resolve()?;
+        let shutdown_changed =
+            Arc::clone(CONTEXT_SHUTDOWN_CHANGED.get_or_init(|| Arc::new(Condvar::new())));
         let mut shared = CONTEXT
             .get_or_init(|| Mutex::new(WeakContextHandle::new()))
             .lock();
@@ -96,12 +100,18 @@ impl Context {
                 return Err(Error::RCL_RET_ALREADY_INIT);
             }
             drop(context);
-            return Ok(Context { context_handle });
+            return Ok(Context {
+                context_handle,
+                shutdown_changed,
+            });
         }
 
         let context_handle = Arc::new(Mutex::new(ContextHandle::create(configuration)?));
         *shared = Arc::downgrade(&context_handle);
-        Ok(Context { context_handle })
+        Ok(Context {
+            context_handle,
+            shutdown_changed,
+        })
     }
 
     /// Check if the ROS context is valid.
@@ -118,7 +128,26 @@ impl Context {
     /// nodes and the final [`Context`] clone are dropped. Calling this method more than once is
     /// harmless.
     pub fn shutdown(&self) -> Result<()> {
-        self.context_handle.lock().request_shutdown()
+        let result = self.context_handle.lock().request_shutdown();
+        self.shutdown_changed.notify_all();
+        result
+    }
+
+    pub(crate) fn wait_for_shutdown_or_timeout(&self, timeout: std::time::Duration) -> Result<()> {
+        let mut context = self.context_handle.lock();
+        if !unsafe { rcl_context_is_valid(context.handle.as_ref()) } {
+            return Err(Error::RCL_RET_NOT_INIT);
+        }
+        self.shutdown_changed.wait_while_for(
+            &mut context,
+            |context| unsafe { rcl_context_is_valid(context.handle.as_ref()) },
+            timeout,
+        );
+        if unsafe { rcl_context_is_valid(context.handle.as_ref()) } {
+            Ok(())
+        } else {
+            Err(Error::RCL_RET_NOT_INIT)
+        }
     }
 }
 
@@ -126,6 +155,7 @@ impl Clone for Context {
     fn clone(&self) -> Self {
         Self {
             context_handle: Arc::clone(&self.context_handle),
+            shutdown_changed: Arc::clone(&self.shutdown_changed),
         }
     }
 }
