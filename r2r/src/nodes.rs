@@ -11580,6 +11580,52 @@ mod tests {
     }
 
     #[test]
+    fn publisher_timeout_helpers_reject_foreign_nodes_before_registering() {
+        let context = Context::create().unwrap();
+        let mut owner = Node::create(context.clone(), "publisher_timeout_owner", "").unwrap();
+        let mut other = Node::create(context, "publisher_timeout_other", "").unwrap();
+        let typed = owner
+            .create_publisher::<crate::std_msgs::msg::String>(
+                "/foreign_node_typed_publisher",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let untyped = owner
+            .create_publisher_untyped(
+                "/foreign_node_untyped_publisher",
+                "std_msgs/msg/String",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let timer_count = other.timers.len();
+
+        assert!(matches!(
+            typed.wait_for_subscribers_with_timeout(&mut other, Duration::from_secs(1)),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            untyped.wait_for_subscribers_with_timeout(&mut other, Duration::from_secs(1)),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+        {
+            assert!(matches!(
+                typed.wait_for_all_acked_async_with_timeout(&mut other, Duration::from_secs(1),),
+                Err(Error::RCL_RET_INVALID_ARGUMENT)
+            ));
+            assert!(matches!(
+                untyped.wait_for_all_acked_async_with_timeout(&mut other, Duration::from_secs(1),),
+                Err(Error::RCL_RET_INVALID_ARGUMENT)
+            ));
+        }
+
+        assert_eq!(other.timers.len(), timer_count);
+        assert!(!typed.handle.upgrade().unwrap().has_pending_waits());
+        assert!(!untyped.handle.upgrade().unwrap().has_pending_waits());
+        assert!(owner.active_wait_publishers.lock().is_empty());
+    }
+
+    #[test]
     fn clients_can_check_availability_without_registering_waiters() {
         use crate::example_interfaces::{action::Fibonacci, srv::AddTwoInts};
 

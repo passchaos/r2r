@@ -1051,6 +1051,7 @@ impl PublisherUntyped {
     pub fn wait_for_all_acked_async_with_timeout(
         &self, node: &mut Node, timeout: Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
+        self.validate_owner(node)?;
         let acked = self.wait_for_all_acked_async()?;
         node.with_timeout(acked, timeout)
     }
@@ -1150,8 +1151,21 @@ impl PublisherUntyped {
     pub fn wait_for_subscribers_with_timeout(
         &self, node: &mut Node, timeout: std::time::Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
+        self.validate_owner(node)?;
         let available = self.wait_for_subscribers()?;
         node.with_timeout(available, timeout)
+    }
+
+    fn validate_owner(&self, node: &Node) -> Result<()> {
+        let publisher = self
+            .handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        if node.owns_publisher(&publisher) {
+            Ok(())
+        } else {
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        }
     }
 
     #[deprecated(note = "use get_subscription_count; the RCL count includes local matches")]
@@ -1278,6 +1292,7 @@ where
     pub fn wait_for_all_acked_async_with_timeout(
         &self, node: &mut Node, timeout: Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
+        self.validate_owner(node)?;
         let acked = self.wait_for_all_acked_async()?;
         node.with_timeout(acked, timeout)
     }
@@ -1393,8 +1408,21 @@ where
     pub fn wait_for_subscribers_with_timeout(
         &self, node: &mut Node, timeout: std::time::Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
+        self.validate_owner(node)?;
         let available = self.wait_for_subscribers()?;
         node.with_timeout(available, timeout)
+    }
+
+    fn validate_owner(&self, node: &Node) -> Result<()> {
+        let publisher = self
+            .handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        if node.owns_publisher(&publisher) {
+            Ok(())
+        } else {
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        }
     }
 
     #[deprecated(note = "use get_subscription_count; the RCL count includes local matches")]
