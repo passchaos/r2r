@@ -1113,6 +1113,41 @@ mod tests {
     use futures::{FutureExt, StreamExt};
 
     #[test]
+    fn untyped_goal_cancel_timeout_rejects_foreign_node_before_sending() {
+        let context = crate::Context::create().unwrap();
+        let mut owner =
+            crate::Node::create(context.clone(), "untyped_goal_cancel_owner", "").unwrap();
+        let mut other = crate::Node::create(context, "untyped_goal_cancel_other", "").unwrap();
+        let client = owner
+            .create_action_client_untyped(
+                "/foreign_untyped_goal_cancel",
+                "example_interfaces/action/Fibonacci",
+            )
+            .unwrap();
+        let uuid = uuid::Uuid::new_v4();
+        let client_state = client.client.upgrade().unwrap();
+        client_state
+            .lock()
+            .goal_status
+            .insert(uuid, GoalStatus::Accepted);
+        let goal = ActionClientGoalUntyped {
+            client: client.client.clone(),
+            uuid,
+            accepted_at: builtin_interfaces::msg::Time::default(),
+            status_registration: Arc::new(GoalStatusRegistration {
+                client: client.client.clone(),
+                uuid,
+            }),
+        };
+
+        assert!(matches!(
+            goal.cancel_with_timeout(&mut other, std::time::Duration::from_secs(1)),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(client_state.lock().cancel_response_channels.is_empty());
+    }
+
+    #[test]
     fn pending_work_prunes_dropped_cancel_future() {
         let canceled_cancels = Arc::new(Mutex::new(ActionClientMaintenanceQueue::default()));
         let (sender, receiver) = oneshot::channel();

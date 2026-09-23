@@ -2165,6 +2165,37 @@ mod tests {
     };
 
     #[test]
+    fn goal_cancel_timeout_rejects_foreign_node_before_sending() {
+        let context = crate::Context::create().unwrap();
+        let mut owner = crate::Node::create(context.clone(), "goal_cancel_owner", "").unwrap();
+        let mut other = crate::Node::create(context, "goal_cancel_other", "").unwrap();
+        let client = owner
+            .create_action_client::<Fibonacci::Action>("/foreign_goal_cancel")
+            .unwrap();
+        let uuid = uuid::Uuid::new_v4();
+        let client_state = client.client.upgrade().unwrap();
+        client_state
+            .lock()
+            .goal_status
+            .insert(uuid, GoalStatus::Accepted);
+        let goal = ActionClientGoal {
+            client: client.client.clone(),
+            uuid,
+            accepted_at: builtin_interfaces::msg::Time::default(),
+            status_registration: Arc::new(GoalStatusRegistration {
+                client: client.client.clone(),
+                uuid,
+            }),
+        };
+
+        assert!(matches!(
+            goal.cancel_with_timeout(&mut other, std::time::Duration::from_secs(1)),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(client_state.lock().cancel_response_channels.is_empty());
+    }
+
+    #[test]
     fn maintenance_queues_notify_until_disabled() {
         let active_clients = Arc::new(Mutex::new(VecDeque::new()));
         let notifier = Arc::new(ActionClientMaintenanceNotifier::new(Arc::clone(&active_clients)));
