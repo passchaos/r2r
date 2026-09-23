@@ -101,7 +101,7 @@ mod publishers;
 pub use publishers::{
     IncompatibleTypeStatus, LivelinessLostStatus, LoanedMessage, MatchedStatus,
     NetworkFlowEndpoint, OfferedDeadlineMissedStatus, OfferedIncompatibleQosStatus, Publisher,
-    PublisherOptions, PublisherUntyped, UniqueNetworkFlowRequirement,
+    PublisherGid, PublisherOptions, PublisherUntyped, UniqueNetworkFlowRequirement,
 };
 
 mod services;

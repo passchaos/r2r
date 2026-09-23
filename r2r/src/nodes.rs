@@ -8788,6 +8788,53 @@ mod tests {
     }
 
     #[test]
+    fn publisher_gids_correlate_received_messages() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "publisher_gid_test", "").unwrap();
+        let typed_topic = format!("/publisher_gid_typed_{}", uuid::Uuid::new_v4().simple());
+        let untyped_topic = format!("/publisher_gid_untyped_{}", uuid::Uuid::new_v4().simple());
+        let typed = node
+            .create_publisher::<crate::std_msgs::msg::String>(&typed_topic, QosProfile::default())
+            .unwrap();
+        let mut subscription = node
+            .subscribe_with_info::<crate::std_msgs::msg::String>(
+                &typed_topic,
+                QosProfile::default(),
+            )
+            .unwrap();
+        let untyped = node
+            .create_publisher_untyped(&untyped_topic, "std_msgs/msg/String", QosProfile::default())
+            .unwrap();
+
+        let typed_gid = typed.get_gid().unwrap();
+        assert_eq!(typed.get_gid().unwrap(), typed_gid);
+        let untyped_gid = untyped.get_gid().unwrap();
+        assert!(!typed_gid.implementation_identifier.is_empty());
+        assert_eq!(typed_gid.implementation_identifier, untyped_gid.implementation_identifier);
+        assert!(typed_gid.data.iter().any(|byte| *byte != 0));
+        assert_ne!(typed_gid.data, untyped_gid.data);
+
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if typed.get_subscription_count().unwrap() > 0 {
+                break;
+            }
+        }
+        typed
+            .publish(&crate::std_msgs::msg::String { data: "gid".into() })
+            .unwrap();
+        let mut received = None;
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            received = received.or_else(|| subscription.next().now_or_never().flatten());
+            if received.is_some() {
+                break;
+            }
+        }
+        assert_eq!(received.unwrap().info.publisher_gid.as_slice(), typed_gid.data.as_slice());
+    }
+
+    #[test]
     fn maps_topic_endpoint_roles_without_loss() {
         assert_eq!(
             TopicEndpointType::try_from(rmw_endpoint_type_t::RMW_ENDPOINT_INVALID).unwrap(),

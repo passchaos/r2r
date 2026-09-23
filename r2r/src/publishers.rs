@@ -41,6 +41,18 @@ pub struct NetworkFlowEndpoint {
     pub internet_address: String,
 }
 
+/// Globally unique middleware identity of a publisher.
+///
+/// `data` can be compared with [`crate::MessageInfo::publisher_gid`]. Some RMW implementations
+/// also use the same representation for [`crate::TopicEndpointInfo::endpoint_gid`].
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PublisherGid {
+    /// Name of the RMW implementation that assigned this identity.
+    pub implementation_identifier: String,
+    /// Opaque identity bytes assigned by the RMW implementation.
+    pub data: [u8; RMW_GID_STORAGE_SIZE as usize],
+}
+
 impl From<UniqueNetworkFlowRequirement> for rmw_unique_network_flow_endpoints_requirement_t {
     fn from(requirement: UniqueNetworkFlowRequirement) -> Self {
         match requirement {
@@ -769,6 +781,34 @@ impl Publisher_ {
         self.with_handle(publisher_network_flow_endpoints)
     }
 
+    fn gid(&self) -> Result<PublisherGid> {
+        self.with_handle(|handle| {
+            let rmw_handle = unsafe { rcl_publisher_get_rmw_handle(handle).as_ref() }
+                .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+            let mut gid = MaybeUninit::<rmw_gid_t>::uninit();
+            let ret = unsafe { rmw_get_gid_for_publisher(rmw_handle, gid.as_mut_ptr()) };
+            if ret != RMW_RET_OK as i32 {
+                return Err(Error::from_rcl_error(ret));
+            }
+            let gid = unsafe { gid.assume_init() };
+            if gid.implementation_identifier.is_null() {
+                return Err(Error::RCL_RET_ERROR);
+            }
+            let implementation_identifier =
+                unsafe { CStr::from_ptr(gid.implementation_identifier) }
+                    .to_str()
+                    .map(str::to_owned)
+                    .map_err(|err| Error::InvalidUtf8 {
+                        context: "publisher RMW implementation identifier",
+                        err: err.to_string(),
+                    })?;
+            Ok(PublisherGid {
+                implementation_identifier,
+                data: gid.data,
+            })
+        })
+    }
+
     #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     fn wait_for_all_acked(&self, timeout: Duration) -> Result<()> {
         let timeout =
@@ -1238,6 +1278,14 @@ impl PublisherUntyped {
             .network_flow_endpoints()
     }
 
+    /// Returns the globally unique middleware identity of this publisher.
+    pub fn get_gid(&self) -> Result<PublisherGid> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .gid()
+    }
+
     /// Manually asserts this publisher's liveliness.
     ///
     /// This is intended for publishers using [`crate::qos::LivelinessPolicy::ManualByTopic`].
@@ -1505,6 +1553,14 @@ where
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
             .network_flow_endpoints()
+    }
+
+    /// Returns the globally unique middleware identity of this publisher.
+    pub fn get_gid(&self) -> Result<PublisherGid> {
+        self.handle
+            .upgrade()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?
+            .gid()
     }
 
     /// Manually asserts this publisher's liveliness.
