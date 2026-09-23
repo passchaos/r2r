@@ -51,6 +51,27 @@ pub struct TimerOptions {
     pub channel_capacity: usize,
 }
 
+/// Timing metadata captured atomically when a timer is called.
+///
+/// The absolute timestamps use the clock domain reported by [`Self::clock_type`].
+#[cfg(not(any(
+    r2r__ros__distro__foxy,
+    r2r__ros__distro__galactic,
+    r2r__ros__distro__humble,
+    r2r__ros__distro__iron
+)))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TimerCallInfo {
+    /// Time elapsed since the timer's previous call.
+    pub elapsed: Duration,
+    /// Scheduled call time in nanoseconds.
+    pub expected_call_time_ns: i64,
+    /// Actual call time in nanoseconds.
+    pub actual_call_time_ns: i64,
+    /// Clock domain used by the timer.
+    pub clock_type: ClockType,
+}
+
 impl Default for TimerOptions {
     fn default() -> Self {
         Self {
@@ -5181,13 +5202,20 @@ impl Node {
         let mut clock = Clock::create(ClockType::SteadyTime)?;
         let timer_handle = self.create_timer_helper(&mut clock, period, options.autostart)?;
 
-        let (tx, rx) = mpsc::channel::<Duration>(options.channel_capacity);
+        let (tx, rx) = mpsc::channel(options.channel_capacity);
 
         let timer = Timer_ {
             timer_handle,
             _clock: Some(clock), // The timer owns the clock.
             sender: tx,
             id: uuid::Uuid::new_v4(),
+            #[cfg(not(any(
+                r2r__ros__distro__foxy,
+                r2r__ros__distro__galactic,
+                r2r__ros__distro__humble,
+                r2r__ros__distro__iron
+            )))]
+            clock_type: ClockType::SteadyTime,
         };
         let id = timer.id;
         self.add_timer(timer);
@@ -5221,13 +5249,20 @@ impl Node {
             self.create_timer_helper(&mut clock, period, options.autostart)?
         };
 
-        let (tx, rx) = mpsc::channel::<Duration>(options.channel_capacity);
+        let (tx, rx) = mpsc::channel(options.channel_capacity);
 
         let timer = Timer_ {
             timer_handle,
             _clock: None, // The timer does not own the clock (the node owns it).
             sender: tx,
             id: uuid::Uuid::new_v4(),
+            #[cfg(not(any(
+                r2r__ros__distro__foxy,
+                r2r__ros__distro__galactic,
+                r2r__ros__distro__humble,
+                r2r__ros__distro__iron
+            )))]
+            clock_type: ClockType::RosTime,
         };
         let id = timer.id;
         self.add_timer(timer);
@@ -5515,8 +5550,40 @@ impl RclTimer {
 struct Timer_ {
     timer_handle: Pin<Box<RclTimer>>,
     _clock: Option<Clock>, // Some(clock) if the timer owns the clock, just here to be dropped properly later.
-    sender: mpsc::Sender<Duration>,
+    sender: mpsc::Sender<TimerTick>,
     id: uuid::Uuid,
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble,
+        r2r__ros__distro__iron
+    )))]
+    clock_type: ClockType,
+}
+
+struct TimerTick {
+    elapsed: Duration,
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble,
+        r2r__ros__distro__iron
+    )))]
+    expected_call_time_ns: i64,
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble,
+        r2r__ros__distro__iron
+    )))]
+    actual_call_time_ns: i64,
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble,
+        r2r__ros__distro__iron
+    )))]
+    clock_type: ClockType,
 }
 
 impl Timer_ {
@@ -5549,10 +5616,38 @@ impl Timer_ {
         check_rcl_ret(ret)?;
         let elapsed = duration_from_nonnegative_nanos(nanos)?;
 
-        let ret = unsafe { rcl_timer_call(self.get_handle_mut()) };
-        check_rcl_ret(ret)?;
+        #[cfg(any(
+            r2r__ros__distro__foxy,
+            r2r__ros__distro__galactic,
+            r2r__ros__distro__humble,
+            r2r__ros__distro__iron
+        ))]
+        let tick = {
+            let ret = unsafe { rcl_timer_call(self.get_handle_mut()) };
+            check_rcl_ret(ret)?;
+            TimerTick { elapsed }
+        };
+        #[cfg(not(any(
+            r2r__ros__distro__foxy,
+            r2r__ros__distro__galactic,
+            r2r__ros__distro__humble,
+            r2r__ros__distro__iron
+        )))]
+        let tick = {
+            let mut call_info = std::mem::MaybeUninit::<rcl_timer_call_info_t>::uninit();
+            let ret =
+                unsafe { rcl_timer_call_with_info(self.get_handle_mut(), call_info.as_mut_ptr()) };
+            check_rcl_ret(ret)?;
+            let call_info = unsafe { call_info.assume_init() };
+            TimerTick {
+                elapsed,
+                expected_call_time_ns: call_info.expected_call_time,
+                actual_call_time_ns: call_info.actual_call_time,
+                clock_type: self.clock_type,
+            }
+        };
 
-        if let Err(e) = self.sender.try_send(elapsed) {
+        if let Err(e) = self.sender.try_send(tick) {
             if e.is_disconnected() {
                 // client dropped the timer handle, let's drop our timer as well.
                 return Ok(true);
@@ -5573,7 +5668,7 @@ impl Drop for Timer_ {
 
 /// A ROS timer.
 pub struct Timer {
-    receiver: mpsc::Receiver<Duration>,
+    receiver: mpsc::Receiver<TimerTick>,
     id: uuid::Uuid,
     clock_type: ClockType,
     canceled_timers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
@@ -5601,12 +5696,34 @@ impl Timer {
     ///
     /// Returns the time passed since the timer was last woken up.
     pub async fn tick(&mut self) -> Result<Duration> {
-        let next = self.receiver.next().await;
-        if let Some(elapsed) = next {
-            Ok(elapsed)
-        } else {
-            Err(Error::RCL_RET_TIMER_INVALID)
-        }
+        self.receiver
+            .next()
+            .await
+            .map(|tick| tick.elapsed)
+            .ok_or(Error::RCL_RET_TIMER_INVALID)
+    }
+
+    /// Completes with timing metadata for the next timer call.
+    ///
+    /// The expected and actual timestamps are captured atomically by RCL. The owning node must be
+    /// spun while awaiting.
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble,
+        r2r__ros__distro__iron
+    )))]
+    pub async fn tick_with_info(&mut self) -> Result<TimerCallInfo> {
+        self.receiver
+            .next()
+            .await
+            .map(|tick| TimerCallInfo {
+                elapsed: tick.elapsed,
+                expected_call_time_ns: tick.expected_call_time_ns,
+                actual_call_time_ns: tick.actual_call_time_ns,
+                clock_type: tick.clock_type,
+            })
+            .ok_or(Error::RCL_RET_TIMER_INVALID)
     }
 
     /// Pauses the timer until [`Timer::reset`] is called.
@@ -14038,6 +14155,30 @@ mod tests {
         let ros_timer = node.create_timer(Duration::from_secs(1)).unwrap();
         assert_eq!(ros_timer.clock_type(), ClockType::RosTime);
         assert!(!ros_timer.is_steady());
+    }
+
+    #[cfg(not(any(
+        r2r__ros__distro__foxy,
+        r2r__ros__distro__galactic,
+        r2r__ros__distro__humble,
+        r2r__ros__distro__iron
+    )))]
+    #[test]
+    fn timer_ticks_expose_native_call_timing_metadata() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "timer_call_info_test", "").unwrap();
+        let mut timer = node.create_wall_timer(Duration::from_millis(1)).unwrap();
+
+        node.try_spin_once(Duration::from_secs(1)).unwrap();
+        let info = timer.tick_with_info().now_or_never().unwrap().unwrap();
+
+        assert_eq!(info.clock_type, ClockType::SteadyTime);
+        assert!(info.expected_call_time_ns > 0);
+        assert!(info.actual_call_time_ns >= info.expected_call_time_ns);
+        assert!(info.elapsed >= Duration::from_millis(1));
+
+        node.try_spin_once(Duration::from_secs(1)).unwrap();
+        assert!(timer.tick().now_or_never().unwrap().unwrap() > Duration::ZERO);
     }
 
     #[test]

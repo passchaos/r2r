@@ -6603,6 +6603,13 @@ fn bindgen_test_layout_rcl_timer_s() {
     );
 }
 pub type rcl_timer_t = rcl_timer_s;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct rcl_timer_call_info_s {
+    pub expected_call_time: rcl_time_point_value_t,
+    pub actual_call_time: rcl_time_point_value_t,
+}
+pub type rcl_timer_call_info_t = rcl_timer_call_info_s;
 pub type rcl_timer_callback_t =
     ::std::option::Option<unsafe extern "C" fn(arg1: *mut rcl_timer_t, arg2: i64)>;
 extern "C" {
@@ -6635,6 +6642,12 @@ extern "C" {
 }
 extern "C" {
     pub fn rcl_timer_call(timer: *mut rcl_timer_t) -> rcl_ret_t;
+}
+extern "C" {
+    pub fn rcl_timer_call_with_info(
+        timer: *mut rcl_timer_t,
+        call_info: *mut rcl_timer_call_info_t,
+    ) -> rcl_ret_t;
 }
 extern "C" {
     pub fn rcl_timer_clock(timer: *mut rcl_timer_t, clock: *mut *mut rcl_clock_t) -> rcl_ret_t;

@@ -155,6 +155,13 @@ mod clocks;
 pub use clocks::{Clock, ClockType};
 
 mod nodes;
+#[cfg(not(any(
+    r2r__ros__distro__foxy,
+    r2r__ros__distro__galactic,
+    r2r__ros__distro__humble,
+    r2r__ros__distro__iron
+)))]
+pub use nodes::TimerCallInfo;
 pub use nodes::{
     Node, NodeOptions, ParameterCallbackHandle, ParameterHandlerOptions,
     ParameterPostSetCallbackHandle, ParameterPreSetCallbackHandle, Timer, TimerOptions,
