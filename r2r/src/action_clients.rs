@@ -2037,7 +2037,7 @@ pub fn create_action_client_helper(
     if result == RCL_RET_OK as i32 {
         Ok(client_handle)
     } else {
-        Err(Error::from_rcl_error(result))
+        Err(Error::from_rcl_action_error(result))
     }
 }
 

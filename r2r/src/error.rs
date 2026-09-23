@@ -191,6 +191,15 @@ pub enum Error {
 }
 
 impl Error {
+    pub(crate) fn from_rcl_action_error(e: i32) -> Self {
+        let code = e as u32;
+        if code == r2r_actions::RCL_RET_ACTION_NAME_INVALID {
+            Error::RCL_RET_ACTION_NAME_INVALID
+        } else {
+            Self::from_rcl_error(e)
+        }
+    }
+
     pub fn from_rcl_error(e: i32) -> Self {
         let e = e as u32;
         match e {
@@ -306,5 +315,13 @@ mod tests {
             Error::from_rcl_error(RMW_RET_INCORRECT_RMW_IMPLEMENTATION as i32),
             Error::RMW_RET_INCORRECT_RMW_IMPLEMENTATION
         ));
+    }
+
+    #[test]
+    fn disambiguates_overlapping_action_and_event_error_codes() {
+        let code = r2r_actions::RCL_RET_ACTION_NAME_INVALID as i32;
+        assert_eq!(code, RCL_RET_EVENT_INVALID as i32);
+        assert!(matches!(Error::from_rcl_error(code), Error::RCL_RET_EVENT_INVALID));
+        assert!(matches!(Error::from_rcl_action_error(code), Error::RCL_RET_ACTION_NAME_INVALID));
     }
 }

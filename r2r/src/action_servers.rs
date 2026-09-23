@@ -1970,7 +1970,7 @@ pub fn create_action_server_helper(
     if result == RCL_RET_OK as i32 {
         Ok(server_handle)
     } else {
-        Err(Error::from_rcl_error(result))
+        Err(Error::from_rcl_action_error(result))
     }
 }
 

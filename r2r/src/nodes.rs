@@ -11185,6 +11185,23 @@ mod tests {
     }
 
     #[test]
+    fn invalid_action_names_report_action_name_errors() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "invalid_action_name_test", "").unwrap();
+
+        assert!(matches!(
+            node.create_action_client::<Fibonacci::Action>("invalid action name"),
+            Err(Error::RCL_RET_ACTION_NAME_INVALID)
+        ));
+        assert!(matches!(
+            node.create_action_server::<Fibonacci::Action>("invalid action name"),
+            Err(Error::RCL_RET_ACTION_NAME_INVALID)
+        ));
+    }
+
+    #[test]
     fn action_client_drains_goal_response_bursts_in_one_spin() {
         use crate::example_interfaces::action::Fibonacci;
 
