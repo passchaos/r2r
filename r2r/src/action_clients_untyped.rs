@@ -959,8 +959,8 @@ impl ActionClient_ for WrappedActionClientUntyped {
         }
     }
 
-    fn register_poll_available(&mut self, s: oneshot::Sender<()>) {
-        self.poll_available_channels.register(s);
+    fn register_poll_available(&mut self, s: oneshot::Sender<()>) -> bool {
+        self.poll_available_channels.register(s)
     }
 
     fn poll_maintenance(&mut self) -> Vec<ActionClientCompletion> {
@@ -1030,11 +1030,12 @@ impl IsAvailablePollable for ActionClientUntyped {
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
         let mut client = client.lock();
-        client.register_poll_available(sender);
-        self.lifecycle
-            .active_availability_clients
-            .lock()
-            .push_back(self.lifecycle.identity);
+        if client.register_poll_available(sender) {
+            self.lifecycle
+                .active_availability_clients
+                .lock()
+                .push_back(self.lifecycle.identity);
+        }
         Ok(())
     }
 }

@@ -1341,7 +1341,7 @@ pub trait ActionClient_ {
         completions: &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult>;
 
-    fn register_poll_available(&mut self, s: oneshot::Sender<()>);
+    fn register_poll_available(&mut self, s: oneshot::Sender<()>) -> bool;
     fn poll_maintenance(&mut self) -> Vec<ActionClientCompletion>;
     fn has_pending_maintenance(&self) -> bool;
     fn disable_maintenance_notifications(&self);
@@ -1793,8 +1793,8 @@ where
         }
     }
 
-    fn register_poll_available(&mut self, s: oneshot::Sender<()>) {
-        self.poll_available_channels.register(s);
+    fn register_poll_available(&mut self, s: oneshot::Sender<()>) -> bool {
+        self.poll_available_channels.register(s)
     }
 
     fn poll_maintenance(&mut self) -> Vec<ActionClientCompletion> {
@@ -2006,11 +2006,12 @@ where
             .upgrade()
             .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
         let mut client = client.lock();
-        client.register_poll_available(sender);
-        self.lifecycle
-            .active_availability_clients
-            .lock()
-            .push_back(self.lifecycle.identity);
+        if client.register_poll_available(sender) {
+            self.lifecycle
+                .active_availability_clients
+                .lock()
+                .push_back(self.lifecycle.identity);
+        }
         Ok(())
     }
 }
@@ -2155,6 +2156,39 @@ mod tests {
                 .collect::<Vec<_>>(),
             [identity]
         );
+    }
+
+    #[test]
+    fn availability_registration_keeps_all_waiters_while_scheduling_once() {
+        let mut client = WrappedActionClient::<Fibonacci::Action> {
+            rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
+            goal_response_channels: HashMap::new(),
+            goal_response_sequences: HashMap::new(),
+            cancel_response_channels: HashMap::new(),
+            canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
+            feedback_senders: HashMap::new(),
+            canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            pending_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            result_senders: HashMap::new(),
+            canceled_result_goals: Arc::new(Mutex::new(Default::default())),
+            result_requests: HashMap::new(),
+            result_request_sequences: HashMap::new(),
+            goal_status: HashMap::new(),
+            feedback_channel_capacity: 1,
+            poll_available_channels: AvailabilityWaiters::default(),
+        };
+        let (first_sender, first_receiver) = oneshot::channel();
+        let (second_sender, second_receiver) = oneshot::channel();
+
+        assert!(client.register_poll_available(first_sender));
+        assert!(!client.register_poll_available(second_sender));
+        let senders = client.poll_available_channels.take_all();
+        assert_eq!(senders.len(), 2);
+        for sender in senders {
+            sender.send(()).unwrap();
+        }
+        assert_eq!(futures::executor::block_on(first_receiver), Ok(()));
+        assert_eq!(futures::executor::block_on(second_receiver), Ok(()));
     }
 
     #[test]
@@ -2377,7 +2411,9 @@ mod tests {
             ) -> Result<ActionClientTakeResult> {
                 unreachable!()
             }
-            fn register_poll_available(&mut self, _sender: oneshot::Sender<()>) {}
+            fn register_poll_available(&mut self, _sender: oneshot::Sender<()>) -> bool {
+                false
+            }
             fn poll_maintenance(&mut self) -> Vec<ActionClientCompletion> {
                 Vec::new()
             }

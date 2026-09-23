@@ -11397,17 +11397,49 @@ mod tests {
         assert_eq!(take_action_availability_poll_count(), 0);
 
         let wait = Node::is_available(&active).unwrap();
-        assert_eq!(node.active_availability_action_clients.lock().len(), 1);
+        let second_wait = Node::is_available(&active).unwrap();
+        assert_eq!(
+            node.active_availability_action_clients
+                .lock()
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            [active.identity()]
+        );
         node.try_spin_once(Duration::ZERO).unwrap();
         assert_eq!(take_action_availability_poll_count(), 1);
         assert_eq!(node.action_clients_with_active_availability.len(), 1);
 
         drop(wait);
+        drop(second_wait);
         node.try_spin_once(Duration::ZERO).unwrap();
         assert_eq!(take_action_availability_poll_count(), 0);
         assert!(node.action_clients_with_active_availability.is_empty());
         node.try_spin_once(Duration::ZERO).unwrap();
         assert_eq!(take_action_availability_poll_count(), 0);
+
+        let untyped = node
+            .create_action_client_untyped(
+                "/active_untyped_action_availability",
+                "example_interfaces/action/Fibonacci",
+            )
+            .unwrap();
+        let first_untyped_wait = Node::is_available(&untyped).unwrap();
+        let second_untyped_wait = Node::is_available(&untyped).unwrap();
+        assert_eq!(
+            node.active_availability_action_clients
+                .lock()
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            [untyped.identity()]
+        );
+        drop(first_untyped_wait);
+        drop(second_untyped_wait);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        assert!(!node
+            .action_clients_with_active_availability
+            .contains(&untyped.identity()));
     }
 
     #[test]
