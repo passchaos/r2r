@@ -1014,8 +1014,21 @@ where
     pub fn cancel_with_timeout(
         &self, node: &mut Node, timeout: std::time::Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
+        self.validate_owner(node)?;
         let response = self.cancel()?;
         node.with_timeout(response, timeout)
+    }
+
+    fn validate_owner(&self, node: &Node) -> Result<()> {
+        let client = self
+            .client
+            .upgrade()
+            .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+        if node.owns_action_client(&client) {
+            Ok(())
+        } else {
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        }
     }
 }
 
@@ -1054,6 +1067,7 @@ where
     pub fn cancel_all_with_timeout(
         &self, node: &mut Node, timeout: std::time::Duration,
     ) -> Result<impl Future<Output = Result<Vec<uuid::Uuid>>>> {
+        self.validate_owner(node)?;
         let response = self.cancel_all()?;
         node.with_timeout(response, timeout)
     }
@@ -1061,6 +1075,7 @@ where
     pub fn cancel_before_with_timeout(
         &self, node: &mut Node, stamp: builtin_interfaces::msg::Time, timeout: std::time::Duration,
     ) -> Result<impl Future<Output = Result<Vec<uuid::Uuid>>>> {
+        self.validate_owner(node)?;
         let response = self.cancel_before(stamp)?;
         node.with_timeout(response, timeout)
     }
@@ -1227,6 +1242,7 @@ where
             )>,
         >,
     > {
+        self.validate_owner(node)?;
         let response = self.send_goal_request(goal)?;
         node.with_timeout(response, timeout)
     }
@@ -1242,6 +1258,7 @@ where
     where
         T: WrappedActionTypeSupport,
     {
+        self.validate_owner(node)?;
         let response = self.send_goal_request_with_options(goal, options)?;
         node.with_timeout(response, timeout)
     }
@@ -1259,6 +1276,18 @@ where
         action_server_available_helper(node.node_handle.as_ref(), client.handle())
     }
 
+    fn validate_owner(&self, node: &Node) -> Result<()> {
+        let client = self
+            .client
+            .upgrade()
+            .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+        if node.owns_action_client(&client) {
+            Ok(())
+        } else {
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        }
+    }
+
     /// Waits asynchronously until the action server is available.
     ///
     /// The owning node must be spun while awaiting.
@@ -1272,6 +1301,7 @@ where
     pub fn wait_for_action_server_with_timeout(
         &self, node: &mut Node, timeout: std::time::Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
+        self.validate_owner(node)?;
         let available = self.wait_for_action_server()?;
         node.with_timeout(available, timeout)
     }

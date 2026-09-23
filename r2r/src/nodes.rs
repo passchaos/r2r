@@ -12216,6 +12216,100 @@ mod tests {
     }
 
     #[test]
+    fn action_client_timeout_helpers_reject_foreign_nodes_before_sending() {
+        use crate::example_interfaces::action::Fibonacci;
+
+        let context = Context::create().unwrap();
+        let mut owner = Node::create(context.clone(), "action_timeout_owner", "").unwrap();
+        let mut other = Node::create(context, "action_timeout_other", "").unwrap();
+        let typed = owner
+            .create_action_client::<Fibonacci::Action>("/foreign_node_typed_action")
+            .unwrap();
+        let untyped = owner
+            .create_action_client_untyped(
+                "/foreign_node_untyped_action",
+                "example_interfaces/action/Fibonacci",
+            )
+            .unwrap();
+
+        assert!(matches!(
+            typed.send_goal_request_with_timeout(
+                &mut other,
+                Fibonacci::Goal { order: 1 },
+                Duration::from_secs(1),
+            ),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            typed.send_goal_request_with_options_and_timeout(
+                &mut other,
+                Fibonacci::Goal { order: 1 },
+                ActionGoalOptions::fire_and_forget(),
+                Duration::from_secs(1),
+            ),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            typed.cancel_all_with_timeout(&mut other, Duration::from_secs(1)),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            typed.cancel_before_with_timeout(
+                &mut other,
+                crate::builtin_interfaces::msg::Time::default(),
+                Duration::from_secs(1),
+            ),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            typed.wait_for_action_server_with_timeout(&mut other, Duration::from_secs(1)),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+
+        assert!(matches!(
+            untyped.send_goal_request_with_timeout(
+                &mut other,
+                serde_json::json!({ "order": 1 }),
+                Duration::from_secs(1),
+            ),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            untyped.send_goal_request_with_options_and_timeout(
+                &mut other,
+                serde_json::json!({ "order": 1 }),
+                ActionGoalOptions::fire_and_forget(),
+                Duration::from_secs(1),
+            ),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            untyped.cancel_all_with_timeout(&mut other, Duration::from_secs(1)),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            untyped.cancel_before_with_timeout(
+                &mut other,
+                crate::builtin_interfaces::msg::Time::default(),
+                Duration::from_secs(1),
+            ),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            untyped.wait_for_action_server_with_timeout(&mut other, Duration::from_secs(1)),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+
+        let typed_index = owner.action_client_identities[&typed.identity()];
+        assert!(!owner.action_clients[typed_index].lock().has_pending_work());
+        let untyped_index = owner.action_client_identities[&untyped.identity()];
+        assert!(!owner.action_clients[untyped_index]
+            .lock()
+            .has_pending_work());
+        assert!(owner.active_availability_action_clients.lock().is_empty());
+    }
+
+    #[test]
     fn action_clients_cancel_goals_at_or_before_a_stamp() {
         use crate::example_interfaces::action::Fibonacci;
 
