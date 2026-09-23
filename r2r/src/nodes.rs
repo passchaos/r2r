@@ -459,46 +459,61 @@ fn read_parameter_values(
     names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
     provider: Option<&ParameterProviderState>,
 ) -> Vec<ParameterValue> {
-    read_parameter_values_with_policy(names, params, provider, true)
-        .expect("permissive parameter reads cannot reject an undeclared name")
+    read_parameter_values_impl(names, params, provider, true, false)
+        .expect("permissive parameter reads map provider failures to unset values")
 }
 
 fn read_parameter_values_with_policy(
     names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
     provider: Option<&ParameterProviderState>, allow_undeclared_parameters: bool,
 ) -> Result<Vec<ParameterValue>> {
-    let provider_values = provider.map(|provider| {
-        let parameter_names = provider.parameter_names();
-        let mut implementation = provider.provider.lock();
+    read_parameter_values_impl(names, params, provider, allow_undeclared_parameters, true)
+}
+
+fn read_parameter_values_impl(
+    names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
+    provider: Option<&ParameterProviderState>, allow_undeclared_parameters: bool,
+    propagate_provider_errors: bool,
+) -> Result<Vec<ParameterValue>> {
+    let mut values = {
+        let params = params.lock();
+        if !allow_undeclared_parameters {
+            if let Some(name) = names.iter().find(|name| !params.contains_key(*name)) {
+                return Err(Error::ParameterNotDeclared {
+                    name: name.to_owned(),
+                });
+            }
+        }
         names
             .iter()
             .map(|name| {
-                parameter_names
-                    .contains(name)
-                    .then(|| implementation.get_parameter(name).ok())
-                    .flatten()
+                params
+                    .get(name)
+                    .map(|parameter| parameter.value.clone())
+                    .unwrap_or(ParameterValue::NotSet)
             })
             .collect::<Vec<_>>()
-    });
-    let params = params.lock();
-    if !allow_undeclared_parameters {
-        if let Some(name) = names.iter().find(|name| !params.contains_key(*name)) {
-            return Err(Error::ParameterNotDeclared {
-                name: name.to_owned(),
-            });
+    };
+
+    let Some(provider) = provider else {
+        return Ok(values);
+    };
+    let parameter_names = provider.parameter_names();
+    let mut implementation = provider.provider.lock();
+    for (index, name) in names.iter().enumerate() {
+        if !parameter_names.contains(name) {
+            continue;
+        }
+        match implementation.get_parameter(name) {
+            Ok(value) => values[index] = value,
+            Err(err) if propagate_provider_errors => return Err(err),
+            Err(err) => {
+                log::warn!("could not read parameter {name} from its provider: {err}");
+                values[index] = ParameterValue::NotSet;
+            }
         }
     }
-    Ok(names
-        .iter()
-        .enumerate()
-        .map(|(index, name)| {
-            provider_values
-                .as_ref()
-                .and_then(|values| values[index].clone())
-                .or_else(|| params.get(name).map(|parameter| parameter.value.clone()))
-                .unwrap_or(ParameterValue::NotSet)
-        })
-        .collect())
+    Ok(values)
 }
 
 fn list_parameter_values(
@@ -2556,8 +2571,9 @@ impl Node {
 
     /// Returns raw parameter values in the same order as `names`.
     ///
-    /// Undeclared names produce [`ParameterValue::NotSet`], matching the ROS
-    /// `GetParameters` service.
+    /// Undeclared names and provider read failures produce [`ParameterValue::NotSet`], matching
+    /// the error-free response shape of the ROS `GetParameters` service. Use
+    /// [`Node::try_get_parameters`] when provider errors must be propagated.
     pub fn get_parameters<I, S>(&self, names: I) -> Vec<ParameterValue>
     where
         I: IntoIterator<Item = S>,
@@ -5794,6 +5810,48 @@ mod tests {
         ratio: f64,
     }
 
+    struct FailingReadParams {
+        fail_reads: Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    impl RosParams for FailingReadParams {
+        fn register_parameters(
+            &mut self, _prefix: &str, _parameter: Option<Parameter>,
+            parameters: &mut IndexMap<String, Parameter>,
+        ) -> Result<()> {
+            parameters.insert("provider_value".into(), Parameter::new(7_i64));
+            Ok(())
+        }
+
+        fn get_parameter(&mut self, name: &str) -> Result<ParameterValue> {
+            if name != "provider_value" {
+                return Err(Error::InvalidParameterName { name: name.into() });
+            }
+            if self.fail_reads.load(std::sync::atomic::Ordering::Acquire) {
+                return Err(Error::ParameterValueConv {
+                    name: name.into(),
+                    msg: "injected provider read failure".into(),
+                });
+            }
+            Ok(ParameterValue::Integer(7))
+        }
+
+        fn set_parameter(&mut self, name: &str, value: &ParameterValue) -> Result<()> {
+            self.check_parameter(name, value)
+        }
+
+        fn check_parameter(&self, name: &str, value: &ParameterValue) -> Result<()> {
+            match (name, value) {
+                ("provider_value", ParameterValue::Integer(_)) => Ok(()),
+                ("provider_value", _) => Err(Error::InvalidParameterType {
+                    name: name.into(),
+                    ty: "integer",
+                }),
+                _ => Err(Error::InvalidParameterName { name: name.into() }),
+            }
+        }
+    }
+
     struct DerivedOverrideParams {
         count: i64,
     }
@@ -7163,6 +7221,69 @@ mod tests {
         assert_eq!(node.get_parameter::<i64>("count").unwrap(), 42);
         assert_eq!(node.get_parameter_type("count").unwrap(), ParameterType::Integer);
         assert_eq!(node.describe_parameter("count").unwrap().name, "count");
+    }
+
+    #[test]
+    fn strict_parameter_queries_propagate_provider_read_failures() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create_with_options(
+            context,
+            "provider_read_failure_test",
+            "",
+            NodeOptions::default()
+                .use_global_arguments(false)
+                .allow_undeclared_parameters(false),
+        )
+        .unwrap();
+        let fail_reads = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let provider: Arc<Mutex<dyn RosParams + Send>> = Arc::new(Mutex::new(FailingReadParams {
+            fail_reads: Arc::clone(&fail_reads),
+        }));
+        let (handler, _events) = node.make_derived_parameter_handler(provider).unwrap();
+        let client = node
+            .create_client::<rcl_interfaces::srv::GetParameters::Service>(
+                "provider_read_failure_test/get_parameters",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let mut pool = LocalPool::new();
+        pool.spawner().spawn_local(handler).unwrap();
+
+        assert_eq!(
+            node.try_get_parameters(["provider_value"]).unwrap(),
+            [ParameterValue::Integer(7)]
+        );
+        fail_reads.store(true, std::sync::atomic::Ordering::Release);
+
+        assert!(matches!(
+            node.try_get_parameters(["provider_value"]),
+            Err(Error::ParameterValueConv { name, .. }) if name == "provider_value"
+        ));
+        assert!(matches!(
+            node.get_parameter::<i64>("provider_value"),
+            Err(Error::ParameterValueConv { name, .. }) if name == "provider_value"
+        ));
+        assert_eq!(node.get_parameters(["provider_value"]), [ParameterValue::NotSet]);
+        assert_eq!(node.params.lock()["provider_value"].value, ParameterValue::Integer(7));
+
+        let response = client
+            .request(&rcl_interfaces::srv::GetParameters::Request {
+                names: vec!["provider_value".into()],
+            })
+            .unwrap();
+        let mut response = Box::pin(response);
+        let response = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            pool.run_until_stalled();
+            if let Some(response) = response.as_mut().now_or_never() {
+                break response.unwrap();
+            }
+        };
+        assert_eq!(response.values.len(), 1);
+        assert_eq!(
+            response.values[0].type_,
+            rcl_interfaces::msg::ParameterType::PARAMETER_NOT_SET as u8
+        );
     }
 
     #[test]
