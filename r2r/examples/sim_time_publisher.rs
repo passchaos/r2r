@@ -13,7 +13,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     const SENDING_PERIOD: Duration = Duration::from_millis(100);
     const SIM_TIME_MULTIPLIER: f64 = 0.1;
 
-    let mut clock = Clock::create(SystemTime)?;
+    let clock = Clock::create(SystemTime)?;
     let zero_time = clock.get_now()?;
     let mut msg = msg::Clock::default();
 

@@ -56,7 +56,7 @@ impl Clock {
     ///
     /// [`Duration`] cannot represent clock values before zero, so a negative ROS time is
     /// reported as [`Error::RCL_RET_INVALID_ARGUMENT`] instead of wrapping to a very large value.
-    pub fn get_now(&mut self) -> Result<Duration> {
+    pub fn get_now(&self) -> Result<Duration> {
         let nanos =
             u64::try_from(self.get_now_ns()?).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
         Ok(Duration::from_nanos(nanos))
@@ -65,13 +65,13 @@ impl Clock {
     /// Returns the signed current clock value in nanoseconds.
     ///
     /// Unlike [`Clock::get_now`], this preserves ROS time values before zero.
-    pub fn get_now_ns(&mut self) -> Result<i64> {
-        let valid = unsafe { rcl_clock_valid(&mut *self.clock_handle) };
+    pub fn get_now_ns(&self) -> Result<i64> {
+        let valid = unsafe { rcl_clock_valid(self.handle_ptr()) };
         if !valid {
             return Err(Error::from_rcl_error(RCL_RET_INVALID_ARGUMENT as i32));
         }
         let mut tp: rcutils_time_point_value_t = 0;
-        let ret = unsafe { rcl_clock_get_now(&mut *self.clock_handle, &mut tp) };
+        let ret = unsafe { rcl_clock_get_now(self.handle_ptr(), &mut tp) };
 
         if ret != RCL_RET_OK as i32 {
             log::error!("could not create steady clock: {}", ret);
@@ -232,6 +232,8 @@ mod tests {
 
         assert!(clock.is_valid());
         assert_eq!(clock.get_clock_type(), ClockType::SteadyTime);
+        assert!(clock.get_now().unwrap() > Duration::ZERO);
+        assert!(clock.get_now_ns().unwrap() > 0);
         assert!(matches!(clock.ros_time_override_enabled(), Err(Error::ClockTypeNotRosTime)));
     }
 

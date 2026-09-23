@@ -5,7 +5,7 @@ use r2r::{Clock, ClockType};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 async fn timer_task(
-    mut t: r2r::Timer, ros_clock: Arc<Mutex<Clock>>, mut system_clock: Clock,
+    mut t: r2r::Timer, ros_clock: Arc<Mutex<Clock>>, system_clock: Clock,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut iteration: i32 = 0;
     loop {
