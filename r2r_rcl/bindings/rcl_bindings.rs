@@ -46,6 +46,7 @@ pub const RCL_RET_TOPIC_NAME_INVALID: u32 = 103;
 pub const RCL_RET_SERVICE_NAME_INVALID: u32 = 104;
 pub const RCL_RET_UNKNOWN_SUBSTITUTION: u32 = 105;
 pub const RCL_RET_ALREADY_SHUTDOWN: u32 = 106;
+pub const RCL_RET_NOT_FOUND: u32 = 107;
 pub const RCL_RET_NODE_INVALID: u32 = 200;
 pub const RCL_RET_NODE_INVALID_NAME: u32 = 201;
 pub const RCL_RET_NODE_INVALID_NAMESPACE: u32 = 202;
@@ -71,6 +72,7 @@ pub const RCL_RET_EVENT_INVALID: u32 = 2000;
 pub const RCL_RET_EVENT_TAKE_FAILED: u32 = 2001;
 pub const RCL_RET_LIFECYCLE_STATE_REGISTERED: u32 = 3000;
 pub const RCL_RET_LIFECYCLE_STATE_NOT_REGISTERED: u32 = 3001;
+pub const RCL_ACTION_RET_NOT_TERMINATED_YET: u32 = 4001;
 pub const RCL_ROS_ARGS_FLAG: &[u8; 11usize] = b"--ros-args\0";
 pub const RCL_ROS_ARGS_EXPLICIT_END_TOKEN: &[u8; 3usize] = b"--\0";
 pub const RCL_PARAM_FLAG: &[u8; 8usize] = b"--param\0";
@@ -6659,6 +6661,12 @@ extern "C" {
     pub fn rcl_timer_get_time_until_next_call(
         timer: *const rcl_timer_t,
         time_until_next_call: *mut i64,
+    ) -> rcl_ret_t;
+}
+extern "C" {
+    pub fn rcl_timer_get_next_call_time(
+        timer: *const rcl_timer_t,
+        next_call_time: *mut i64,
     ) -> rcl_ret_t;
 }
 extern "C" {
