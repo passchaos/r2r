@@ -300,6 +300,10 @@ impl From<&rmw_service_info_t> for ServiceRequestInfo {
 }
 
 /// A request received by a runtime-typed service.
+///
+/// Clones share response state so exactly one successful response can be sent. A clone can retry
+/// after response conversion or transmission fails.
+#[derive(Clone)]
 pub struct ServiceRequestUntyped {
     /// JSON conversion result for the request payload.
     pub message: Result<serde_json::Value>,
@@ -307,6 +311,7 @@ pub struct ServiceRequestUntyped {
     request_info: ServiceRequestInfo,
     service: Weak<Mutex<dyn Service_>>,
     make_response_msg: fn() -> Result<WrappedNativeMsgUntyped>,
+    response_sent: Arc<AtomicBool>,
 }
 
 unsafe impl Send for ServiceRequestUntyped {}
@@ -319,14 +324,28 @@ impl ServiceRequestUntyped {
 
     /// Completes the request with a runtime-typed JSON response.
     pub fn respond(self, msg: serde_json::Value) -> Result<()> {
-        let mut native_msg = (self.make_response_msg)()?;
-        native_msg.from_json(msg)?;
         let service = self
             .service
             .upgrade()
             .ok_or(Error::RCL_RET_SERVICE_INVALID)?;
-        let mut service = service.lock();
-        service.send_response(self.request_id, Box::new(native_msg))
+        with_prepared_service(
+            &service,
+            || {
+                let mut native_msg = (self.make_response_msg)()?;
+                native_msg.from_json(msg)?;
+                Ok(native_msg)
+            },
+            |service, native_msg| {
+                self.response_sent
+                    .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                    .map_err(|_| Error::ServiceRequestAlreadyResponded)?;
+                let result = service.send_response(self.request_id, Box::new(native_msg));
+                if result.is_err() {
+                    self.response_sent.store(false, Ordering::Release);
+                }
+                result
+            },
+        )
     }
 }
 
@@ -495,6 +514,7 @@ impl Service_ for UntypedService {
                 request_info,
                 service,
                 make_response_msg,
+                response_sent: Arc::new(AtomicBool::new(false)),
             },
             "untyped service request",
         ))
@@ -695,6 +715,27 @@ mod tests {
         }
     }
 
+    fn test_untyped_service_request(
+        service: &Arc<Mutex<ResponseTrackingService>>,
+    ) -> ServiceRequestUntyped {
+        let service_type =
+            UntypedServiceSupport::new_from("example_interfaces/srv/AddTwoInts").unwrap();
+        let service: Arc<Mutex<dyn Service_>> = service.clone();
+        ServiceRequestUntyped {
+            message: Ok(serde_json::json!({ "a": 1, "b": 2 })),
+            request_id: unsafe { std::mem::zeroed() },
+            request_info: ServiceRequestInfo {
+                source_timestamp: 0,
+                received_timestamp: 0,
+                writer_guid: [0; 16],
+                sequence_number: 0,
+            },
+            service: Arc::downgrade(&service),
+            make_response_msg: service_type.make_response_msg,
+            response_sent: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
     #[test]
     fn cloned_service_request_can_respond_only_once() {
         let service = Arc::new(Mutex::new(ResponseTrackingService {
@@ -728,6 +769,43 @@ mod tests {
             Err(Error::RCL_RET_ERROR)
         ));
         clone.respond(AddTwoInts::Response { sum: 3 }).unwrap();
+        assert_eq!(service.lock().send_attempts, 2);
+    }
+
+    #[test]
+    fn untyped_service_response_is_once_only_and_failures_are_retryable() {
+        let service = Arc::new(Mutex::new(ResponseTrackingService {
+            handle: unsafe { rcl_get_zero_initialized_service() },
+            send_attempts: 0,
+            fail_next_send: false,
+        }));
+        let request = test_untyped_service_request(&service);
+        let retry = request.clone();
+        let duplicate = request.clone();
+
+        assert!(matches!(
+            request.respond(serde_json::json!({ "sum": "not an integer" })),
+            Err(Error::SerdeError { .. })
+        ));
+        retry.respond(serde_json::json!({ "sum": 3 })).unwrap();
+        assert!(matches!(
+            duplicate.respond(serde_json::json!({ "sum": 4 })),
+            Err(Error::ServiceRequestAlreadyResponded)
+        ));
+        assert_eq!(service.lock().send_attempts, 1);
+
+        let service = Arc::new(Mutex::new(ResponseTrackingService {
+            handle: unsafe { rcl_get_zero_initialized_service() },
+            send_attempts: 0,
+            fail_next_send: true,
+        }));
+        let request = test_untyped_service_request(&service);
+        let retry = request.clone();
+        assert!(matches!(
+            request.respond(serde_json::json!({ "sum": 3 })),
+            Err(Error::RCL_RET_ERROR)
+        ));
+        retry.respond(serde_json::json!({ "sum": 3 })).unwrap();
         assert_eq!(service.lock().send_attempts, 2);
     }
 
