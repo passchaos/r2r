@@ -1,4 +1,4 @@
-use std::{fmt::Debug, mem::MaybeUninit, time::Duration};
+use std::{collections::HashMap, fmt::Debug, mem::MaybeUninit, time::Duration};
 
 use crate::{error::*, msg_types::generated_msgs::builtin_interfaces};
 use r2r_rcl::*;
@@ -11,12 +11,96 @@ pub enum ClockType {
     SteadyTime,
 }
 
+/// The clock source state reported around a time jump.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ClockChange {
+    RosTimeNoChange,
+    RosTimeActivated,
+    RosTimeDeactivated,
+    SystemTimeNoChange,
+}
+
+/// Whether a jump notification runs before or after the clock value changes.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum TimeJumpPhase {
+    Before,
+    After,
+}
+
+/// A clock jump delivered to a registered callback.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct TimeJump {
+    pub clock_change: ClockChange,
+    /// New clock value minus the previous value, in nanoseconds.
+    pub delta_ns: i64,
+    pub phase: TimeJumpPhase,
+}
+
+/// Conditions that select time jumps for a callback.
+///
+/// Forward and backward thresholds are inclusive positive magnitudes. A missing or zero duration
+/// disables that direction.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
+pub struct TimeJumpThreshold {
+    pub on_clock_change: bool,
+    pub min_forward: Option<Duration>,
+    pub min_backward: Option<Duration>,
+}
+
+impl TimeJumpThreshold {
+    pub const fn on_clock_change(mut self, enabled: bool) -> Self {
+        self.on_clock_change = enabled;
+        self
+    }
+
+    pub const fn min_forward(mut self, threshold: Duration) -> Self {
+        self.min_forward = Some(threshold);
+        self
+    }
+
+    pub const fn min_backward(mut self, threshold: Duration) -> Self {
+        self.min_backward = Some(threshold);
+        self
+    }
+
+    fn into_native(self) -> Result<rcl_jump_threshold_t> {
+        fn duration_ns(duration: Option<Duration>) -> Result<i64> {
+            duration
+                .map(|duration| {
+                    i64::try_from(duration.as_nanos()).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)
+                })
+                .transpose()
+                .map(Option::unwrap_or_default)
+        }
+
+        Ok(rcl_jump_threshold_t {
+            on_clock_change: self.on_clock_change,
+            min_forward: rcl_duration_t {
+                nanoseconds: duration_ns(self.min_forward)?,
+            },
+            min_backward: rcl_duration_t {
+                nanoseconds: -duration_ns(self.min_backward)?,
+            },
+        })
+    }
+}
+
+/// Identity of a callback registered on a [`Clock`].
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct TimeJumpCallbackId(u64);
+
+struct TimeJumpCallback {
+    callback: Box<dyn FnMut(TimeJump) + Send + 'static>,
+}
+
 unsafe impl Send for Clock {}
 
 /// A ROS clock.
 pub struct Clock {
     pub(crate) clock_handle: Box<rcl_clock_t>,
     clock_type: ClockType,
+    jump_callbacks: HashMap<TimeJumpCallbackId, Box<TimeJumpCallback>>,
+    next_jump_callback_id: u64,
 }
 
 pub fn clock_type_to_rcl(ct: &ClockType) -> rcl_clock_type_t {
@@ -49,6 +133,8 @@ impl Clock {
         Ok(Clock {
             clock_handle,
             clock_type: ct,
+            jump_callbacks: HashMap::new(),
+            next_jump_callback_id: 0,
         })
     }
 
@@ -102,6 +188,69 @@ impl Clock {
         } else {
             Err(Error::from_rcl_error(ret))
         }
+    }
+
+    /// Registers a callback for ROS time jumps matching `threshold`.
+    ///
+    /// The callback is invoked synchronously both before and after a matching change. It must not
+    /// attempt to lock or mutate this clock recursively. Panics are caught at the FFI boundary and
+    /// logged instead of unwinding into RCL.
+    pub fn add_jump_callback<F>(
+        &mut self, threshold: TimeJumpThreshold, callback: F,
+    ) -> Result<TimeJumpCallbackId>
+    where
+        F: FnMut(TimeJump) + Send + 'static,
+    {
+        if self.clock_type != ClockType::RosTime {
+            return Err(Error::ClockTypeNotRosTime);
+        }
+        let threshold = threshold.into_native()?;
+        let id = loop {
+            let id = TimeJumpCallbackId(self.next_jump_callback_id);
+            self.next_jump_callback_id = self.next_jump_callback_id.wrapping_add(1);
+            if !self.jump_callbacks.contains_key(&id) {
+                break id;
+            }
+        };
+        let mut callback = Box::new(TimeJumpCallback {
+            callback: Box::new(callback),
+        });
+        let user_data = (&mut *callback as *mut TimeJumpCallback).cast();
+        let ret = unsafe {
+            rcl_clock_add_jump_callback(
+                self.clock_handle.as_mut(),
+                threshold,
+                Some(dispatch_time_jump),
+                user_data,
+            )
+        };
+        if ret != RCL_RET_OK as i32 {
+            return Err(Error::from_rcl_error(ret));
+        }
+        self.jump_callbacks.insert(id, callback);
+        Ok(id)
+    }
+
+    /// Removes a previously registered jump callback.
+    ///
+    /// Returns `false` when the callback ID is not registered on this clock.
+    pub fn remove_jump_callback(&mut self, id: TimeJumpCallbackId) -> Result<bool> {
+        let Some(callback) = self.jump_callbacks.get_mut(&id) else {
+            return Ok(false);
+        };
+        let user_data = (&mut **callback as *mut TimeJumpCallback).cast();
+        let ret = unsafe {
+            rcl_clock_remove_jump_callback(
+                self.clock_handle.as_mut(),
+                Some(dispatch_time_jump),
+                user_data,
+            )
+        };
+        if ret != RCL_RET_OK as i32 {
+            return Err(Error::from_rcl_error(ret));
+        }
+        self.jump_callbacks.remove(&id);
+        Ok(true)
     }
 
     /// TODO: move to builtin helper methods module.
@@ -189,6 +338,36 @@ impl Clock {
     }
 }
 
+unsafe extern "C" fn dispatch_time_jump(
+    time_jump: *const rcl_time_jump_t, before_jump: bool, user_data: *mut std::os::raw::c_void,
+) {
+    let (Some(time_jump), Some(callback)) = (unsafe { time_jump.as_ref() }, unsafe {
+        user_data.cast::<TimeJumpCallback>().as_mut()
+    }) else {
+        return;
+    };
+    let clock_change = match time_jump.clock_change {
+        rcl_clock_change_t::RCL_ROS_TIME_NO_CHANGE => ClockChange::RosTimeNoChange,
+        rcl_clock_change_t::RCL_ROS_TIME_ACTIVATED => ClockChange::RosTimeActivated,
+        rcl_clock_change_t::RCL_ROS_TIME_DEACTIVATED => ClockChange::RosTimeDeactivated,
+        rcl_clock_change_t::RCL_SYSTEM_TIME_NO_CHANGE => ClockChange::SystemTimeNoChange,
+    };
+    let event = TimeJump {
+        clock_change,
+        delta_ns: time_jump.delta.nanoseconds,
+        phase: if before_jump {
+            TimeJumpPhase::Before
+        } else {
+            TimeJumpPhase::After
+        },
+    };
+    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (callback.callback)(event)))
+        .is_err()
+    {
+        log::error!("time jump callback panicked");
+    }
+}
+
 impl From<builtin_interfaces::msg::Time> for rcutils_time_point_value_t {
     fn from(msg: builtin_interfaces::msg::Time) -> Self {
         (msg.sec as rcl_time_point_value_t) * 1_000_000_000
@@ -249,5 +428,101 @@ mod tests {
         assert!(matches!(clock.get_now(), Err(Error::RCL_RET_INVALID_ARGUMENT)));
         clock.disable_ros_time_override().unwrap();
         assert!(!clock.ros_time_override_enabled().unwrap());
+    }
+
+    #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+    #[test]
+    fn jump_callbacks_observe_thresholds_phases_and_removal() {
+        use parking_lot::Mutex;
+        use std::sync::Arc;
+
+        let mut clock = Clock::create(ClockType::RosTime).unwrap();
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let captured = Arc::clone(&events);
+        let id = clock
+            .add_jump_callback(
+                TimeJumpThreshold::default()
+                    .on_clock_change(true)
+                    .min_forward(Duration::from_nanos(10))
+                    .min_backward(Duration::from_nanos(10)),
+                move |event| captured.lock().push(event),
+            )
+            .unwrap();
+
+        clock.enable_ros_time_override(100).unwrap();
+        clock.set_ros_time_override(105).unwrap();
+        clock.set_ros_time_override(115).unwrap();
+        clock.set_ros_time_override(105).unwrap();
+        clock.disable_ros_time_override().unwrap();
+
+        let events_before_removal = events.lock().clone();
+        assert_eq!(
+            events_before_removal
+                .iter()
+                .map(|event| (event.clock_change, event.delta_ns, event.phase))
+                .collect::<Vec<_>>(),
+            [
+                (ClockChange::RosTimeActivated, 0, TimeJumpPhase::Before),
+                (ClockChange::RosTimeActivated, 0, TimeJumpPhase::After),
+                (ClockChange::RosTimeNoChange, 100, TimeJumpPhase::Before),
+                (ClockChange::RosTimeNoChange, 100, TimeJumpPhase::After),
+                (ClockChange::RosTimeNoChange, 10, TimeJumpPhase::Before),
+                (ClockChange::RosTimeNoChange, 10, TimeJumpPhase::After),
+                (ClockChange::RosTimeNoChange, -10, TimeJumpPhase::Before),
+                (ClockChange::RosTimeNoChange, -10, TimeJumpPhase::After),
+                (ClockChange::RosTimeDeactivated, 0, TimeJumpPhase::Before),
+                (ClockChange::RosTimeDeactivated, 0, TimeJumpPhase::After),
+            ]
+        );
+
+        assert!(clock.remove_jump_callback(id).unwrap());
+        assert!(!clock.remove_jump_callback(id).unwrap());
+        clock.enable_ros_time_override(200).unwrap();
+        assert_eq!(*events.lock(), events_before_removal);
+    }
+
+    #[test]
+    fn jump_callbacks_reject_wrong_clock_types_and_oversized_thresholds() {
+        let mut steady = Clock::create(ClockType::SteadyTime).unwrap();
+        assert!(matches!(
+            steady.add_jump_callback(TimeJumpThreshold::default(), |_| {}),
+            Err(Error::ClockTypeNotRosTime)
+        ));
+
+        let mut ros = Clock::create(ClockType::RosTime).unwrap();
+        assert!(matches!(
+            ros.add_jump_callback(
+                TimeJumpThreshold::default().min_forward(Duration::from_nanos(i64::MAX as u64 + 1)),
+                |_| {},
+            ),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+    }
+
+    #[cfg(r2r__rosgraph_msgs__msg__Clock)]
+    #[test]
+    fn panicking_jump_callback_does_not_cross_ffi_or_stop_other_callbacks() {
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+
+        let mut clock = Clock::create(ClockType::RosTime).unwrap();
+        clock
+            .add_jump_callback(TimeJumpThreshold::default().on_clock_change(true), |_| {
+                panic!("callback panic")
+            })
+            .unwrap();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let captured = Arc::clone(&calls);
+        clock
+            .add_jump_callback(TimeJumpThreshold::default().on_clock_change(true), move |_| {
+                captured.fetch_add(1, Ordering::Relaxed);
+            })
+            .unwrap();
+
+        clock.enable_ros_time_override(0).unwrap();
+
+        assert_eq!(calls.load(Ordering::Relaxed), 2);
     }
 }

@@ -154,7 +154,9 @@ pub use parameters::{
 pub use r2r_macros::RosParams;
 
 mod clocks;
-pub use clocks::{Clock, ClockType};
+pub use clocks::{
+    Clock, ClockChange, ClockType, TimeJump, TimeJumpCallbackId, TimeJumpPhase, TimeJumpThreshold,
+};
 
 mod nodes;
 #[cfg(not(any(
