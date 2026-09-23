@@ -4862,20 +4862,26 @@ impl Node {
     }
 
     /// Returns the number of publishers advertised on `topic_name`.
+    ///
+    /// Relative and private names are expanded in this node's namespace without applying remaps.
     pub fn count_publishers(&self, topic_name: &str) -> Result<usize> {
-        self.count_graph_entities(topic_name, |node, name, count| unsafe {
+        self.count_graph_entities(topic_name, false, |node, name, count| unsafe {
             rcl_count_publishers(node, name, count)
         })
     }
 
     /// Returns the number of subscriptions created for `topic_name`.
+    ///
+    /// Relative and private names are expanded in this node's namespace without applying remaps.
     pub fn count_subscribers(&self, topic_name: &str) -> Result<usize> {
-        self.count_graph_entities(topic_name, |node, name, count| unsafe {
+        self.count_graph_entities(topic_name, false, |node, name, count| unsafe {
             rcl_count_subscribers(node, name, count)
         })
     }
 
     /// Returns the number of clients created for `service_name`.
+    ///
+    /// Relative and private names are expanded in this node's namespace without applying remaps.
     #[cfg(not(any(
         r2r__ros__distro__foxy,
         r2r__ros__distro__galactic,
@@ -4883,12 +4889,14 @@ impl Node {
         r2r__ros__distro__iron
     )))]
     pub fn count_clients(&self, service_name: &str) -> Result<usize> {
-        self.count_graph_entities(service_name, |node, name, count| unsafe {
+        self.count_graph_entities(service_name, true, |node, name, count| unsafe {
             rcl_count_clients(node, name, count)
         })
     }
 
     /// Returns the number of servers created for `service_name`.
+    ///
+    /// Relative and private names are expanded in this node's namespace without applying remaps.
     #[cfg(not(any(
         r2r__ros__distro__foxy,
         r2r__ros__distro__galactic,
@@ -4896,15 +4904,19 @@ impl Node {
         r2r__ros__distro__iron
     )))]
     pub fn count_services(&self, service_name: &str) -> Result<usize> {
-        self.count_graph_entities(service_name, |node, name, count| unsafe {
+        self.count_graph_entities(service_name, true, |node, name, count| unsafe {
             rcl_count_services(node, name, count)
         })
     }
 
     fn count_graph_entities(
-        &self, name: &str,
+        &self, name: &str, is_service: bool,
         query: impl FnOnce(*const rcl_node_t, *const std::os::raw::c_char, *mut usize) -> rcl_ret_t,
     ) -> Result<usize> {
+        #[cfg(not(r2r__ros__distro__foxy))]
+        let name = self.resolve_name(name, is_service, true)?;
+        #[cfg(r2r__ros__distro__foxy)]
+        let _ = is_service;
         let name = CString::new(name).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
         let mut count = 0;
         let ret = query(self.node_handle.as_ref(), name.as_ptr(), &mut count);
@@ -5052,6 +5064,11 @@ impl Node {
         Ok(res)
     }
 
+    /// Returns publisher endpoint information for a topic.
+    ///
+    /// When `no_mangle` is false, relative and private names are expanded in this node's
+    /// namespace without applying remaps. When it is true, `topic_name` is passed through as a
+    /// middleware topic name.
     pub fn get_publishers_info_by_topic(
         &self, topic_name: &str, no_mangle: bool,
     ) -> Result<Vec<TopicEndpointInfo>> {
@@ -5065,6 +5082,10 @@ impl Node {
     }
 
     /// Returns information about subscriptions visible on `topic_name`.
+    ///
+    /// When `no_mangle` is false, relative and private names are expanded in this node's
+    /// namespace without applying remaps. When it is true, `topic_name` is passed through as a
+    /// middleware topic name.
     pub fn get_subscriptions_info_by_topic(
         &self, topic_name: &str, no_mangle: bool,
     ) -> Result<Vec<TopicEndpointInfo>> {
@@ -5078,7 +5099,7 @@ impl Node {
     }
 
     fn get_endpoint_info_by_topic(
-        &self, topic_name: &str, _no_mangle: bool,
+        &self, topic_name: &str, no_mangle: bool,
         query: impl FnOnce(
             *const rcl_node_t,
             *mut rcutils_allocator_t,
@@ -5086,6 +5107,12 @@ impl Node {
             *mut rcl_topic_endpoint_info_array_t,
         ) -> rcl_ret_t,
     ) -> Result<Vec<TopicEndpointInfo>> {
+        #[cfg(not(r2r__ros__distro__foxy))]
+        let topic_name = if no_mangle {
+            topic_name.to_owned()
+        } else {
+            self.resolve_topic_name_without_remapping(topic_name)?
+        };
         let topic_name = CString::new(topic_name).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
         let mut info_array = TopicEndpointInfoArray::new();
         let ret = query(
@@ -9619,6 +9646,84 @@ mod tests {
             ),
             Err(Error::RCL_RET_NODE_NAME_NON_EXISTENT)
         ));
+    }
+
+    #[cfg(not(r2r__ros__distro__foxy))]
+    #[test]
+    fn endpoint_info_queries_expand_relative_and_private_topic_names() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "endpoint_name_test", "/scope").unwrap();
+        let _relative = node
+            .create_publisher::<crate::std_msgs::msg::String>("relative", QosProfile::default())
+            .unwrap();
+        let _private = node
+            .create_publisher::<crate::std_msgs::msg::String>("~/private", QosProfile::default())
+            .unwrap();
+        let _relative_subscription = node
+            .subscribe::<crate::std_msgs::msg::String>("relative", QosProfile::default())
+            .unwrap();
+        let _private_subscription = node
+            .subscribe::<crate::std_msgs::msg::String>("~/private", QosProfile::default())
+            .unwrap();
+        #[cfg(not(any(
+            r2r__ros__distro__galactic,
+            r2r__ros__distro__humble,
+            r2r__ros__distro__iron
+        )))]
+        let _relative_service = node
+            .create_service::<crate::example_interfaces::srv::AddTwoInts::Service>(
+                "relative_service",
+                QosProfile::default(),
+            )
+            .unwrap();
+        #[cfg(not(any(
+            r2r__ros__distro__galactic,
+            r2r__ros__distro__humble,
+            r2r__ros__distro__iron
+        )))]
+        let _relative_client = node
+            .create_client::<crate::example_interfaces::srv::AddTwoInts::Service>(
+                "relative_client",
+                QosProfile::default(),
+            )
+            .unwrap();
+
+        let relative = node
+            .get_publishers_info_by_topic("relative", false)
+            .unwrap();
+        assert!(relative
+            .iter()
+            .any(|info| info.topic_type == "std_msgs/msg/String"));
+        let private = node
+            .get_publishers_info_by_topic("~/private", false)
+            .unwrap();
+        assert!(private
+            .iter()
+            .any(|info| info.topic_type == "std_msgs/msg/String"));
+        let relative = node
+            .get_subscriptions_info_by_topic("relative", false)
+            .unwrap();
+        assert!(relative
+            .iter()
+            .any(|info| info.topic_type == "std_msgs/msg/String"));
+        let private = node
+            .get_subscriptions_info_by_topic("~/private", false)
+            .unwrap();
+        assert!(private
+            .iter()
+            .any(|info| info.topic_type == "std_msgs/msg/String"));
+
+        assert_eq!(node.count_publishers("relative").unwrap(), 1);
+        assert_eq!(node.count_subscribers("relative").unwrap(), 1);
+        #[cfg(not(any(
+            r2r__ros__distro__galactic,
+            r2r__ros__distro__humble,
+            r2r__ros__distro__iron
+        )))]
+        {
+            assert_eq!(node.count_services("relative_service").unwrap(), 1);
+            assert_eq!(node.count_clients("relative_client").unwrap(), 1);
+        }
     }
 
     #[test]
