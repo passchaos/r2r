@@ -112,7 +112,7 @@ pub use services::{
 
 mod availability;
 mod clients;
-pub use clients::{Client, ClientUntyped};
+pub use clients::{Client, ClientUntyped, ServiceResponse, ServiceResponseInfo};
 
 mod parameter_clients;
 pub use parameter_clients::ParameterClient;

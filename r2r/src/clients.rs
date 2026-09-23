@@ -29,6 +29,66 @@ pub(crate) enum ClientResponseAction {
 
 const MAX_CLIENT_RESPONSES_PER_SPIN: usize = 16;
 
+/// Middleware metadata attached to a received service response.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ServiceResponseInfo {
+    /// Source timestamp in nanoseconds, or zero when unsupported by the RMW implementation.
+    pub source_timestamp: i64,
+    /// Receive timestamp in nanoseconds, or zero when unsupported by the RMW implementation.
+    pub received_timestamp: i64,
+    /// Writer GUID from the original request associated with this response.
+    pub writer_guid: [u8; 16],
+    /// Sequence number assigned to the original request.
+    pub sequence_number: i64,
+}
+
+impl From<&rmw_service_info_t> for ServiceResponseInfo {
+    fn from(info: &rmw_service_info_t) -> Self {
+        Self {
+            source_timestamp: info.source_timestamp,
+            received_timestamp: info.received_timestamp,
+            writer_guid: info
+                .request_id
+                .writer_guid
+                .map(|byte| byte.to_ne_bytes()[0]),
+            sequence_number: info.request_id.sequence_number,
+        }
+    }
+}
+
+/// A service response together with its RMW metadata.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ServiceResponse<T> {
+    pub response: T,
+    pub info: ServiceResponseInfo,
+}
+
+impl<T> ServiceResponse<T> {
+    pub fn into_parts(self) -> (T, ServiceResponseInfo) {
+        (self.response, self.info)
+    }
+}
+
+pub(crate) enum ClientResponseSender<T> {
+    Plain(oneshot::Sender<T>),
+    WithInfo(oneshot::Sender<ServiceResponse<T>>),
+}
+
+impl<T> ClientResponseSender<T> {
+    fn is_canceled(&self) -> bool {
+        match self {
+            Self::Plain(sender) => sender.is_canceled(),
+            Self::WithInfo(sender) => sender.is_canceled(),
+        }
+    }
+}
+
+impl<T> From<oneshot::Sender<T>> for ClientResponseSender<T> {
+    fn from(sender: oneshot::Sender<T>) -> Self {
+        Self::Plain(sender)
+    }
+}
+
 struct ClientResponseFuture<T, C: ClientResponseRegistry> {
     receiver: oneshot::Receiver<T>,
     client: Option<Weak<Mutex<C>>>,
@@ -88,16 +148,24 @@ where
 }
 
 fn response_conversion_completion<N, T>(
-    sender: oneshot::Sender<T>, native: N, convert: impl FnOnce(N) -> T + Send + 'static,
+    sender: impl Into<ClientResponseSender<T>>, native: N, info: ServiceResponseInfo,
+    convert: impl FnOnce(N) -> T + Send + 'static,
 ) -> ClientCompletion
 where
     N: 'static,
     T: Debug + 'static,
 {
+    let sender = sender.into();
     Box::new(move || {
         let response = convert(native);
-        if let Err(err) = sender.send(response) {
-            log::debug!("error sending to client: {:?}", err);
+        let failed = match sender {
+            ClientResponseSender::Plain(sender) => sender.send(response).is_err(),
+            ClientResponseSender::WithInfo(sender) => {
+                sender.send(ServiceResponse { response, info }).is_err()
+            }
+        };
+        if failed {
+            log::debug!("client response receiver was dropped");
         }
     })
 }
@@ -231,6 +299,20 @@ where
         Ok(client_response_future(client_for_cleanup, sequence, receiver))
     }
 
+    /// Makes a service request and returns the response with its RMW metadata.
+    pub fn request_with_info(
+        &self, msg: &T::Request,
+    ) -> Result<impl Future<Output = Result<ServiceResponse<T::Response>>>> {
+        let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
+        let client_for_cleanup = Arc::downgrade(&client);
+        let (sequence, receiver) = with_prepared_client(
+            &client,
+            || WrappedNativeMsg::<T::Request>::try_from(msg),
+            TypedClient::request_native_with_info,
+        )?;
+        Ok(client_response_future(client_for_cleanup, sequence, receiver))
+    }
+
     /// Make a service request and wait up to `timeout` for its response.
     ///
     /// This future is runtime-agnostic and advances while `node` is spun.
@@ -238,6 +320,16 @@ where
         &self, node: &mut Node, msg: &T::Request, timeout: Duration,
     ) -> Result<impl Future<Output = Result<T::Response>>> {
         let response = self.request(msg)?;
+        node.with_timeout(response, timeout)
+    }
+
+    /// Makes a service request and waits up to `timeout` for its response and RMW metadata.
+    ///
+    /// This future is runtime-agnostic and advances while `node` is spun.
+    pub fn request_with_info_with_timeout(
+        &self, node: &mut Node, msg: &T::Request, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<ServiceResponse<T::Response>>>> {
+        let response = self.request_with_info(msg)?;
         node.with_timeout(response, timeout)
     }
 
@@ -328,6 +420,25 @@ impl ClientUntyped {
         Ok(client_response_future(client_for_cleanup, sequence, receiver))
     }
 
+    /// Makes an untyped service request and returns the JSON response with its RMW metadata.
+    pub fn request_with_info(
+        &self, msg: serde_json::Value,
+    ) -> Result<impl Future<Output = Result<ServiceResponse<Result<serde_json::Value>>>>> {
+        let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
+        let make_request_msg = client.lock().service_type.make_request_msg;
+        let client_for_cleanup = Arc::downgrade(&client);
+        let (sequence, receiver) = with_prepared_client(
+            &client,
+            || {
+                let mut native_msg = make_request_msg()?;
+                native_msg.from_json(msg)?;
+                Ok(native_msg)
+            },
+            UntypedClient_::request_native_with_info,
+        )?;
+        Ok(client_response_future(client_for_cleanup, sequence, receiver))
+    }
+
     /// Make an untyped service request and wait up to `timeout` for its response.
     ///
     /// This future is runtime-agnostic and advances while `node` is spun.
@@ -335,6 +446,16 @@ impl ClientUntyped {
         &self, node: &mut Node, msg: serde_json::Value, timeout: Duration,
     ) -> Result<impl Future<Output = Result<Result<serde_json::Value>>>> {
         let response = self.request(msg)?;
+        node.with_timeout(response, timeout)
+    }
+
+    /// Makes an untyped service request and waits up to `timeout` for its response and metadata.
+    ///
+    /// This future is runtime-agnostic and advances while `node` is spun.
+    pub fn request_with_info_with_timeout(
+        &self, node: &mut Node, msg: serde_json::Value, timeout: Duration,
+    ) -> Result<impl Future<Output = Result<ServiceResponse<Result<serde_json::Value>>>>> {
+        let response = self.request_with_info(msg)?;
         node.with_timeout(response, timeout)
     }
 
@@ -450,7 +571,25 @@ where
         let (sender, receiver) = oneshot::channel::<T::Response>();
 
         if result == RCL_RET_OK as i32 {
-            self.response_channels.insert(seq_no, sender);
+            self.response_channels
+                .insert(seq_no, ClientResponseSender::Plain(sender));
+            Ok((seq_no, receiver))
+        } else {
+            log::error!("could not send request {}", result);
+            Err(Error::from_rcl_error(result))
+        }
+    }
+
+    fn request_native_with_info(
+        &mut self, native_msg: WrappedNativeMsg<T::Request>,
+    ) -> Result<(i64, oneshot::Receiver<ServiceResponse<T::Response>>)> {
+        let mut seq_no = 0i64;
+        let result =
+            unsafe { rcl_send_request(&self.rcl_handle, native_msg.void_ptr(), &mut seq_no) };
+        let (sender, receiver) = oneshot::channel();
+        if result == RCL_RET_OK as i32 {
+            self.response_channels
+                .insert(seq_no, ClientResponseSender::WithInfo(sender));
             Ok((seq_no, receiver))
         } else {
             log::error!("could not send request {}", result);
@@ -472,7 +611,25 @@ impl UntypedClient_ {
         let (sender, receiver) = oneshot::channel::<Result<serde_json::Value>>();
 
         if result == RCL_RET_OK as i32 {
-            self.response_channels.insert(seq_no, sender);
+            self.response_channels
+                .insert(seq_no, ClientResponseSender::Plain(sender));
+            Ok((seq_no, receiver))
+        } else {
+            log::error!("could not send request {}", result);
+            Err(Error::from_rcl_error(result))
+        }
+    }
+
+    fn request_native_with_info(
+        &mut self, native_msg: WrappedNativeMsgUntyped,
+    ) -> Result<(i64, oneshot::Receiver<ServiceResponse<Result<serde_json::Value>>>)> {
+        let mut seq_no = 0i64;
+        let result =
+            unsafe { rcl_send_request(&self.rcl_handle, native_msg.void_ptr(), &mut seq_no) };
+        let (sender, receiver) = oneshot::channel();
+        if result == RCL_RET_OK as i32 {
+            self.response_channels
+                .insert(seq_no, ClientResponseSender::WithInfo(sender));
             Ok((seq_no, receiver))
         } else {
             log::error!("could not send request {}", result);
@@ -498,7 +655,7 @@ where
     T: WrappedServiceTypeSupport,
 {
     pub rcl_handle: rcl_client_t,
-    pub response_channels: HashMap<i64, oneshot::Sender<T::Response>>,
+    pub(crate) response_channels: HashMap<i64, ClientResponseSender<T::Response>>,
     pub poll_available_channels: AvailabilityWaiters,
     #[cfg(test)]
     pub(crate) availability_poll_count: AtomicUsize,
@@ -512,7 +669,7 @@ where
         if self
             .response_channels
             .get(&sequence)
-            .is_some_and(oneshot::Sender::is_canceled)
+            .is_some_and(ClientResponseSender::is_canceled)
         {
             self.response_channels.remove(&sequence);
         }
@@ -528,13 +685,13 @@ where
     }
 
     fn handle_response(&mut self) -> Result<ClientResponseAction> {
-        let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
+        let mut response_info = MaybeUninit::<rmw_service_info_t>::uninit();
         let mut response_msg = WrappedNativeMsg::<T::Response>::try_new()?;
 
         let ret = unsafe {
-            rcl_take_response(
+            rcl_take_response_with_info(
                 &self.rcl_handle,
-                request_id.as_mut_ptr(),
+                response_info.as_mut_ptr(),
                 response_msg.void_ptr_mut(),
             )
         };
@@ -545,17 +702,19 @@ where
             return Err(Error::from_rcl_error(ret));
         }
 
-        let request_id = unsafe { request_id.assume_init() };
-        if let Some(sender) = self.response_channels.remove(&request_id.sequence_number) {
+        let response_info = unsafe { response_info.assume_init() };
+        let info = ServiceResponseInfo::from(&response_info);
+        if let Some(sender) = self.response_channels.remove(&info.sequence_number) {
             Ok(ClientResponseAction::Taken(Some(response_conversion_completion(
                 sender,
                 response_msg,
+                info,
                 |response_msg| T::Response::from_native(&response_msg),
             ))))
         } else {
             log::debug!(
                 "no such req id: {}, we have {:?}, ignoring",
-                request_id.sequence_number,
+                info.sequence_number,
                 self.response_channels.keys()
             );
             Ok(ClientResponseAction::Taken(None))
@@ -607,7 +766,7 @@ where
 pub struct UntypedClient_ {
     pub service_type: UntypedServiceSupport,
     pub rcl_handle: rcl_client_t,
-    pub response_channels: HashMap<i64, oneshot::Sender<Result<serde_json::Value>>>,
+    pub(crate) response_channels: HashMap<i64, ClientResponseSender<Result<serde_json::Value>>>,
     pub poll_available_channels: AvailabilityWaiters,
     #[cfg(test)]
     pub(crate) availability_poll_count: AtomicUsize,
@@ -618,7 +777,7 @@ impl ClientResponseRegistry for UntypedClient_ {
         if self
             .response_channels
             .get(&sequence)
-            .is_some_and(oneshot::Sender::is_canceled)
+            .is_some_and(ClientResponseSender::is_canceled)
         {
             self.response_channels.remove(&sequence);
         }
@@ -631,13 +790,13 @@ impl Client_ for UntypedClient_ {
     }
 
     fn handle_response(&mut self) -> Result<ClientResponseAction> {
-        let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
+        let mut response_info = MaybeUninit::<rmw_service_info_t>::uninit();
         let mut response_msg = (self.service_type.make_response_msg)()?;
 
         let ret = unsafe {
-            rcl_take_response(
+            rcl_take_response_with_info(
                 &self.rcl_handle,
-                request_id.as_mut_ptr(),
+                response_info.as_mut_ptr(),
                 response_msg.void_ptr_mut(),
             )
         };
@@ -648,17 +807,19 @@ impl Client_ for UntypedClient_ {
             return Err(Error::from_rcl_error(ret));
         }
 
-        let request_id = unsafe { request_id.assume_init() };
-        if let Some(sender) = self.response_channels.remove(&request_id.sequence_number) {
+        let response_info = unsafe { response_info.assume_init() };
+        let info = ServiceResponseInfo::from(&response_info);
+        if let Some(sender) = self.response_channels.remove(&info.sequence_number) {
             Ok(ClientResponseAction::Taken(Some(response_conversion_completion(
                 sender,
                 response_msg,
+                info,
                 |response_msg| response_msg.to_json(),
             ))))
         } else {
             log::debug!(
                 "no such req id: {}, we have {:?}, ignoring",
-                request_id.sequence_number,
+                info.sequence_number,
                 self.response_channels.keys()
             );
             Ok(ClientResponseAction::Taken(None))
@@ -796,10 +957,45 @@ mod tests {
 
     fn assert_clone<T: Clone>() {}
 
+    fn test_response_info(sequence_number: i64) -> ServiceResponseInfo {
+        ServiceResponseInfo {
+            source_timestamp: 0,
+            received_timestamp: 0,
+            writer_guid: [0; 16],
+            sequence_number,
+        }
+    }
+
+    fn plain_response_sender<T>(sender: ClientResponseSender<T>) -> oneshot::Sender<T> {
+        match sender {
+            ClientResponseSender::Plain(sender) => sender,
+            ClientResponseSender::WithInfo(_) => panic!("expected a plain response sender"),
+        }
+    }
+
     #[test]
     fn service_client_handles_are_cloneable() {
         assert_clone::<Client<AddTwoInts::Service>>();
         assert_clone::<ClientUntyped>();
+    }
+
+    #[test]
+    fn service_response_info_copies_native_metadata() {
+        let native = rmw_service_info_t {
+            source_timestamp: 41,
+            received_timestamp: 42,
+            request_id: rmw_request_id_t {
+                writer_guid: [128, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 126, 127],
+                sequence_number: 43,
+            },
+        };
+
+        let info = ServiceResponseInfo::from(&native);
+
+        assert_eq!(info.source_timestamp, 41);
+        assert_eq!(info.received_timestamp, 42);
+        assert_eq!(info.writer_guid, [128, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 126, 127]);
+        assert_eq!(info.sequence_number, 43);
     }
 
     #[test]
@@ -855,7 +1051,10 @@ mod tests {
         let (other_sender, _other_receiver) = oneshot::channel();
         let client = Arc::new(Mutex::new(TypedClient::<AddTwoInts::Service> {
             rcl_handle: unsafe { rcl_get_zero_initialized_client() },
-            response_channels: HashMap::from([(10, target_sender), (11, other_sender)]),
+            response_channels: HashMap::from([
+                (10, target_sender.into()),
+                (11, other_sender.into()),
+            ]),
             poll_available_channels: AvailabilityWaiters::default(),
             availability_poll_count: AtomicUsize::new(0),
         }));
@@ -873,19 +1072,22 @@ mod tests {
         let (sender, receiver) = oneshot::channel();
         let client = Arc::new(Mutex::new(TypedClient::<AddTwoInts::Service> {
             rcl_handle: unsafe { rcl_get_zero_initialized_client() },
-            response_channels: HashMap::from([(10, sender)]),
+            response_channels: HashMap::from([(10, sender.into())]),
             poll_available_channels: AvailabilityWaiters::default(),
             availability_poll_count: AtomicUsize::new(0),
         }));
         let mut future = Box::pin(client_response_future(Arc::downgrade(&client), 10, receiver));
-        let sender = client.lock().response_channels.remove(&10).unwrap();
+        let sender = plain_response_sender(client.lock().response_channels.remove(&10).unwrap());
         sender.send(AddTwoInts::Response { sum: 42 }).unwrap();
         assert!(matches!(
             future.as_mut().now_or_never(),
             Some(Ok(AddTwoInts::Response { sum: 42 }))
         ));
         let (replacement, _receiver) = oneshot::channel();
-        client.lock().response_channels.insert(10, replacement);
+        client
+            .lock()
+            .response_channels
+            .insert(10, replacement.into());
 
         drop(future);
 
@@ -897,15 +1099,19 @@ mod tests {
         let (old_sender, old_receiver) = oneshot::channel();
         let client = Arc::new(Mutex::new(TypedClient::<AddTwoInts::Service> {
             rcl_handle: unsafe { rcl_get_zero_initialized_client() },
-            response_channels: HashMap::from([(10, old_sender)]),
+            response_channels: HashMap::from([(10, old_sender.into())]),
             poll_available_channels: AvailabilityWaiters::default(),
             availability_poll_count: AtomicUsize::new(0),
         }));
         let future = client_response_future(Arc::downgrade(&client), 10, old_receiver);
-        let old_sender = client.lock().response_channels.remove(&10).unwrap();
+        let old_sender =
+            plain_response_sender(client.lock().response_channels.remove(&10).unwrap());
         old_sender.send(AddTwoInts::Response { sum: 42 }).unwrap();
         let (replacement, _receiver) = oneshot::channel();
-        client.lock().response_channels.insert(10, replacement);
+        client
+            .lock()
+            .response_channels
+            .insert(10, replacement.into());
 
         drop(future);
 
@@ -998,7 +1204,12 @@ mod tests {
         assert!(matches!(Pin::new(&mut receiver).poll(&mut context), Poll::Pending));
 
         complete_client_operation(&client, |_| {
-            Ok(Some(response_conversion_completion(sender, (), |response| response)))
+            Ok(Some(response_conversion_completion(
+                sender,
+                (),
+                test_response_info(1),
+                |response| response,
+            )))
         })
         .unwrap();
 
@@ -1013,14 +1224,36 @@ mod tests {
         let client_for_conversion = Arc::clone(&client);
 
         complete_client_operation(&*client, |_| {
-            Ok(Some(response_conversion_completion(sender, 41, move |value| {
-                assert!(client_for_conversion.try_lock().is_some());
-                value + 1
-            })))
+            Ok(Some(response_conversion_completion(
+                sender,
+                41,
+                test_response_info(1),
+                move |value| {
+                    assert!(client_for_conversion.try_lock().is_some());
+                    value + 1
+                },
+            )))
         })
         .unwrap();
 
         assert_eq!(receiver.try_recv().unwrap(), Some(42));
+    }
+
+    #[test]
+    fn client_response_metadata_is_delivered_only_when_requested() {
+        let info = ServiceResponseInfo {
+            source_timestamp: 41,
+            received_timestamp: 42,
+            writer_guid: [7; 16],
+            sequence_number: 43,
+        };
+        let (sender, mut receiver) = oneshot::channel();
+
+        response_conversion_completion(ClientResponseSender::WithInfo(sender), 40, info, |value| {
+            value + 2
+        })();
+
+        assert_eq!(receiver.try_recv().unwrap(), Some(ServiceResponse { response: 42, info }));
     }
 
     #[test]

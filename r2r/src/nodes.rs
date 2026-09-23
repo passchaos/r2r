@@ -9302,6 +9302,101 @@ mod tests {
     }
 
     #[test]
+    fn service_clients_can_return_response_metadata() {
+        use crate::example_interfaces::srv::AddTwoInts;
+
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "client_response_info_test", "").unwrap();
+        let service_name = format!("/client_response_info_{}", uuid::Uuid::new_v4().simple());
+        let mut service = node
+            .create_service::<AddTwoInts::Service>(&service_name, QosProfile::default())
+            .unwrap();
+        let client = node
+            .create_client::<AddTwoInts::Service>(&service_name, QosProfile::default())
+            .unwrap();
+        let untyped_client = node
+            .create_client_untyped(
+                &service_name,
+                "example_interfaces/srv/AddTwoInts",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let available = Node::is_available(&client).unwrap();
+        node.spin_until_future_complete(available, Duration::from_secs(1))
+            .unwrap();
+        let available = Node::is_available(&untyped_client).unwrap();
+        node.spin_until_future_complete(available, Duration::from_secs(1))
+            .unwrap();
+
+        let response = client
+            .request_with_info_with_timeout(
+                &mut node,
+                &AddTwoInts::Request { a: 20, b: 22 },
+                Duration::from_secs(1),
+            )
+            .unwrap();
+        let mut response = Box::pin(response);
+        let (response, request_info) = 'typed_response: loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(request) = service.next().now_or_never().flatten() {
+                let request_info = request.request_info();
+                request.respond(AddTwoInts::Response { sum: 42 }).unwrap();
+                loop {
+                    node.try_spin_once(Duration::from_millis(10)).unwrap();
+                    if let Some(response) = response.as_mut().now_or_never() {
+                        break 'typed_response (response.unwrap(), request_info);
+                    }
+                }
+            }
+        };
+        assert_eq!(response.response.sum, 42);
+        assert_eq!(response.info.sequence_number, request_info.sequence_number);
+        assert!(response.info.writer_guid.iter().any(|byte| *byte != 0));
+        assert!(response.info.source_timestamp >= 0);
+        assert!(response.info.received_timestamp >= 0);
+
+        let legacy_response = client.request(&AddTwoInts::Request { a: 1, b: 2 }).unwrap();
+        let mut legacy_response = Box::pin(legacy_response);
+        let legacy_response = loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(request) = service.next().now_or_never().flatten() {
+                request.respond(AddTwoInts::Response { sum: 3 }).unwrap();
+            }
+            if let Some(response) = legacy_response.as_mut().now_or_never() {
+                break response.unwrap();
+            }
+        };
+        assert_eq!(legacy_response.sum, 3);
+
+        let response = untyped_client
+            .request_with_info_with_timeout(
+                &mut node,
+                serde_json::json!({ "a": 19, "b": 23 }),
+                Duration::from_secs(1),
+            )
+            .unwrap();
+        let mut response = Box::pin(response);
+        let (response, request_info) = 'untyped_response: loop {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if let Some(request) = service.next().now_or_never().flatten() {
+                let request_info = request.request_info();
+                request.respond(AddTwoInts::Response { sum: 42 }).unwrap();
+                loop {
+                    node.try_spin_once(Duration::from_millis(10)).unwrap();
+                    if let Some(response) = response.as_mut().now_or_never() {
+                        break 'untyped_response (response.unwrap(), request_info);
+                    }
+                }
+            }
+        };
+        assert_eq!(response.response.unwrap(), serde_json::json!({ "sum": 42 }));
+        assert_eq!(response.info.sequence_number, request_info.sequence_number);
+        assert!(response.info.writer_guid.iter().any(|byte| *byte != 0));
+        assert!(response.info.source_timestamp >= 0);
+        assert!(response.info.received_timestamp >= 0);
+    }
+
+    #[test]
     fn untyped_service_servers_interoperate_with_typed_clients() {
         use crate::example_interfaces::srv::AddTwoInts;
 
