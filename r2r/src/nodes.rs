@@ -9568,6 +9568,14 @@ mod tests {
             Some(&vec!["example_interfaces/srv/AddTwoInts".to_owned()])
         );
         assert!(!publishers.contains_key("/graph_target_input"));
+        assert!(matches!(
+            observer.get_publisher_names_and_types_by_node(
+                "missing_graph_target",
+                "/graph_ns",
+                false,
+            ),
+            Err(Error::RCL_RET_NODE_NAME_NON_EXISTENT)
+        ));
     }
 
     #[test]

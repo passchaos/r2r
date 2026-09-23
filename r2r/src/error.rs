@@ -44,6 +44,8 @@ pub enum Error {
     RCL_RET_NODE_INVALID_NAME,
     #[error("RCL_RET_NODE_INVALID_NAMESPACE")]
     RCL_RET_NODE_INVALID_NAMESPACE,
+    #[error("RCL_RET_NODE_NAME_NON_EXISTENT")]
+    RCL_RET_NODE_NAME_NON_EXISTENT,
     #[error("RCL_RET_PUBLISHER_INVALID")]
     RCL_RET_PUBLISHER_INVALID,
     #[error("RCL_RET_SUBSCRIPTION_INVALID")]
@@ -206,6 +208,7 @@ impl Error {
             _ if e == RCL_RET_NODE_INVALID => Error::RCL_RET_NODE_INVALID,
             _ if e == RCL_RET_NODE_INVALID_NAME => Error::RCL_RET_NODE_INVALID_NAME,
             _ if e == RCL_RET_NODE_INVALID_NAMESPACE => Error::RCL_RET_NODE_INVALID_NAMESPACE,
+            _ if e == RCL_RET_NODE_NAME_NON_EXISTENT => Error::RCL_RET_NODE_NAME_NON_EXISTENT,
             _ if e == RCL_RET_PUBLISHER_INVALID => Error::RCL_RET_PUBLISHER_INVALID,
             _ if e == RCL_RET_SUBSCRIPTION_INVALID => Error::RCL_RET_SUBSCRIPTION_INVALID,
             _ if e == RCL_RET_SUBSCRIPTION_TAKE_FAILED => Error::RCL_RET_SUBSCRIPTION_TAKE_FAILED,
@@ -282,5 +285,13 @@ mod tests {
     #[test]
     fn preserves_unknown_rcl_error_codes() {
         assert!(matches!(Error::from_rcl_error(-12345), Error::UnknownRclError(-12345)));
+    }
+
+    #[test]
+    fn maps_missing_graph_node_error() {
+        assert!(matches!(
+            Error::from_rcl_error(RCL_RET_NODE_NAME_NON_EXISTENT as i32),
+            Error::RCL_RET_NODE_NAME_NON_EXISTENT
+        ));
     }
 }
