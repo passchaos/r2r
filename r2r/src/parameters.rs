@@ -546,23 +546,24 @@ pub(crate) fn validate_parameter_update(
 
     if let (ParameterValue::Integer(value), Some(range)) = (value, descriptor.integer_range.first())
     {
-        let min = range.from_value.min(range.to_value);
-        let max = range.from_value.max(range.to_value);
-        if *value != min && *value != max {
-            if *value < min || *value > max {
+        if *value != range.from_value && *value != range.to_value {
+            if *value < range.from_value || *value > range.to_value {
                 return Err(Error::ParameterConstraintViolation {
                     name: name.to_owned(),
-                    reason: format!("value {value} is outside [{min}, {max}]"),
+                    reason: format!(
+                        "value {value} is outside [{}, {}]",
+                        range.from_value, range.to_value
+                    ),
                 });
             }
             if range.step != 0
-                && (i128::from(*value) - i128::from(min)) % i128::from(range.step) != 0
+                && (i128::from(*value) - i128::from(range.from_value)) % i128::from(range.step) != 0
             {
                 return Err(Error::ParameterConstraintViolation {
                     name: name.to_owned(),
                     reason: format!(
-                        "value {value} does not align with step {} from {min}",
-                        range.step
+                        "value {value} does not align with step {} from {}",
+                        range.step, range.from_value
                     ),
                 });
             }
@@ -572,25 +573,26 @@ pub(crate) fn validate_parameter_update(
     if let (ParameterValue::Double(value), Some(range)) =
         (value, descriptor.floating_point_range.first())
     {
-        let min = range.from_value.min(range.to_value);
-        let max = range.from_value.max(range.to_value);
-        if !floats_close(*value, min) && !floats_close(*value, max) {
-            if !value.is_finite() || *value < min || *value > max {
+        if !floats_close(*value, range.from_value) && !floats_close(*value, range.to_value) {
+            if !value.is_finite() || *value < range.from_value || *value > range.to_value {
                 return Err(Error::ParameterConstraintViolation {
                     name: name.to_owned(),
-                    reason: format!("value {value} is outside [{min}, {max}]"),
+                    reason: format!(
+                        "value {value} is outside [{}, {}]",
+                        range.from_value, range.to_value
+                    ),
                 });
             }
             let step = range.step.abs();
             if step != 0.0 {
-                let steps = ((*value - min) / step).round();
-                let nearest = min + steps * step;
+                let steps = ((*value - range.from_value) / step).round();
+                let nearest = range.from_value + steps * step;
                 if !floats_close(*value, nearest) {
                     return Err(Error::ParameterConstraintViolation {
                         name: name.to_owned(),
                         reason: format!(
-                            "value {value} does not align with step {} from {min}",
-                            range.step
+                            "value {value} does not align with step {} from {}",
+                            range.step, range.from_value
                         ),
                     });
                 }
@@ -1019,8 +1021,8 @@ mod tests {
     fn integer_descriptor_accepts_endpoints_and_exact_steps() {
         let mut descriptor = descriptor_for(&ParameterValue::Integer(0));
         descriptor.integer_range = vec![IntegerRange {
-            from_value: 10,
-            to_value: -10,
+            from_value: -10,
+            to_value: 10,
             step: 4,
         }];
 
@@ -1045,6 +1047,49 @@ mod tests {
         };
         validate_parameter_update("value", &ParameterValue::Integer(i64::MAX), &descriptor, true)
             .unwrap();
+    }
+
+    #[test]
+    fn reversed_descriptor_ranges_accept_only_endpoints() {
+        let mut descriptor = descriptor_for(&ParameterValue::Integer(0));
+        descriptor.integer_range = vec![IntegerRange {
+            from_value: 10,
+            to_value: -10,
+            step: 4,
+        }];
+        for value in [10, -10] {
+            validate_parameter_update("value", &ParameterValue::Integer(value), &descriptor, true)
+                .unwrap();
+        }
+        for value in [-6, 0, 6] {
+            assert!(validate_parameter_update(
+                "value",
+                &ParameterValue::Integer(value),
+                &descriptor,
+                true,
+            )
+            .is_err());
+        }
+
+        descriptor = descriptor_for(&ParameterValue::Double(0.0));
+        descriptor.floating_point_range = vec![FloatingPointRange {
+            from_value: 1.0,
+            to_value: -1.0,
+            step: 0.5,
+        }];
+        for value in [1.0, -1.0] {
+            validate_parameter_update("value", &ParameterValue::Double(value), &descriptor, true)
+                .unwrap();
+        }
+        for value in [-0.5, 0.0, 0.5] {
+            assert!(validate_parameter_update(
+                "value",
+                &ParameterValue::Double(value),
+                &descriptor,
+                true,
+            )
+            .is_err());
+        }
     }
 
     #[test]
