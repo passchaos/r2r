@@ -2660,6 +2660,24 @@ impl Node {
 
     /// Returns parameters below `prefix`, keyed by their name relative to the prefix.
     pub fn get_parameters_by_prefix(&self, prefix: &str) -> IndexMap<String, ParameterValue> {
+        self.get_parameters_by_prefix_impl(prefix, false)
+            .expect("permissive prefix reads map provider failures to unset values")
+    }
+
+    /// Returns parameters below `prefix`, propagating errors from a derived parameter provider.
+    ///
+    /// Keys are relative to `prefix`, as in [`Node::get_parameters_by_prefix`]. This method is
+    /// useful when treating a provider read failure as [`ParameterValue::NotSet`] would hide a
+    /// stale or unavailable backing value.
+    pub fn try_get_parameters_by_prefix(
+        &self, prefix: &str,
+    ) -> Result<IndexMap<String, ParameterValue>> {
+        self.get_parameters_by_prefix_impl(prefix, true)
+    }
+
+    fn get_parameters_by_prefix_impl(
+        &self, prefix: &str, propagate_provider_errors: bool,
+    ) -> Result<IndexMap<String, ParameterValue>> {
         let qualified_prefix = (!prefix.is_empty()).then(|| format!("{prefix}."));
         let names = self
             .params
@@ -2672,13 +2690,19 @@ impl Node {
             })
             .cloned()
             .collect::<Vec<_>>();
-        let values = read_parameter_values(&names, &self.params, self.parameter_provider.as_ref());
+        let values = read_parameter_values_impl(
+            &names,
+            &self.params,
+            self.parameter_provider.as_ref(),
+            true,
+            propagate_provider_errors,
+        )?;
         let trim = qualified_prefix.as_ref().map_or(0, String::len);
-        names
+        Ok(names
             .into_iter()
             .map(|name| name[trim..].to_owned())
             .zip(values)
-            .collect()
+            .collect())
     }
 
     /// Lists declared parameter names and namespaces filtered by prefixes and relative depth.
@@ -7473,9 +7497,26 @@ mod tests {
             node.get_parameter_or("provider_value", 99_i64),
             Err(Error::ParameterValueConv { name, .. }) if name == "provider_value"
         ));
+        assert_eq!(
+            node.get_parameters_by_prefix("").get("provider_value"),
+            Some(&ParameterValue::NotSet)
+        );
+        assert!(matches!(
+            node.try_get_parameters_by_prefix(""),
+            Err(Error::ParameterValueConv { name, .. }) if name == "provider_value"
+        ));
         assert_eq!(node.get_parameter_or("missing", 99_i64).unwrap(), 99);
         assert_eq!(node.get_parameters(["provider_value"]), [ParameterValue::NotSet]);
+
+        fail_reads.store(false, std::sync::atomic::Ordering::Release);
+        assert_eq!(
+            node.try_get_parameters_by_prefix("")
+                .unwrap()
+                .get("provider_value"),
+            Some(&ParameterValue::Integer(7))
+        );
         assert_eq!(node.params.lock()["provider_value"].value, ParameterValue::Integer(7));
+        fail_reads.store(true, std::sync::atomic::Ordering::Release);
 
         let response = client
             .request(&rcl_interfaces::srv::GetParameters::Request {
