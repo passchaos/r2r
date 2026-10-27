@@ -6,6 +6,8 @@ use std::{
     thread,
 };
 
+mod pubsub;
+
 fn node(name: &str) -> Node {
     Node::create(Context::create().unwrap(), name, "").unwrap()
 }

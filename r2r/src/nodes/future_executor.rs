@@ -16,7 +16,8 @@ use std::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FutureExecutionOptions {
     /// Periodic fallback for futures that do not notify their waker.
-    /// `None` waits for ROS events or future notifications until the overall timeout.
+    /// `None` disables this generic fallback. ROS events/future notifications drive execution;
+    /// pending middleware ACK queries still use the node's bounded native-query interval.
     pub poll_interval: Option<Duration>,
 }
 impl Default for FutureExecutionOptions {
@@ -30,6 +31,7 @@ impl FutureExecutionOptions {
     /// Selects notification-driven execution without periodic polling.
     /// External futures must wake when progress is possible. ROS availability, services,
     /// actions, subscriptions, timers and graph waiters are driven by this node's wait set.
+    /// Reliable ACK queries are rechecked only while their observers remain pending.
     pub fn wake_driven() -> Self {
         Self {
             poll_interval: None,
@@ -50,6 +52,8 @@ pub(super) struct FutureGuard {
     waiting: AtomicBool,
     #[cfg(test)]
     wait_return: AtomicI32,
+    #[cfg(test)]
+    wait_timeout_ns: std::sync::atomic::AtomicI64,
     #[cfg(test)]
     triggers: std::sync::atomic::AtomicUsize,
 }
@@ -84,6 +88,8 @@ impl FutureGuard {
             #[cfg(test)]
             wait_return: AtomicI32::new(i32::MIN),
             #[cfg(test)]
+            wait_timeout_ns: std::sync::atomic::AtomicI64::new(-1),
+            #[cfg(test)]
             triggers: std::sync::atomic::AtomicUsize::new(0),
         });
         {
@@ -99,7 +105,8 @@ impl FutureGuard {
         self.handle.get()
     }
     #[cfg(test)]
-    pub(super) fn before_wait(&self) {
+    pub(super) fn before_wait(&self, timeout_ns: i64) {
+        self.wait_timeout_ns.store(timeout_ns, Ordering::Release);
         self.waiting.store(true, Ordering::Release);
     }
     #[cfg(test)]

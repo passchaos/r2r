@@ -4482,11 +4482,15 @@ impl Node {
             self.publishers_with_active_waits.extend(active.drain(..));
         }
         let publishers_with_active_waits = std::mem::take(&mut self.publishers_with_active_waits);
+        let mut ack_query_pending = false;
+        let mut publisher_matching_pending = false;
         for id in publishers_with_active_waits {
             let Some(index) = self.publisher_indexes.get(&id).copied() else {
                 continue;
             };
             if self.pubs[index].poll_waits() {
+                ack_query_pending |= self.pubs[index].has_pending_ack_waits();
+                publisher_matching_pending |= self.pubs[index].has_pending_matching_waits();
                 self.publishers_with_active_waits.insert(id);
             }
         }
@@ -4509,6 +4513,11 @@ impl Node {
         let timeout_nanos = duration_to_rcl_nanos(timeout)?;
         let (timeout, timeout_nanos) = if local_action_progress {
             (Duration::ZERO, 0)
+        } else if ack_query_pending {
+            // RCL exposes acknowledgements as a query rather than a wait-set event. Only
+            // pending ACK observers need this bounded fallback, including wake-driven runs.
+            let wait = timeout.min(Duration::from_millis(10));
+            (wait, duration_to_rcl_nanos(wait)?)
         } else {
             (timeout, timeout_nanos)
         };
@@ -4526,7 +4535,9 @@ impl Node {
             .cloned();
         let graph_interested = !self.graph_change_waiters.is_empty()
             || !self.clients_with_active_availability.is_empty()
-            || !self.action_clients_with_active_availability.is_empty();
+            || !self.action_clients_with_active_availability.is_empty()
+            || publisher_matching_pending
+            || !self.subscriptions_with_active_waits.is_empty();
         let capacities = WaitSetCapacities {
             subscriptions: self.subscribers.len() + self.action_wait_set_capacities.subscriptions,
             guard_conditions: self.action_wait_set_capacities.guard_conditions
@@ -4614,7 +4625,7 @@ impl Node {
 
         #[cfg(test)]
         if let Some(guard) = &future_guard {
-            guard.before_wait();
+            guard.before_wait(timeout_nanos);
         }
         let ret = unsafe { rcl_wait(ws, timeout_nanos) };
         // ROS callbacks delivered after this wait already lead to a future poll. Only external
@@ -6139,6 +6150,8 @@ fn convert_info_array_to_vec(
 
 #[cfg(test)]
 mod tests {
+    mod graph;
+
     use super::*;
     use crate::{ActionGoalOptions, GoalStatus};
     use futures::{executor::LocalPool, task::LocalSpawnExt};
@@ -8733,58 +8746,6 @@ mod tests {
     }
 
     #[test]
-    fn discovers_topic_names_and_their_types() {
-        let ctx = Context::create().unwrap();
-        let mut node = Node::create(ctx, "topic_discovery_test", "").unwrap();
-        let topic = format!("/r2r_discovery_{}", uuid::Uuid::new_v4().simple());
-        let _publisher = node
-            .create_publisher::<crate::std_msgs::msg::String>(&topic, QosProfile::default())
-            .unwrap();
-        let _subscriber = node
-            .subscribe::<crate::std_msgs::msg::String>(&topic, QosProfile::default().best_effort())
-            .unwrap();
-
-        let topics = node.get_topic_names_and_types().unwrap();
-        let raw_topics = node.get_raw_topic_names_and_types().unwrap();
-        let publishers = node.get_publishers_info_by_topic(&topic, false).unwrap();
-        let subscriptions = node.get_subscriptions_info_by_topic(&topic, false).unwrap();
-
-        assert_eq!(topics.get(&topic), Some(&vec!["std_msgs/msg/String".to_owned()]));
-        assert_eq!(
-            raw_topics.get(&format!("rt{}", topic)),
-            Some(&vec!["std_msgs::msg::dds_::String_".to_owned()])
-        );
-        assert!(publishers.iter().any(|publisher| {
-            publisher.topic_type == "std_msgs/msg/String"
-                && publisher.endpoint_type == TopicEndpointType::Publisher
-        }));
-        assert!(subscriptions.iter().any(|subscription| {
-            subscription.topic_type == "std_msgs/msg/String"
-                && subscription.endpoint_type == TopicEndpointType::Subscription
-                && subscription.qos_profile.reliability
-                    == QosProfile::default().best_effort().reliability
-        }));
-        #[cfg(not(r2r__ros__distro__humble))]
-        {
-            let publisher_hash = publishers
-                .iter()
-                .find(|endpoint| endpoint.topic_type == "std_msgs/msg/String")
-                .and_then(|endpoint| endpoint.topic_type_hash);
-            let subscription_hash = subscriptions
-                .iter()
-                .find(|endpoint| endpoint.topic_type == "std_msgs/msg/String")
-                .and_then(|endpoint| endpoint.topic_type_hash);
-            assert_eq!(publisher_hash, subscription_hash);
-            if let Some(hash) = publisher_hash {
-                if !hash.is_unset() {
-                    assert!(hash.to_string().starts_with("RIHS"));
-                    assert_eq!(hash.to_string().len(), 71);
-                }
-            }
-        }
-    }
-
-    #[test]
     fn publisher_gids_correlate_received_messages() {
         let context = Context::create().unwrap();
         let mut node = Node::create(context, "publisher_gid_test", "").unwrap();
@@ -8875,90 +8836,6 @@ mod tests {
             let output = AllocatedCString { output, allocator };
             assert_eq!(c_string_from_ptr(output.output).unwrap(), hash.to_string());
         }
-    }
-
-    #[test]
-    fn discovers_service_names_and_their_types() {
-        let ctx = Context::create().unwrap();
-        let mut node = Node::create(ctx, "service_discovery_test", "").unwrap();
-        let service_name = format!("/r2r_service_discovery_{}", uuid::Uuid::new_v4().simple());
-        let _requests = node
-            .create_service::<crate::example_interfaces::srv::AddTwoInts::Service>(
-                &service_name,
-                QosProfile::default(),
-            )
-            .unwrap();
-
-        let services = node.get_service_names_and_types().unwrap();
-
-        assert_eq!(
-            services.get(&service_name),
-            Some(&vec!["example_interfaces/srv/AddTwoInts".to_owned()])
-        );
-    }
-
-    #[test]
-    fn counts_topic_and_service_graph_entities() {
-        use crate::example_interfaces::srv::AddTwoInts;
-
-        let context = Context::create().unwrap();
-        let mut node = Node::create(context, "graph_count_test", "").unwrap();
-        let topic = format!("/graph_count_topic_{}", uuid::Uuid::new_v4().simple());
-        let service = format!("/graph_count_service_{}", uuid::Uuid::new_v4().simple());
-
-        assert_eq!(node.count_publishers(&topic).unwrap(), 0);
-        assert_eq!(node.count_subscribers(&topic).unwrap(), 0);
-        #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
-        {
-            assert_eq!(node.count_clients(&service).unwrap(), 0);
-            assert_eq!(node.count_services(&service).unwrap(), 0);
-        }
-
-        let _publisher = node
-            .create_publisher::<crate::std_msgs::msg::String>(&topic, QosProfile::default())
-            .unwrap();
-        let _subscription = node
-            .subscribe::<crate::std_msgs::msg::String>(&topic, QosProfile::default())
-            .unwrap();
-        let _client = node
-            .create_client::<AddTwoInts::Service>(&service, QosProfile::default())
-            .unwrap();
-        let _requests = node
-            .create_service::<AddTwoInts::Service>(&service, QosProfile::default())
-            .unwrap();
-
-        // Graph caches can update asynchronously even for endpoints on the same node.
-        // Register before checking counts so an update between checking and waiting is kept.
-        let started = Instant::now();
-        loop {
-            let changed = node.wait_for_graph_change();
-            let present = node.count_publishers(&topic).unwrap() >= 1
-                && node.count_subscribers(&topic).unwrap() >= 1;
-            #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
-            let present = present
-                && node.count_clients(&service).unwrap() >= 1
-                && node.count_services(&service).unwrap() >= 1;
-            if present {
-                drop(changed);
-                break;
-            }
-            let remaining = Duration::from_secs(2).saturating_sub(started.elapsed());
-            assert!(!remaining.is_zero(), "created endpoints are missing from the graph cache");
-            node.spin_until_future_complete(changed, remaining)
-                .expect("created endpoints did not become visible in the graph cache");
-        }
-        assert!(node.count_publishers(&topic).unwrap() >= 1);
-        assert!(node.count_subscribers(&topic).unwrap() >= 1);
-        #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
-        {
-            assert!(node.count_clients(&service).unwrap() >= 1);
-            assert!(node.count_services(&service).unwrap() >= 1);
-        }
-
-        assert!(matches!(
-            node.count_publishers("bad\0topic"),
-            Err(Error::RCL_RET_INVALID_ARGUMENT)
-        ));
     }
 
     #[test]

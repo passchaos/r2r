@@ -291,6 +291,8 @@ pub(crate) struct Publisher_ {
     active_wait_publishers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
     #[cfg(test)]
     pub(crate) wait_poll_count: AtomicUsize,
+    #[cfg(test)]
+    pub(crate) ack_query_override: std::sync::atomic::AtomicI32,
 
     poll_subscriber_channels: Mutex<Waiters<()>>,
     poll_ack_channels: Mutex<Waiters<Result<()>>>,
@@ -403,6 +405,8 @@ mod waiter_tests {
             })),
             active_wait_publishers: Arc::new(Mutex::new(VecDeque::new())),
             wait_poll_count: AtomicUsize::new(0),
+            #[cfg(test)]
+            ack_query_override: std::sync::atomic::AtomicI32::new(i32::MIN),
             poll_subscriber_channels: Mutex::new(Waiters::default()),
             poll_ack_channels: Mutex::new(Waiters::default()),
         });
@@ -445,6 +449,8 @@ mod waiter_tests {
             })),
             active_wait_publishers: Arc::clone(&active),
             wait_poll_count: AtomicUsize::new(0),
+            #[cfg(test)]
+            ack_query_override: std::sync::atomic::AtomicI32::new(i32::MIN),
             poll_subscriber_channels: Mutex::new(Waiters::default()),
             poll_ack_channels: Mutex::new(Waiters::default()),
         };
@@ -479,6 +485,8 @@ mod waiter_tests {
             })),
             active_wait_publishers: Arc::new(Mutex::new(VecDeque::new())),
             wait_poll_count: AtomicUsize::new(0),
+            #[cfg(test)]
+            ack_query_override: std::sync::atomic::AtomicI32::new(i32::MIN),
             poll_subscriber_channels: Mutex::new(Waiters::default()),
             poll_ack_channels: Mutex::new(Waiters::default()),
         };
@@ -870,6 +878,12 @@ impl Publisher_ {
             return;
         };
 
+        #[cfg(test)]
+        let result = match self.ack_query_override.load(Ordering::Acquire) {
+            i32::MIN => self.wait_for_all_acked(Duration::ZERO),
+            ret => check_publisher_ret(ret),
+        };
+        #[cfg(not(test))]
         let result = self.wait_for_all_acked(Duration::ZERO);
         if matches!(result, Err(Error::RCL_RET_TIMEOUT)) {
             return;
@@ -883,6 +897,13 @@ impl Publisher_ {
             return true;
         }
         has_active_waiters(&self.poll_ack_channels)
+    }
+
+    pub(crate) fn has_pending_ack_waits(&self) -> bool {
+        has_active_waiters(&self.poll_ack_channels)
+    }
+    pub(crate) fn has_pending_matching_waits(&self) -> bool {
+        has_active_waiters(&self.poll_subscriber_channels)
     }
 
     pub(crate) fn poll_waits(&self) -> bool {
@@ -1150,6 +1171,8 @@ pub fn create_publisher_helper(
             active_wait_publishers,
             #[cfg(test)]
             wait_poll_count: AtomicUsize::new(0),
+            #[cfg(test)]
+            ack_query_override: std::sync::atomic::AtomicI32::new(i32::MIN),
             poll_subscriber_channels: Mutex::new(Waiters::default()),
             poll_ack_channels: Mutex::new(Waiters::default()),
         })

@@ -39,8 +39,17 @@ Filtered tests must execute nonzero relevant cases. The new typed/untyped action
 both reverse indexes to be empty after out-of-order response/request cleanup. Existing entity
 tests cover registration, targeted destruction, swap-removal, index rebuilding and automatic
 cleanup. Parameter tests verify repeated operations after guard destruction and provider-backed
-reads. Full optimized Jazzy library validation now passes 419 tests, with two manual benchmarks ignored.
+reads. Full optimized Jazzy library validation now passes 427 tests, with two manual benchmarks ignored.
 Humble and Kilted each pass nine optimized index cases and the parameter-transaction gate.
+
+The [future-execution pub/sub boundary](FUTURE_EXECUTION.md) adds eight cases for graph-driven
+matching and bounded pending ACK queries. All 18 executor cases pass under both Jazzy RMWs and
+native Humble/Kilted; the complete payload/timer/ACK example runs in each environment. Release
+validation exposed two discovery tests querying local graph caches before their asynchronous
+update. The [graph tests](../r2r/src/nodes/tests/graph.rs) now register a graph waiter before
+checking visibility and use a two-second overall deadline. Exact type, endpoint, QoS and count
+assertions remain after discovery. These three cases plus graph broadcast/cancellation pass
+under both Jazzy RMWs and native Humble/Kilted.
 
 The [end-to-end roundtrip harness](../tools/bench_ros/TRANSPORT.md) exercises native DDS transport
 through optimized application binaries, including both Rust/C++ directions. This boundary is

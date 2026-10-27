@@ -14,11 +14,11 @@ Supported ROS 2 distributions start at **Humble**: Humble, Iron, Jazzy, Kilted, 
 
 ## Current evidence and gaps
 
-This audit is based on the source tree and local checks on 2026-10-27. It is not a claim of C++ parity or performance leadership.
+This audit is based on the source tree and local checks through 2026-10-28. It is not a claim of C++ parity or performance leadership.
 
 | Area | Existing foundation | Remaining work |
 | --- | --- | --- |
-| Async application APIs | Futures and streams, service availability/timeouts, action APIs and typed parameter clients. [Native future execution](FUTURE_EXECUTION.md) bridges external Rust wakes into the ROS wait, with reusable storage, configurable periodic/notification-driven waiting and shutdown handling. Runnable `service_pipeline` and `future_execution` examples compose complete workflows. | Compare broader application workflows with rclcpp; add multi-node executor/runtime-reactor integration, concurrency scaling and more complete cancellation/shutdown examples. |
+| Async application APIs | Futures and streams, service availability/timeouts, action APIs and typed parameter clients. [Native future execution](FUTURE_EXECUTION.md) bridges external Rust wakes into the ROS wait, with reusable storage, configurable periodic/notification-driven waiting and shutdown handling. Pub/sub matching uses graph notifications; pending reliable ACK observers use a bounded native query. Runnable `service_pipeline`, `future_execution` and `pubsub_workflow` examples compose complete workflows. | Compare broader application workflows with rclcpp; add multi-node executor/runtime-reactor integration, concurrency scaling and more complete cancellation/shutdown examples. |
 | Messages and native storage | Typed, untyped, raw and loaned message paths; fallible native copies; capacity reuse for primitive and nested-message sequences and string fields. `MessageSerializer<T>` reuses native fields and exposes borrowed wire bytes, with full codec and lifecycle oracles. | Allocation and copy accounting across complete transport paths; extend reuse to string/wstring sequences and investigate middleware output-buffer resizing; keep allocation-failure and capacity invariants explicit. |
 | Service events | Iron and newer service/action event bindings; empty and populated native/CDR/JSON roundtrips; bounded request/response rejection; typed/untyped client and server configuration. Four integration tests pass on local Jazzy with both CycloneDDS and Fast DDS, covering mode transitions, simulated timestamps, native identities, ownership, and retained QoS history. | Extend the local Jazzy RMW evidence to the other supported modern distributions and external rclcpp endpoints; maintain the documented middleware-dependent event identity encoding. |
 | Graph, QoS, parameters, clocks | Graph queries, endpoint identities and QoS, parameter services/events, managed ROS clocks and jump callbacks. | Audit remaining application-facing RCL and rclcpp features and test real middleware behavior per distribution. |
@@ -77,6 +77,14 @@ records process-wide allocation entry points, requested bytes, CPU/context switc
 application polling/wakes under both RMWs. Fresh endpoint cohorts retain full protocol oracles
 and native settings. A native status-iterator candidate was removed after a short-tail failure;
 same-binary A/A also fails the 5% limit, so improved tail precision remains a prerequisite.
+
+The [pub/sub future workflow](FUTURE_EXECUTION.md) closes two notification-driven execution
+gaps: graph changes now wake publisher/subscription matching, and pending ACK queries progress
+even without a native event. Only live ACK observers require the 10 ms query interval, with
+no extra timer/thread and cleanup after completion or cancellation. Eight focused cases pass
+under Jazzy/CycloneDDS, Jazzy/Fast DDS, Humble and Kilted, and the complete match/timer/payload/ACK
+example runs in all four environments. This is a correctness and workflow improvement; the
+existing external-future A/B does not measure these ROS endpoint paths.
 
 ## Reproducible local gates
 
