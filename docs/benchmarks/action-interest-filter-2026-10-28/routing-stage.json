@@ -1,0 +1,891 @@
+{
+  "metadata": {
+    "completed_utc": "2026-10-27T17:52:04.418584+00:00",
+    "cpu": 24,
+    "ros_distro": "jazzy",
+    "rustc": "rustc 1.85.0 (4d91de4e4 2025-02-17)",
+    "binary_sha256": "6207632c5d2b3c6721dcf4491393c7592c8e3e9a56430cef20f365fe2f4b0d7e",
+    "source_sha256": "d6983c1cf142a6731db9d26b6311c15cfdf0a1abb211137ef19feecd758876f1",
+    "repetitions": 5,
+    "boundary": "selection plus public-goal/feedback observer map routing; map construction and native decode excluded; not full status application",
+    "order": "hash maps then interest filter within each repetition; stage evidence, not independent-binary A/B",
+    "candidate": "batch dispatch before status iteration"
+  },
+  "records": [
+    {
+      "elapsed_ns": 141467799,
+      "iterations": 5000000,
+      "mode": "hash_maps",
+      "ns_per_op": 28.2935598,
+      "observers": 1,
+      "statuses": 1,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 152784154,
+      "iterations": 5000000,
+      "mode": "status_interests",
+      "ns_per_op": 30.5568308,
+      "observers": 1,
+      "statuses": 1,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 131191738,
+      "iterations": 5000000,
+      "mode": "hash_maps",
+      "ns_per_op": 26.2383476,
+      "observers": 1,
+      "statuses": 1,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 142351322,
+      "iterations": 5000000,
+      "mode": "status_interests",
+      "ns_per_op": 28.4702644,
+      "observers": 1,
+      "statuses": 1,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 142854346,
+      "iterations": 5000000,
+      "mode": "hash_maps",
+      "ns_per_op": 28.5708692,
+      "observers": 1,
+      "statuses": 1,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 153662366,
+      "iterations": 5000000,
+      "mode": "status_interests",
+      "ns_per_op": 30.7324732,
+      "observers": 1,
+      "statuses": 1,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 131058597,
+      "iterations": 5000000,
+      "mode": "hash_maps",
+      "ns_per_op": 26.2117194,
+      "observers": 1,
+      "statuses": 1,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 142596145,
+      "iterations": 5000000,
+      "mode": "status_interests",
+      "ns_per_op": 28.519229,
+      "observers": 1,
+      "statuses": 1,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 131256374,
+      "iterations": 5000000,
+      "mode": "hash_maps",
+      "ns_per_op": 26.2512748,
+      "observers": 1,
+      "statuses": 1,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 142491688,
+      "iterations": 5000000,
+      "mode": "status_interests",
+      "ns_per_op": 28.4983376,
+      "observers": 1,
+      "statuses": 1,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 181327296,
+      "iterations": 500000,
+      "mode": "hash_maps",
+      "ns_per_op": 362.654592,
+      "observers": 1,
+      "statuses": 16,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 25561817,
+      "iterations": 500000,
+      "mode": "status_interests",
+      "ns_per_op": 51.123634,
+      "observers": 1,
+      "statuses": 16,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 195179770,
+      "iterations": 500000,
+      "mode": "hash_maps",
+      "ns_per_op": 390.35954,
+      "observers": 1,
+      "statuses": 16,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 26221830,
+      "iterations": 500000,
+      "mode": "status_interests",
+      "ns_per_op": 52.44366,
+      "observers": 1,
+      "statuses": 16,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 195072904,
+      "iterations": 500000,
+      "mode": "hash_maps",
+      "ns_per_op": 390.145808,
+      "observers": 1,
+      "statuses": 16,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 25976912,
+      "iterations": 500000,
+      "mode": "status_interests",
+      "ns_per_op": 51.953824,
+      "observers": 1,
+      "statuses": 16,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 199948806,
+      "iterations": 500000,
+      "mode": "hash_maps",
+      "ns_per_op": 399.897612,
+      "observers": 1,
+      "statuses": 16,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 25432893,
+      "iterations": 500000,
+      "mode": "status_interests",
+      "ns_per_op": 50.865786,
+      "observers": 1,
+      "statuses": 16,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 176914241,
+      "iterations": 500000,
+      "mode": "hash_maps",
+      "ns_per_op": 353.828482,
+      "observers": 1,
+      "statuses": 16,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 25830134,
+      "iterations": 500000,
+      "mode": "status_interests",
+      "ns_per_op": 51.660268,
+      "observers": 1,
+      "statuses": 16,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 180266328,
+      "iterations": 500000,
+      "mode": "hash_maps",
+      "ns_per_op": 360.532656,
+      "observers": 4,
+      "statuses": 16,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 85345782,
+      "iterations": 500000,
+      "mode": "status_interests",
+      "ns_per_op": 170.691564,
+      "observers": 4,
+      "statuses": 16,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 183948360,
+      "iterations": 500000,
+      "mode": "hash_maps",
+      "ns_per_op": 367.89672,
+      "observers": 4,
+      "statuses": 16,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 86128567,
+      "iterations": 500000,
+      "mode": "status_interests",
+      "ns_per_op": 172.257134,
+      "observers": 4,
+      "statuses": 16,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 185739298,
+      "iterations": 500000,
+      "mode": "hash_maps",
+      "ns_per_op": 371.478596,
+      "observers": 4,
+      "statuses": 16,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 88304158,
+      "iterations": 500000,
+      "mode": "status_interests",
+      "ns_per_op": 176.608316,
+      "observers": 4,
+      "statuses": 16,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 179650227,
+      "iterations": 500000,
+      "mode": "hash_maps",
+      "ns_per_op": 359.300454,
+      "observers": 4,
+      "statuses": 16,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 87970260,
+      "iterations": 500000,
+      "mode": "status_interests",
+      "ns_per_op": 175.94052,
+      "observers": 4,
+      "statuses": 16,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 195852006,
+      "iterations": 500000,
+      "mode": "hash_maps",
+      "ns_per_op": 391.704012,
+      "observers": 4,
+      "statuses": 16,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 86003671,
+      "iterations": 500000,
+      "mode": "status_interests",
+      "ns_per_op": 172.007342,
+      "observers": 4,
+      "statuses": 16,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 169886713,
+      "iterations": 60000,
+      "mode": "hash_maps",
+      "ns_per_op": 2831.4452166666665,
+      "observers": 1,
+      "statuses": 128,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 10043502,
+      "iterations": 60000,
+      "mode": "status_interests",
+      "ns_per_op": 167.3917,
+      "observers": 1,
+      "statuses": 128,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 169831220,
+      "iterations": 60000,
+      "mode": "hash_maps",
+      "ns_per_op": 2830.5203333333334,
+      "observers": 1,
+      "statuses": 128,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 9990917,
+      "iterations": 60000,
+      "mode": "status_interests",
+      "ns_per_op": 166.51528333333334,
+      "observers": 1,
+      "statuses": 128,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 164021147,
+      "iterations": 60000,
+      "mode": "hash_maps",
+      "ns_per_op": 2733.6857833333333,
+      "observers": 1,
+      "statuses": 128,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 9995164,
+      "iterations": 60000,
+      "mode": "status_interests",
+      "ns_per_op": 166.58606666666665,
+      "observers": 1,
+      "statuses": 128,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 174027432,
+      "iterations": 60000,
+      "mode": "hash_maps",
+      "ns_per_op": 2900.4572,
+      "observers": 1,
+      "statuses": 128,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 9993066,
+      "iterations": 60000,
+      "mode": "status_interests",
+      "ns_per_op": 166.5511,
+      "observers": 1,
+      "statuses": 128,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 180000072,
+      "iterations": 60000,
+      "mode": "hash_maps",
+      "ns_per_op": 3000.0012,
+      "observers": 1,
+      "statuses": 128,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 10010747,
+      "iterations": 60000,
+      "mode": "status_interests",
+      "ns_per_op": 166.84578333333334,
+      "observers": 1,
+      "statuses": 128,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 166524724,
+      "iterations": 60000,
+      "mode": "hash_maps",
+      "ns_per_op": 2775.4120666666668,
+      "observers": 4,
+      "statuses": 128,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 35933091,
+      "iterations": 60000,
+      "mode": "status_interests",
+      "ns_per_op": 598.88485,
+      "observers": 4,
+      "statuses": 128,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 189149681,
+      "iterations": 60000,
+      "mode": "hash_maps",
+      "ns_per_op": 3152.4946833333333,
+      "observers": 4,
+      "statuses": 128,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 36478107,
+      "iterations": 60000,
+      "mode": "status_interests",
+      "ns_per_op": 607.96845,
+      "observers": 4,
+      "statuses": 128,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 188598783,
+      "iterations": 60000,
+      "mode": "hash_maps",
+      "ns_per_op": 3143.31305,
+      "observers": 4,
+      "statuses": 128,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 36595882,
+      "iterations": 60000,
+      "mode": "status_interests",
+      "ns_per_op": 609.9313666666667,
+      "observers": 4,
+      "statuses": 128,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 180486600,
+      "iterations": 60000,
+      "mode": "hash_maps",
+      "ns_per_op": 3008.11,
+      "observers": 4,
+      "statuses": 128,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 36409819,
+      "iterations": 60000,
+      "mode": "status_interests",
+      "ns_per_op": 606.8303166666667,
+      "observers": 4,
+      "statuses": 128,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 166651128,
+      "iterations": 60000,
+      "mode": "hash_maps",
+      "ns_per_op": 2777.5188,
+      "observers": 4,
+      "statuses": 128,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 36364044,
+      "iterations": 60000,
+      "mode": "status_interests",
+      "ns_per_op": 606.0674,
+      "observers": 4,
+      "statuses": 128,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 191468186,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 23933.52325,
+      "observers": 1,
+      "statuses": 1024,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 8565814,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 1070.72675,
+      "observers": 1,
+      "statuses": 1024,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 174383897,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 21797.987125,
+      "observers": 1,
+      "statuses": 1024,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 8543791,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 1067.973875,
+      "observers": 1,
+      "statuses": 1024,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 174080774,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 21760.09675,
+      "observers": 1,
+      "statuses": 1024,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 8571217,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 1071.402125,
+      "observers": 1,
+      "statuses": 1024,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 184890159,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 23111.269875,
+      "observers": 1,
+      "statuses": 1024,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 8559972,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 1069.9965,
+      "observers": 1,
+      "statuses": 1024,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 188257530,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 23532.19125,
+      "observers": 1,
+      "statuses": 1024,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 8550862,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 1068.85775,
+      "observers": 1,
+      "statuses": 1024,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 175604390,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 21950.54875,
+      "observers": 4,
+      "statuses": 1024,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 31815145,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 3976.893125,
+      "observers": 4,
+      "statuses": 1024,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 180904314,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 22613.03925,
+      "observers": 4,
+      "statuses": 1024,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 31878302,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 3984.78775,
+      "observers": 4,
+      "statuses": 1024,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 196277530,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 24534.69125,
+      "observers": 4,
+      "statuses": 1024,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 31882622,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 3985.32775,
+      "observers": 4,
+      "statuses": 1024,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 179808041,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 22476.005125,
+      "observers": 4,
+      "statuses": 1024,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 31887236,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 3985.9045,
+      "observers": 4,
+      "statuses": 1024,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 190472560,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 23809.07,
+      "observers": 4,
+      "statuses": 1024,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 31836941,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 3979.617625,
+      "observers": 4,
+      "statuses": 1024,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 180524195,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 22565.524375,
+      "observers": 5,
+      "statuses": 1024,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 180282008,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 22535.251,
+      "observers": 5,
+      "statuses": 1024,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 177233939,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 22154.242375,
+      "observers": 5,
+      "statuses": 1024,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 177049037,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 22131.129625,
+      "observers": 5,
+      "statuses": 1024,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 178124356,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 22265.5445,
+      "observers": 5,
+      "statuses": 1024,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 177984236,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 22248.0295,
+      "observers": 5,
+      "statuses": 1024,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 190851138,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 23856.39225,
+      "observers": 5,
+      "statuses": 1024,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 190950556,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 23868.8195,
+      "observers": 5,
+      "statuses": 1024,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 197176661,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 24647.082625,
+      "observers": 5,
+      "statuses": 1024,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 196978922,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 24622.36525,
+      "observers": 5,
+      "statuses": 1024,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 198969430,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 24871.17875,
+      "observers": 16,
+      "statuses": 1024,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 198789972,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 24848.7465,
+      "observers": 16,
+      "statuses": 1024,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 180802430,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 22600.30375,
+      "observers": 16,
+      "statuses": 1024,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 180669948,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 22583.7435,
+      "observers": 16,
+      "statuses": 1024,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 192496600,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 24062.075,
+      "observers": 16,
+      "statuses": 1024,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 193382237,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 24172.779625,
+      "observers": 16,
+      "statuses": 1024,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 199032657,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 24879.082125,
+      "observers": 16,
+      "statuses": 1024,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 194168101,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 24271.012625,
+      "observers": 16,
+      "statuses": 1024,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 181235375,
+      "iterations": 8000,
+      "mode": "hash_maps",
+      "ns_per_op": 22654.421875,
+      "observers": 16,
+      "statuses": 1024,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 181187775,
+      "iterations": 8000,
+      "mode": "status_interests",
+      "ns_per_op": 22648.471875,
+      "observers": 16,
+      "statuses": 1024,
+      "repetition": 4
+    }
+  ],
+  "summary": [
+    {
+      "statuses": 1,
+      "observers": 1,
+      "hash_maps": 26.2512748,
+      "status_interests": 28.519229,
+      "ratio": 1.08639405961344
+    },
+    {
+      "statuses": 16,
+      "observers": 1,
+      "hash_maps": 390.145808,
+      "status_interests": 51.660268,
+      "ratio": 0.13241272093842413
+    },
+    {
+      "statuses": 16,
+      "observers": 4,
+      "hash_maps": 367.89672,
+      "status_interests": 172.257134,
+      "ratio": 0.46822144541000527
+    },
+    {
+      "statuses": 128,
+      "observers": 1,
+      "hash_maps": 2831.4452166666665,
+      "status_interests": 166.58606666666665,
+      "ratio": 0.05883428917716478
+    },
+    {
+      "statuses": 128,
+      "observers": 4,
+      "hash_maps": 3008.11,
+      "status_interests": 606.8303166666667,
+      "ratio": 0.2017314249368097
+    },
+    {
+      "statuses": 1024,
+      "observers": 1,
+      "hash_maps": 23111.269875,
+      "status_interests": 1069.9965,
+      "ratio": 0.04629760743512584
+    },
+    {
+      "statuses": 1024,
+      "observers": 4,
+      "hash_maps": 22613.03925,
+      "status_interests": 3984.78775,
+      "ratio": 0.17621637259573586
+    },
+    {
+      "statuses": 1024,
+      "observers": 5,
+      "hash_maps": 22565.524375,
+      "status_interests": 22535.251,
+      "ratio": 0.9986584235980113
+    },
+    {
+      "statuses": 1024,
+      "observers": 16,
+      "hash_maps": 24062.075,
+      "status_interests": 24172.779625,
+      "ratio": 1.0046007929490701
+    }
+  ]
+}

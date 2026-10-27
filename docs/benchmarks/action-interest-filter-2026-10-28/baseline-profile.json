@@ -1,0 +1,84 @@
+{
+  "metadata": {
+    "git_head": "d45e261623d61936bcf5fcc0d42bf1d7bc265639",
+    "binary_sha256": "79873bd13a31d876ea6b546f8ac855cf93b9b4ee4c1d49022bade827d05d94e8",
+    "rmw": "rmw_cyclonedds_cpp",
+    "scenario": 1,
+    "iterations": 1000,
+    "warmup": 50,
+    "cpu_client": 24,
+    "cpu_server": 25,
+    "domain_id": 146,
+    "event": "cpu-clock:u",
+    "frequency": 997,
+    "boundary": "profile both Rust client and server; profiling overhead excluded from performance evidence",
+    "source_manifest": {
+      "r2r/benches/action_roundtrip.rs": "4a97cb1838439bfb7f659fa164d20d24671e2be2a82081bcbaddc3e0c57d652b",
+      "r2r/src/msg_types.rs": "78725de3e8e6a30c3ac5694babe8cb1b9d68c9496b4ad7bbd1b2756fabf685a5",
+      "r2r/src/nodes.rs": "bc365450811d73ad229086c93cacdda5ad1a38552d7706fc2522c06279766def",
+      "r2r/src/subscribers.rs": "8edd1704d1ec0575c3b285bec7bc4266167e5cea765fb3f484b2ad8640f21904",
+      "r2r/src/publishers.rs": "c8675f0c976cbd13eea43b418cf6ed3b26e5177997621e7cac70d3ae8dbac721",
+      "r2r/src/clients.rs": "ff5392bc6d09f7cf10639fecd8278dbc54224543a832574ace33c34dac44fd34",
+      "r2r/src/services.rs": "a6a0a990fe34f954f8174eddac6ef533c85503b0c16e2c5410993c19de895f5d",
+      "r2r_rcl/src/lib.rs": "d4f9ac1238b8fb29d1f50351e7403a4d13a137ac4f08383b055df1ce67f568f0",
+      "r2r_msg_gen/src/lib.rs": "aa23f531e645db8e42c32f8cf20499de07688d2a7af8f325dc05c57ff4290866",
+      "Cargo.lock": "6a85d01b56d3ce79bb93ee003a0cb5005beb2623797754c0daca55971ebbfb93",
+      "r2r/src/serialization.rs": "a1d697444fdc3ca6dd542e6cdf5514f6653b0f3aa4e69de7250cc6e4c0c57169",
+      "r2r/src/action_common.rs": "d024de33962e9a90db7990b0864bb06dde1a102a284ef61a1af736c9c5069cf8",
+      "r2r/src/action_clients.rs": "9e61cb9b0594ae34e78cabc94b83426157a8a25a569089eac3987669afae8940",
+      "r2r/src/action_clients_untyped.rs": "b1884047514733c921e4b39dca51022941dbd6343e120cffe3a00459ba27be8d",
+      "r2r/src/action_servers.rs": "0a78a6c5d96d70cfbd4c1efd7a901f3b547deba9ef20c4539c6720da8504c8b6",
+      "r2r/src/action_clients/status.rs": "38f068f7dae4613c26db1b26c83bc6ddb46a0d933f5516169e587fe5a899ff2f"
+    }
+  },
+  "endpoints": {
+    "client": {
+      "acceptance_ns_p50": 204545,
+      "accepted": 1050,
+      "canceled": 1050,
+      "cancellation_ns_p50": 239827,
+      "checksum": 550725,
+      "elapsed_ns": 797382219,
+      "feedback": 1050,
+      "implementation": "r2r",
+      "iterations": 1000,
+      "received": 1050,
+      "results": 1050,
+      "rmw": "rmw_cyclonedds_cpp",
+      "role": "ping",
+      "roundtrips_per_second": 1254.1037110836303,
+      "rtt_ns_max": 1341811,
+      "rtt_ns_p50": 803889,
+      "rtt_ns_p95": 1259976,
+      "rtt_ns_p99": 1311680,
+      "scenario": 1,
+      "warmup": 50
+    },
+    "server": {
+      "accepted": 1050,
+      "canceled": 1050,
+      "checksum": 550725,
+      "feedback": 1050,
+      "implementation": "r2r",
+      "iterations": 1000,
+      "received": 1050,
+      "results": 1050,
+      "rmw": "rmw_cyclonedds_cpp",
+      "role": "echo",
+      "scenario": 1,
+      "warmup": 50
+    }
+  },
+  "reports": {
+    "client": {
+      "samples": 310,
+      "lost_samples": 0,
+      "perf_report": "# To display the perf.data header info, please use --header/--header-only options.\n#\n#\n# Total Lost Samples: 0\n#\n# Samples: 310  of event 'cpu-clock:u'\n# Event count (approx.): 310932790\n#\n# Overhead  Command        Shared Object                                          Symbol                                                                                                                                                                                                    \n# ........  .............  .....................................................  ..........................................................................................................................................................................................................\n#\n    10.65%  r2r-candidate  r2r-candidate                                          [.] core::hash::BuildHasher::hash_one\n     7.42%  r2r-candidate  r2r-candidate                                          [.] <uuid::Uuid as core::hash::Hash>::hash\n     7.10%  r2r-candidate  r2r-candidate                                          [.] <r2r::action_clients::WrappedActionClient<T> as r2r::action_clients::ActionClient_>::apply_status_updates\n     4.84%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x000000000005d4ca\n     3.23%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x000000000005d4ea\n     2.26%  r2r-candidate  ld-linux-x86-64.so.2                                   [.] do_lookup_x\n     1.94%  r2r-candidate  libaction_msgs__rosidl_generator_c.so                  [.] action_msgs__msg__GoalInfo__fini\n     1.94%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x000000000005d4d9\n     1.94%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x000000000005d4ed\n     1.61%  r2r-candidate  libc.so.6                                              [.] pthread_mutex_unlock@@GLIBC_2.2.5\n     1.29%  r2r-candidate  r2r-candidate                                          [.] core::ops::function::FnOnce::call_once$u7b$$u7b$vtable.shim$u7d$$u7d$::h56d822a157377fa9\n     0.97%  r2r-candidate  libaction_msgs__rosidl_generator_c.so                  [.] action_msgs__msg__GoalInfo__init\n     0.97%  r2r-candidate  libaction_msgs__rosidl_generator_c.so                  [.] action_msgs__msg__GoalStatus__init\n     0.97%  r2r-candidate  libaction_msgs__rosidl_generator_c.so                  [.] unique_identifier_msgs__msg__UUID__init@plt\n     0.97%  r2r-candidate  libaction_msgs__rosidl_typesupport_introspection_c.so  [.] action_msgs__msg__GoalStatusArray__rosidl_typesupport_introspection_c__get_function__GoalStatusArray__status_list\n     0.97%  r2r-candidate  libc.so.6                                              [.] __memset_avx2_unaligned_erms\n     0.97%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x000000000005d7c0\n     0.97%  r2r-candidate  r2r-candidate                                          [.] r2r::nodes::Node::try_spin_once\n     0.97%  recvUC         libc.so.6                                              [.] __libc_recvmsg\n\n\n#\n# (Cannot load tips.txt file, please install perf!)\n#\n"
+    },
+    "server": {
+      "samples": 614,
+      "lost_samples": 0,
+      "perf_report": "# To display the perf.data header info, please use --header/--header-only options.\n#\n#\n# Total Lost Samples: 0\n#\n# Samples: 614  of event 'cpu-clock:u'\n# Event count (approx.): 615847526\n#\n# Overhead  Command        Shared Object                                          Symbol                                                                                                                                            \n# ........  .............  .....................................................  ..................................................................................................................................................\n#\n    13.68%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x0000000000050430\n     5.70%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x0000000000051340\n     4.72%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x0000000000051ec8\n     4.07%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x0000000000050410\n     3.42%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x0000000000050404\n     2.28%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x000000000005040c\n     1.95%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x000000000004a6d0\n     1.79%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x000000000004be20\n     1.30%  r2r-candidate  librcl_action.so                                       [.] rcl_action_goal_handle_is_valid\n     1.30%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x0000000000050433\n     1.30%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x0000000000051d64\n     1.14%  r2r-candidate  librcl_action.so                                       [.] rcl_action_goal_handle_get_info\n     0.98%  r2r-candidate  ld-linux-x86-64.so.2                                   [.] do_lookup_x\n     0.98%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x000000000004a6d8\n     0.81%  r2r-candidate  libc.so.6                                              [.] __libc_sendmsg\n     0.81%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x0000000000050409\n     0.81%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x000000000005043d\n     0.81%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x0000000000050450\n     0.81%  r2r-candidate  librmw_cyclonedds_cpp.so                               [.] 0x000000000005124b\n\n\n#\n# (Cannot load tips.txt file, please install perf!)\n#\n"
+    }
+  }
+}

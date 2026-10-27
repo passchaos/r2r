@@ -66,6 +66,12 @@ under Fast DDS versus an interleaved `441bcd4` baseline. Fast DDS success is clo
 C++; cancellation and CycloneDDS remain open gaps. Retained native storage, concurrent goals,
 allocation accounting and scaling need further evidence.
 
+The [retained-status observer-filtering experiment](benchmarks/action-interest-filter-2026-10-28/README.md)
+was rejected and fully removed after its final Fast DDS short-cohort cancellation p99 exceeded
+the 5% regression limit. Large-cohort gains are retained as experimental evidence rather than
+promoted runtime behavior. Next routing work needs a stable short-cohort measurement design
+and workload-level profiling; production retains the native decoder at `d45e261`.
+
 ## Reproducible local gates
 
 With the ROS environment sourced and the repository-pinned Rust toolchain:
