@@ -83,3 +83,7 @@ harness = false
 [[bench]]
 name = "action_roundtrip"
 harness = false
+
+[[bench]]
+name = "future_execution"
+harness = false

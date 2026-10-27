@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import tempfile
 
-BENCHMARKS = {"codec": "ros_comparison", "transport": "pubsub_roundtrip", "service": "service_roundtrip", "action": "action_roundtrip"}
+BENCHMARKS = {"codec": "ros_comparison", "transport": "pubsub_roundtrip", "service": "service_roundtrip", "action": "action_roundtrip", "future": "future_execution"}
 CPP_BINARIES = {"codec": "rclcpp_comparison", "transport": "rclcpp_roundtrip", "service": "rclcpp_service", "action": "rclcpp_action_roundtrip"}
 CPP_SOURCES = {"codec": "comparison.cpp", "transport": "roundtrip.cpp", "service": "service.cpp", "action": "action.cpp"}
 
@@ -38,6 +38,10 @@ def rust_binary(source, target, destination, env, workload="codec"):
         sources.extend(source / f"r2r/src/{name}.rs" for name in ["action_common", "action_clients", "action_clients_untyped", "action_servers"])
         sources.extend(sorted((source / "r2r/src/action_clients").rglob("*.rs")))
         sources.extend(sorted((source / "r2r/benches/support").rglob("*.rs")))
+    if workload == "future":
+        sources.append(source / "r2r/src/context.rs")
+        if (source / "r2r/src/nodes/future_executor.rs").exists():
+            sources.append(source / "r2r/src/nodes/future_executor.rs")
     return {str(path.relative_to(source)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources}
 
 
@@ -48,6 +52,8 @@ def main():
     parser.add_argument("--with-probe", action="store_true", help="build optional Linux/glibc allocation probe")
     parser.add_argument("--output-dir", type=Path, default=Path("target/ros-comparison"))
     args = parser.parse_args()
+    if args.workload == "future" and args.with_probe:
+        parser.error("future execution uses uninstrumented Rust baseline/candidate binaries")
     root = Path(__file__).resolve().parents[2]
     output = args.output_dir.resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -76,6 +82,12 @@ def main():
                 manifest.write_text(manifest.read_text() + f'\n[[bench]]\nname = "{benchmark}"\nharness = false\n')
             manifests["baseline"] = rust_binary(source, output / "baseline-cargo", output / "r2r-baseline", env, args.workload)
         manifests["baseline_ref"] = revision
+    if args.workload == "future":
+        manifests["rustflags"] = env.get("RUSTFLAGS", "")
+        manifests["cargo_release_opt_level"] = env.get("CARGO_PROFILE_RELEASE_OPT_LEVEL", "3")
+        (output / "build-manifest.json").write_text(json.dumps(manifests,indent=2)+"\n")
+        print(f"Future execution binaries and source manifest: {output}")
+        return
     ros_prefix = f"/opt/ros/{env['ROS_DISTRO']}"
     command(["cmake", "-S", str(root / "tools/bench_ros"), "-B", str(output / "cpp"), "-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_PREFIX_PATH={ros_prefix}", "-DPython3_EXECUTABLE=/usr/bin/python3", f"-DR2R_BUILD_SERVICE_BENCH={'ON' if args.workload == 'service' else 'OFF'}", f"-DR2R_BUILD_ACTION_BENCH={'ON' if args.workload == 'action' else 'OFF'}", f"-DR2R_BUILD_ALLOCATION_PROBE={'ON' if args.with_probe else 'OFF'}"], root, env)
     cpp_binary = CPP_BINARIES[args.workload]

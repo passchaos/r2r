@@ -1,0 +1,20 @@
+[
+  {
+    "distro": "humble",
+    "native_tests": 10,
+    "passed": true,
+    "examples": {
+      "future_execution": "`target/compat-humble/release/examples/future_execution`\nexternal input=7, ROS result=12",
+      "action_lifecycle": "`target/compat-humble/release/examples/action_lifecycle`\ngoal 2814e5bf-726d-47be-be2c-5c0e34980593: Succeeded, result=[0, 1, 1, 2, 3, 5]\ngoal f35f0377-e7e6-45ff-a62d-65bd32c5fccf: Canceled, result=[0, 1, 1, 2, 3, 5]"
+    }
+  },
+  {
+    "distro": "kilted",
+    "native_tests": 10,
+    "passed": true,
+    "examples": {
+      "future_execution": "`target/compat-kilted/release/examples/future_execution`\nexternal input=7, ROS result=12",
+      "action_lifecycle": "`target/compat-kilted/release/examples/action_lifecycle`\ngoal 4c81c61a-6c73-4e78-bd26-5d66a249b80e: Succeeded, result=[0, 1, 1, 2, 3, 5]\ngoal 82591f42-244d-4449-8b10-bbd853e7fb41: Canceled, result=[0, 1, 1, 2, 3, 5]"
+    }
+  }
+]

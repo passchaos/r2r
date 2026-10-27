@@ -39,7 +39,7 @@ Filtered tests must execute nonzero relevant cases. The new typed/untyped action
 both reverse indexes to be empty after out-of-order response/request cleanup. Existing entity
 tests cover registration, targeted destruction, swap-removal, index rebuilding and automatic
 cleanup. Parameter tests verify repeated operations after guard destruction and provider-backed
-reads. Full optimized Jazzy library validation now passes 409 tests, with two manual benchmarks ignored.
+reads. Full optimized Jazzy library validation now passes 419 tests, with two manual benchmarks ignored.
 Humble and Kilted each pass nine optimized index cases and the parameter-transaction gate.
 
 The [end-to-end roundtrip harness](../tools/bench_ros/TRANSPORT.md) exercises native DDS transport

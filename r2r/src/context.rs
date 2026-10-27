@@ -182,6 +182,11 @@ pub struct ContextHandle {
     handle: Box<rcl_context_t>,
     initialized: bool,
     configuration: ContextConfiguration,
+    shutdown_wakes: Vec<std::sync::Weak<dyn ShutdownWake>>,
+}
+
+pub(crate) trait ShutdownWake: Send + Sync {
+    fn wake_shutdown(&self);
 }
 
 struct InitOptions {
@@ -295,6 +300,7 @@ impl ContextHandle {
             handle: context,
             initialized: true,
             configuration,
+            shutdown_wakes: Vec::new(),
         })
     }
 
@@ -303,12 +309,23 @@ impl ContextHandle {
             return Ok(());
         }
 
+        // Signal registered waits while native guard handles still belong to a valid context.
+        // Registrations are weak; node/waker lifetimes do not form a context reference cycle.
+        for wake in self.shutdown_wakes.iter().filter_map(|wake| wake.upgrade()) {
+            wake.wake_shutdown();
+        }
         let ret = unsafe { rcl_shutdown(self.handle.as_mut()) };
         if ret == RCL_RET_OK as i32 {
+            self.shutdown_wakes.clear();
             Ok(())
         } else {
             Err(Error::from_rcl_error(ret))
         }
+    }
+
+    pub(crate) fn register_shutdown_wake(&mut self, wake: std::sync::Weak<dyn ShutdownWake>) {
+        self.shutdown_wakes.retain(|wake| wake.strong_count() > 0);
+        self.shutdown_wakes.push(wake);
     }
 
     fn finalize(&mut self) {

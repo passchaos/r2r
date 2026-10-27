@@ -5,6 +5,8 @@ use futures::{
 };
 use indexmap::IndexMap;
 use parking_lot::{Mutex, MutexGuard};
+#[cfg(test)]
+use std::time::Instant;
 use std::{
     cell::RefCell,
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
@@ -13,7 +15,7 @@ use std::{
     marker::PhantomPinned,
     pin::Pin,
     sync::{Arc, OnceLock},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use r2r_actions::*;
@@ -40,7 +42,8 @@ use crate::{
     subscribers::*,
 };
 
-const SPIN_UNTIL_FUTURE_POLL_INTERVAL: Duration = Duration::from_millis(10);
+mod future_executor;
+pub use future_executor::FutureExecutionOptions;
 
 #[cfg(all(test, r2r__example_interfaces__action__Fibonacci))]
 mod action_cancel_tests;
@@ -833,6 +836,8 @@ pub struct Node {
     time_source: TimeSource,
     graph_change_waiters: AvailabilityWaiters,
     wait_set: WaitSet,
+    future_wake_guard: Option<Arc<future_executor::FutureGuard>>,
+    future_wake_state: Option<Arc<future_executor::FutureWake>>,
     // Keep the ROS context alive until all other node resources have been dropped.
     context: Context,
 }
@@ -1692,6 +1697,8 @@ impl Node {
                 time_source,
                 graph_change_waiters: AvailabilityWaiters::default(),
                 wait_set: WaitSet::new(),
+                future_wake_guard: None,
+                future_wake_state: None,
                 context: ctx,
             };
             #[cfg(r2r__rosgraph_msgs__msg__Clock)]
@@ -4235,32 +4242,6 @@ impl Node {
         }
     }
 
-    /// Spins this node until `future` completes or `timeout` elapses.
-    ///
-    /// This is a runtime-independent counterpart to repeatedly calling [`Node::try_spin_once`]
-    /// and polling a service, action, timer, graph, or matching future. A future that is already
-    /// ready is returned even when `timeout` is zero. Futures are polled periodically even when
-    /// they do not wake themselves, which supports availability checks whose state may change
-    /// without a corresponding wait-set event. The timeout uses steady wall-clock time, so it is
-    /// not affected by ROS simulated time.
-    pub fn spin_until_future_complete<T>(
-        &mut self, future: impl Future<Output = Result<T>>, timeout: Duration,
-    ) -> Result<T> {
-        futures::pin_mut!(future);
-        let started = Instant::now();
-        loop {
-            if let Some(result) = future.as_mut().now_or_never() {
-                return result;
-            }
-
-            let remaining = timeout.saturating_sub(started.elapsed());
-            if remaining.is_zero() {
-                return Err(Error::RCL_RET_TIMEOUT);
-            }
-            self.try_spin_once(remaining.min(SPIN_UNTIL_FUTURE_POLL_INTERVAL))?;
-        }
-    }
-
     /// Spin the ROS node and report errors from the underlying RCL wait set.
     pub fn try_spin_once(&mut self, timeout: Duration) -> Result<()> {
         if !self.context.is_valid() {
@@ -4538,10 +4519,19 @@ impl Node {
         // #[doc = "* For example, calling rcl_wait() in two threads on two different wait sets"]
         // #[doc = "* that both contain a single, shared guard condition is undefined behavior."]
 
+        let future_guard = self
+            .future_wake_guard
+            .as_ref()
+            .filter(|guard| guard.active.load(std::sync::atomic::Ordering::Acquire))
+            .cloned();
+        let graph_interested = !self.graph_change_waiters.is_empty()
+            || !self.clients_with_active_availability.is_empty()
+            || !self.action_clients_with_active_availability.is_empty();
         let capacities = WaitSetCapacities {
             subscriptions: self.subscribers.len() + self.action_wait_set_capacities.subscriptions,
             guard_conditions: self.action_wait_set_capacities.guard_conditions
-                + usize::from(!self.graph_change_waiters.is_empty()),
+                + usize::from(graph_interested)
+                + usize::from(future_guard.is_some()),
             timers: self.timers.len() + self.action_wait_set_capacities.timers,
             clients: self.clients.len() + self.action_wait_set_capacities.clients,
             services: self.services.len() + self.action_wait_set_capacities.services,
@@ -4581,7 +4571,12 @@ impl Node {
             })?;
         }
 
-        let graph_guard_index = if self.graph_change_waiters.is_empty() {
+        if let Some(guard) = &future_guard {
+            check_rcl_ret(unsafe {
+                rcl_wait_set_add_guard_condition(ws, guard.handle(), std::ptr::null_mut())
+            })?;
+        }
+        let graph_guard_index = if !graph_interested {
             None
         } else {
             let graph_guard =
@@ -4617,7 +4612,22 @@ impl Node {
             })?;
         }
 
+        #[cfg(test)]
+        if let Some(guard) = &future_guard {
+            guard.before_wait();
+        }
         let ret = unsafe { rcl_wait(ws, timeout_nanos) };
+        // ROS callbacks delivered after this wait already lead to a future poll. Only external
+        // notifications arriving before/during the native wait need to trigger its guard.
+        if future_guard.is_some() {
+            if let Some(wake) = &self.future_wake_state {
+                wake.finish_native_wait();
+            }
+        }
+        #[cfg(test)]
+        if let Some(guard) = &future_guard {
+            guard.after_wait(ret);
+        }
 
         if ret == RCL_RET_TIMEOUT as i32 {
             return Ok(());

@@ -9,7 +9,8 @@ fn main() -> r2r::Result<()> {
     let mut requests = node.create_action_server::<Fibonacci::Action>("lifecycle_fibonacci")?;
     let client = node.create_action_client::<Fibonacci::Action>("lifecycle_fibonacci")?;
     let available = client.wait_for_action_server()?;
-    node.spin_until_future_complete(available, Duration::from_secs(3))?;
+    let execution = r2r::FutureExecutionOptions::wake_driven();
+    node.spin_until_future_complete_with_options(available, Duration::from_secs(3), execution)?;
 
     for cancel in [false, true] {
         let (ready_sender, ready_receiver) = oneshot::channel();
@@ -88,12 +89,13 @@ fn main() -> r2r::Result<()> {
             println!("goal {}: {status:?}, result={:?}", goal.uuid, result.sequence);
             Ok::<_, r2r::Error>(())
         };
-        node.spin_until_future_complete(
+        node.spin_until_future_complete_with_options(
             async {
                 futures::try_join!(server, requester)?;
                 Ok(())
             },
             Duration::from_secs(5),
+            execution,
         )?;
     }
     Ok(())
