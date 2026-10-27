@@ -341,7 +341,8 @@ impl ParameterTransactionGuard<'_> {
 impl Drop for ParameterTransactionGuard<'_> {
     fn drop(&mut self) {
         ACTIVE_PARAMETER_TRANSACTIONS.with(|active| {
-            debug_assert!(active.borrow_mut().remove(&self.identity));
+            let removed = active.borrow_mut().remove(&self.identity);
+            debug_assert!(removed);
         });
     }
 }
@@ -988,7 +989,8 @@ impl Node {
     pub(crate) fn add_subscriber(&mut self, subscriber: Box<dyn Subscriber_>) {
         let index = self.subscribers.len();
         if let Some(state) = subscriber.match_state() {
-            debug_assert!(self.subscription_indexes.insert(state.id, index).is_none());
+            let previous = self.subscription_indexes.insert(state.id, index);
+            debug_assert!(previous.is_none());
         }
         self.subscribers.push(subscriber);
     }
@@ -1000,7 +1002,8 @@ impl Node {
         indexes.reserve(subscribers.len());
         for (index, subscriber) in subscribers.iter().enumerate() {
             if let Some(state) = subscriber.match_state() {
-                debug_assert!(indexes.insert(state.id, index).is_none());
+                let previous = indexes.insert(state.id, index);
+                debug_assert!(previous.is_none());
             }
         }
     }
@@ -1067,7 +1070,8 @@ impl Node {
 
     fn add_service(&mut self, id: uuid::Uuid, service: Arc<Mutex<dyn Service_>>) {
         let index = self.services.len();
-        debug_assert!(self.service_indexes.insert(id, index).is_none());
+        let previous = self.service_indexes.insert(id, index);
+        debug_assert!(previous.is_none());
         self.services.push(service);
     }
 
@@ -1149,7 +1153,8 @@ impl Node {
 
     fn add_timer(&mut self, timer: Timer_) {
         let index = self.timers.len();
-        debug_assert!(self.timer_indexes.insert(timer.id, index).is_none());
+        let previous = self.timer_indexes.insert(timer.id, index);
+        debug_assert!(previous.is_none());
         self.timers.push(timer);
     }
 
@@ -1172,7 +1177,8 @@ impl Node {
     fn add_publisher(&mut self, publisher: Arc<Publisher_>) {
         let index = self.pubs.len();
         let identity = Self::publisher_identity(&publisher);
-        debug_assert!(self.publisher_indexes.insert(identity, index).is_none());
+        let previous = self.publisher_indexes.insert(identity, index);
+        debug_assert!(previous.is_none());
         self.pubs.push(publisher);
     }
 
@@ -1351,7 +1357,8 @@ impl Node {
         capacities: WaitSetCapacities,
     ) {
         let index = self.action_servers.len();
-        debug_assert!(self.action_server_indexes.insert(id, index).is_none());
+        let previous = self.action_server_indexes.insert(id, index);
+        debug_assert!(previous.is_none());
         self.action_servers.push(server);
         self.action_wait_set_capacities.add(capacities);
     }
@@ -2461,7 +2468,8 @@ impl Node {
                 for name in unused_deferred_overrides {
                     params.shift_remove(&name);
                 }
-                debug_assert!(provider_state.parameter_names.set(parameter_names).is_ok());
+                let initialized = provider_state.parameter_names.set(parameter_names);
+                debug_assert!(initialized.is_ok());
             }
             #[cfg(r2r__rosgraph_msgs__msg__Clock)]
             let use_sim_time = {

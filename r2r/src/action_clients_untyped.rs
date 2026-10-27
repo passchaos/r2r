@@ -605,7 +605,8 @@ impl WrappedActionClientUntyped {
 
     fn take_goal_response_by_sequence(&mut self, sequence: i64) -> Option<GoalResponseSender> {
         let (uuid, sender) = self.goal_response_channels.remove(&sequence)?;
-        debug_assert_eq!(self.goal_response_sequences.remove(&uuid), Some(sequence));
+        let removed = self.goal_response_sequences.remove(&uuid);
+        debug_assert_eq!(removed, Some(sequence));
         Some((uuid, sender))
     }
 
@@ -627,13 +628,15 @@ impl WrappedActionClientUntyped {
 
     fn take_result_request_by_sequence(&mut self, sequence: i64) -> Option<uuid::Uuid> {
         let uuid = self.result_requests.remove(&sequence)?;
-        debug_assert_eq!(self.result_request_sequences.remove(&uuid), Some(sequence));
+        let removed = self.result_request_sequences.remove(&uuid);
+        debug_assert_eq!(removed, Some(sequence));
         Some(uuid)
     }
 
     fn remove_result_request_by_uuid(&mut self, uuid: &uuid::Uuid) {
         if let Some(sequence) = self.result_request_sequences.remove(uuid) {
-            debug_assert_eq!(self.result_requests.remove(&sequence), Some(*uuid));
+            let removed = self.result_requests.remove(&sequence);
+            debug_assert_eq!(removed, Some(*uuid));
         }
     }
 
@@ -1116,6 +1119,36 @@ impl IsAvailablePollable for ActionClientUntyped {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn untyped_action_reverse_indexes_are_cleared_when_responses_and_requests_finish() {
+        let context = crate::Context::create().unwrap();
+        let mut node = crate::Node::create(context, "untyped_action_reverse_indexes", "").unwrap();
+        let handle = node
+            .create_action_client_untyped(
+                "/untyped_reverse_indexes",
+                "example_interfaces/action/Fibonacci",
+            )
+            .unwrap();
+        let client = handle.client.upgrade().unwrap();
+        let mut client = client.lock();
+        let first = uuid::Uuid::from_u128(1);
+        let second = uuid::Uuid::from_u128(2);
+        client.register_goal_response(10, first, oneshot::channel().0);
+        client.register_goal_response(20, second, oneshot::channel().0);
+        assert_eq!(client.take_goal_response_by_sequence(20).unwrap().0, second);
+        assert!(!client.goal_response_sequences.contains_key(&second));
+        assert!(client.take_goal_response_by_uuid(&first).is_some());
+        assert!(client.goal_response_channels.is_empty());
+        assert!(client.goal_response_sequences.is_empty());
+        client.register_result_request(30, first);
+        client.register_result_request(40, second);
+        assert_eq!(client.take_result_request_by_sequence(30), Some(first));
+        assert!(!client.result_request_sequences.contains_key(&first));
+        client.remove_result_request_by_uuid(&second);
+        assert!(client.result_requests.is_empty());
+        assert!(client.result_request_sequences.is_empty());
+    }
     use futures::{FutureExt, StreamExt};
 
     #[test]
