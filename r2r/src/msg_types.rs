@@ -175,6 +175,7 @@ pub(crate) fn check_rosidl_runtime_ret(success: bool) -> Result<()> {
 /// # Safety
 ///
 /// `get_ts` must return the process-lifetime type support matching `Request` and `Response`.
+/// On Iron and newer, `Event` must match the native service introspection event type as well.
 pub unsafe trait WrappedServiceTypeSupport: Debug + Clone + Send + Sync {
     type Request: WrappedTypesupport;
     type Response: WrappedTypesupport;
@@ -184,6 +185,7 @@ pub unsafe trait WrappedServiceTypeSupport: Debug + Clone + Send + Sync {
         r2r__ros__distro__lyrical,
         r2r__ros__distro__rolling
     ))]
+    /// Event message published by native service introspection on Iron and newer distributions.
     type Event: WrappedTypesupport;
 
     fn get_ts() -> &'static rosidl_service_type_support_t;

@@ -3627,6 +3627,20 @@ impl Node {
         service.service_name()
     }
 
+    #[cfg(any(
+        r2r__ros__distro__iron,
+        r2r__ros__distro__jazzy,
+        r2r__ros__distro__lyrical,
+        r2r__ros__distro__rolling
+    ))]
+    pub(crate) fn configure_service_introspection(
+        &mut self, id: uuid::Uuid, state: crate::ServiceIntrospectionState, event_qos: QosProfile,
+    ) -> Result<()> {
+        let service = self.service(id)?.clone();
+        let mut service = service.lock();
+        service.configure_introspection(self, state, event_qos)
+    }
+
     /// Create a ROS service client.
     ///
     /// A service client is used to make requests to a ROS service server.

@@ -104,7 +104,21 @@ pub use publishers::{
     PublisherGid, PublisherOptions, PublisherUntyped, UniqueNetworkFlowRequirement,
 };
 
+#[cfg(any(
+    r2r__ros__distro__iron,
+    r2r__ros__distro__jazzy,
+    r2r__ros__distro__lyrical,
+    r2r__ros__distro__rolling
+))]
+mod service_introspection;
 mod services;
+#[cfg(any(
+    r2r__ros__distro__iron,
+    r2r__ros__distro__jazzy,
+    r2r__ros__distro__lyrical,
+    r2r__ros__distro__rolling
+))]
+pub use service_introspection::ServiceIntrospectionState;
 pub use services::{
     Service, ServiceOptions, ServiceRequest, ServiceRequestInfo, ServiceRequestUntyped,
     ServiceUntyped,

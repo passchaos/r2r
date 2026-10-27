@@ -18,7 +18,7 @@ This audit is based on the source tree and local checks on 2026-10-27. It is not
 | --- | --- | --- |
 | Async application APIs | Futures and streams, service availability and timeouts, action goal/result/cancel APIs, typed parameter clients. | Compare complete application workflows with rclcpp; reduce repetitive executor/spin setup and improve cancellation and shutdown examples. |
 | Messages and native storage | Typed, untyped, raw and loaned message paths; fallible native copies; serialization tests. | Allocation and copy accounting across paths; reuse nested message sequence capacity; validate error and allocation-failure behavior before optimizing. |
-| Service events | Iron and newer service/action event bindings; empty and populated native/CDR/JSON roundtrips; bounded request/response rejection. | Public client/server configuration, metadata/content/off transitions, event stream interoperability, simulated timestamps, and a runnable example. |
+| Service events | Iron and newer service/action event bindings; empty and populated native/CDR/JSON roundtrips; bounded request/response rejection; typed/untyped client and server configuration. Four integration tests pass on local Jazzy with both CycloneDDS and Fast DDS, covering mode transitions, simulated timestamps, native identities, ownership, and retained QoS history. | Extend the local Jazzy RMW evidence to the other supported modern distributions and external rclcpp endpoints; maintain the documented middleware-dependent event identity encoding. |
 | Graph, QoS, parameters, clocks | Graph queries, endpoint identities and QoS, parameter services/events, managed ROS clocks and jump callbacks. | Audit remaining application-facing RCL and rclcpp features and test real middleware behavior per distribution. |
 | Distribution compatibility | CI declares Foxy, Galactic, Humble, Iron, Jazzy and Lyrical; local Jazzy checks and a Foxy container are available. | Foxy currently fails library compilation with 32 errors also present at HEAD `42cca4a`, including unavailable QoS APIs, descriptor fields, and clock/timer APIs. Restore or explicitly revise the supported matrix; run other declared distributions. |
 | Documentation builds | `cargo check --workspace --features doc-only` works with saved bindings. | Saved bindings omit some example packages and new event types; refresh them and make documentation/example test coverage consistent. `--all-targets --features doc-only` currently fails on existing example-package dependencies. |
@@ -27,7 +27,7 @@ This audit is based on the source tree and local checks on 2026-10-27. It is not
 
 ## Execution order
 
-1. Close the service-event vertical slice: correct bindings, event publication controls, native endpoint integration, and an executable example.
+1. Finish the service-event distribution and external endpoint matrix after the local Jazzy vertical slice: correct bindings, event publication controls, native endpoint integration, and an executable example.
 2. Restore the declared distribution boundaries and update saved documentation bindings, with independent gates for each version-dependent API.
 3. Build representative Rust/C++ application pairs and a reproducible performance matrix. Use these workloads to select allocation, copying, wakeup and scaling optimizations.
 4. Improve application ergonomics and module boundaries in the affected slice; validate it independently and checkpoint completed changes.
@@ -42,6 +42,7 @@ With the ROS environment sourced and the repository-pinned Rust toolchain:
 cargo test -p r2r_common tests::service_events_follow_ros_distro_support -- --exact
 cargo test -p r2r_msg_gen --lib message_path
 cargo test -p r2r --lib service_events
+cargo test -p r2r --lib service_introspection::tests -- --test-threads=1
 cargo test -p r2r --lib msg_types::
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
@@ -56,3 +57,18 @@ cargo test -p r2r_msg_gen --features doc-only --lib message_path
 ```
 
 Check the executed test count for every filtered gate. Keep different feature/distribution builds in separate target directories when they run concurrently. Serialize benchmark workloads with competing compilation and testing.
+
+The local shell currently inherits a CycloneDDS configuration URI pointing at an unavailable
+`/nav_env/conf/cyclonedds.xml`. Local runtime checks clear that URI only for their test process:
+
+```sh
+env -u CYCLONEDDS_URI cargo test -p r2r --lib service_introspection::tests -- --test-threads=1
+env -u CYCLONEDDS_URI RMW_IMPLEMENTATION=rmw_fastrtps_cpp cargo test -p r2r --lib service_introspection::tests -- --test-threads=1
+env -u CYCLONEDDS_URI cargo run -p r2r --example service_introspection
+```
+
+Service event tests compare client-side GIDs to the native client identity and server-side GIDs
+to the native request writer identity. CycloneDDS can encode these differently. Sequence numbers
+and identities are checked against their corresponding native sources. Fast DDS graph discovery
+does not expose publisher history depth; a late-subscriber test verifies the actual retained event
+count with `keep_last(1)` and transient-local durability instead.

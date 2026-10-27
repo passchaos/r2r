@@ -11,7 +11,11 @@ Documentation can be found on docs.rs: <https://docs.rs/r2r/latest/r2r>.
 
 The ongoing development goal, evidence requirements, and known capability, usability and performance gaps are tracked in [the development roadmap](docs/ROADMAP.md).
 
-These bindings are being written organically when things are needed by me and others so please be aware that the API will change. As of now I have no intention of wrapping all of the RCL just for the sake of completeness. However, if you need some specific functionality, feel free to open an issue or a PR!
+On ROS 2 Iron and newer, typed and untyped services and clients expose `configure_introspection(&mut node, state, event_qos)`. Choose `ServiceIntrospectionState::Metadata` for identities and timestamps or `Contents` to include payloads; `Off` disables publication. Subscribe to the generated service `Event` type on `<service_name>/_service_event`. Run `cargo run -p r2r --example service_introspection` for a complete request, response and event stream example.
+
+Generated service bindings provide the associated `Event` type automatically. Manual implementations of `WrappedServiceTypeSupport` on Iron and newer must also define `type Event` to match their native service event type.
+
+Development focuses on complete application workflows, safe and convenient Rust APIs, and measured performance against native ROS implementations. The API may change as capability gaps are closed. Feature requests and contributions are welcome; the roadmap records current evidence and remaining work.
 
 How to use
 --------------------

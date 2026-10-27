@@ -389,6 +389,18 @@ where
 
 pub trait Service_ {
     fn handle(&self) -> &rcl_service_t;
+    #[cfg(any(
+        r2r__ros__distro__iron,
+        r2r__ros__distro__jazzy,
+        r2r__ros__distro__lyrical,
+        r2r__ros__distro__rolling
+    ))]
+    fn configure_introspection(
+        &mut self, _node: &mut Node, _state: crate::ServiceIntrospectionState,
+        _event_qos: QosProfile,
+    ) -> Result<()> {
+        Err(Error::RCL_RET_UNSUPPORTED)
+    }
     fn id(&self) -> Option<uuid::Uuid> {
         None
     }
@@ -443,6 +455,24 @@ pub struct UntypedService {
 unsafe impl Send for UntypedService {}
 
 impl Service_ for UntypedService {
+    #[cfg(any(
+        r2r__ros__distro__iron,
+        r2r__ros__distro__jazzy,
+        r2r__ros__distro__lyrical,
+        r2r__ros__distro__rolling
+    ))]
+    fn configure_introspection(
+        &mut self, node: &mut Node, state: crate::ServiceIntrospectionState, event_qos: QosProfile,
+    ) -> Result<()> {
+        crate::service_introspection::configure_service(
+            &mut self.rcl_handle,
+            self.service_type.ts,
+            node,
+            state,
+            event_qos,
+        )
+    }
+
     fn handle(&self) -> &rcl_service_t {
         &self.rcl_handle
     }
@@ -531,6 +561,24 @@ impl<T: 'static> Service_ for TypedService<T>
 where
     T: WrappedServiceTypeSupport,
 {
+    #[cfg(any(
+        r2r__ros__distro__iron,
+        r2r__ros__distro__jazzy,
+        r2r__ros__distro__lyrical,
+        r2r__ros__distro__rolling
+    ))]
+    fn configure_introspection(
+        &mut self, node: &mut Node, state: crate::ServiceIntrospectionState, event_qos: QosProfile,
+    ) -> Result<()> {
+        crate::service_introspection::configure_service(
+            &mut self.rcl_handle,
+            T::get_ts(),
+            node,
+            state,
+            event_qos,
+        )
+    }
+
     fn handle(&self) -> &rcl_service_t {
         &self.rcl_handle
     }
