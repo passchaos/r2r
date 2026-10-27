@@ -176,6 +176,7 @@ pub fn generate_rust_service(
             #[cfg(any(
                 r2r__ros__distro__iron,
                 r2r__ros__distro__jazzy,
+                r2r__ros__distro__kilted,
                 r2r__ros__distro__lyrical,
                 r2r__ros__distro__rolling
             ))]

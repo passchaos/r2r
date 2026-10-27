@@ -2,7 +2,6 @@ use futures::{channel::oneshot, Future, TryFutureExt};
 use parking_lot::{ArcMutexGuard, Mutex, RawMutex};
 #[cfg(test)]
 use std::sync::atomic::AtomicUsize;
-#[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
 use std::time::Duration;
 use std::{
     collections::VecDeque,
@@ -38,7 +37,21 @@ pub struct NetworkFlowEndpoint {
     pub transport_port: u16,
     pub flow_label: u32,
     pub dscp: u8,
+    /// Address text reported by the RMW; empty when the endpoint address is unspecified.
     pub internet_address: String,
+}
+
+impl NetworkFlowEndpoint {
+    /// Parses a reported IP address, returning `None` when the RMW leaves it unspecified.
+    pub fn ip_address(
+        &self,
+    ) -> std::result::Result<Option<std::net::IpAddr>, std::net::AddrParseError> {
+        if self.internet_address.is_empty() {
+            Ok(None)
+        } else {
+            self.internet_address.parse().map(Some)
+        }
+    }
 }
 
 /// Globally unique middleware identity of a publisher.
@@ -121,11 +134,7 @@ pub struct IncompatibleTypeStatus {
     pub total_count_change: i32,
 }
 
-#[cfg(not(any(
-    r2r__ros__distro__foxy,
-    r2r__ros__distro__galactic,
-    r2r__ros__distro__humble
-)))]
+#[cfg(not(r2r__ros__distro__humble))]
 impl From<rmw_incompatible_type_status_t> for IncompatibleTypeStatus {
     fn from(status: rmw_incompatible_type_status_t) -> Self {
         Self {
@@ -155,6 +164,40 @@ mod option_tests {
     use super::*;
 
     #[test]
+    fn network_endpoint_addresses_distinguish_unspecified_and_invalid_values() {
+        let mut endpoint = NetworkFlowEndpoint {
+            transport_protocol: "UDP".into(),
+            internet_protocol: "IPv4".into(),
+            transport_port: 7001,
+            flow_label: 0,
+            dscp: 0,
+            internet_address: String::new(),
+        };
+        assert_eq!(endpoint.ip_address().unwrap(), None);
+        endpoint.internet_address = "0.0.0.0".into();
+        assert_eq!(endpoint.ip_address().unwrap(), Some(std::net::Ipv4Addr::UNSPECIFIED.into()));
+        endpoint.internet_address = "::1".into();
+        assert_eq!(endpoint.ip_address().unwrap(), Some(std::net::Ipv6Addr::LOCALHOST.into()));
+        endpoint.internet_address = "invalid".into();
+        assert!(endpoint.ip_address().is_err());
+    }
+
+    #[test]
+    fn native_network_endpoint_conversion_preserves_unspecified_address_and_port() {
+        let mut native = unsafe { rmw_get_zero_initialized_network_flow_endpoint() };
+        native.transport_port = 7001;
+        let endpoint = NetworkFlowEndpoint::try_from_native(&native).unwrap();
+        assert!(endpoint.internet_address.is_empty());
+        assert_eq!(endpoint.ip_address().unwrap(), None);
+        assert_eq!(endpoint.transport_port, 7001);
+        native.internet_address.fill(b'x' as _);
+        assert!(matches!(
+            NetworkFlowEndpoint::try_from_native(&native),
+            Err(Error::RCL_RET_ERROR)
+        ));
+    }
+
+    #[test]
     fn maps_unique_network_flow_requirements() {
         assert_eq!(
             rmw_unique_network_flow_endpoints_requirement_t::from(
@@ -182,7 +225,6 @@ mod option_tests {
         );
     }
 
-    #[cfg(not(r2r__ros__distro__foxy))]
     #[test]
     fn network_flow_endpoints_reject_invalid_native_addresses() {
         let mut endpoint = unsafe { rmw_get_zero_initialized_network_flow_endpoint() };
@@ -203,11 +245,7 @@ mod option_tests {
         ));
     }
 
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     #[test]
     fn preserves_native_incompatible_type_counts() {
         let status = IncompatibleTypeStatus::from(rmw_incompatible_type_status_t {
@@ -255,7 +293,6 @@ pub(crate) struct Publisher_ {
     pub(crate) wait_poll_count: AtomicUsize,
 
     poll_subscriber_channels: Mutex<Waiters<()>>,
-    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     poll_ack_channels: Mutex<Waiters<Result<()>>>,
 }
 
@@ -359,23 +396,14 @@ mod waiter_tests {
                 offered_incompatible_qos: None,
                 offered_deadline_missed: None,
                 liveliness_lost: None,
-                #[cfg(not(any(
-                    r2r__ros__distro__foxy,
-                    r2r__ros__distro__galactic,
-                    r2r__ros__distro__humble
-                )))]
+                #[cfg(not(r2r__ros__distro__humble))]
                 matched: None,
-                #[cfg(not(any(
-                    r2r__ros__distro__foxy,
-                    r2r__ros__distro__galactic,
-                    r2r__ros__distro__humble
-                )))]
+                #[cfg(not(r2r__ros__distro__humble))]
                 incompatible_type: None,
             })),
             active_wait_publishers: Arc::new(Mutex::new(VecDeque::new())),
             wait_poll_count: AtomicUsize::new(0),
             poll_subscriber_channels: Mutex::new(Waiters::default()),
-            #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
             poll_ack_channels: Mutex::new(Waiters::default()),
         });
         let identity = publisher.id;
@@ -400,7 +428,6 @@ mod waiter_tests {
         );
     }
 
-    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     #[test]
     fn publisher_wait_types_schedule_once_per_nonempty_queue() {
         let active = Arc::new(Mutex::new(VecDeque::new()));
@@ -411,17 +438,9 @@ mod waiter_tests {
                 offered_incompatible_qos: None,
                 offered_deadline_missed: None,
                 liveliness_lost: None,
-                #[cfg(not(any(
-                    r2r__ros__distro__foxy,
-                    r2r__ros__distro__galactic,
-                    r2r__ros__distro__humble
-                )))]
+                #[cfg(not(r2r__ros__distro__humble))]
                 matched: None,
-                #[cfg(not(any(
-                    r2r__ros__distro__foxy,
-                    r2r__ros__distro__galactic,
-                    r2r__ros__distro__humble
-                )))]
+                #[cfg(not(r2r__ros__distro__humble))]
                 incompatible_type: None,
             })),
             active_wait_publishers: Arc::clone(&active),
@@ -453,23 +472,14 @@ mod waiter_tests {
                 offered_incompatible_qos: None,
                 offered_deadline_missed: None,
                 liveliness_lost: None,
-                #[cfg(not(any(
-                    r2r__ros__distro__foxy,
-                    r2r__ros__distro__galactic,
-                    r2r__ros__distro__humble
-                )))]
+                #[cfg(not(r2r__ros__distro__humble))]
                 matched: None,
-                #[cfg(not(any(
-                    r2r__ros__distro__foxy,
-                    r2r__ros__distro__galactic,
-                    r2r__ros__distro__humble
-                )))]
+                #[cfg(not(r2r__ros__distro__humble))]
                 incompatible_type: None,
             })),
             active_wait_publishers: Arc::new(Mutex::new(VecDeque::new())),
             wait_poll_count: AtomicUsize::new(0),
             poll_subscriber_channels: Mutex::new(Waiters::default()),
-            #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
             poll_ack_channels: Mutex::new(Waiters::default()),
         };
 
@@ -492,17 +502,9 @@ struct PublisherHandle {
     offered_incompatible_qos: Option<PublisherEvent>,
     offered_deadline_missed: Option<PublisherEvent>,
     liveliness_lost: Option<PublisherEvent>,
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     matched: Option<PublisherEvent>,
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     incompatible_type: Option<PublisherEvent>,
 }
 
@@ -583,11 +585,7 @@ impl PublisherEvent {
         }))
     }
 
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     fn take_matched(&self) -> Result<Option<MatchedStatus>> {
         let mut status = MaybeUninit::<rmw_matched_status_t>::uninit();
         let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
@@ -607,11 +605,7 @@ impl PublisherEvent {
         }))
     }
 
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     fn take_incompatible_type(&self) -> Result<Option<IncompatibleTypeStatus>> {
         let mut status = MaybeUninit::<rmw_incompatible_type_status_t>::uninit();
         let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
@@ -710,11 +704,7 @@ impl Publisher_ {
         event.take_liveliness_lost()
     }
 
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     fn take_matched(&self) -> Result<Option<MatchedStatus>> {
         let mut handle = self.handle.lock();
         let publisher = handle
@@ -729,11 +719,7 @@ impl Publisher_ {
         event.take_matched()
     }
 
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     fn take_incompatible_type(&self) -> Result<Option<IncompatibleTypeStatus>> {
         let mut handle = self.handle.lock();
         let publisher = handle
@@ -809,7 +795,6 @@ impl Publisher_ {
         })
     }
 
-    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     fn wait_for_all_acked(&self, timeout: Duration) -> Result<()> {
         let timeout =
             i64::try_from(timeout.as_nanos()).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
@@ -819,7 +804,6 @@ impl Publisher_ {
         })
     }
 
-    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     fn register_ack_wait(&self, sender: oneshot::Sender<Result<()>>) {
         if self.poll_ack_channels.lock().register(sender) {
             self.active_wait_publishers.lock().push_back(self.id);
@@ -881,7 +865,6 @@ impl Publisher_ {
         }
     }
 
-    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     pub(crate) fn poll_all_acked(&self) {
         let Some(boundary) = self.poll_ack_channels.lock().poll_boundary() else {
             return;
@@ -899,17 +882,13 @@ impl Publisher_ {
         if has_active_waiters(&self.poll_subscriber_channels) {
             return true;
         }
-        #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
-        return has_active_waiters(&self.poll_ack_channels);
-        #[cfg(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic))]
-        false
+        has_active_waiters(&self.poll_ack_channels)
     }
 
     pub(crate) fn poll_waits(&self) -> bool {
         #[cfg(test)]
         self.wait_poll_count.fetch_add(1, Ordering::Relaxed);
         self.poll_has_subscribers();
-        #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
         self.poll_all_acked();
         self.has_pending_waits()
     }
@@ -919,11 +898,7 @@ impl Publisher_ {
         state.offered_incompatible_qos = None;
         state.offered_deadline_missed = None;
         state.liveliness_lost = None;
-        #[cfg(not(any(
-            r2r__ros__distro__foxy,
-            r2r__ros__distro__galactic,
-            r2r__ros__distro__humble
-        )))]
+        #[cfg(not(r2r__ros__distro__humble))]
         {
             state.matched = None;
             state.incompatible_type = None;
@@ -1167,24 +1142,15 @@ pub fn create_publisher_helper(
                 offered_incompatible_qos: None,
                 offered_deadline_missed: None,
                 liveliness_lost: None,
-                #[cfg(not(any(
-                    r2r__ros__distro__foxy,
-                    r2r__ros__distro__galactic,
-                    r2r__ros__distro__humble
-                )))]
+                #[cfg(not(r2r__ros__distro__humble))]
                 matched: None,
-                #[cfg(not(any(
-                    r2r__ros__distro__foxy,
-                    r2r__ros__distro__galactic,
-                    r2r__ros__distro__humble
-                )))]
+                #[cfg(not(r2r__ros__distro__humble))]
                 incompatible_type: None,
             })),
             active_wait_publishers,
             #[cfg(test)]
             wait_poll_count: AtomicUsize::new(0),
             poll_subscriber_channels: Mutex::new(Waiters::default()),
-            #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
             poll_ack_channels: Mutex::new(Waiters::default()),
         })
     } else {
@@ -1221,11 +1187,7 @@ impl PublisherUntyped {
     }
 
     /// Takes publisher matching changes without blocking.
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     pub fn take_matched(&self) -> Result<Option<MatchedStatus>> {
         self.handle
             .upgrade()
@@ -1234,11 +1196,7 @@ impl PublisherUntyped {
     }
 
     /// Takes incompatible-type discovery events without blocking.
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     pub fn take_incompatible_type(&self) -> Result<Option<IncompatibleTypeStatus>> {
         self.handle
             .upgrade()
@@ -1297,7 +1255,6 @@ impl PublisherUntyped {
     }
 
     /// Blocks until all previously published reliable data is acknowledged or `timeout` expires.
-    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     pub fn wait_for_all_acked(&self, timeout: Duration) -> Result<()> {
         self.handle
             .upgrade()
@@ -1309,7 +1266,6 @@ impl PublisherUntyped {
     ///
     /// The owning node must be spun while awaiting. Unlike [`Self::wait_for_all_acked`], this does
     /// not block the calling thread.
-    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     pub fn wait_for_all_acked_async(&self) -> Result<impl Future<Output = Result<()>>> {
         let publisher = self
             .handle
@@ -1325,7 +1281,6 @@ impl PublisherUntyped {
     }
 
     /// Asynchronously waits for acknowledgements up to `timeout`. The node must be spun.
-    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     pub fn wait_for_all_acked_async_with_timeout(
         &self, node: &mut Node, timeout: Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
@@ -1498,11 +1453,7 @@ where
     }
 
     /// Takes publisher matching changes without blocking.
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     pub fn take_matched(&self) -> Result<Option<MatchedStatus>> {
         self.handle
             .upgrade()
@@ -1511,11 +1462,7 @@ where
     }
 
     /// Takes incompatible-type discovery events without blocking.
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     pub fn take_incompatible_type(&self) -> Result<Option<IncompatibleTypeStatus>> {
         self.handle
             .upgrade()
@@ -1574,7 +1521,6 @@ where
     }
 
     /// Blocks until all previously published reliable data is acknowledged or `timeout` expires.
-    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     pub fn wait_for_all_acked(&self, timeout: Duration) -> Result<()> {
         self.handle
             .upgrade()
@@ -1586,7 +1532,6 @@ where
     ///
     /// The owning node must be spun while awaiting. Unlike [`Self::wait_for_all_acked`], this does
     /// not block the calling thread.
-    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     pub fn wait_for_all_acked_async(&self) -> Result<impl Future<Output = Result<()>>> {
         let publisher = self
             .handle
@@ -1602,7 +1547,6 @@ where
     }
 
     /// Asynchronously waits for acknowledgements up to `timeout`. The node must be spun.
-    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     pub fn wait_for_all_acked_async_with_timeout(
         &self, node: &mut Node, timeout: Duration,
     ) -> Result<impl Future<Output = Result<()>>> {
@@ -1767,10 +1711,8 @@ fn check_publisher_ret(ret: rcl_ret_t) -> Result<()> {
     }
 }
 
-#[cfg(not(r2r__ros__distro__foxy))]
 struct NetworkFlowEndpointArray(rmw_network_flow_endpoint_array_t);
 
-#[cfg(not(r2r__ros__distro__foxy))]
 impl NetworkFlowEndpointArray {
     fn new() -> Self {
         Self(unsafe { rmw_get_zero_initialized_network_flow_endpoint_array() })
@@ -1790,7 +1732,6 @@ impl NetworkFlowEndpointArray {
     }
 }
 
-#[cfg(not(r2r__ros__distro__foxy))]
 impl Drop for NetworkFlowEndpointArray {
     fn drop(&mut self) {
         if self.0.allocator.is_null() {
@@ -1803,7 +1744,6 @@ impl Drop for NetworkFlowEndpointArray {
     }
 }
 
-#[cfg(not(r2r__ros__distro__foxy))]
 impl NetworkFlowEndpoint {
     fn try_from_native(endpoint: &rmw_network_flow_endpoint_t) -> Result<Self> {
         fn protocol_string(
@@ -1862,7 +1802,6 @@ impl NetworkFlowEndpoint {
 }
 
 fn publisher_network_flow_endpoints(handle: &rcl_publisher_t) -> Result<Vec<NetworkFlowEndpoint>> {
-    #[cfg(not(r2r__ros__distro__foxy))]
     {
         let mut endpoints = NetworkFlowEndpointArray::new();
         let mut allocator = unsafe { rcutils_get_default_allocator() };
@@ -1877,17 +1816,11 @@ fn publisher_network_flow_endpoints(handle: &rcl_publisher_t) -> Result<Vec<Netw
         }
         endpoints.to_vec()
     }
-    #[cfg(r2r__ros__distro__foxy)]
-    {
-        let _ = handle;
-        Err(Error::RCL_RET_UNSUPPORTED)
-    }
 }
 
 pub(crate) fn subscription_network_flow_endpoints(
     handle: &rcl_subscription_t,
 ) -> Result<Vec<NetworkFlowEndpoint>> {
-    #[cfg(not(r2r__ros__distro__foxy))]
     {
         let mut endpoints = NetworkFlowEndpointArray::new();
         let mut allocator = unsafe { rcutils_get_default_allocator() };
@@ -1901,10 +1834,5 @@ pub(crate) fn subscription_network_flow_endpoints(
             return Err(err);
         }
         endpoints.to_vec()
-    }
-    #[cfg(r2r__ros__distro__foxy)]
-    {
-        let _ = handle;
-        Err(Error::RCL_RET_UNSUPPORTED)
     }
 }

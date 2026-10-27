@@ -1697,7 +1697,7 @@ fn time_point_to_builtin(time: rcl_time_point_value_t) -> Result<builtin_interfa
 fn action_server_take_succeeded(ret: rcl_ret_t) -> Result<bool> {
     if ret == RCL_RET_OK as i32 {
         Ok(true)
-    } else if ret == RCL_RET_ACTION_SERVER_TAKE_FAILED as i32 {
+    } else if ret == r2r_actions::RCL_RET_ACTION_SERVER_TAKE_FAILED as i32 {
         Ok(false)
     } else {
         Err(Error::from_rcl_error(ret))
@@ -2523,9 +2523,12 @@ mod tests {
     #[test]
     fn classifies_action_server_take_results() {
         assert!(action_server_take_succeeded(RCL_RET_OK as i32).unwrap());
-        assert!(!action_server_take_succeeded(RCL_RET_ACTION_SERVER_TAKE_FAILED as i32).unwrap());
+        assert!(!action_server_take_succeeded(
+            r2r_actions::RCL_RET_ACTION_SERVER_TAKE_FAILED as i32
+        )
+        .unwrap());
         assert!(matches!(
-            action_server_take_succeeded(RCL_RET_ACTION_SERVER_INVALID as i32),
+            action_server_take_succeeded(r2r_actions::RCL_RET_ACTION_SERVER_INVALID as i32),
             Err(Error::RCL_RET_ACTION_SERVER_INVALID)
         ));
     }

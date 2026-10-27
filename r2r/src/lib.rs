@@ -11,7 +11,7 @@
 //!
 //! What works?
 //!---
-//!- Up to date with ROS2 ~Dashing~ ~Eloquent~ Foxy Galactic Humble
+//!- ROS 2 Humble, Iron, Jazzy, Kilted, Lyrical and Rolling
 //!- Building Rust types
 //!- Publish/subscribe
 //!- Services
@@ -107,6 +107,7 @@ pub use publishers::{
 #[cfg(any(
     r2r__ros__distro__iron,
     r2r__ros__distro__jazzy,
+    r2r__ros__distro__kilted,
     r2r__ros__distro__lyrical,
     r2r__ros__distro__rolling
 ))]
@@ -115,6 +116,7 @@ mod services;
 #[cfg(any(
     r2r__ros__distro__iron,
     r2r__ros__distro__jazzy,
+    r2r__ros__distro__kilted,
     r2r__ros__distro__lyrical,
     r2r__ros__distro__rolling
 ))]
@@ -126,7 +128,6 @@ pub use services::{
 
 mod availability;
 mod clients;
-#[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
 pub use clients::ClientGid;
 pub use clients::{Client, ClientUntyped, ServiceResponse, ServiceResponseInfo};
 
@@ -173,12 +174,7 @@ pub use clocks::{
 };
 
 mod nodes;
-#[cfg(not(any(
-    r2r__ros__distro__foxy,
-    r2r__ros__distro__galactic,
-    r2r__ros__distro__humble,
-    r2r__ros__distro__iron
-)))]
+#[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
 pub use nodes::TimerCallInfo;
 pub use nodes::{
     Node, NodeOptions, ParameterCallbackHandle, ParameterHandlerOptions,
@@ -198,16 +194,14 @@ pub use qos::{
 };
 
 /// The ros version currently built against.
-#[cfg(r2r__ros__distro__foxy)]
-pub const ROS_DISTRO: &str = "foxy";
-#[cfg(r2r__ros__distro__galactic)]
-pub const ROS_DISTRO: &str = "galactic";
 #[cfg(r2r__ros__distro__humble)]
 pub const ROS_DISTRO: &str = "humble";
 #[cfg(r2r__ros__distro__iron)]
 pub const ROS_DISTRO: &str = "iron";
 #[cfg(r2r__ros__distro__jazzy)]
 pub const ROS_DISTRO: &str = "jazzy";
+#[cfg(r2r__ros__distro__kilted)]
+pub const ROS_DISTRO: &str = "kilted";
 #[cfg(r2r__ros__distro__lyrical)]
 pub const ROS_DISTRO: &str = "lyrical";
 
@@ -215,11 +209,10 @@ pub const ROS_DISTRO: &str = "lyrical";
 pub const ROS_DISTRO: &str = "rolling";
 
 #[cfg(not(any(
-    r2r__ros__distro__foxy,
-    r2r__ros__distro__galactic,
     r2r__ros__distro__humble,
     r2r__ros__distro__iron,
     r2r__ros__distro__jazzy,
+    r2r__ros__distro__kilted,
     r2r__ros__distro__lyrical,
     r2r__ros__distro__rolling
 )))]

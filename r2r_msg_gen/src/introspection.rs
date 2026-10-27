@@ -172,9 +172,7 @@ pub enum MemberType {
 impl MemberType {
     /// Get the enum variant for the type id.
     ///
-    /// Because the c enum has been named between galactic and the
-    /// next release, we cannot know its name. therefor we use the
-    /// constants as is and hope we notice when they change.
+    /// The numeric ROS introspection type IDs are stable across supported distributions.
     ///
     /// ```ignore
     /// rosidl_typesupport_introspection_c__ROS_TYPE_FLOAT = 1,

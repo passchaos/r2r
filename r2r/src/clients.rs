@@ -30,7 +30,6 @@ pub(crate) enum ClientResponseAction {
 const MAX_CLIENT_RESPONSES_PER_SPIN: usize = 16;
 
 /// Globally unique middleware identity of a service client.
-#[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClientGid {
     /// Name of the RMW implementation that assigned this identity.
@@ -369,7 +368,8 @@ where
     }
 
     /// Returns the globally unique middleware identity of this service client.
-    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+    ///
+    /// Humble lacks the native client GID query and returns [`Error::RCL_RET_UNSUPPORTED`].
     pub fn get_gid(&self) -> Result<ClientGid> {
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
         let client = client.lock();
@@ -535,7 +535,8 @@ impl ClientUntyped {
     }
 
     /// Returns the globally unique middleware identity of this service client.
-    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
+    ///
+    /// Humble lacks the native client GID query and returns [`Error::RCL_RET_UNSUPPORTED`].
     pub fn get_gid(&self) -> Result<ClientGid> {
         let client = self.client.upgrade().ok_or(Error::RCL_RET_CLIENT_INVALID)?;
         let client = client.lock();
@@ -595,30 +596,39 @@ fn client_service_name(handle: &rcl_client_t) -> Result<String> {
         })
 }
 
-#[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
 fn client_gid(handle: &rcl_client_t) -> Result<ClientGid> {
-    let rmw_handle = unsafe { rcl_client_get_rmw_handle(handle).as_ref() }
-        .ok_or(Error::RCL_RET_CLIENT_INVALID)?;
-    let mut gid = MaybeUninit::<rmw_gid_t>::uninit();
-    let ret = unsafe { rmw_get_gid_for_client(rmw_handle, gid.as_mut_ptr()) };
-    if ret != RMW_RET_OK as i32 {
-        return Err(Error::from_rcl_error(ret));
+    #[cfg(r2r__ros__distro__humble)]
+    {
+        if !unsafe { rcl_client_is_valid(handle) } {
+            return Err(Error::RCL_RET_CLIENT_INVALID);
+        }
+        Err(Error::RCL_RET_UNSUPPORTED)
     }
-    let gid = unsafe { gid.assume_init() };
-    if gid.implementation_identifier.is_null() {
-        return Err(Error::RCL_RET_ERROR);
+    #[cfg(not(r2r__ros__distro__humble))]
+    {
+        let rmw_handle = unsafe { rcl_client_get_rmw_handle(handle).as_ref() }
+            .ok_or(Error::RCL_RET_CLIENT_INVALID)?;
+        let mut gid = MaybeUninit::<rmw_gid_t>::uninit();
+        let ret = unsafe { rmw_get_gid_for_client(rmw_handle, gid.as_mut_ptr()) };
+        if ret != RMW_RET_OK as i32 {
+            return Err(Error::from_rcl_error(ret));
+        }
+        let gid = unsafe { gid.assume_init() };
+        if gid.implementation_identifier.is_null() {
+            return Err(Error::RCL_RET_ERROR);
+        }
+        let implementation_identifier = unsafe { CStr::from_ptr(gid.implementation_identifier) }
+            .to_str()
+            .map(str::to_owned)
+            .map_err(|err| Error::InvalidUtf8 {
+                context: "client RMW implementation identifier",
+                err: err.to_string(),
+            })?;
+        Ok(ClientGid {
+            implementation_identifier,
+            data: gid.data,
+        })
     }
-    let implementation_identifier = unsafe { CStr::from_ptr(gid.implementation_identifier) }
-        .to_str()
-        .map(str::to_owned)
-        .map_err(|err| Error::InvalidUtf8 {
-            context: "client RMW implementation identifier",
-            err: err.to_string(),
-        })?;
-    Ok(ClientGid {
-        implementation_identifier,
-        data: gid.data,
-    })
 }
 
 fn client_request_publisher_actual_qos(handle: &rcl_client_t) -> Result<QosProfile> {
@@ -1109,7 +1119,8 @@ mod tests {
             source_timestamp: 41,
             received_timestamp: 42,
             request_id: rmw_request_id_t {
-                writer_guid: [128, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 126, 127],
+                writer_guid: [128_u8, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 126, 127]
+                    .map(|byte| byte as _),
                 sequence_number: 43,
             },
         };

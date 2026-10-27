@@ -19,6 +19,8 @@ Development focuses on complete application workflows, safe and convenient Rust 
 
 How to use
 --------------------
+Supported ROS 2 distributions start at **Humble**: Humble, Iron, Jazzy, Kilted, Lyrical and Rolling. Distribution-specific APIs are enabled only where ROS provides them.
+
 1. Make sure you have libclang installed. (e.g. libclang-dev on ubuntu)
 2. Depend on this package in Cargo.toml: `r2r = "0.9.7"`
 3. You need to source your ROS2 installation before building/running.

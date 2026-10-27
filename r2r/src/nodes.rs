@@ -54,12 +54,7 @@ pub struct TimerOptions {
 /// Timing metadata captured atomically when a timer is called.
 ///
 /// The absolute timestamps use the clock domain reported by [`Self::clock_type`].
-#[cfg(not(any(
-    r2r__ros__distro__foxy,
-    r2r__ros__distro__galactic,
-    r2r__ros__distro__humble,
-    r2r__ros__distro__iron
-)))]
+#[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TimerCallInfo {
     /// Time elapsed since the timer's previous call.
@@ -1476,30 +1471,25 @@ impl Node {
     }
 
     /// Expands and remaps a topic name using this node's namespace and ROS arguments.
-    #[cfg(not(r2r__ros__distro__foxy))]
     pub fn resolve_topic_name(&self, name: &str) -> Result<String> {
         self.resolve_name(name, false, false)
     }
 
     /// Expands a topic name without applying remapping rules.
-    #[cfg(not(r2r__ros__distro__foxy))]
     pub fn resolve_topic_name_without_remapping(&self, name: &str) -> Result<String> {
         self.resolve_name(name, false, true)
     }
 
     /// Expands and remaps a service name using this node's namespace and ROS arguments.
-    #[cfg(not(r2r__ros__distro__foxy))]
     pub fn resolve_service_name(&self, name: &str) -> Result<String> {
         self.resolve_name(name, true, false)
     }
 
     /// Expands a service name without applying remapping rules.
-    #[cfg(not(r2r__ros__distro__foxy))]
     pub fn resolve_service_name_without_remapping(&self, name: &str) -> Result<String> {
         self.resolve_name(name, true, true)
     }
 
-    #[cfg(not(r2r__ros__distro__foxy))]
     fn resolve_name(&self, name: &str, is_service: bool, only_expand: bool) -> Result<String> {
         let name = CString::new(name).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
         let allocator = unsafe { rcutils_get_default_allocator() };
@@ -3457,22 +3447,14 @@ impl Node {
         self.subscriber_mut(id)?.take_message_lost()
     }
 
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     pub(crate) fn take_subscription_matched(
         &mut self, id: uuid::Uuid,
     ) -> Result<Option<MatchedStatus>> {
         self.subscriber_mut(id)?.take_matched()
     }
 
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     pub(crate) fn take_subscription_incompatible_type(
         &mut self, id: uuid::Uuid,
     ) -> Result<Option<IncompatibleTypeStatus>> {
@@ -3630,6 +3612,7 @@ impl Node {
     #[cfg(any(
         r2r__ros__distro__iron,
         r2r__ros__distro__jazzy,
+        r2r__ros__distro__kilted,
         r2r__ros__distro__lyrical,
         r2r__ros__distro__rolling
     ))]
@@ -3816,6 +3799,14 @@ impl Node {
         duration_to_rcl_nanos(timeout).map(|_| ())
     }
 
+    #[cfg(any(r2r__ros__distro__humble, r2r__ros__distro__iron))]
+    fn resolve_action_name(&self, name: &str) -> Result<String> {
+        self.resolve_topic_name(name).map_err(|error| match error {
+            Error::RCL_RET_TOPIC_NAME_INVALID => Error::RCL_RET_ACTION_NAME_INVALID,
+            error => error,
+        })
+    }
+
     /// Create a ROS action client.
     ///
     /// An action client is used to make requests to a ROS action server.
@@ -3834,6 +3825,10 @@ impl Node {
         T: 'static + WrappedActionTypeSupport,
     {
         options.validate()?;
+        #[cfg(any(r2r__ros__distro__humble, r2r__ros__distro__iron))]
+        let resolved_action_name = self.resolve_action_name(action_name)?;
+        #[cfg(any(r2r__ros__distro__humble, r2r__ros__distro__iron))]
+        let action_name = resolved_action_name.as_str();
         let mut client_handle = create_action_client_helper(
             self.node_handle.as_mut(),
             action_name,
@@ -3916,6 +3911,10 @@ impl Node {
     ) -> Result<ActionClientUntyped> {
         options.validate()?;
         let action_type_support = UntypedActionSupport::new_from(action_type)?;
+        #[cfg(any(r2r__ros__distro__humble, r2r__ros__distro__iron))]
+        let resolved_action_name = self.resolve_action_name(action_name)?;
+        #[cfg(any(r2r__ros__distro__humble, r2r__ros__distro__iron))]
+        let action_name = resolved_action_name.as_str();
         let mut client_handle = create_action_client_helper(
             self.node_handle.as_mut(),
             action_name,
@@ -4029,6 +4028,10 @@ impl Node {
             mpsc::channel::<ActionServerGoalRequest<T>>(goal_request_channel_capacity);
 
         let clock = self.ros_clock.clone();
+        #[cfg(any(r2r__ros__distro__humble, r2r__ros__distro__iron))]
+        let resolved_action_name = self.resolve_action_name(action_name)?;
+        #[cfg(any(r2r__ros__distro__humble, r2r__ros__distro__iron))]
+        let action_name = resolved_action_name.as_str();
         let mut server_handle = {
             let mut clock_handle = clock.lock();
             create_action_server_helper(
@@ -4978,12 +4981,7 @@ impl Node {
     /// Returns the number of clients created for `service_name`.
     ///
     /// Relative and private names are expanded in this node's namespace without applying remaps.
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble,
-        r2r__ros__distro__iron
-    )))]
+    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
     pub fn count_clients(&self, service_name: &str) -> Result<usize> {
         self.count_graph_entities(service_name, true, |node, name, count| unsafe {
             rcl_count_clients(node, name, count)
@@ -4993,12 +4991,7 @@ impl Node {
     /// Returns the number of servers created for `service_name`.
     ///
     /// Relative and private names are expanded in this node's namespace without applying remaps.
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble,
-        r2r__ros__distro__iron
-    )))]
+    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
     pub fn count_services(&self, service_name: &str) -> Result<usize> {
         self.count_graph_entities(service_name, true, |node, name, count| unsafe {
             rcl_count_services(node, name, count)
@@ -5009,10 +5002,7 @@ impl Node {
         &self, name: &str, is_service: bool,
         query: impl FnOnce(*const rcl_node_t, *const std::os::raw::c_char, *mut usize) -> rcl_ret_t,
     ) -> Result<usize> {
-        #[cfg(not(r2r__ros__distro__foxy))]
         let name = self.resolve_name(name, is_service, true)?;
-        #[cfg(r2r__ros__distro__foxy)]
-        let _ = is_service;
         let name = CString::new(name).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
         let mut count = 0;
         let ret = query(self.node_handle.as_ref(), name.as_ptr(), &mut count);
@@ -5203,7 +5193,6 @@ impl Node {
             *mut rcl_topic_endpoint_info_array_t,
         ) -> rcl_ret_t,
     ) -> Result<Vec<TopicEndpointInfo>> {
-        #[cfg(not(r2r__ros__distro__foxy))]
         let topic_name = if no_mangle {
             topic_name.to_owned()
         } else {
@@ -5245,12 +5234,7 @@ impl Node {
             _clock: Some(clock), // The timer owns the clock.
             sender: tx,
             id: uuid::Uuid::new_v4(),
-            #[cfg(not(any(
-                r2r__ros__distro__foxy,
-                r2r__ros__distro__galactic,
-                r2r__ros__distro__humble,
-                r2r__ros__distro__iron
-            )))]
+            #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
             clock_type: ClockType::SteadyTime,
         };
         let id = timer.id;
@@ -5292,12 +5276,7 @@ impl Node {
             _clock: None, // The timer does not own the clock (the node owns it).
             sender: tx,
             id: uuid::Uuid::new_v4(),
-            #[cfg(not(any(
-                r2r__ros__distro__foxy,
-                r2r__ros__distro__galactic,
-                r2r__ros__distro__humble,
-                r2r__ros__distro__iron
-            )))]
+            #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
             clock_type: ClockType::RosTime,
         };
         let id = timer.id;
@@ -5440,13 +5419,11 @@ impl Node {
 
 struct NamesAndTypes(rmw_names_and_types_t);
 
-#[cfg(not(r2r__ros__distro__foxy))]
 struct AllocatedCString {
     output: *mut std::os::raw::c_char,
     allocator: rcutils_allocator_t,
 }
 
-#[cfg(not(r2r__ros__distro__foxy))]
 impl Drop for AllocatedCString {
     fn drop(&mut self) {
         if let Some(deallocate) = self.allocator.deallocate {
@@ -5551,12 +5528,7 @@ fn qualify_node_name(name: &str, namespace: &str) -> String {
     }
 }
 
-#[cfg(any(
-    r2r__ros__distro__foxy,
-    r2r__ros__distro__galactic,
-    r2r__ros__distro__humble,
-    r2r__ros__distro__iron
-))]
+#[cfg(any(r2r__ros__distro__humble, r2r__ros__distro__iron))]
 #[inline]
 pub unsafe fn init_timer(
     timer: *mut rcl_timer_t, clock: *mut rcl_clock_t, context: *mut rcl_context_t, period: i64,
@@ -5574,12 +5546,7 @@ pub unsafe fn init_timer(
 }
 
 // For Jazzy, Rolling, and newer
-#[cfg(not(any(
-    r2r__ros__distro__foxy,
-    r2r__ros__distro__galactic,
-    r2r__ros__distro__humble,
-    r2r__ros__distro__iron
-)))]
+#[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
 #[inline]
 pub unsafe fn init_timer(
     timer: *mut rcl_timer_t, clock: *mut rcl_clock_t, context: *mut rcl_context_t, period: i64,
@@ -5608,37 +5575,17 @@ struct Timer_ {
     _clock: Option<Clock>, // Some(clock) if the timer owns the clock, just here to be dropped properly later.
     sender: mpsc::Sender<TimerTick>,
     id: uuid::Uuid,
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble,
-        r2r__ros__distro__iron
-    )))]
+    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
     clock_type: ClockType,
 }
 
 struct TimerTick {
     elapsed: Duration,
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble,
-        r2r__ros__distro__iron
-    )))]
+    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
     expected_call_time_ns: i64,
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble,
-        r2r__ros__distro__iron
-    )))]
+    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
     actual_call_time_ns: i64,
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble,
-        r2r__ros__distro__iron
-    )))]
+    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
     clock_type: ClockType,
 }
 
@@ -5672,23 +5619,13 @@ impl Timer_ {
         check_rcl_ret(ret)?;
         let elapsed = duration_from_nonnegative_nanos(nanos)?;
 
-        #[cfg(any(
-            r2r__ros__distro__foxy,
-            r2r__ros__distro__galactic,
-            r2r__ros__distro__humble,
-            r2r__ros__distro__iron
-        ))]
+        #[cfg(any(r2r__ros__distro__humble, r2r__ros__distro__iron))]
         let tick = {
             let ret = unsafe { rcl_timer_call(self.get_handle_mut()) };
             check_rcl_ret(ret)?;
             TimerTick { elapsed }
         };
-        #[cfg(not(any(
-            r2r__ros__distro__foxy,
-            r2r__ros__distro__galactic,
-            r2r__ros__distro__humble,
-            r2r__ros__distro__iron
-        )))]
+        #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
         let tick = {
             let mut call_info = std::mem::MaybeUninit::<rcl_timer_call_info_t>::uninit();
             let ret =
@@ -5763,12 +5700,7 @@ impl Timer {
     ///
     /// The expected and actual timestamps are captured atomically by RCL. The owning node must be
     /// spun while awaiting.
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble,
-        r2r__ros__distro__iron
-    )))]
+    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
     pub async fn tick_with_info(&mut self) -> Result<TimerCallInfo> {
         self.receiver
             .next()
@@ -6105,11 +6037,7 @@ impl std::fmt::Display for TopicTypeHash {
     }
 }
 
-#[cfg(not(any(
-    r2r__ros__distro__foxy,
-    r2r__ros__distro__galactic,
-    r2r__ros__distro__humble
-)))]
+#[cfg(not(r2r__ros__distro__humble))]
 fn topic_type_hash_from_native(value: &rosidl_type_hash_t) -> TopicTypeHash {
     TopicTypeHash {
         version: value.version,
@@ -6148,17 +6076,9 @@ impl TopicEndpointInfo {
             node_name: c_string_from_ptr(info.node_name)?,
             node_namespace: c_string_from_ptr(info.node_namespace)?,
             topic_type: c_string_from_ptr(info.topic_type)?,
-            #[cfg(not(any(
-                r2r__ros__distro__foxy,
-                r2r__ros__distro__galactic,
-                r2r__ros__distro__humble
-            )))]
+            #[cfg(not(r2r__ros__distro__humble))]
             topic_type_hash: Some(topic_type_hash_from_native(&info.topic_type_hash)),
-            #[cfg(any(
-                r2r__ros__distro__foxy,
-                r2r__ros__distro__galactic,
-                r2r__ros__distro__humble
-            ))]
+            #[cfg(r2r__ros__distro__humble)]
             topic_type_hash: None,
             endpoint_type: info.endpoint_type.try_into()?,
             endpoint_gid: info.endpoint_gid,
@@ -7441,7 +7361,6 @@ mod tests {
         let mut default_domain_id = 0;
         assert_eq!(unsafe { rcl_get_default_domain_id(&mut default_domain_id) }, RCL_RET_OK as i32);
         assert_eq!(node.domain_id().unwrap(), default_domain_id);
-        #[cfg(not(r2r__ros__distro__foxy))]
         {
             assert_eq!(node.resolve_topic_name("relative").unwrap(), "/scope/relative");
             assert_eq!(
@@ -8813,11 +8732,7 @@ mod tests {
                 && subscription.qos_profile.reliability
                     == QosProfile::default().best_effort().reliability
         }));
-        #[cfg(not(any(
-            r2r__ros__distro__foxy,
-            r2r__ros__distro__galactic,
-            r2r__ros__distro__humble
-        )))]
+        #[cfg(not(r2r__ros__distro__humble))]
         {
             let publisher_hash = publishers
                 .iter()
@@ -8918,11 +8833,7 @@ mod tests {
         }
         .is_unset());
 
-        #[cfg(not(any(
-            r2r__ros__distro__foxy,
-            r2r__ros__distro__galactic,
-            r2r__ros__distro__humble
-        )))]
+        #[cfg(not(r2r__ros__distro__humble))]
         {
             let native = rosidl_type_hash_t { version: 1, value };
             let allocator = unsafe { rcutils_get_default_allocator() };
@@ -8965,12 +8876,7 @@ mod tests {
 
         assert_eq!(node.count_publishers(&topic).unwrap(), 0);
         assert_eq!(node.count_subscribers(&topic).unwrap(), 0);
-        #[cfg(not(any(
-            r2r__ros__distro__foxy,
-            r2r__ros__distro__galactic,
-            r2r__ros__distro__humble,
-            r2r__ros__distro__iron
-        )))]
+        #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
         {
             assert_eq!(node.count_clients(&service).unwrap(), 0);
             assert_eq!(node.count_services(&service).unwrap(), 0);
@@ -8991,12 +8897,7 @@ mod tests {
 
         assert!(node.count_publishers(&topic).unwrap() >= 1);
         assert!(node.count_subscribers(&topic).unwrap() >= 1);
-        #[cfg(not(any(
-            r2r__ros__distro__foxy,
-            r2r__ros__distro__galactic,
-            r2r__ros__distro__humble,
-            r2r__ros__distro__iron
-        )))]
+        #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
         {
             assert!(node.count_clients(&service).unwrap() >= 1);
             assert!(node.count_services(&service).unwrap() >= 1);
@@ -9079,7 +8980,6 @@ mod tests {
         let _supports_untyped_loans = untyped.can_loan_messages().unwrap();
     }
 
-    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     #[test]
     fn publishers_wait_for_reliable_acknowledgements() {
         let context = Context::create().unwrap();
@@ -9106,7 +9006,6 @@ mod tests {
         untyped.wait_for_all_acked(Duration::ZERO).unwrap();
     }
 
-    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     #[test]
     fn publishers_wait_for_acknowledgements_without_blocking() {
         fn drive<T>(node: &mut Node, future: impl Future<Output = Result<T>>) -> Result<T> {
@@ -9372,10 +9271,10 @@ mod tests {
                         assert!(!endpoint.transport_protocol.is_empty());
                         assert!(!endpoint.internet_protocol.is_empty());
                         if endpoint.internet_protocol != "Unknown" {
-                            endpoint
-                                .internet_address
-                                .parse::<std::net::IpAddr>()
-                                .unwrap();
+                            endpoint.ip_address().unwrap_or_else(|error| {
+                                panic!("invalid native network endpoint {endpoint:?}: {error}")
+                            });
+                            assert_ne!(endpoint.transport_port, 0);
                         }
                     }
                 }
@@ -9706,8 +9605,8 @@ mod tests {
         assert_eq!(values, vec![1, 2, 3]);
     }
 
-    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     #[test]
+    #[cfg(not(r2r__ros__distro__humble))]
     fn client_gids_are_stable_and_unique() {
         use crate::example_interfaces::srv::AddTwoInts;
 
@@ -9731,6 +9630,29 @@ mod tests {
         assert_eq!(typed_gid.implementation_identifier, untyped_gid.implementation_identifier);
         assert!(typed_gid.data.iter().any(|byte| *byte != 0));
         assert_ne!(typed_gid.data, untyped_gid.data);
+    }
+
+    #[test]
+    #[cfg(r2r__ros__distro__humble)]
+    fn humble_client_gid_query_reports_native_capability() {
+        use crate::example_interfaces::srv::AddTwoInts;
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "humble_client_gid", "").unwrap();
+        let typed = node
+            .create_client::<AddTwoInts::Service>("/humble_client_gid", QosProfile::default())
+            .unwrap();
+        let untyped = node
+            .create_client_untyped(
+                "/humble_client_gid",
+                "example_interfaces/srv/AddTwoInts",
+                QosProfile::default(),
+            )
+            .unwrap();
+        assert!(matches!(typed.get_gid(), Err(Error::RCL_RET_UNSUPPORTED)));
+        assert!(matches!(untyped.get_gid(), Err(Error::RCL_RET_UNSUPPORTED)));
+        let stale = typed.clone();
+        node.destroy_client(typed);
+        assert!(matches!(stale.get_gid(), Err(Error::RCL_RET_CLIENT_INVALID)));
     }
 
     #[test]
@@ -9972,7 +9894,6 @@ mod tests {
         ));
     }
 
-    #[cfg(not(r2r__ros__distro__foxy))]
     #[test]
     fn endpoint_info_queries_expand_relative_and_private_topic_names() {
         let context = Context::create().unwrap();
@@ -9989,22 +9910,14 @@ mod tests {
         let _private_subscription = node
             .subscribe::<crate::std_msgs::msg::String>("~/private", QosProfile::default())
             .unwrap();
-        #[cfg(not(any(
-            r2r__ros__distro__galactic,
-            r2r__ros__distro__humble,
-            r2r__ros__distro__iron
-        )))]
+        #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
         let _relative_service = node
             .create_service::<crate::example_interfaces::srv::AddTwoInts::Service>(
                 "relative_service",
                 QosProfile::default(),
             )
             .unwrap();
-        #[cfg(not(any(
-            r2r__ros__distro__galactic,
-            r2r__ros__distro__humble,
-            r2r__ros__distro__iron
-        )))]
+        #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
         let _relative_client = node
             .create_client::<crate::example_interfaces::srv::AddTwoInts::Service>(
                 "relative_client",
@@ -10039,11 +9952,7 @@ mod tests {
 
         assert_eq!(node.count_publishers("relative").unwrap(), 1);
         assert_eq!(node.count_subscribers("relative").unwrap(), 1);
-        #[cfg(not(any(
-            r2r__ros__distro__galactic,
-            r2r__ros__distro__humble,
-            r2r__ros__distro__iron
-        )))]
+        #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
         {
             assert_eq!(node.count_services("relative_service").unwrap(), 1);
             assert_eq!(node.count_clients("relative_client").unwrap(), 1);
@@ -10185,7 +10094,6 @@ mod tests {
         panic!("subscription did not receive a loaned message");
     }
 
-    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     #[test]
     fn subscriptions_support_runtime_content_filters_when_available() {
         let context = Context::create().unwrap();
@@ -10238,11 +10146,7 @@ mod tests {
         assert!(!subscription.is_content_filter_enabled(&node).unwrap());
     }
 
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     #[test]
     fn publishers_and_subscriptions_report_matching_changes() {
         let context = Context::create().unwrap();
@@ -10319,11 +10223,7 @@ mod tests {
         assert!(disconnected.current_count_change < 0);
     }
 
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     #[test]
     fn incompatible_type_event_queries_initialize_when_supported() {
         let context = Context::create().unwrap();
@@ -12242,7 +12142,6 @@ mod tests {
             untyped.wait_for_subscribers_with_timeout(&mut other, Duration::from_secs(1)),
             Err(Error::RCL_RET_INVALID_ARGUMENT)
         ));
-        #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
         {
             assert!(matches!(
                 typed.wait_for_all_acked_async_with_timeout(&mut other, Duration::from_secs(1),),
@@ -12295,7 +12194,6 @@ mod tests {
             publisher.wait_for_subscribers_with_timeout(&mut node, oversized),
             Err(Error::RCL_RET_INVALID_ARGUMENT)
         ));
-        #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
         assert!(matches!(
             publisher.wait_for_all_acked_async_with_timeout(&mut node, oversized),
             Err(Error::RCL_RET_INVALID_ARGUMENT)
@@ -14426,12 +14324,7 @@ mod tests {
         assert!(!ros_timer.is_steady());
     }
 
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble,
-        r2r__ros__distro__iron
-    )))]
+    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
     #[test]
     fn timer_ticks_expose_native_call_timing_metadata() {
         let context = Context::create().unwrap();

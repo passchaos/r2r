@@ -309,6 +309,7 @@ pub enum ReliabilityPolicy {
     #[cfg(any(
         r2r__ros__distro__iron,
         r2r__ros__distro__jazzy,
+        r2r__ros__distro__kilted,
         r2r__ros__distro__lyrical,
         r2r__ros__distro__rolling
     ))]
@@ -330,6 +331,7 @@ impl From<ReliabilityPolicy> for rmw_qos_reliability_policy_t {
             #[cfg(any(
                 r2r__ros__distro__iron,
                 r2r__ros__distro__jazzy,
+                r2r__ros__distro__kilted,
                 r2r__ros__distro__lyrical,
                 r2r__ros__distro__rolling
             ))]
@@ -358,6 +360,7 @@ impl From<rmw_qos_reliability_policy_t> for ReliabilityPolicy {
             #[cfg(any(
                 r2r__ros__distro__iron,
                 r2r__ros__distro__jazzy,
+                r2r__ros__distro__kilted,
                 r2r__ros__distro__lyrical,
                 r2r__ros__distro__rolling
             ))]
@@ -379,6 +382,7 @@ pub enum DurabilityPolicy {
     #[cfg(any(
         r2r__ros__distro__iron,
         r2r__ros__distro__jazzy,
+        r2r__ros__distro__kilted,
         r2r__ros__distro__lyrical,
         r2r__ros__distro__rolling
     ))]
@@ -401,6 +405,7 @@ impl From<DurabilityPolicy> for rmw_qos_durability_policy_t {
             #[cfg(any(
                 r2r__ros__distro__iron,
                 r2r__ros__distro__jazzy,
+                r2r__ros__distro__kilted,
                 r2r__ros__distro__lyrical,
                 r2r__ros__distro__rolling
             ))]
@@ -429,6 +434,7 @@ impl From<rmw_qos_durability_policy_t> for DurabilityPolicy {
             #[cfg(any(
                 r2r__ros__distro__iron,
                 r2r__ros__distro__jazzy,
+                r2r__ros__distro__kilted,
                 r2r__ros__distro__lyrical,
                 r2r__ros__distro__rolling
             ))]
@@ -452,6 +458,7 @@ pub enum LivelinessPolicy {
     #[cfg(any(
         r2r__ros__distro__iron,
         r2r__ros__distro__jazzy,
+        r2r__ros__distro__kilted,
         r2r__ros__distro__lyrical,
         r2r__ros__distro__rolling
     ))]
@@ -478,6 +485,7 @@ impl From<LivelinessPolicy> for rmw_qos_liveliness_policy_t {
             #[cfg(any(
                 r2r__ros__distro__iron,
                 r2r__ros__distro__jazzy,
+                r2r__ros__distro__kilted,
                 r2r__ros__distro__lyrical,
                 r2r__ros__distro__rolling
             ))]
@@ -510,6 +518,7 @@ impl From<rmw_qos_liveliness_policy_t> for LivelinessPolicy {
             #[cfg(any(
                 r2r__ros__distro__iron,
                 r2r__ros__distro__jazzy,
+                r2r__ros__distro__kilted,
                 r2r__ros__distro__lyrical,
                 r2r__ros__distro__rolling
             ))]
@@ -1025,15 +1034,6 @@ impl RclDurationT for Duration {
     }
 
     fn try_from_rmw_time_t(rmw_time: &rmw_time_t) -> Result<Self> {
-        #[cfg(r2r__ros__distro__foxy)]
-        {
-            // FIXME: In foxy, duration data obtained from publisher with default qos profile is
-            // sec: 7FFFFFFF (2147483647), nsec: FFFFFFFF (4294967295)
-            if rmw_time.nsec == 4294967295 {
-                // 0s indicates deadline policies are not tracked or enforced in foxy
-                return Ok(Duration::ZERO);
-            }
-        }
         if rmw_time.nsec >= 1_000_000_000 {
             return Err(Error::RCL_RET_INVALID_ARGUMENT);
         }

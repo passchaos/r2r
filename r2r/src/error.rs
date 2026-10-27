@@ -1,4 +1,10 @@
 #![allow(non_camel_case_types)]
+#[cfg(any(
+    r2r__ros__distro__kilted,
+    r2r__ros__distro__lyrical,
+    r2r__ros__distro__rolling
+))]
+use r2r_rcl::RCL_RET_ACTION_NOT_TERMINATED_YET as RCL_ACTION_RET_NOT_TERMINATED_YET;
 use r2r_rcl::*;
 use thiserror::Error;
 
@@ -40,12 +46,7 @@ pub enum Error {
     RCL_RET_UNKNOWN_SUBSTITUTION,
     #[error("RCL_RET_ALREADY_SHUTDOWN")]
     RCL_RET_ALREADY_SHUTDOWN,
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble,
-        r2r__ros__distro__iron
-    )))]
+    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
     #[error("RCL_RET_NOT_FOUND")]
     RCL_RET_NOT_FOUND,
     #[error("RCL_RET_NODE_INVALID")]
@@ -98,12 +99,7 @@ pub enum Error {
     RCL_RET_LIFECYCLE_STATE_REGISTERED,
     #[error("RCL_RET_LIFECYCLE_STATE_NOT_REGISTERED")]
     RCL_RET_LIFECYCLE_STATE_NOT_REGISTERED,
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble,
-        r2r__ros__distro__iron
-    )))]
+    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
     #[error("RCL_ACTION_RET_NOT_TERMINATED_YET")]
     RCL_ACTION_RET_NOT_TERMINATED_YET,
 
@@ -241,12 +237,7 @@ impl Error {
             _ if e == RCL_RET_SERVICE_NAME_INVALID => Error::RCL_RET_SERVICE_NAME_INVALID,
             _ if e == RCL_RET_UNKNOWN_SUBSTITUTION => Error::RCL_RET_UNKNOWN_SUBSTITUTION,
             _ if e == RCL_RET_ALREADY_SHUTDOWN => Error::RCL_RET_ALREADY_SHUTDOWN,
-            #[cfg(not(any(
-                r2r__ros__distro__foxy,
-                r2r__ros__distro__galactic,
-                r2r__ros__distro__humble,
-                r2r__ros__distro__iron
-            )))]
+            #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
             _ if e == RCL_RET_NOT_FOUND => Error::RCL_RET_NOT_FOUND,
             _ if e == RCL_RET_NODE_INVALID => Error::RCL_RET_NODE_INVALID,
             _ if e == RCL_RET_NODE_INVALID_NAME => Error::RCL_RET_NODE_INVALID_NAME,
@@ -277,12 +268,7 @@ impl Error {
             _ if e == RCL_RET_LIFECYCLE_STATE_NOT_REGISTERED => {
                 Error::RCL_RET_LIFECYCLE_STATE_NOT_REGISTERED
             }
-            #[cfg(not(any(
-                r2r__ros__distro__foxy,
-                r2r__ros__distro__galactic,
-                r2r__ros__distro__humble,
-                r2r__ros__distro__iron
-            )))]
+            #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
             _ if e == RCL_ACTION_RET_NOT_TERMINATED_YET => Error::RCL_ACTION_RET_NOT_TERMINATED_YET,
             _ if e == r2r_actions::RCL_RET_ACTION_NAME_INVALID => {
                 Error::RCL_RET_ACTION_NAME_INVALID
@@ -371,12 +357,7 @@ mod tests {
         ));
     }
 
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble,
-        r2r__ros__distro__iron
-    )))]
+    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
     #[test]
     fn maps_newer_rcl_status_codes() {
         assert!(matches!(
@@ -390,10 +371,30 @@ mod tests {
     }
 
     #[test]
-    fn disambiguates_overlapping_action_and_event_error_codes() {
+    fn maps_action_and_event_codes_across_distributions() {
         let code = r2r_actions::RCL_RET_ACTION_NAME_INVALID as i32;
-        assert_eq!(code, RCL_RET_EVENT_INVALID as i32);
-        assert!(matches!(Error::from_rcl_error(code), Error::RCL_RET_EVENT_INVALID));
+        #[cfg(not(any(
+            r2r__ros__distro__kilted,
+            r2r__ros__distro__lyrical,
+            r2r__ros__distro__rolling
+        )))]
+        {
+            assert_eq!(code, RCL_RET_EVENT_INVALID as i32);
+            assert!(matches!(Error::from_rcl_error(code), Error::RCL_RET_EVENT_INVALID));
+        }
+        #[cfg(any(
+            r2r__ros__distro__kilted,
+            r2r__ros__distro__lyrical,
+            r2r__ros__distro__rolling
+        ))]
+        {
+            assert_ne!(code, RCL_RET_EVENT_INVALID as i32);
+            assert!(matches!(Error::from_rcl_error(code), Error::RCL_RET_ACTION_NAME_INVALID));
+        }
+        assert!(matches!(
+            Error::from_rcl_error(RCL_RET_EVENT_INVALID as i32),
+            Error::RCL_RET_EVENT_INVALID
+        ));
         assert!(matches!(Error::from_rcl_action_error(code), Error::RCL_RET_ACTION_NAME_INVALID));
     }
 }

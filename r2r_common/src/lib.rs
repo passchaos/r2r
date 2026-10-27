@@ -9,14 +9,12 @@ use std::{
     path::Path,
 };
 
-const SUPPORTED_ROS_DISTROS: &[&str] = &[
-    "foxy", "galactic", "humble", "iron", "jazzy", "lyrical", "rolling",
-];
+const SUPPORTED_ROS_DISTROS: &[&str] = &["humble", "iron", "jazzy", "kilted", "lyrical", "rolling"];
 
 /// Message suffixes generated for ROS services, including internal action services.
 pub fn service_message_suffixes(ros_distro: &str) -> &'static [&'static str] {
     match ros_distro {
-        "iron" | "jazzy" | "lyrical" | "rolling" => &["Request", "Response", "Event"],
+        "iron" | "jazzy" | "kilted" | "lyrical" | "rolling" => &["Request", "Response", "Event"],
         _ => &["Request", "Response"],
     }
 }
@@ -155,7 +153,7 @@ pub fn print_cargo_ros_distro() {
     if SUPPORTED_ROS_DISTROS.contains(&ros_distro.as_str()) {
         println!("cargo:rustc-cfg=r2r__ros__distro__{ros_distro}");
     } else {
-        panic!("ROS_DISTRO not supported: {ros_distro}");
+        panic!("ROS_DISTRO not supported: {ros_distro}. r2r requires ROS 2 Humble or newer; supported distributions: {}", SUPPORTED_ROS_DISTROS.join(", "));
     }
 }
 
@@ -458,8 +456,19 @@ mod tests {
         for distro in ["foxy", "galactic", "humble", "", "unsupported"] {
             assert_eq!(service_message_suffixes(distro), &["Request", "Response"]);
         }
-        for distro in ["iron", "jazzy", "lyrical", "rolling"] {
+        for distro in ["iron", "jazzy", "kilted", "lyrical", "rolling"] {
             assert_eq!(service_message_suffixes(distro), &["Request", "Response", "Event"]);
+        }
+    }
+
+    #[test]
+    fn supported_distributions_start_at_humble() {
+        assert_eq!(
+            SUPPORTED_ROS_DISTROS,
+            &["humble", "iron", "jazzy", "kilted", "lyrical", "rolling"]
+        );
+        for distro in ["foxy", "galactic", "", "unsupported"] {
+            assert!(!SUPPORTED_ROS_DISTROS.contains(&distro));
         }
     }
 

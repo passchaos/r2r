@@ -392,6 +392,7 @@ pub trait Service_ {
     #[cfg(any(
         r2r__ros__distro__iron,
         r2r__ros__distro__jazzy,
+        r2r__ros__distro__kilted,
         r2r__ros__distro__lyrical,
         r2r__ros__distro__rolling
     ))]
@@ -458,6 +459,7 @@ impl Service_ for UntypedService {
     #[cfg(any(
         r2r__ros__distro__iron,
         r2r__ros__distro__jazzy,
+        r2r__ros__distro__kilted,
         r2r__ros__distro__lyrical,
         r2r__ros__distro__rolling
     ))]
@@ -564,6 +566,7 @@ where
     #[cfg(any(
         r2r__ros__distro__iron,
         r2r__ros__distro__jazzy,
+        r2r__ros__distro__kilted,
         r2r__ros__distro__lyrical,
         r2r__ros__distro__rolling
     ))]
@@ -876,7 +879,8 @@ mod tests {
             source_timestamp: 41,
             received_timestamp: 42,
             request_id: rmw_request_id_t {
-                writer_guid: [128, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 126, 127],
+                writer_guid: [128_u8, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 126, 127]
+                    .map(|byte| byte as _),
                 sequence_number: -42,
             },
         };

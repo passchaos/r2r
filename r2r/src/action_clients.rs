@@ -1966,7 +1966,7 @@ where
 pub(crate) fn action_client_take_succeeded(ret: rcl_ret_t) -> Result<bool> {
     if ret == RCL_RET_OK as i32 {
         Ok(true)
-    } else if ret == RCL_RET_ACTION_CLIENT_TAKE_FAILED as i32 {
+    } else if ret == r2r_actions::RCL_RET_ACTION_CLIENT_TAKE_FAILED as i32 {
         Ok(false)
     } else {
         Err(Error::from_rcl_error(ret))
@@ -3442,9 +3442,12 @@ mod tests {
     #[test]
     fn classifies_action_client_take_results() {
         assert!(action_client_take_succeeded(RCL_RET_OK as i32).unwrap());
-        assert!(!action_client_take_succeeded(RCL_RET_ACTION_CLIENT_TAKE_FAILED as i32).unwrap());
+        assert!(!action_client_take_succeeded(
+            r2r_actions::RCL_RET_ACTION_CLIENT_TAKE_FAILED as i32
+        )
+        .unwrap());
         assert!(matches!(
-            action_client_take_succeeded(RCL_RET_ACTION_CLIENT_INVALID as i32),
+            action_client_take_succeeded(r2r_actions::RCL_RET_ACTION_CLIENT_INVALID as i32),
             Err(Error::RCL_RET_ACTION_CLIENT_INVALID)
         ));
     }

@@ -182,6 +182,7 @@ pub unsafe trait WrappedServiceTypeSupport: Debug + Clone + Send + Sync {
     #[cfg(any(
         r2r__ros__distro__iron,
         r2r__ros__distro__jazzy,
+        r2r__ros__distro__kilted,
         r2r__ros__distro__lyrical,
         r2r__ros__distro__rolling
     ))]
@@ -987,7 +988,7 @@ mod tests {
         let json = r#"
         {
             "byte_value": 255,
-            "float32_value": 3.14
+            "float32_value": 3.25
         }"#;
 
         let mut native = WrappedNativeMsgUntyped::new_from("test_msgs/msg/Defaults").unwrap();
@@ -999,7 +1000,7 @@ mod tests {
         assert!(msg2.bool_value); // the default
         assert_eq!(msg2.byte_value, 255); // from our json
         assert_eq!(msg2.char_value, 100); // the default
-        assert_eq!(msg2.float32_value, 3.14); // from our json
+        assert_eq!(msg2.float32_value, 3.25); // from our json
     }
 
     #[cfg(r2r__test_msgs__msg__Arrays)]
@@ -1205,6 +1206,7 @@ mod tests {
     any(
         r2r__ros__distro__iron,
         r2r__ros__distro__jazzy,
+        r2r__ros__distro__kilted,
         r2r__ros__distro__lyrical,
         r2r__ros__distro__rolling
     )

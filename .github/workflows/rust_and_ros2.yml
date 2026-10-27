@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - run: docker build . --file ./tests/Dockerfile_jazzy --tag r2r_jazzy
+    - run: docker build . --file ./tests/Dockerfile_ros --build-arg ROS_DISTRO=jazzy --tag r2r_jazzy
     - name: Check formatting
       run: docker run r2r_jazzy cargo fmt --all -- --check
     - name: Run Clippy
@@ -36,47 +36,18 @@ jobs:
       with:
         repository: m-dahl/r2r_minimal_node
         path: r2r_minimal_node
-    - run: docker build . --file ./tests/Dockerfile_jazzy --tag r2r_jazzy
+    - run: docker build . --file ./tests/Dockerfile_ros --build-arg ROS_DISTRO=jazzy --tag r2r_jazzy
     - run: docker run r2r_jazzy /r2r/tests/build_minimal_node.bash
 
-  tests_lyrical:
+  tests:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ros_distro: [humble, iron, jazzy, kilted, lyrical, rolling]
     steps:
     - uses: actions/checkout@v4
-    - run: docker build . --file ./tests/Dockerfile_lyrical --tag r2r_lyrical
-    - run: docker run r2r_lyrical cargo test
-
-  tests_jazzy:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - run: docker build . --file ./tests/Dockerfile_jazzy --tag r2r_jazzy
-    - run: docker run r2r_jazzy cargo test
-
-  tests_iron:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - run: docker build . --file ./tests/Dockerfile_iron --tag r2r_iron
-    - run: docker run r2r_iron cargo test
-
-  tests_humble:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - run: docker build . --file ./tests/Dockerfile_humble --tag r2r_humble
-    - run: docker run r2r_humble cargo test
-
-  tests_galactic:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - run: docker build . --file ./tests/Dockerfile_galactic --tag r2r_galactic
-    - run: docker run r2r_galactic cargo test
-
-  tests_foxy:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - run: docker build . --file ./tests/Dockerfile_foxy --tag r2r_foxy
-    - run: docker run r2r_foxy cargo test
+    - name: Build ROS test environment
+      run: docker build . --file ./tests/Dockerfile_ros --build-arg ROS_DISTRO=${{ matrix.ros_distro }} --tag r2r_test
+    - name: Run workspace tests
+      run: docker run r2r_test cargo test --workspace -- --test-threads=1

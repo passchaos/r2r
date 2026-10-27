@@ -14,14 +14,15 @@ use std::{
     time::Duration,
 };
 
+#[cfg(not(r2r__ros__distro__humble))]
+use crate::publishers::{IncompatibleTypeStatus, MatchedStatus};
 use crate::{
     availability::AvailabilityWaiters,
     error::*,
     msg_types::*,
     nodes::Node,
     publishers::{
-        subscription_network_flow_endpoints, IncompatibleTypeStatus, MatchedStatus,
-        NetworkFlowEndpoint, UniqueNetworkFlowRequirement,
+        subscription_network_flow_endpoints, NetworkFlowEndpoint, UniqueNetworkFlowRequirement,
     },
     qos::QosProfile,
     QosPolicyKind,
@@ -352,21 +353,13 @@ impl<T> Subscription<T> {
     }
 
     /// Takes subscription matching changes without blocking.
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     pub fn take_matched(&self, node: &mut Node) -> Result<Option<MatchedStatus>> {
         node.take_subscription_matched(self.id)
     }
 
     /// Takes incompatible-type discovery events without blocking.
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     pub fn take_incompatible_type(
         &self, node: &mut Node,
     ) -> Result<Option<IncompatibleTypeStatus>> {
@@ -455,17 +448,9 @@ pub(crate) struct SubscriptionMatchState {
     requested_deadline_missed: Option<SubscriptionEvent>,
     liveliness_changed: Option<SubscriptionEvent>,
     message_lost: Option<SubscriptionEvent>,
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     matched: Option<SubscriptionEvent>,
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     incompatible_type: Option<SubscriptionEvent>,
 }
 
@@ -480,17 +465,9 @@ impl SubscriptionMatchState {
             requested_deadline_missed: None,
             liveliness_changed: None,
             message_lost: None,
-            #[cfg(not(any(
-                r2r__ros__distro__foxy,
-                r2r__ros__distro__galactic,
-                r2r__ros__distro__humble
-            )))]
+            #[cfg(not(r2r__ros__distro__humble))]
             matched: None,
-            #[cfg(not(any(
-                r2r__ros__distro__foxy,
-                r2r__ros__distro__galactic,
-                r2r__ros__distro__humble
-            )))]
+            #[cfg(not(r2r__ros__distro__humble))]
             incompatible_type: None,
         }
     }
@@ -543,11 +520,7 @@ impl SubscriptionMatchState {
         event.take_message_lost()
     }
 
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     fn take_matched(
         &mut self, subscription: *const rcl_subscription_t,
     ) -> Result<Option<MatchedStatus>> {
@@ -560,11 +533,7 @@ impl SubscriptionMatchState {
         event.take_matched()
     }
 
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     fn take_incompatible_type(
         &mut self, subscription: *const rcl_subscription_t,
     ) -> Result<Option<IncompatibleTypeStatus>> {
@@ -582,11 +551,7 @@ impl SubscriptionMatchState {
         self.requested_deadline_missed = None;
         self.liveliness_changed = None;
         self.message_lost = None;
-        #[cfg(not(any(
-            r2r__ros__distro__foxy,
-            r2r__ros__distro__galactic,
-            r2r__ros__distro__humble
-        )))]
+        #[cfg(not(r2r__ros__distro__humble))]
         {
             self.matched = None;
             self.incompatible_type = None;
@@ -691,11 +656,7 @@ impl SubscriptionEvent {
         }))
     }
 
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     fn take_matched(&self) -> Result<Option<MatchedStatus>> {
         let mut status = MaybeUninit::<rmw_matched_status_t>::uninit();
         let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
@@ -715,11 +676,7 @@ impl SubscriptionEvent {
         }))
     }
 
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     fn take_incompatible_type(&self) -> Result<Option<IncompatibleTypeStatus>> {
         let mut status = MaybeUninit::<rmw_incompatible_type_status_t>::uninit();
         let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
@@ -792,36 +749,20 @@ pub(crate) trait Subscriber_ {
         subscription_network_flow_endpoints(self.handle())
     }
     fn is_content_filter_enabled(&self) -> bool {
-        #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
         {
             unsafe { rcl_subscription_is_cft_enabled(self.handle()) }
         }
-        #[cfg(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic))]
-        {
-            false
-        }
     }
     fn set_content_filter(&self, options: &ContentFilterOptions) -> Result<()> {
-        #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
         {
             let native = NativeContentFilterOptions::from_options(self.handle(), options)?;
             let ret = unsafe { rcl_subscription_set_content_filter(self.handle(), &native.value) };
             check_subscription_ret(ret)
         }
-        #[cfg(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic))]
-        {
-            let _ = options;
-            Err(Error::RCL_RET_UNSUPPORTED)
-        }
     }
     fn get_content_filter(&self) -> Result<ContentFilterOptions> {
-        #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
         {
             NativeContentFilterOptions::get(self.handle())?.to_options()
-        }
-        #[cfg(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic))]
-        {
-            Err(Error::RCL_RET_UNSUPPORTED)
         }
     }
     fn take_requested_incompatible_qos(
@@ -854,11 +795,7 @@ pub(crate) trait Subscriber_ {
             .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
         state.take_message_lost(subscription)
     }
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     fn take_matched(&mut self) -> Result<Option<MatchedStatus>> {
         let subscription = self.handle() as *const rcl_subscription_t;
         let state = self
@@ -866,11 +803,7 @@ pub(crate) trait Subscriber_ {
             .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
         state.take_matched(subscription)
     }
-    #[cfg(not(any(
-        r2r__ros__distro__foxy,
-        r2r__ros__distro__galactic,
-        r2r__ros__distro__humble
-    )))]
+    #[cfg(not(r2r__ros__distro__humble))]
     fn take_incompatible_type(&mut self) -> Result<Option<IncompatibleTypeStatus>> {
         let subscription = self.handle() as *const rcl_subscription_t;
         let state = self
@@ -946,14 +879,12 @@ pub(crate) trait Subscriber_ {
     fn destroy(&mut self, node: &mut rcl_node_t);
 }
 
-#[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
 struct NativeContentFilterOptions<'subscription> {
     subscription: &'subscription rcl_subscription_t,
     value: rcl_subscription_content_filter_options_t,
     initialized: bool,
 }
 
-#[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
 impl<'subscription> NativeContentFilterOptions<'subscription> {
     fn from_options(
         subscription: &'subscription rcl_subscription_t, options: &ContentFilterOptions,
@@ -1054,7 +985,6 @@ impl<'subscription> NativeContentFilterOptions<'subscription> {
     }
 }
 
-#[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
 impl Drop for NativeContentFilterOptions<'_> {
     fn drop(&mut self) {
         if !self.initialized {
@@ -1620,7 +1550,6 @@ mod tests {
         assert_eq!(RETURNED_LOANS.load(Ordering::Relaxed), 1);
     }
 
-    #[cfg(not(any(r2r__ros__distro__foxy, r2r__ros__distro__galactic)))]
     #[test]
     fn content_filter_options_reject_invalid_strings_and_parameter_counts() {
         let subscription = unsafe { rcl_get_zero_initialized_subscription() };

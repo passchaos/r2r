@@ -2,6 +2,8 @@
 
 The goal is to make Rust the strongest practical language in the ROS ecosystem: r2r should exceed the C++ experience in ease of use, capability, and performance. All three dimensions need evidence; a successful build or a faster microbenchmark alone does not establish that goal.
 
+Supported ROS 2 distributions start at **Humble**: Humble, Iron, Jazzy, Kilted, Lyrical and Rolling. Foxy and Galactic are outside the supported scope. Older-version branches and CI jobs are removed so development and verification target the supported matrix.
+
 ## Acceptance criteria
 
 | Dimension | Required outcome | Evidence |
@@ -20,7 +22,7 @@ This audit is based on the source tree and local checks on 2026-10-27. It is not
 | Messages and native storage | Typed, untyped, raw and loaned message paths; fallible native copies; serialization tests. | Allocation and copy accounting across paths; reuse nested message sequence capacity; validate error and allocation-failure behavior before optimizing. |
 | Service events | Iron and newer service/action event bindings; empty and populated native/CDR/JSON roundtrips; bounded request/response rejection; typed/untyped client and server configuration. Four integration tests pass on local Jazzy with both CycloneDDS and Fast DDS, covering mode transitions, simulated timestamps, native identities, ownership, and retained QoS history. | Extend the local Jazzy RMW evidence to the other supported modern distributions and external rclcpp endpoints; maintain the documented middleware-dependent event identity encoding. |
 | Graph, QoS, parameters, clocks | Graph queries, endpoint identities and QoS, parameter services/events, managed ROS clocks and jump callbacks. | Audit remaining application-facing RCL and rclcpp features and test real middleware behavior per distribution. |
-| Distribution compatibility | CI declares Foxy, Galactic, Humble, Iron, Jazzy and Lyrical; local Jazzy checks and a Foxy container are available. | Foxy currently fails library compilation with 32 errors also present at HEAD `42cca4a`, including unavailable QoS APIs, descriptor fields, and clock/timer APIs. Restore or explicitly revise the supported matrix; run other declared distributions. |
+| Distribution compatibility | Build-time checks and CI cover Humble, Iron, Jazzy, Kilted, Lyrical and Rolling. Library tests and Clippy pass with native Jazzy and containerized Humble/Kilted using Rust 1.85. | Complete runtime and RMW checks for each supported distribution and keep version-specific API boundaries explicit; Iron, Lyrical and Rolling remain CI matrix entries whose current local runtime evidence is not available. |
 | Documentation builds | `cargo check --workspace --features doc-only` works with saved bindings. | Saved bindings omit some example packages and new event types; refresh them and make documentation/example test coverage consistent. `--all-targets --features doc-only` currently fails on existing example-package dependencies. |
 | Performance evidence | Criterion benches for deserialization, message metadata, idle action endpoints and availability scheduling. | Add an equivalent rclcpp baseline and end-to-end pub/sub, service and action workloads. Existing Rust-only measurements cannot establish superiority over C++. |
 | Module structure | Small modules exist for availability, wait sets, time sources and parameter clients. | Decompose the large node module by stable responsibility; keep unit tests near implementation and integration tests at module or crate boundaries. |
@@ -28,7 +30,7 @@ This audit is based on the source tree and local checks on 2026-10-27. It is not
 ## Execution order
 
 1. Finish the service-event distribution and external endpoint matrix after the local Jazzy vertical slice: correct bindings, event publication controls, native endpoint integration, and an executable example.
-2. Restore the declared distribution boundaries and update saved documentation bindings, with independent gates for each version-dependent API.
+2. Validate the Humble-and-newer distribution boundaries and update saved documentation bindings, with independent gates for each version-dependent API.
 3. Build representative Rust/C++ application pairs and a reproducible performance matrix. Use these workloads to select allocation, copying, wakeup and scaling optimizations.
 4. Improve application ergonomics and module boundaries in the affected slice; validate it independently and checkpoint completed changes.
 
@@ -72,3 +74,13 @@ to the native request writer identity. CycloneDDS can encode these differently. 
 and identities are checked against their corresponding native sources. Fast DDS graph discovery
 does not expose publisher history depth; a late-subscriber test verifies the actual retained event
 count with `keep_last(1)` and transient-local durability instead.
+
+Humble lacks `rmw_get_gid_for_client`; typed and untyped `Client::get_gid` report
+`RCL_RET_UNSUPPORTED`, while stale handles still report `RCL_RET_CLIENT_INVALID`. Humble and
+Iron action names are expanded and remapped before native endpoint creation so relative names
+retain the node namespace and invalid names retain the public action-specific error. Kilted
+and newer action status constants use the renamed RCL spellings.
+
+Kilted/Fast DDS can return an empty address for a subscription network-flow endpoint, also
+observed through an independent native C query. `NetworkFlowEndpoint` preserves that text;
+`ip_address()` returns `None` for an unspecified address and rejects malformed nonempty IP text.
