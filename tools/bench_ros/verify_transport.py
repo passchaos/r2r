@@ -14,9 +14,9 @@ def verify(path, require_performance_pass=False):
     report = json.loads(path.read_text())
     metadata = report["metadata"]
     workload = metadata.get("workload", "pubsub")
-    if workload not in {"pubsub", "service"}:
+    if workload not in {"pubsub", "service", "action"}:
         raise RuntimeError("unknown transport workload")
-    dimension = "window" if workload == "service" else "elements"
+    dimension = {"pubsub": "elements", "service": "window", "action": "scenario"}[workload]
     artifact = metadata["samples_artifact"]
     compressed = (path.parent / artifact["file"]).read_bytes()
     if hashlib.sha256(compressed).hexdigest() != artifact["sha256"]:
@@ -41,10 +41,11 @@ def verify(path, require_performance_pass=False):
             endpoint = dict(record[role])
             if role == "ping":
                 endpoint["samples_ns"] = trace["samples_ns"]
+                if workload == "action": endpoint["stage_samples_ns"] = trace["stage_samples_ns"]
             language = record[f"{role}_language"]
             validate_endpoint(endpoint, role, metadata["rmw"], record[dimension], metadata["iterations"],
                               metadata["warmup"], "rclcpp" if language == "cpp" else "r2r", dimension)
-    sizes = metadata.get("request_windows" if workload == "service" else "payload_sizes",
+    sizes = metadata.get({"pubsub": "payload_sizes", "service": "request_windows", "action": "action_scenarios"}[workload],
                          sorted({record[dimension] for record in records}))
     pairs = [("rust", "rust"), ("cpp", "cpp"), ("rust", "cpp"), ("cpp", "rust")]
     if "baseline" in metadata.get("binary_sha256", {}):
@@ -58,7 +59,10 @@ def verify(path, require_performance_pass=False):
                  (row[dimension], row["ping_language"], row["echo_language"])]
         if len(group) != metadata["repetitions"]:
             raise RuntimeError("missing repetition")
-        for field in ["rtt_ns_p50", "rtt_ns_p95", "rtt_ns_p99", "roundtrips_per_second"]:
+        fields = ["rtt_ns_p50", "rtt_ns_p95", "rtt_ns_p99", "roundtrips_per_second"]
+        if workload == "action": fields.append("acceptance_ns_p50")
+        if workload == "action" and row[dimension] == 1: fields.append("cancellation_ns_p50")
+        for field in fields:
             if row[field] != statistics.median(record[field] for record in group):
                 raise RuntimeError("summary median mismatch")
     expected_rows = {(record[dimension], record["ping_language"], record["echo_language"]) for record in records}

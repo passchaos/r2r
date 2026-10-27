@@ -89,6 +89,30 @@ class ArchivedMatrixValidation(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "incomplete"):
             verify(self.path)
 
+    def test_action_matrix_verifies_lifecycle_counts_and_stage_samples(self):
+        for record in self.records:
+            record["scenario"] = 1
+            record.pop("elements")
+            for role in ["ping", "echo"]:
+                record[role].update(scenario=1, accepted=2, feedback=2, results=2, canceled=2)
+                record[role].pop("elements")
+            record["ping"].update(acceptance_ns_p50=5, cancellation_ns_p50=2)
+        for trace in self.traces:
+            trace["stage_samples_ns"] = {"acceptance": [5, 5], "cancellation": [2, 2]}
+        for row in self.summary:
+            row.update(scenario=1, acceptance_ns_p50=5, cancellation_ns_p50=2)
+            row.pop("elements")
+        self.write()
+        report = json.loads(self.path.read_text())
+        report["metadata"].update(workload="action", action_scenarios=[1])
+        report["metadata"].pop("payload_sizes")
+        self.path.write_text(json.dumps(report))
+        verify(self.path)
+        report["records"][0]["echo"]["feedback"] = 1
+        self.path.write_text(json.dumps(report))
+        with self.assertRaisesRegex(RuntimeError, "lifecycle"):
+            verify(self.path)
+
     def test_baseline_matrix_requires_all_seven_combinations(self):
         for ping, echo in [("baseline", "baseline"), ("baseline", "cpp"), ("cpp", "baseline")]:
             record = copy.deepcopy(self.records[0])

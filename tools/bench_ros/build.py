@@ -9,9 +9,9 @@ import shutil
 import subprocess
 import tempfile
 
-BENCHMARKS = {"codec": "ros_comparison", "transport": "pubsub_roundtrip", "service": "service_roundtrip"}
-CPP_BINARIES = {"codec": "rclcpp_comparison", "transport": "rclcpp_roundtrip", "service": "rclcpp_service"}
-CPP_SOURCES = {"codec": "comparison.cpp", "transport": "roundtrip.cpp", "service": "service.cpp"}
+BENCHMARKS = {"codec": "ros_comparison", "transport": "pubsub_roundtrip", "service": "service_roundtrip", "action": "action_roundtrip"}
+CPP_BINARIES = {"codec": "rclcpp_comparison", "transport": "rclcpp_roundtrip", "service": "rclcpp_service", "action": "rclcpp_action_roundtrip"}
+CPP_SOURCES = {"codec": "comparison.cpp", "transport": "roundtrip.cpp", "service": "service.cpp", "action": "action.cpp"}
 
 
 def command(arguments, cwd, env):
@@ -34,6 +34,8 @@ def rust_binary(source, target, destination, env, workload="codec"):
     shutil.copy2(executable, destination)
     sources = [source / f"r2r/benches/{benchmark}.rs", source / "r2r/src/msg_types.rs", source / "r2r/src/nodes.rs", source / "r2r/src/subscribers.rs", source / "r2r/src/publishers.rs", source / "r2r/src/clients.rs", source / "r2r/src/services.rs", source / "r2r_rcl/src/lib.rs", source / "r2r_msg_gen/src/lib.rs", source / "Cargo.lock"]
     if (source / "r2r/src/serialization.rs").exists(): sources.append(source / "r2r/src/serialization.rs")
+    if workload == "action":
+        sources.extend(source / f"r2r/src/{name}.rs" for name in ["action_common", "action_clients", "action_servers"])
     return {str(path.relative_to(source)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources}
 
 
@@ -70,7 +72,7 @@ def main():
             manifests["baseline"] = rust_binary(source, output / "baseline-cargo", output / "r2r-baseline", env, args.workload)
         manifests["baseline_ref"] = revision
     ros_prefix = f"/opt/ros/{env['ROS_DISTRO']}"
-    command(["cmake", "-S", str(root / "tools/bench_ros"), "-B", str(output / "cpp"), "-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_PREFIX_PATH={ros_prefix}", "-DPython3_EXECUTABLE=/usr/bin/python3", f"-DR2R_BUILD_SERVICE_BENCH={'ON' if args.workload == 'service' else 'OFF'}"], root, env)
+    command(["cmake", "-S", str(root / "tools/bench_ros"), "-B", str(output / "cpp"), "-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_PREFIX_PATH={ros_prefix}", "-DPython3_EXECUTABLE=/usr/bin/python3", f"-DR2R_BUILD_SERVICE_BENCH={'ON' if args.workload == 'service' else 'OFF'}", f"-DR2R_BUILD_ACTION_BENCH={'ON' if args.workload == 'action' else 'OFF'}"], root, env)
     cpp_binary = CPP_BINARIES[args.workload]
     command(["cmake", "--build", str(output / "cpp"), "--target", cpp_binary, "-j", "4"], root, env)
     shutil.copy2(output / f"cpp/{cpp_binary}", output / "rclcpp-comparison")

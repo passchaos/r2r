@@ -24,7 +24,7 @@ This audit is based on the source tree and local checks on 2026-10-27. It is not
 | Graph, QoS, parameters, clocks | Graph queries, endpoint identities and QoS, parameter services/events, managed ROS clocks and jump callbacks. | Audit remaining application-facing RCL and rclcpp features and test real middleware behavior per distribution. |
 | Distribution compatibility | Build-time checks and CI cover Humble, Iron, Jazzy, Kilted, Lyrical and Rolling. Library tests and Clippy pass with native Jazzy and containerized Humble/Kilted using Rust 1.85. | Complete runtime and RMW checks for each supported distribution and keep version-specific API boundaries explicit; Iron, Lyrical and Rolling remain CI matrix entries whose current local runtime evidence is not available. |
 | Documentation builds | `cargo check --workspace --features doc-only` works with saved bindings. | Saved bindings omit some example packages and new event types; refresh them and make documentation/example test coverage consistent. `--all-targets --features doc-only` currently fails on existing example-package dependencies. |
-| Performance evidence | Criterion benches and Rust/rclcpp message-stage evidence, the [independent-process pub/sub matrix](benchmarks/pubsub-roundtrip-2026-10-27.md), and the [service window matrix](benchmarks/service-roundtrip-2026-10-28.md). Both language directions and raw individual RTT samples are covered under two RMWs. | Add pipelined/fanout pub/sub, dynamic service payloads, cancellation and action workloads, allocation counters and scaling measurements. Current stage and fixed-workload comparisons do not establish overall superiority over C++. |
+| Performance evidence | Criterion/message-stage evidence, independent-process pub/sub and service matrices, and the [observed action lifecycle/cancel A/B](benchmarks/action-lifecycle-2026-10-28.md). Both language directions and raw RTT/stage samples are covered under two RMWs. | Complete pipelined/fanout pub/sub, dynamic payloads, multi-goal actions, allocation counters and scaling evidence. Full observed action lifecycle currently remains slower than rclcpp despite the timeout-sized cancel delay fix. |
 | Module structure | Small modules exist for availability, wait sets, time sources and parameter clients. | Decompose the large node module by stable responsibility; keep unit tests near implementation and integration tests at module or crate boundaries. |
 
 ## Execution order
@@ -56,6 +56,12 @@ The [native service matrix](benchmarks/service-roundtrip-2026-10-28.md) covers b
 directions, one and 16 in-flight requests, complete sum/sequence oracles and raw RTT samples under
 two RMWs. Its fixed-size results leave dynamic service payloads, cancellation under load and
 multithread/action protocols as explicit remaining scope.
+
+The [action matrix](benchmarks/action-lifecycle-2026-10-28.md) confirms acceptance, observed feedback
+and successful/canceled results with explicit readiness handshakes. [Local cancellation progress](ACTION_CANCELLATION.md)
+now returns promptly after completed decisions and preserves waits during unresolved/backpressured
+work. Client-side action tracking/conversion and retained-goal cohort costs need further profiling;
+the current complete-lifecycle RTT still trails C++ and is an open performance gap.
 
 ## Reproducible local gates
 

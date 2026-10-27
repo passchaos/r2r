@@ -70,6 +70,27 @@ class EndpointValidation(unittest.TestCase):
         candidate = dict(baseline, ping_language="rust", echo_language="rust", rtt_ns_p99=106)
         self.assertEqual(len(regression_failures([baseline, candidate], [16], 1.05, "window")), 1)
 
+    def test_action_lifecycle_and_stage_oracles(self):
+        result = dict(self.ping)
+        result.pop("elements")
+        result.update(scenario=1, accepted=4, feedback=4, results=4, canceled=4,
+                      stage_samples_ns={"acceptance": [5, 10, 15], "cancellation": [2, 3, 4]},
+                      acceptance_ns_p50=10, cancellation_ns_p50=3)
+        validate_endpoint(result, "ping", "rmw_cyclonedds_cpp", 1, 3, 1, "r2r", "scenario")
+        for field, value in [("accepted", 3), ("feedback", 3), ("results", 3), ("canceled", 0),
+                             ("acceptance_ns_p50", 5), ("cancellation_ns_p50", None)]:
+            bad = copy.deepcopy(result)
+            bad[field] = value
+            with self.subTest(field=field), self.assertRaises(RuntimeError):
+                validate_endpoint(bad, "ping", "rmw_cyclonedds_cpp", 1, 3, 1, "r2r", "scenario")
+        bad = copy.deepcopy(result)
+        bad["stage_samples_ns"]["acceptance"] = [11, 10, 15]
+        with self.assertRaisesRegex(RuntimeError, "exceeds"):
+            validate_endpoint(bad, "ping", "rmw_cyclonedds_cpp", 1, 3, 1, "r2r", "scenario")
+        success = dict(result, scenario=0, canceled=0, cancellation_ns_p50=None,
+                       stage_samples_ns={"acceptance": [5, 10, 15], "cancellation": []})
+        validate_endpoint(success, "ping", "rmw_cyclonedds_cpp", 0, 3, 1, "r2r", "scenario")
+
 
 if __name__ == "__main__":
     unittest.main()

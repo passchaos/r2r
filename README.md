@@ -19,6 +19,8 @@ For repeated serialization, `MessageSerializer::<T>::new()?` keeps native messag
 
 Run `cargo run -p r2r --example service_pipeline` to process service calls with bounded futures-rs concurrency and a runtime-agnostic deadline. [The service comparison](tools/bench_ros/SERVICE.md) validates native Rust/rclcpp requests and responses in both language directions, including one and 16 requests in flight.
 
+Run `cargo run -p r2r --example action_lifecycle` for deterministic deferred execution, feedback, success and cancellation with a wall-clock deadline. [The action comparison](tools/bench_ros/ACTION.md) checks both language directions and records lifecycle, acceptance and cancellation timings under an explicit feedback-confirmation protocol.
+
 On ROS 2 Iron and newer, typed and untyped services and clients expose `configure_introspection(&mut node, state, event_qos)`. Choose `ServiceIntrospectionState::Metadata` for identities and timestamps or `Contents` to include payloads; `Off` disables publication. Subscribe to the generated service `Event` type on `<service_name>/_service_event`. Run `cargo run -p r2r --example service_introspection` for a complete request, response and event stream example.
 
 Generated service bindings provide the associated `Event` type automatically. Manual implementations of `WrappedServiceTypeSupport` on Iron and newer must also define `type Event` to match their native service event type.

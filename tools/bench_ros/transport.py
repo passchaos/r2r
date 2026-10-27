@@ -41,6 +41,9 @@ def validate_endpoint(result, role, rmw, elements, iterations, warmup, implement
     total = iterations + warmup
     if result["received"] != total or result["checksum"] != total * (total - 1) // 2:
         raise RuntimeError("message count or sequence checksum mismatch")
+    if dimension == "scenario":
+        if elements not in {0, 1} or any(result[field] != total for field in ["accepted", "feedback", "results"]) or result["canceled"] != (total if elements == 1 else 0):
+            raise RuntimeError("action lifecycle count mismatch")
     if role == "ping":
         samples = result["samples_ns"]
         if len(samples) != iterations or any(not isinstance(value, int) or value <= 0 for value in samples):
@@ -57,6 +60,21 @@ def validate_endpoint(result, role, rmw, elements, iterations, warmup, implement
         # C++ JSON output rounds doubles to six significant digits.
         if not math.isclose(result["roundtrips_per_second"], expected_rate, rel_tol=1e-5):
             raise RuntimeError("throughput calculation mismatch")
+        if dimension == "scenario":
+            stages = result["stage_samples_ns"]
+            if set(stages) != {"acceptance", "cancellation"}:
+                raise RuntimeError("action stage labels mismatch")
+            for stage, count in [("acceptance", iterations), ("cancellation", iterations if elements == 1 else 0)]:
+                values = stages[stage]
+                if len(values) != count or any(not isinstance(value, int) or value <= 0 for value in values):
+                    raise RuntimeError("invalid action stage samples")
+                if count and any(value > samples[index] for index, value in enumerate(values)):
+                    raise RuntimeError("action stage exceeds lifecycle time")
+            if result["acceptance_ns_p50"] != percentile(stages["acceptance"], 50):
+                raise RuntimeError("acceptance percentile mismatch")
+            expected_cancel = percentile(stages["cancellation"], 50) if elements == 1 else None
+            if result["cancellation_ns_p50"] != expected_cancel:
+                raise RuntimeError("cancellation percentile mismatch")
 
 
 def pair(ping, echo, cpu_ping, cpu_echo, env, elements, iterations, warmup, prefix, dimension="elements"):
@@ -90,7 +108,7 @@ def pair(ping, echo, cpu_ping, cpu_echo, env, elements, iterations, warmup, pref
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rust", type=Path, required=True)
-    parser.add_argument("--workload", choices=["pubsub", "service"], default="pubsub")
+    parser.add_argument("--workload", choices=["pubsub", "service", "action"], default="pubsub")
     parser.add_argument("--baseline-rust", type=Path)
     parser.add_argument("--cpp", type=Path, required=True)
     parser.add_argument("--cpu-ping", type=int, required=True)
@@ -99,6 +117,7 @@ def main():
     parser.add_argument("--rmw", default="rmw_cyclonedds_cpp")
     parser.add_argument("--sizes", default="0,32,4096")
     parser.add_argument("--windows", default="1,16", help="service request concurrency windows")
+    parser.add_argument("--scenarios", default="0,1", help="action scenarios: 0 success, 1 cancellation")
     parser.add_argument("--iterations", type=int, default=5000)
     parser.add_argument("--warmup", type=int, default=100)
     parser.add_argument("--repetitions", type=int, default=5)
@@ -111,9 +130,12 @@ def main():
         parser.error("select two distinct available CPUs")
     if not 0 <= args.domain_id <= 232 or args.iterations <= 0 or args.warmup < 0 or args.repetitions < 1 or args.iterations + args.warmup > 2**32 - 1:
         parser.error("invalid run dimensions or DDS domain")
-    dimension = "window" if args.workload == "service" else "elements"
-    sizes = [int(size) for size in (args.windows if args.workload == "service" else args.sizes).split(",")]
-    lower, upper = (1, 1024) if args.workload == "service" else (0, 1_000_000)
+    dimension = {"pubsub": "elements", "service": "window", "action": "scenario"}[args.workload]
+    dimensions = {"pubsub": args.sizes, "service": args.windows, "action": args.scenarios}[args.workload]
+    sizes = [int(size) for size in dimensions.split(",")]
+    lower, upper = {"pubsub": (0, 1_000_000), "service": (1, 1024), "action": (0, 1)}[args.workload]
+    if args.workload == "action" and args.iterations + args.warmup > 2**31 - 4:
+        parser.error("action sequence count exceeds the goal representation")
     if not sizes or len(set(sizes)) != len(sizes) or any(size < lower or size > upper for size in sizes):
         parser.error("invalid or duplicate workload dimensions")
     if args.max_regression is not None and (args.baseline_rust is None or not math.isfinite(args.max_regression) or args.max_regression < 1):
@@ -143,10 +165,10 @@ def main():
         "throughput_boundary": "all measured roundtrips including initiator validation, excludes warmup/discovery/teardown",
         "iterations": args.iterations, "warmup": args.warmup, "repetitions": args.repetitions,
         "workload": args.workload,
-        "request_windows" if args.workload == "service" else "payload_sizes": sizes,
+        {"pubsub": "payload_sizes", "service": "request_windows", "action": "action_scenarios"}[args.workload]: sizes,
         "source_sha256": {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in
-                          [Path("r2r/benches/service_roundtrip.rs" if args.workload == "service" else "r2r/benches/pubsub_roundtrip.rs"),
-                           Path("tools/bench_ros/service.cpp" if args.workload == "service" else "tools/bench_ros/roundtrip.cpp"), Path("tools/bench_ros/transport.py")]},
+                          [Path("r2r/benches") / {"pubsub": "pubsub_roundtrip.rs", "service": "service_roundtrip.rs", "action": "action_roundtrip.rs"}[args.workload],
+                           Path("tools/bench_ros") / {"pubsub": "roundtrip.cpp", "service": "service.cpp", "action": "action.cpp"}[args.workload], Path("tools/bench_ros/transport.py")]},
     }
     if args.workload == "service":
         metadata.update(qos="ServicesQoS: reliable, volatile, KeepLast(max(16, window))",
@@ -155,11 +177,23 @@ def main():
                         echo_work="validate every AddTwoInts sequence and operand, then return exact sum",
                         throughput_boundary="measured completed service requests including validation; excludes discovery/warmup/completion protocol",
                         completion_protocol="-1 stop request and response, then -2 confirmation; all measured responses complete first")
+    if args.workload == "action":
+        metadata.update(qos="goal/result/cancel/feedback: reliable volatile KeepLast(16); status native defaults; result retention 10 s",
+                        scheduling="single-threaded executor/spin loop; 100 ms wait cap; one goal in flight",
+                        rtt_boundary="before goal submission through acceptance/result observer setup, execution-start readiness service, exactly one validated feedback, feedback acknowledgement or cancellation, and terminal result retrieval",
+                        acceptance_boundary="before submission through accepted goal retrieval and sending the result request; no execution-start handshake",
+                        cancellation_boundary="before cancel request through accepted cancel response retrieval",
+                        auxiliary_protocol="AddTwoInts /ready handshake phase 0 confirms client observation readiness; success phase 1 confirms feedback consumption before completing the result; cancellation instead confirms feedback consumption via the cancel request",
+                        echo_work="defer execution until readiness confirmation, validate order, publish exact three-element feedback/result; scenario 1 accepts cancellation before Canceled result",
+                        throughput_boundary="complete action lifecycle including validation; excludes discovery/warmup/control rejection protocol",
+                        completion_protocol="control goals -1 and -2 rejected after all measured terminal results complete",
+                        scenario_labels={"0": "success", "1": "cancel"})
     if args.build_manifest:
         metadata["build_manifest"] = json.loads(args.build_manifest.read_text())
     prefix = Path("/opt/ros") / env["ROS_DISTRO"] / "share"
-    metadata["ros_packages"] = {name: ET.parse(prefix / name / "package.xml").findtext("version") for name in
-                                ["rclcpp", "rcl", "rmw", "example_interfaces" if args.workload == "service" else "std_msgs", args.rmw]}
+    packages = ["rclcpp", "rcl", "rmw", "example_interfaces" if args.workload in {"service", "action"} else "std_msgs", args.rmw]
+    if args.workload == "action": packages += ["rclcpp_action", "rcl_action"]
+    metadata["ros_packages"] = {name: ET.parse(prefix / name / "package.xml").findtext("version") for name in packages}
     records, traces = [], []
     pairs = [("rust", "rust"), ("cpp", "cpp"), ("rust", "cpp"), ("cpp", "rust")]
     if args.baseline_rust:
@@ -174,16 +208,22 @@ def main():
                 validate_endpoint(echo, "echo", args.rmw, elements, args.iterations, args.warmup,
                                   "rclcpp" if echo_label == "cpp" else "r2r", dimension)
                 samples = ping.pop("samples_ns")
+                stages = ping.pop("stage_samples_ns", None)
                 record = {"ping_language": ping_label, "echo_language": echo_label, "repetition": repetition, dimension: elements, "ping": ping, "echo": echo}
-                traces.append({"record": len(records), "samples_ns": samples})
+                trace = {"record": len(records), "samples_ns": samples}
+                if stages is not None: trace["stage_samples_ns"] = stages
+                traces.append(trace)
                 records.append(record)
                 print(f"{ping_label}/{echo_label} {dimension}={elements} repetition={repetition + 1}/{args.repetitions}: p50={ping['rtt_ns_p50']} ns p99={ping['rtt_ns_p99']} ns", flush=True)
     summary = []
     for elements in sizes:
         for ping_label, echo_label in pairs:
             group = [record["ping"] for record in records if record[dimension] == elements and record["ping_language"] == ping_label and record["echo_language"] == echo_label]
+            fields = ["rtt_ns_p50", "rtt_ns_p95", "rtt_ns_p99", "roundtrips_per_second"]
+            if args.workload == "action": fields.append("acceptance_ns_p50")
+            if args.workload == "action" and elements == 1: fields.append("cancellation_ns_p50")
             summary.append({dimension: elements, "ping_language": ping_label, "echo_language": echo_label,
-                            **{key: statistics.median(record[key] for record in group) for key in ["rtt_ns_p50", "rtt_ns_p95", "rtt_ns_p99", "roundtrips_per_second"]}})
+                            **{key: statistics.median(record[key] for record in group) for key in fields}})
     args.output.parent.mkdir(parents=True, exist_ok=True)
     trace_path = args.output.with_suffix(".samples.json.gz")
     compressed = gzip.compress(json.dumps(traces, separators=(",", ":")).encode(), mtime=0)
