@@ -14,6 +14,8 @@ import subprocess
 import tempfile
 import uuid
 import xml.etree.ElementTree as ET
+from action_support.validation import language_pairs, validate_cohorts
+from action_support.paired import paired_cohorts
 
 
 def percentile(samples, percent):
@@ -33,7 +35,7 @@ def regression_failures(summary, sizes, maximum, dimension="elements"):
     return failures
 
 
-def validate_endpoint(result, role, rmw, elements, iterations, warmup, implementation=None, dimension="elements"):
+def validate_endpoint(result, role, rmw, elements, iterations, warmup, implementation=None, dimension="elements", cohorts=None, instrumented=None):
     if implementation is not None and result["implementation"] != implementation:
         raise RuntimeError("language implementation mismatch")
     if (result["role"], result["rmw"], result[dimension], result["iterations"], result["warmup"]) != (role, rmw, elements, iterations, warmup):
@@ -75,10 +77,14 @@ def validate_endpoint(result, role, rmw, elements, iterations, warmup, implement
             expected_cancel = percentile(stages["cancellation"], 50) if elements == 1 else None
             if result["cancellation_ns_p50"] != expected_cancel:
                 raise RuntimeError("cancellation percentile mismatch")
+    if dimension == "scenario":
+        validate_cohorts(result, role, elements, iterations, warmup, cohorts, instrumented)
 
 
-def pair(ping, echo, cpu_ping, cpu_echo, env, elements, iterations, warmup, prefix, dimension="elements"):
+def pair(ping, echo, cpu_ping, cpu_echo, env, elements, iterations, warmup, prefix, dimension="elements", cohorts=1, instrumented=None):
     parameters = [str(elements), str(iterations), str(warmup), prefix]
+    if dimension == "scenario" and cohorts > 1:
+        parameters.append(str(cohorts))
     with tempfile.TemporaryDirectory(prefix="r2r-roundtrip-") as directory:
         output = Path(directory) / "echo.json"
         errors = Path(directory) / "echo.log"
@@ -100,8 +106,8 @@ def pair(ping, echo, cpu_ping, cpu_echo, env, elements, iterations, warmup, pref
                     except subprocess.TimeoutExpired:
                         responder.kill()
                         responder.wait()
-        validate_endpoint(ping_result, "ping", env["RMW_IMPLEMENTATION"], elements, iterations, warmup, dimension=dimension)
-        validate_endpoint(echo_result, "echo", env["RMW_IMPLEMENTATION"], elements, iterations, warmup, dimension=dimension)
+        validate_endpoint(ping_result, "ping", env["RMW_IMPLEMENTATION"], elements, iterations*cohorts, warmup*cohorts, dimension=dimension, cohorts=cohorts, instrumented=instrumented)
+        validate_endpoint(echo_result, "echo", env["RMW_IMPLEMENTATION"], elements, iterations*cohorts, warmup*cohorts, dimension=dimension, cohorts=cohorts, instrumented=instrumented)
         return ping_result, echo_result
 
 
@@ -118,6 +124,9 @@ def main():
     parser.add_argument("--sizes", default="0,32,4096")
     parser.add_argument("--windows", default="1,16", help="service request concurrency windows")
     parser.add_argument("--scenarios", default="0,1", help="action scenarios: 0 success, 1 cancellation")
+    parser.add_argument("--action-cohorts", type=int, default=1, help="fresh action endpoint cohorts, each with the requested iterations/warmup")
+    parser.add_argument("--action-stability", action="store_true", help="focused Rust baseline/candidate short-cohort regression gate; full interoperability is a separate matrix")
+    parser.add_argument("--probe", type=Path, help="optional Linux/glibc allocation probe; counts are separate from latency evidence")
     parser.add_argument("--iterations", type=int, default=5000)
     parser.add_argument("--warmup", type=int, default=100)
     parser.add_argument("--repetitions", type=int, default=5)
@@ -125,6 +134,16 @@ def main():
     parser.add_argument("--build-manifest", type=Path)
     parser.add_argument("--max-regression", type=float, help="Maximum candidate/baseline ratio for same-language RTT percentiles and inverse throughput")
     args = parser.parse_args()
+    if not 1 <= args.action_cohorts <= 1024 or (args.action_cohorts != 1 and args.workload != "action"):
+        parser.error("cohorts require an action workload and a count from 1 to 1024")
+    if args.probe and (args.workload != "action" or args.max_regression is not None):
+        parser.error("instrumented action runs cannot enforce latency performance gates")
+    if args.action_stability and (args.workload != "action" or args.baseline_rust is None or args.max_regression is None
+                                 or args.action_cohorts < 2 or args.iterations * args.action_cohorts < 1000
+                                 or args.iterations + args.warmup > 15 or args.repetitions < 5):
+        parser.error("action stability needs a baseline/gate, at most 15 goals per cohort, at least 1000 measured goals and five repetitions")
+    if args.action_stability and args.domain_id > 231:
+        parser.error("action stability requires two adjacent available DDS domains")
     allowed = os.sched_getaffinity(0)
     if args.cpu_ping == args.cpu_echo or not {args.cpu_ping, args.cpu_echo}.issubset(allowed):
         parser.error("select two distinct available CPUs")
@@ -134,7 +153,7 @@ def main():
     dimensions = {"pubsub": args.sizes, "service": args.windows, "action": args.scenarios}[args.workload]
     sizes = [int(size) for size in dimensions.split(",")]
     lower, upper = {"pubsub": (0, 1_000_000), "service": (1, 1024), "action": (0, 1)}[args.workload]
-    if args.workload == "action" and args.iterations + args.warmup > 2**31 - 4:
+    if args.workload == "action" and (args.iterations + args.warmup) * args.action_cohorts > 2**31 - 4:
         parser.error("action sequence count exceeds the goal representation")
     if not sizes or len(set(sizes)) != len(sizes) or any(size < lower or size > upper for size in sizes):
         parser.error("invalid or duplicate workload dimensions")
@@ -148,6 +167,8 @@ def main():
     env.pop("CYCLONEDDS_URI", None)
     env.pop("FASTRTPS_DEFAULT_PROFILES_FILE", None)
     env.pop("FASTDDS_DEFAULT_PROFILES_FILE", None)
+    if args.probe:
+        env["LD_PRELOAD"] = str(args.probe.resolve()) + (":" + env["LD_PRELOAD"] if env.get("LD_PRELOAD") else "")
     metadata = {
         "started_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "cpu_ping": args.cpu_ping, "cpu_echo": args.cpu_echo, "domain_id": args.domain_id,
@@ -163,7 +184,7 @@ def main():
         "rtt_boundary": "before request publish through response retrieval, before initiator payload validation",
         "echo_work": "complete sequence/layout/payload validation then normal typed publish",
         "throughput_boundary": "all measured roundtrips including initiator validation, excludes warmup/discovery/teardown",
-        "iterations": args.iterations, "warmup": args.warmup, "repetitions": args.repetitions,
+        "iterations": args.iterations*args.action_cohorts, "warmup": args.warmup*args.action_cohorts, "repetitions": args.repetitions,
         "workload": args.workload,
         {"pubsub": "payload_sizes", "service": "request_windows", "action": "action_scenarios"}[args.workload]: sizes,
         "source_sha256": {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in
@@ -178,6 +199,12 @@ def main():
                         throughput_boundary="measured completed service requests including validation; excludes discovery/warmup/completion protocol",
                         completion_protocol="-1 stop request and response, then -2 confirmation; all measured responses complete first")
     if args.workload == "action":
+        metadata.update(action_cohorts=args.action_cohorts, iterations_per_cohort=args.iterations, warmup_per_cohort=args.warmup,
+                        cohort_boundary="new action/ready endpoints for each cohort; shared process/node/context; two rejected controls after all results; setup/discovery/warmup/teardown excluded from aggregated elapsed time",
+                        instrumentation={"enabled":bool(args.probe), "latency_evidence":not bool(args.probe)})
+        if args.probe:
+            metadata["instrumentation"].update(probe_sha256=hashlib.sha256(args.probe.read_bytes()).hexdigest(),
+                scope="allocation entry points across all process threads in measured windows; CPU/context switches from getrusage; Rust future wakes only; max RSS is process-lifetime high water")
         metadata.update(qos="goal/result/cancel/feedback: reliable volatile KeepLast(16); status native defaults; result retention 10 s",
                         scheduling="single-threaded executor/spin loop; 100 ms wait cap; one goal in flight",
                         rtt_boundary="before goal submission through acceptance/result observer setup, execution-start readiness service, exactly one validated feedback, feedback acknowledgement or cancellation, and terminal result retrieval",
@@ -190,23 +217,26 @@ def main():
                         scenario_labels={"0": "success", "1": "cancel"})
     if args.build_manifest:
         metadata["build_manifest"] = json.loads(args.build_manifest.read_text())
+    if args.action_stability:
+        metadata["matrix_scope"] = "action_stability"
+        metadata["cohort_interleaving"] = "alternate baseline/candidate per cohort; both endpoint pairs resident; inactive pair has no action/ready endpoints; render after all windows"
+        metadata["pair_domain_ids"] = {"baseline":args.domain_id,"rust":args.domain_id+1}
     prefix = Path("/opt/ros") / env["ROS_DISTRO"] / "share"
     packages = ["rclcpp", "rcl", "rmw", "example_interfaces" if args.workload in {"service", "action"} else "std_msgs", args.rmw]
     if args.workload == "action": packages += ["rclcpp_action", "rcl_action"]
     metadata["ros_packages"] = {name: ET.parse(prefix / name / "package.xml").findtext("version") for name in packages}
     records, traces = [], []
-    pairs = [("rust", "rust"), ("cpp", "cpp"), ("rust", "cpp"), ("cpp", "rust")]
-    if args.baseline_rust:
-        pairs = [("baseline", "baseline"), *pairs, ("baseline", "cpp"), ("cpp", "baseline")]
+    pairs = language_pairs(args.baseline_rust is not None, metadata.get("matrix_scope", "full"))
     for elements in sizes:
         for repetition in range(args.repetitions):
+            paired = paired_cohorts(binaries["baseline"],binaries["rust"],args.cpu_ping,args.cpu_echo,env,elements,args.iterations,args.warmup,args.action_cohorts,repetition) if args.action_stability else None
             for ping_label, echo_label in pairs if repetition % 2 == 0 else reversed(pairs):
                 run_prefix = "/r2r_roundtrip_" + uuid.uuid4().hex
-                ping, echo = pair(binaries[ping_label], binaries[echo_label], args.cpu_ping, args.cpu_echo, env, elements, args.iterations, args.warmup, run_prefix, dimension)
-                validate_endpoint(ping, "ping", args.rmw, elements, args.iterations, args.warmup,
-                                  "rclcpp" if ping_label == "cpp" else "r2r", dimension)
-                validate_endpoint(echo, "echo", args.rmw, elements, args.iterations, args.warmup,
-                                  "rclcpp" if echo_label == "cpp" else "r2r", dimension)
+                ping, echo = paired[ping_label] if paired is not None else pair(binaries[ping_label], binaries[echo_label], args.cpu_ping, args.cpu_echo, env, elements, args.iterations, args.warmup, run_prefix, dimension, args.action_cohorts, bool(args.probe))
+                validate_endpoint(ping, "ping", args.rmw, elements, args.iterations*args.action_cohorts, args.warmup*args.action_cohorts,
+                                  "rclcpp" if ping_label == "cpp" else "r2r", dimension, args.action_cohorts, bool(args.probe))
+                validate_endpoint(echo, "echo", args.rmw, elements, args.iterations*args.action_cohorts, args.warmup*args.action_cohorts,
+                                  "rclcpp" if echo_label == "cpp" else "r2r", dimension, args.action_cohorts, bool(args.probe))
                 samples = ping.pop("samples_ns")
                 stages = ping.pop("stage_samples_ns", None)
                 record = {"ping_language": ping_label, "echo_language": echo_label, "repetition": repetition, dimension: elements, "ping": ping, "echo": echo}

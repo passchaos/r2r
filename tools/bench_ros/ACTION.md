@@ -68,6 +68,29 @@ The runnable `cargo run -p r2r --example action_lifecycle` demonstrates determin
 execution, observer readiness, feedback, success and cancellation using futures-rs. It completes
 with a wall-clock deadline and does not require an async runtime or random outcomes.
 
+## Cohorts and allocation/resource probes
+
+`--action-cohorts N` rebuilds action/ready endpoints on a shared node/context/executor. The
+requested iterations/warmup apply to every cohort; output reports aggregate counts and stores
+individual cohort offsets/checksums/windows. Raw samples concatenate before percentiles, and
+the effective completion rate sums only measured windows. Whole cohort-loop wall time is
+separate. Native ten-second result retention is unchanged within each cohort.
+
+`build.py --with-probe` builds the optional Linux/glibc allocation probe. Pass the resulting
+`libr2r_bench_probe.so` to `transport.py --probe` for measured-window allocation entry points,
+requested bytes, CPU/context switches, application polls/spins and Rust-only future wakes.
+These runs are instrumented; the runner rejects a simultaneous latency regression gate.
+The native probe oracle command is `python3 tools/bench_ros/probe/check.py`.
+
+`--action-stability` requires an independent baseline and a gate, at least 1000 measured
+samples, five repetitions and at most 15 total goals per cohort. It uses an explicit two-pair
+Rust inventory and alternates baseline/candidate after each cohort, with initialized resident
+nodes, inactive endpoints destroyed and reporting postponed until all measured windows end.
+The default four/seven-pair matrix remains the full interoperability/performance workload.
+Same-binary A/A must establish tail precision before interpreting candidate ratios. The
+[current A/A and allocation evidence](../../docs/benchmarks/action-allocation-2026-10-28/README.md)
+shows that this short-tail setup is not yet qualified for a 5% claim.
+
 This fixture is a protocol/observability workload with small payloads. Bare acceptance-only,
 fire-and-forget, larger feedback streams, multi-goal concurrency, native/loaned paths, networked
 hosts and multithread scaling are separate measurements still needed for the broader goal.

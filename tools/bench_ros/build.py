@@ -37,6 +37,7 @@ def rust_binary(source, target, destination, env, workload="codec"):
     if workload == "action":
         sources.extend(source / f"r2r/src/{name}.rs" for name in ["action_common", "action_clients", "action_clients_untyped", "action_servers"])
         sources.extend(sorted((source / "r2r/src/action_clients").rglob("*.rs")))
+        sources.extend(sorted((source / "r2r/benches/support").rglob("*.rs")))
     return {str(path.relative_to(source)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources}
 
 
@@ -44,6 +45,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline-ref", help="Git revision supplying the baseline library code")
     parser.add_argument("--workload", choices=list(BENCHMARKS), default="codec")
+    parser.add_argument("--with-probe", action="store_true", help="build optional Linux/glibc allocation probe")
     parser.add_argument("--output-dir", type=Path, default=Path("target/ros-comparison"))
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
@@ -66,6 +68,8 @@ def main():
             command(["tar", "-xf", str(archive), "-C", str(source)], root, env)
             archive.unlink()
             shutil.copy2(root / f"r2r/benches/{benchmark}.rs", source / f"r2r/benches/{benchmark}.rs")
+            if args.workload == "action":
+                shutil.copytree(root / "r2r/benches/support", source / "r2r/benches/support", dirs_exist_ok=True)
             shutil.copy2(root / "Cargo.lock", source / "Cargo.lock")
             manifest = source / "r2r/Cargo.toml"
             if f'name = "{benchmark}"' not in manifest.read_text():
@@ -73,11 +77,19 @@ def main():
             manifests["baseline"] = rust_binary(source, output / "baseline-cargo", output / "r2r-baseline", env, args.workload)
         manifests["baseline_ref"] = revision
     ros_prefix = f"/opt/ros/{env['ROS_DISTRO']}"
-    command(["cmake", "-S", str(root / "tools/bench_ros"), "-B", str(output / "cpp"), "-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_PREFIX_PATH={ros_prefix}", "-DPython3_EXECUTABLE=/usr/bin/python3", f"-DR2R_BUILD_SERVICE_BENCH={'ON' if args.workload == 'service' else 'OFF'}", f"-DR2R_BUILD_ACTION_BENCH={'ON' if args.workload == 'action' else 'OFF'}"], root, env)
+    command(["cmake", "-S", str(root / "tools/bench_ros"), "-B", str(output / "cpp"), "-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_PREFIX_PATH={ros_prefix}", "-DPython3_EXECUTABLE=/usr/bin/python3", f"-DR2R_BUILD_SERVICE_BENCH={'ON' if args.workload == 'service' else 'OFF'}", f"-DR2R_BUILD_ACTION_BENCH={'ON' if args.workload == 'action' else 'OFF'}", f"-DR2R_BUILD_ALLOCATION_PROBE={'ON' if args.with_probe else 'OFF'}"], root, env)
     cpp_binary = CPP_BINARIES[args.workload]
     command(["cmake", "--build", str(output / "cpp"), "--target", cpp_binary, "-j", "4"], root, env)
     shutil.copy2(output / f"cpp/{cpp_binary}", output / "rclcpp-comparison")
     manifests["cpp_source_sha256"] = {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in [root / "tools/bench_ros/CMakeLists.txt", root / "tools/bench_ros" / CPP_SOURCES[args.workload]]}
+    if args.workload == "action":
+        manifests["cpp_source_sha256"].update({str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted((root / "tools/bench_ros/action_support").rglob("*.hpp"))})
+        native_header = root / "tools/bench_ros/probe/probe.h"
+        manifests["cpp_source_sha256"][str(native_header.relative_to(root))] = hashlib.sha256(native_header.read_bytes()).hexdigest()
+    if args.with_probe:
+        command(["cmake", "--build", str(output / "cpp"), "--target", "r2r_bench_probe", "-j", "2"], root, env)
+        shutil.copy2(output / "cpp/libr2r_bench_probe.so", output / "libr2r_bench_probe.so")
+        manifests["probe_source_sha256"] = {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted((root / "tools/bench_ros/probe").glob("probe.*"))}
     manifests["rustflags"] = env.get("RUSTFLAGS", "")
     manifests["cargo_release_opt_level"] = env.get("CARGO_PROFILE_RELEASE_OPT_LEVEL", "3")
     (output / "build-manifest.json").write_text(json.dumps(manifests, indent=2) + "\n")

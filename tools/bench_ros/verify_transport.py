@@ -8,6 +8,7 @@ from pathlib import Path
 import statistics
 
 from transport import regression_failures, validate_endpoint
+from action_support.validation import language_pairs
 
 
 def verify(path, require_performance_pass=False):
@@ -16,6 +17,19 @@ def verify(path, require_performance_pass=False):
     workload = metadata.get("workload", "pubsub")
     if workload not in {"pubsub", "service", "action"}:
         raise RuntimeError("unknown transport workload")
+    if "action_cohorts" in metadata:
+        count = metadata["action_cohorts"]
+        if workload != "action" or type(count) is not int or not 1 <= count <= 1024 or metadata["iterations_per_cohort"] * count != metadata["iterations"] or metadata["warmup_per_cohort"] * count != metadata["warmup"]:
+            raise RuntimeError("action cohort metadata mismatch")
+    instrumentation = metadata.get("instrumentation", {})
+    if instrumentation and (type(instrumentation.get("enabled")) is not bool or instrumentation.get("latency_evidence") is not (not instrumentation["enabled"])):
+        raise RuntimeError("invalid instrumentation metadata")
+    if "pair_domain_ids" in metadata and (metadata.get("matrix_scope") != "action_stability"
+                                          or metadata["pair_domain_ids"] != {"baseline":metadata["domain_id"],"rust":metadata["domain_id"]+1}
+                                          or metadata["domain_id"]>231):
+        raise RuntimeError("paired cohort domain metadata mismatch")
+    if metadata.get("control", "").startswith("same-binary A/A") and metadata["binary_sha256"]["rust"] != metadata["binary_sha256"]["baseline"]:
+        raise RuntimeError("A/A control binaries differ")
     dimension = {"pubsub": "elements", "service": "window", "action": "scenario"}[workload]
     artifact = metadata["samples_artifact"]
     compressed = (path.parent / artifact["file"]).read_bytes()
@@ -43,13 +57,20 @@ def verify(path, require_performance_pass=False):
                 endpoint["samples_ns"] = trace["samples_ns"]
                 if workload == "action": endpoint["stage_samples_ns"] = trace["stage_samples_ns"]
             language = record[f"{role}_language"]
+            frames = [endpoint.get("probe")] if "cohorts" not in endpoint else [cohort.get("probe") for cohort in endpoint["cohorts"]]
+            if any(frame is not None for frame in frames) and not instrumentation.get("enabled"):
+                raise RuntimeError("undeclared instrumented action timing")
             validate_endpoint(endpoint, role, metadata["rmw"], record[dimension], metadata["iterations"],
-                              metadata["warmup"], "rclcpp" if language == "cpp" else "r2r", dimension)
+                              metadata["warmup"], "rclcpp" if language == "cpp" else "r2r", dimension,
+                              metadata.get("action_cohorts"), metadata.get("instrumentation", {}).get("enabled"))
     sizes = metadata.get({"pubsub": "payload_sizes", "service": "request_windows", "action": "action_scenarios"}[workload],
                          sorted({record[dimension] for record in records}))
-    pairs = [("rust", "rust"), ("cpp", "cpp"), ("rust", "cpp"), ("cpp", "rust")]
-    if "baseline" in metadata.get("binary_sha256", {}):
-        pairs += [("baseline", "baseline"), ("baseline", "cpp"), ("cpp", "baseline")]
+    scope = metadata.get("matrix_scope", "full")
+    if scope == "action_stability" and (workload != "action" or metadata.get("action_cohorts", 1) < 2
+                                         or metadata["iterations"] < 1000 or metadata["iterations_per_cohort"] + metadata["warmup_per_cohort"] > 15
+                                         or metadata["repetitions"] < 5 or "regression_gate" not in metadata):
+        raise RuntimeError("incomplete action stability gate")
+    pairs = language_pairs("baseline" in metadata.get("binary_sha256", {}), scope)
     expected_keys = {(size, ping, echo, repetition) for size in sizes for ping, echo in pairs
                      for repetition in range(metadata["repetitions"])}
     if keys != expected_keys:
@@ -70,6 +91,8 @@ def verify(path, require_performance_pass=False):
     if expected_rows != actual_rows or len(actual_rows) != len(report["summary"]):
         raise RuntimeError("summary rows are missing or duplicated")
     if "regression_gate" in metadata:
+        if metadata.get("instrumentation", {}).get("enabled"):
+            raise RuntimeError("instrumented timing cannot pass a latency regression gate")
         gate = metadata["regression_gate"]
         failures = regression_failures(report["summary"], sizes, gate["maximum_ratio"], dimension)
         if gate["passed"] != (not failures) or gate["failures"] != failures:

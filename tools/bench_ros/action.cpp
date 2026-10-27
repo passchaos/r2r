@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include "action_support/report.hpp"
 
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/version.h>
@@ -26,38 +27,21 @@ std::vector<int32_t> fixture(int32_t order) { return {order, order + 1, order + 
 uint64_t elapsed_ns(Clock::time_point before) {
   return std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - before).count();
 }
-uint64_t percentile(std::vector<uint64_t> values, size_t percent) {
-  std::sort(values.begin(), values.end());
-  return values[((values.size() - 1) * percent + 99) / 100];
-}
-void array_json(const std::vector<uint64_t> &values) {
-  std::cout << '[';
-  for (size_t i = 0; i < values.size(); ++i) { if (i) std::cout << ','; std::cout << values[i]; }
-  std::cout << ']';
-}
-
-int main(int argc, char **argv) {
-  try {
-    if (argc != 6) throw std::invalid_argument("usage: rclcpp_action_roundtrip <ping|echo> <scenario:0=success,1=cancel> <iterations> <warmup> <action-name>");
-    const std::string role = argv[1], name = argv[5];
-    const size_t scenario = std::stoull(argv[2]), iterations = std::stoull(argv[3]), warmup = std::stoull(argv[4]);
-    if ((role != "ping" && role != "echo") || scenario > 1 || !iterations || warmup > INT32_MAX - 3 || iterations > INT32_MAX - 3 - warmup)
-      throw std::invalid_argument("invalid action configuration");
+action_bench::Report run_cohort(const std::shared_ptr<rclcpp::Node> &node, rclcpp::executors::SingleThreadedExecutor &executor,
+                               const std::string &role, const std::string &name,
+                               size_t scenario, size_t iterations, size_t warmup,
+                               size_t offset, bool confirm_last_control) {
     const size_t total = iterations + warmup;
-    rclcpp::init(argc, argv);
-    rclcpp::NodeOptions options;
-    options.enable_rosout(false).start_parameter_services(false).start_parameter_event_publisher(false).use_intra_process_comms(false);
-    auto node = std::make_shared<rclcpp::Node>("rclcpp_action_" + role, options);
-    rclcpp::executors::SingleThreadedExecutor executor;
-    executor.add_node(node);
+    action_bench::Report report;
+    action_bench::Driver driver;
     const auto qos = rclcpp::ServicesQoS().keep_last(16).get_rmw_qos_profile();
 #if RCLCPP_VERSION_MAJOR < 28
     const auto ready_qos = qos;
 #else
     const auto ready_qos = rclcpp::ServicesQoS().keep_last(16);
 #endif
-    uint64_t checksum = 0;
-    std::vector<uint64_t> samples, acceptance, cancellation;
+    auto &checksum = report.checksum;
+    auto &samples = report.samples, &acceptance = report.acceptance, &cancellation = report.cancellation;
     samples.reserve(iterations); acceptance.reserve(iterations); cancellation.reserve(iterations);
     if (role == "echo") {
       std::shared_ptr<ServerGoal> active;
@@ -80,7 +64,7 @@ int main(int argc, char **argv) {
       auto server = rclcpp_action::create_server<Action>(node, name,
         [&](const rclcpp_action::GoalUUID &, std::shared_ptr<const Action::Goal> goal) {
           if (received < total) {
-            if (goal->order != static_cast<int32_t>(received + 2) || active)
+            if (goal->order != static_cast<int32_t>(offset + received + 2) || active)
               throw std::runtime_error("goal sequence or concurrency oracle failed");
             return rclcpp_action::GoalResponse::ACCEPT_AND_DEFER;
           }
@@ -98,17 +82,18 @@ int main(int argc, char **argv) {
           active = std::move(goal);
         }, server_options);
       for (size_t sequence = 0; sequence < total; ++sequence) {
+        if (sequence == warmup) driver.begin();
         auto deadline = Clock::now() + 10s;
         while (!active) {
           if (Clock::now() >= deadline) throw std::runtime_error("goal deadline expired");
-          executor.spin_once(100ms);
+          driver.spin(executor,100ms);
         }
-        const int32_t order = static_cast<int32_t>(sequence + 2);
+        const int32_t order = static_cast<int32_t>(offset + sequence + 2);
         if (active->get_goal()->order != order) throw std::runtime_error("accepted goal oracle failed");
         deadline = Clock::now() + 10s;
         while (!start_requested) {
           if (Clock::now() >= deadline) throw std::runtime_error("execution handshake deadline expired");
-          executor.spin_once(100ms);
+          driver.spin(executor,100ms);
         }
         active->execute();
         auto feedback = std::make_shared<Action::Feedback>();
@@ -120,7 +105,7 @@ int main(int argc, char **argv) {
           deadline = Clock::now() + 10s;
           while (!feedback_acknowledged) {
             if (Clock::now() >= deadline) throw std::runtime_error("feedback acknowledgement deadline expired");
-            executor.spin_once(100ms);
+            driver.spin(executor,100ms);
           }
           active->succeed(result);
         }
@@ -128,25 +113,22 @@ int main(int argc, char **argv) {
           deadline = Clock::now() + 10s;
           while (!active->is_canceling()) {
             if (Clock::now() >= deadline) throw std::runtime_error("cancel deadline expired");
-            executor.spin_once(100ms);
+            driver.spin(executor,100ms);
           }
           active->canceled(result);
         }
         active.reset();
         start_requested = false;
         feedback_acknowledged = false;
-        checksum += sequence;
+        checksum += offset + sequence;
         ++received;
       }
+      report.probe=driver.end();
       auto deadline = Clock::now() + 10s;
       while (controls < 2) {
         if (Clock::now() >= deadline) throw std::runtime_error("completion goal deadline expired");
-        executor.spin_once(100ms);
+        driver.spin(executor,100ms);
       }
-      std::cout << "{\"implementation\":\"rclcpp\",\"role\":\"echo\",\"rmw\":\"" << rmw_get_implementation_identifier()
-        << "\",\"scenario\":" << scenario << ",\"iterations\":" << iterations << ",\"warmup\":" << warmup
-        << ",\"received\":" << total << ",\"checksum\":" << checksum << ",\"accepted\":" << total
-        << ",\"feedback\":" << total << ",\"results\":" << total << ",\"canceled\":" << (scenario ? total : 0) << "}\n";
     } else {
       auto client_options = rcl_action_client_get_default_options();
       client_options.goal_service_qos = qos;
@@ -158,13 +140,15 @@ int main(int argc, char **argv) {
       auto deadline = Clock::now() + 10s;
       while (!client->action_server_is_ready() || !ready->service_is_ready()) {
         if (Clock::now() >= deadline) throw std::runtime_error("action discovery timed out");
-        executor.spin_once(10ms);
+        driver.spin(executor,10ms);
       }
       auto drive = [&](auto &future) {
         auto deadline = Clock::now() + 10s;
-        while (future.wait_for(0s) != std::future_status::ready) {
+        while (true) {
+          driver.poll();
+          if (future.wait_for(0s) == std::future_status::ready) break;
           if (Clock::now() >= deadline) throw std::runtime_error("action response deadline expired");
-          executor.spin_once(100ms);
+          driver.spin(executor,100ms);
         }
         return future.get();
       };
@@ -178,8 +162,8 @@ int main(int argc, char **argv) {
       };
       auto measured_start = Clock::now();
       for (size_t sequence = 0; sequence < total; ++sequence) {
-        if (sequence == warmup) measured_start = Clock::now();
-        const int32_t order = static_cast<int32_t>(sequence + 2);
+        if (sequence == warmup) { driver.begin(); measured_start = Clock::now(); }
+        const int32_t order = static_cast<int32_t>(offset + sequence + 2);
         Action::Goal goal;
         goal.order = order;
         Client::SendGoalOptions send_options;
@@ -196,7 +180,7 @@ int main(int argc, char **argv) {
         deadline = Clock::now() + 10s;
         while (feedbacks.empty()) {
           if (Clock::now() >= deadline) throw std::runtime_error("feedback deadline expired");
-          executor.spin_once(100ms);
+          driver.spin(executor,100ms);
         }
         if (feedbacks.front() != fixture(order)) throw std::runtime_error("feedback payload oracle failed");
         feedbacks.pop_front();
@@ -215,33 +199,45 @@ int main(int argc, char **argv) {
             result.goal_id != handle->get_goal_id() || result.result->sequence != fixture(order))
           throw std::runtime_error("terminal result oracle failed");
         if (!feedbacks.empty()) throw std::runtime_error("duplicate feedback");
-        checksum += sequence;
+        checksum += offset + sequence;
         if (sequence >= warmup) { samples.push_back(elapsed); acceptance.push_back(accepted_ns); }
       }
-      const auto elapsed = elapsed_ns(measured_start);
+      report.elapsed = elapsed_ns(measured_start);
+      report.probe=driver.end();
       Action::Goal stop;
       stop.order = -1;
       auto stopped = client->async_send_goal(stop);
       if (drive(stopped)) throw std::runtime_error("completion goal should be rejected");
       stop.order = -2;
-      client->async_send_goal(stop);
-      std::cout << "{\"implementation\":\"rclcpp\",\"role\":\"ping\",\"rmw\":\"" << rmw_get_implementation_identifier()
-        << "\",\"scenario\":" << scenario << ",\"iterations\":" << iterations << ",\"warmup\":" << warmup
-        << ",\"received\":" << total << ",\"checksum\":" << checksum << ",\"accepted\":" << total
-        << ",\"feedback\":" << total << ",\"results\":" << total << ",\"canceled\":" << (scenario ? total : 0)
-        << ",\"elapsed_ns\":" << elapsed << ",\"roundtrips_per_second\":" << iterations / (elapsed * 1e-9)
-        << ",\"rtt_ns_p50\":" << percentile(samples,50) << ",\"rtt_ns_p95\":" << percentile(samples,95)
-        << ",\"rtt_ns_p99\":" << percentile(samples,99) << ",\"rtt_ns_max\":" << *std::max_element(samples.begin(),samples.end())
-        << ",\"samples_ns\":";
-      array_json(samples);
-      std::cout << ",\"stage_samples_ns\":{\"acceptance\":";
-      array_json(acceptance);
-      std::cout << ",\"cancellation\":";
-      array_json(cancellation);
-      std::cout << "},\"acceptance_ns_p50\":" << percentile(acceptance,50) << ",\"cancellation_ns_p50\":";
-      if (scenario) std::cout << percentile(cancellation,50); else std::cout << "null";
-      std::cout << "}\n";
+      auto confirmed = client->async_send_goal(stop);
+      if (confirm_last_control && drive(confirmed)) throw std::runtime_error("completion goal should be rejected");
     }
+    return report;
+}
+
+int main(int argc, char **argv) {
+  try {
+    if (argc != 6 && argc != 7) throw std::invalid_argument("usage: action_roundtrip <ping|echo> <scenario> <iterations-per-cohort> <warmup-per-cohort> <action-name> [cohorts]");
+    const std::string role = argv[1], name = argv[5];
+    const size_t scenario = std::stoull(argv[2]), iterations = std::stoull(argv[3]), warmup = std::stoull(argv[4]);
+    const size_t cohorts = argc == 7 ? std::stoull(argv[6]) : 1;
+    if ((role != "ping" && role != "echo") || scenario > 1 || !iterations || !cohorts || cohorts>1024 ||
+        warmup > INT32_MAX-3 || iterations > INT32_MAX-3-warmup || iterations+warmup > (INT32_MAX-3)/cohorts)
+      throw std::invalid_argument("invalid action configuration");
+    rclcpp::init(argc, argv);
+    rclcpp::NodeOptions options;
+    options.enable_rosout(false).start_parameter_services(false).start_parameter_event_publisher(false).use_intra_process_comms(false);
+    auto node = std::make_shared<rclcpp::Node>("rclcpp_action_" + role, options);
+    rclcpp::executors::SingleThreadedExecutor executor;
+    executor.add_node(node);
+    const auto process_start=Clock::now();
+    std::vector<action_bench::Report> reports;
+    reports.reserve(cohorts);
+    for (size_t i=0;i<cohorts;++i) {
+      const std::string cohort_name = cohorts==1 ? name : name+"_cohort_"+std::to_string(i);
+      reports.push_back(run_cohort(node,executor,role,cohort_name,scenario,iterations,warmup,i*(iterations+warmup),cohorts>1));
+    }
+    action_bench::render(reports,role,rmw_get_implementation_identifier(),scenario,iterations,warmup,elapsed_ns(process_start));
     rclcpp::shutdown();
   } catch (const std::exception &error) { std::cerr << error.what() << '\n'; return 1; }
 }
