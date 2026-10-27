@@ -1,0 +1,275 @@
+{
+  "metadata": {
+    "completed_utc": "2026-10-27T17:14:13.173263+00:00",
+    "cpu": 24,
+    "ros_distro": "jazzy",
+    "rustc": "rustc 1.85.0 (4d91de4e4 2025-02-17)",
+    "binary_sha256": "e5307c9cef2344427d7e7c865046dfbb5f0c5d443c9e3906b1b605cca6966412",
+    "source_sha256": "38f068f7dae4613c26db1b26c83bc6ddb46a0d933f5516169e587fe5a899ff2f",
+    "repetitions": 5,
+    "boundary": "native status array to owned UUID/status updates, including allocation and destruction; fixture creation excluded",
+    "order": "owned Rust conversion then direct native decode within each repetition; stage evidence, not independent-binary A/B"
+  },
+  "records": [
+    {
+      "elapsed_ns": 241183027,
+      "iterations": 5000000,
+      "mode": "owned_rust_decode",
+      "ns_per_op": 48.2366054,
+      "statuses": 1,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 73342904,
+      "iterations": 5000000,
+      "mode": "native_decode",
+      "ns_per_op": 14.6685808,
+      "statuses": 1,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 247859319,
+      "iterations": 5000000,
+      "mode": "owned_rust_decode",
+      "ns_per_op": 49.5718638,
+      "statuses": 1,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 74033521,
+      "iterations": 5000000,
+      "mode": "native_decode",
+      "ns_per_op": 14.8067042,
+      "statuses": 1,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 250278808,
+      "iterations": 5000000,
+      "mode": "owned_rust_decode",
+      "ns_per_op": 50.0557616,
+      "statuses": 1,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 74692866,
+      "iterations": 5000000,
+      "mode": "native_decode",
+      "ns_per_op": 14.9385732,
+      "statuses": 1,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 244181166,
+      "iterations": 5000000,
+      "mode": "owned_rust_decode",
+      "ns_per_op": 48.8362332,
+      "statuses": 1,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 74111236,
+      "iterations": 5000000,
+      "mode": "native_decode",
+      "ns_per_op": 14.8222472,
+      "statuses": 1,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 244386600,
+      "iterations": 5000000,
+      "mode": "owned_rust_decode",
+      "ns_per_op": 48.87732,
+      "statuses": 1,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 74111743,
+      "iterations": 5000000,
+      "mode": "native_decode",
+      "ns_per_op": 14.8223486,
+      "statuses": 1,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 955789444,
+      "iterations": 200000,
+      "mode": "owned_rust_decode",
+      "ns_per_op": 4778.94722,
+      "statuses": 128,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 21498480,
+      "iterations": 200000,
+      "mode": "native_decode",
+      "ns_per_op": 107.4924,
+      "statuses": 128,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 956559108,
+      "iterations": 200000,
+      "mode": "owned_rust_decode",
+      "ns_per_op": 4782.79554,
+      "statuses": 128,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 20900173,
+      "iterations": 200000,
+      "mode": "native_decode",
+      "ns_per_op": 104.500865,
+      "statuses": 128,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 968000156,
+      "iterations": 200000,
+      "mode": "owned_rust_decode",
+      "ns_per_op": 4840.00078,
+      "statuses": 128,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 21050475,
+      "iterations": 200000,
+      "mode": "native_decode",
+      "ns_per_op": 105.252375,
+      "statuses": 128,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 955888171,
+      "iterations": 200000,
+      "mode": "owned_rust_decode",
+      "ns_per_op": 4779.440855,
+      "statuses": 128,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 20907831,
+      "iterations": 200000,
+      "mode": "native_decode",
+      "ns_per_op": 104.539155,
+      "statuses": 128,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 958032426,
+      "iterations": 200000,
+      "mode": "owned_rust_decode",
+      "ns_per_op": 4790.16213,
+      "statuses": 128,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 20921914,
+      "iterations": 200000,
+      "mode": "native_decode",
+      "ns_per_op": 104.60957,
+      "statuses": 128,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 940490342,
+      "iterations": 25000,
+      "mode": "owned_rust_decode",
+      "ns_per_op": 37619.61368,
+      "statuses": 1024,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 17707598,
+      "iterations": 25000,
+      "mode": "native_decode",
+      "ns_per_op": 708.30392,
+      "statuses": 1024,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 941627717,
+      "iterations": 25000,
+      "mode": "owned_rust_decode",
+      "ns_per_op": 37665.10868,
+      "statuses": 1024,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 17578158,
+      "iterations": 25000,
+      "mode": "native_decode",
+      "ns_per_op": 703.12632,
+      "statuses": 1024,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 943068041,
+      "iterations": 25000,
+      "mode": "owned_rust_decode",
+      "ns_per_op": 37722.72164,
+      "statuses": 1024,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 17735132,
+      "iterations": 25000,
+      "mode": "native_decode",
+      "ns_per_op": 709.40528,
+      "statuses": 1024,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 951203337,
+      "iterations": 25000,
+      "mode": "owned_rust_decode",
+      "ns_per_op": 38048.13348,
+      "statuses": 1024,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 17902584,
+      "iterations": 25000,
+      "mode": "native_decode",
+      "ns_per_op": 716.10336,
+      "statuses": 1024,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 942186085,
+      "iterations": 25000,
+      "mode": "owned_rust_decode",
+      "ns_per_op": 37687.4434,
+      "statuses": 1024,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 17727869,
+      "iterations": 25000,
+      "mode": "native_decode",
+      "ns_per_op": 709.11476,
+      "statuses": 1024,
+      "repetition": 4
+    }
+  ],
+  "summary": [
+    {
+      "statuses": 1,
+      "owned_rust_decode": 48.87732,
+      "native_decode": 14.8222472,
+      "ratio": 0.3032540900360331
+    },
+    {
+      "statuses": 128,
+      "owned_rust_decode": 4782.79554,
+      "native_decode": 104.60957,
+      "ratio": 0.021872055605370914
+    },
+    {
+      "statuses": 1024,
+      "owned_rust_decode": 37687.4434,
+      "native_decode": 709.11476,
+      "ratio": 0.018815676947723126
+    }
+  ]
+}

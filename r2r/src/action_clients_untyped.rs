@@ -701,11 +701,13 @@ impl WrappedActionClientUntyped {
             if let Some(tracked_status) = self.goal_status.get_mut(uuid) {
                 *tracked_status = *status;
             }
-            let result_is_tracked = self
-                .result_senders
-                .get(uuid)
-                .is_some_and(|sender| !sender.is_canceled());
-            if status.is_terminal() && !result_is_tracked {
+            if status.is_terminal()
+                && self.feedback_senders.contains_key(uuid)
+                && self
+                    .result_senders
+                    .get(uuid)
+                    .is_none_or(|sender| sender.is_canceled())
+            {
                 completions.extend(
                     self.take_feedback_sender(uuid)
                         .map(close_feedback_completion),
@@ -1119,6 +1121,54 @@ impl IsAvailablePollable for ActionClientUntyped {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn untyped_status_updates_preserve_feedback_observation_without_public_goal_tracking() {
+        let context = crate::Context::create().unwrap();
+        let mut node = crate::Node::create(context, "untyped_status_observer_test", "").unwrap();
+        let handle = node
+            .create_action_client_untyped(
+                "/untyped_status_observer_test",
+                "example_interfaces/action/Fibonacci",
+            )
+            .unwrap();
+        let state = handle.client.upgrade().unwrap();
+        let mut client = state.lock();
+        let tracked = uuid::Uuid::from_u128(1);
+        let feedback_only = uuid::Uuid::from_u128(2);
+        let unknown = uuid::Uuid::from_u128(3);
+        let (result_sender, result_receiver) = oneshot::channel();
+        client.result_senders.insert(tracked, result_sender);
+        let (tracked_sender, _tracked_receiver) = mpsc::channel(1);
+        let (feedback_sender, mut feedback_receiver) = mpsc::channel(1);
+        client
+            .feedback_senders
+            .insert(tracked, Arc::new(Mutex::new(FeedbackChannel::new(tracked_sender))));
+        client
+            .feedback_senders
+            .insert(feedback_only, Arc::new(Mutex::new(FeedbackChannel::new(feedback_sender))));
+        client.goal_status.insert(tracked, GoalStatus::Accepted);
+        let completions = client.apply_status_updates(&[
+            (unknown, GoalStatus::Succeeded),
+            (tracked, GoalStatus::Succeeded),
+            (feedback_only, GoalStatus::Executing),
+        ]);
+        assert!(completions.is_empty());
+        assert_eq!(client.goal_status.get(&tracked), Some(&GoalStatus::Succeeded));
+        assert!(!client.goal_status.contains_key(&unknown));
+        let completions = client.apply_status_updates(&[(feedback_only, GoalStatus::Canceled)]);
+        assert_eq!(completions.len(), 1);
+        assert!(!client.feedback_senders.contains_key(&feedback_only));
+        drop(client);
+        run_detached_action_client_completions(completions);
+        assert!(matches!(feedback_receiver.next().now_or_never(), Some(None)));
+        drop(result_receiver);
+        let completions = state
+            .lock()
+            .apply_status_updates(&[(tracked, GoalStatus::Succeeded)]);
+        assert_eq!(completions.len(), 1);
+        run_detached_action_client_completions(completions);
+    }
 
     #[test]
     fn untyped_action_reverse_indexes_are_cleared_when_responses_and_requests_finish() {

@@ -24,7 +24,7 @@ This audit is based on the source tree and local checks on 2026-10-27. It is not
 | Graph, QoS, parameters, clocks | Graph queries, endpoint identities and QoS, parameter services/events, managed ROS clocks and jump callbacks. | Audit remaining application-facing RCL and rclcpp features and test real middleware behavior per distribution. |
 | Distribution compatibility | Build-time checks and CI cover Humble, Iron, Jazzy, Kilted, Lyrical and Rolling. Library tests and Clippy pass with native Jazzy and containerized Humble/Kilted using Rust 1.85. | Complete runtime and RMW checks for each supported distribution and keep version-specific API boundaries explicit; Iron, Lyrical and Rolling remain CI matrix entries whose current local runtime evidence is not available. |
 | Documentation builds | `cargo check --workspace --features doc-only` works with saved bindings. | Saved bindings omit some example packages and new event types; refresh them and make documentation/example test coverage consistent. `--all-targets --features doc-only` currently fails on existing example-package dependencies. |
-| Performance evidence | Criterion/message-stage evidence, independent-process pub/sub and service matrices, and the [observed action lifecycle/cancel A/B](benchmarks/action-lifecycle-2026-10-28.md). Both language directions and raw RTT/stage samples are covered under two RMWs. | Complete pipelined/fanout pub/sub, dynamic payloads, multi-goal actions, allocation counters and scaling evidence. Full observed action lifecycle currently remains slower than rclcpp despite the timeout-sized cancel delay fix. |
+| Performance evidence | Criterion/message-stage evidence, independent-process pub/sub and service matrices, the [observed action lifecycle/cancel A/B](benchmarks/action-lifecycle-2026-10-28.md), and [native status decoding A/B](benchmarks/action-status-decode-2026-10-28.md). Both language directions and raw RTT/stage samples are covered under two RMWs. | Complete pipelined/fanout pub/sub, dynamic payloads, multi-goal actions, allocation counters and scaling evidence. Full action success is close to rclcpp under Fast DDS; cancellation and CycloneDDS still have latency gaps. |
 | Module structure | Small modules exist for availability, wait sets, time sources and parameter clients. | Decompose the large node module by stable responsibility; keep unit tests near implementation and integration tests at module or crate boundaries. |
 
 ## Execution order
@@ -60,8 +60,11 @@ multithread/action protocols as explicit remaining scope.
 The [action matrix](benchmarks/action-lifecycle-2026-10-28.md) confirms acceptance, observed feedback
 and successful/canceled results with explicit readiness handshakes. [Local cancellation progress](ACTION_CANCELLATION.md)
 now returns promptly after completed decisions and preserves waits during unresolved/backpressured
-work. Client-side action tracking/conversion and retained-goal cohort costs need further profiling;
-the current complete-lifecycle RTT still trails C++ and is an open performance gap.
+work. [Direct native status decoding](benchmarks/action-status-decode-2026-10-28.md) and fewer
+redundant client UUID lookups reduce complete action p50 by 3.4–4.8% under CycloneDDS and 22.4%
+under Fast DDS versus an interleaved `441bcd4` baseline. Fast DDS success is close to same-run
+C++; cancellation and CycloneDDS remain open gaps. Retained native storage, concurrent goals,
+allocation accounting and scaling need further evidence.
 
 ## Reproducible local gates
 

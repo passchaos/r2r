@@ -35,7 +35,8 @@ def rust_binary(source, target, destination, env, workload="codec"):
     sources = [source / f"r2r/benches/{benchmark}.rs", source / "r2r/src/msg_types.rs", source / "r2r/src/nodes.rs", source / "r2r/src/subscribers.rs", source / "r2r/src/publishers.rs", source / "r2r/src/clients.rs", source / "r2r/src/services.rs", source / "r2r_rcl/src/lib.rs", source / "r2r_msg_gen/src/lib.rs", source / "Cargo.lock"]
     if (source / "r2r/src/serialization.rs").exists(): sources.append(source / "r2r/src/serialization.rs")
     if workload == "action":
-        sources.extend(source / f"r2r/src/{name}.rs" for name in ["action_common", "action_clients", "action_servers"])
+        sources.extend(source / f"r2r/src/{name}.rs" for name in ["action_common", "action_clients", "action_clients_untyped", "action_servers"])
+        sources.extend(sorted((source / "r2r/src/action_clients").rglob("*.rs")))
     return {str(path.relative_to(source)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources}
 
 

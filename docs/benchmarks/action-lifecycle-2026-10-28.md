@@ -7,6 +7,11 @@ the complete observed lifecycle still has measurable Rust/C++ gaps: Rust/Rust p5
 higher under CycloneDDS and 29–33% higher under Fast DDS in the full workload. This evidence
 establishes the remaining action work instead of implying general Rust performance leadership.
 
+This is the initial matrix at `441bcd4`. The subsequent
+[native status decoding A/B](action-status-decode-2026-10-28.md) reduces complete lifecycle p50
+by 3.4–22.4% against an interleaved baseline and brings Fast DDS success close to rclcpp.
+Use that same-run comparison for the latest measured gap; the matrix below remains historical.
+
 ## Protocol and fairness
 
 The [action harness](../../tools/bench_ros/ACTION.md) sends native Fibonacci goals in increasing
