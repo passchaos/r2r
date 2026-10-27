@@ -8917,6 +8917,26 @@ mod tests {
             .create_service::<AddTwoInts::Service>(&service, QosProfile::default())
             .unwrap();
 
+        // Graph caches can update asynchronously even for endpoints on the same node.
+        // Register before checking counts so an update between checking and waiting is kept.
+        let started = Instant::now();
+        loop {
+            let changed = node.wait_for_graph_change();
+            let present = node.count_publishers(&topic).unwrap() >= 1
+                && node.count_subscribers(&topic).unwrap() >= 1;
+            #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
+            let present = present
+                && node.count_clients(&service).unwrap() >= 1
+                && node.count_services(&service).unwrap() >= 1;
+            if present {
+                drop(changed);
+                break;
+            }
+            let remaining = Duration::from_secs(2).saturating_sub(started.elapsed());
+            assert!(!remaining.is_zero(), "created endpoints are missing from the graph cache");
+            node.spin_until_future_complete(changed, remaining)
+                .expect("created endpoints did not become visible in the graph cache");
+        }
         assert!(node.count_publishers(&topic).unwrap() >= 1);
         assert!(node.count_subscribers(&topic).unwrap() >= 1);
         #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
