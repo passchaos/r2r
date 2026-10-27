@@ -65,6 +65,30 @@ class ArchivedMatrixValidation(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "median"):
             verify(self.path)
 
+    def test_service_matrix_checks_window_and_overlapping_latencies(self):
+        for record in self.records:
+            record["window"] = 16
+            record.pop("elements")
+            for role in ["ping", "echo"]:
+                record[role]["window"] = 16
+                record[role].pop("elements")
+            record["ping"]["elapsed_ns"] = 25
+            record["ping"]["roundtrips_per_second"] = 80_000_000.0
+        for row in self.summary:
+            row["window"] = 16
+            row.pop("elements")
+            row["roundtrips_per_second"] = 80_000_000.0
+        self.write()
+        report = json.loads(self.path.read_text())
+        report["metadata"].update(workload="service", request_windows=[16])
+        report["metadata"].pop("payload_sizes")
+        self.path.write_text(json.dumps(report))
+        verify(self.path)
+        report["metadata"]["request_windows"] = [1]
+        self.path.write_text(json.dumps(report))
+        with self.assertRaisesRegex(RuntimeError, "incomplete"):
+            verify(self.path)
+
     def test_baseline_matrix_requires_all_seven_combinations(self):
         for ping, echo in [("baseline", "baseline"), ("baseline", "cpp"), ("cpp", "baseline")]:
             record = copy.deepcopy(self.records[0])

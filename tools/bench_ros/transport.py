@@ -21,22 +21,22 @@ def percentile(samples, percent):
     return ordered[math.ceil((len(ordered) - 1) * percent / 100)]
 
 
-def regression_failures(summary, sizes, maximum):
+def regression_failures(summary, sizes, maximum, dimension="elements"):
     failures = []
     for size in sizes:
-        baseline = next(row for row in summary if row["elements"] == size and row["ping_language"] == row["echo_language"] == "baseline")
-        candidate = next(row for row in summary if row["elements"] == size and row["ping_language"] == row["echo_language"] == "rust")
+        baseline = next(row for row in summary if row[dimension] == size and row["ping_language"] == row["echo_language"] == "baseline")
+        candidate = next(row for row in summary if row[dimension] == size and row["ping_language"] == row["echo_language"] == "rust")
         ratios = {field: candidate[field] / baseline[field] for field in ["rtt_ns_p50", "rtt_ns_p95", "rtt_ns_p99"]}
         ratios["inverse_throughput"] = baseline["roundtrips_per_second"] / candidate["roundtrips_per_second"]
         if any(ratio > maximum for ratio in ratios.values()):
-            failures.append({"elements": size, "ratios": ratios})
+            failures.append({dimension: size, "ratios": ratios})
     return failures
 
 
-def validate_endpoint(result, role, rmw, elements, iterations, warmup, implementation=None):
+def validate_endpoint(result, role, rmw, elements, iterations, warmup, implementation=None, dimension="elements"):
     if implementation is not None and result["implementation"] != implementation:
         raise RuntimeError("language implementation mismatch")
-    if (result["role"], result["rmw"], result["elements"], result["iterations"], result["warmup"]) != (role, rmw, elements, iterations, warmup):
+    if (result["role"], result["rmw"], result[dimension], result["iterations"], result["warmup"]) != (role, rmw, elements, iterations, warmup):
         raise RuntimeError("endpoint identity mismatch")
     total = iterations + warmup
     if result["received"] != total or result["checksum"] != total * (total - 1) // 2:
@@ -50,7 +50,8 @@ def validate_endpoint(result, role, rmw, elements, iterations, warmup, implement
                 raise RuntimeError("RTT percentile mismatch")
         if result["rtt_ns_max"] != max(samples):
             raise RuntimeError("RTT maximum mismatch")
-        if result["elapsed_ns"] < sum(samples) or not math.isfinite(result["roundtrips_per_second"]) or result["roundtrips_per_second"] <= 0:
+        minimum_elapsed = max(samples) if dimension == "window" and elements > 1 else sum(samples)
+        if result["elapsed_ns"] < minimum_elapsed or not math.isfinite(result["roundtrips_per_second"]) or result["roundtrips_per_second"] <= 0:
             raise RuntimeError("invalid throughput result")
         expected_rate = iterations / (result["elapsed_ns"] * 1e-9)
         # C++ JSON output rounds doubles to six significant digits.
@@ -58,7 +59,7 @@ def validate_endpoint(result, role, rmw, elements, iterations, warmup, implement
             raise RuntimeError("throughput calculation mismatch")
 
 
-def pair(ping, echo, cpu_ping, cpu_echo, env, elements, iterations, warmup, prefix):
+def pair(ping, echo, cpu_ping, cpu_echo, env, elements, iterations, warmup, prefix, dimension="elements"):
     parameters = [str(elements), str(iterations), str(warmup), prefix]
     with tempfile.TemporaryDirectory(prefix="r2r-roundtrip-") as directory:
         output = Path(directory) / "echo.json"
@@ -81,14 +82,15 @@ def pair(ping, echo, cpu_ping, cpu_echo, env, elements, iterations, warmup, pref
                     except subprocess.TimeoutExpired:
                         responder.kill()
                         responder.wait()
-        validate_endpoint(ping_result, "ping", env["RMW_IMPLEMENTATION"], elements, iterations, warmup)
-        validate_endpoint(echo_result, "echo", env["RMW_IMPLEMENTATION"], elements, iterations, warmup)
+        validate_endpoint(ping_result, "ping", env["RMW_IMPLEMENTATION"], elements, iterations, warmup, dimension=dimension)
+        validate_endpoint(echo_result, "echo", env["RMW_IMPLEMENTATION"], elements, iterations, warmup, dimension=dimension)
         return ping_result, echo_result
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rust", type=Path, required=True)
+    parser.add_argument("--workload", choices=["pubsub", "service"], default="pubsub")
     parser.add_argument("--baseline-rust", type=Path)
     parser.add_argument("--cpp", type=Path, required=True)
     parser.add_argument("--cpu-ping", type=int, required=True)
@@ -96,6 +98,7 @@ def main():
     parser.add_argument("--domain-id", type=int, default=102)
     parser.add_argument("--rmw", default="rmw_cyclonedds_cpp")
     parser.add_argument("--sizes", default="0,32,4096")
+    parser.add_argument("--windows", default="1,16", help="service request concurrency windows")
     parser.add_argument("--iterations", type=int, default=5000)
     parser.add_argument("--warmup", type=int, default=100)
     parser.add_argument("--repetitions", type=int, default=5)
@@ -108,9 +111,11 @@ def main():
         parser.error("select two distinct available CPUs")
     if not 0 <= args.domain_id <= 232 or args.iterations <= 0 or args.warmup < 0 or args.repetitions < 1 or args.iterations + args.warmup > 2**32 - 1:
         parser.error("invalid run dimensions or DDS domain")
-    sizes = [int(size) for size in args.sizes.split(",")]
-    if not sizes or any(size < 0 or size > 1_000_000 for size in sizes):
-        parser.error("invalid payload sizes")
+    dimension = "window" if args.workload == "service" else "elements"
+    sizes = [int(size) for size in (args.windows if args.workload == "service" else args.sizes).split(",")]
+    lower, upper = (1, 1024) if args.workload == "service" else (0, 1_000_000)
+    if not sizes or len(set(sizes)) != len(sizes) or any(size < lower or size > upper for size in sizes):
+        parser.error("invalid or duplicate workload dimensions")
     if args.max_regression is not None and (args.baseline_rust is None or not math.isfinite(args.max_regression) or args.max_regression < 1):
         parser.error("a regression limit needs a baseline and a finite ratio at least one")
     binaries = {"rust": args.rust.resolve(), "cpp": args.cpp.resolve()}
@@ -137,14 +142,24 @@ def main():
         "echo_work": "complete sequence/layout/payload validation then normal typed publish",
         "throughput_boundary": "all measured roundtrips including initiator validation, excludes warmup/discovery/teardown",
         "iterations": args.iterations, "warmup": args.warmup, "repetitions": args.repetitions,
-        "payload_sizes": sizes,
+        "workload": args.workload,
+        "request_windows" if args.workload == "service" else "payload_sizes": sizes,
         "source_sha256": {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in
-                          [Path("r2r/benches/pubsub_roundtrip.rs"), Path("tools/bench_ros/roundtrip.cpp"), Path("tools/bench_ros/transport.py")]},
+                          [Path("r2r/benches/service_roundtrip.rs" if args.workload == "service" else "r2r/benches/pubsub_roundtrip.rs"),
+                           Path("tools/bench_ros/service.cpp" if args.workload == "service" else "tools/bench_ros/roundtrip.cpp"), Path("tools/bench_ros/transport.py")]},
     }
+    if args.workload == "service":
+        metadata.update(qos="ServicesQoS: reliable, volatile, KeepLast(max(16, window))",
+                        scheduling="single-threaded executor/spin loop; 100 ms wait cap; bounded request window; responses observed in submission order",
+                        rtt_boundary="before async service request through response retrieval, before initiator sum validation",
+                        echo_work="validate every AddTwoInts sequence and operand, then return exact sum",
+                        throughput_boundary="measured completed service requests including validation; excludes discovery/warmup/completion protocol",
+                        completion_protocol="-1 stop request and response, then -2 confirmation; all measured responses complete first")
     if args.build_manifest:
         metadata["build_manifest"] = json.loads(args.build_manifest.read_text())
     prefix = Path("/opt/ros") / env["ROS_DISTRO"] / "share"
-    metadata["ros_packages"] = {name: ET.parse(prefix / name / "package.xml").findtext("version") for name in ["rclcpp", "rcl", "rmw", "std_msgs", args.rmw]}
+    metadata["ros_packages"] = {name: ET.parse(prefix / name / "package.xml").findtext("version") for name in
+                                ["rclcpp", "rcl", "rmw", "example_interfaces" if args.workload == "service" else "std_msgs", args.rmw]}
     records, traces = [], []
     pairs = [("rust", "rust"), ("cpp", "cpp"), ("rust", "cpp"), ("cpp", "rust")]
     if args.baseline_rust:
@@ -153,21 +168,21 @@ def main():
         for repetition in range(args.repetitions):
             for ping_label, echo_label in pairs if repetition % 2 == 0 else reversed(pairs):
                 run_prefix = "/r2r_roundtrip_" + uuid.uuid4().hex
-                ping, echo = pair(binaries[ping_label], binaries[echo_label], args.cpu_ping, args.cpu_echo, env, elements, args.iterations, args.warmup, run_prefix)
+                ping, echo = pair(binaries[ping_label], binaries[echo_label], args.cpu_ping, args.cpu_echo, env, elements, args.iterations, args.warmup, run_prefix, dimension)
                 validate_endpoint(ping, "ping", args.rmw, elements, args.iterations, args.warmup,
-                                  "rclcpp" if ping_label == "cpp" else "r2r")
+                                  "rclcpp" if ping_label == "cpp" else "r2r", dimension)
                 validate_endpoint(echo, "echo", args.rmw, elements, args.iterations, args.warmup,
-                                  "rclcpp" if echo_label == "cpp" else "r2r")
+                                  "rclcpp" if echo_label == "cpp" else "r2r", dimension)
                 samples = ping.pop("samples_ns")
-                record = {"ping_language": ping_label, "echo_language": echo_label, "repetition": repetition, "elements": elements, "ping": ping, "echo": echo}
+                record = {"ping_language": ping_label, "echo_language": echo_label, "repetition": repetition, dimension: elements, "ping": ping, "echo": echo}
                 traces.append({"record": len(records), "samples_ns": samples})
                 records.append(record)
-                print(f"{ping_label}/{echo_label} elements={elements} repetition={repetition + 1}/{args.repetitions}: p50={ping['rtt_ns_p50']} ns p99={ping['rtt_ns_p99']} ns", flush=True)
+                print(f"{ping_label}/{echo_label} {dimension}={elements} repetition={repetition + 1}/{args.repetitions}: p50={ping['rtt_ns_p50']} ns p99={ping['rtt_ns_p99']} ns", flush=True)
     summary = []
     for elements in sizes:
         for ping_label, echo_label in pairs:
-            group = [record["ping"] for record in records if record["elements"] == elements and record["ping_language"] == ping_label and record["echo_language"] == echo_label]
-            summary.append({"elements": elements, "ping_language": ping_label, "echo_language": echo_label,
+            group = [record["ping"] for record in records if record[dimension] == elements and record["ping_language"] == ping_label and record["echo_language"] == echo_label]
+            summary.append({dimension: elements, "ping_language": ping_label, "echo_language": echo_label,
                             **{key: statistics.median(record[key] for record in group) for key in ["rtt_ns_p50", "rtt_ns_p95", "rtt_ns_p99", "roundtrips_per_second"]}})
     args.output.parent.mkdir(parents=True, exist_ok=True)
     trace_path = args.output.with_suffix(".samples.json.gz")
@@ -175,7 +190,7 @@ def main():
     trace_path.write_bytes(compressed)
     metadata["samples_artifact"] = {"file": trace_path.name, "sha256": hashlib.sha256(compressed).hexdigest(), "record_count": len(traces)}
     metadata["completed_utc"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    regressions = regression_failures(summary, sizes, args.max_regression) if args.max_regression is not None else []
+    regressions = regression_failures(summary, sizes, args.max_regression, dimension) if args.max_regression is not None else []
     if args.max_regression is not None:
         metadata["regression_gate"] = {"maximum_ratio": args.max_regression,
                                        "passed": not regressions, "failures": regressions}

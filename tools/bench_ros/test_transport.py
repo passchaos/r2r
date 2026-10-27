@@ -49,6 +49,27 @@ class EndpointValidation(unittest.TestCase):
                 worse[field] = value
                 self.assertEqual(len(regression_failures([baseline, worse], [32], 1.05)), 1)
 
+    def test_pipelined_service_latency_can_overlap_wall_time(self):
+        result = dict(self.ping)
+        result.pop("elements")
+        result.update(window=16, elapsed_ns=40, roundtrips_per_second=3 / 40e-9)
+        validate_endpoint(result, "ping", "rmw_cyclonedds_cpp", 16, 3, 1, "r2r", "window")
+        result["elapsed_ns"] = 20
+        result["roundtrips_per_second"] = 3 / 20e-9
+        with self.assertRaisesRegex(RuntimeError, "throughput"):
+            validate_endpoint(result, "ping", "rmw_cyclonedds_cpp", 16, 3, 1, "r2r", "window")
+
+    def test_service_window_identity_and_latency_regressions_are_checked(self):
+        result = dict(self.echo)
+        result.pop("elements")
+        result["window"] = 16
+        with self.assertRaisesRegex(RuntimeError, "identity"):
+            validate_endpoint(result, "echo", "rmw_cyclonedds_cpp", 1, 3, 1, "r2r", "window")
+        baseline = {"window": 16, "ping_language": "baseline", "echo_language": "baseline",
+                    "rtt_ns_p50": 100, "rtt_ns_p95": 100, "rtt_ns_p99": 100, "roundtrips_per_second": 100}
+        candidate = dict(baseline, ping_language="rust", echo_language="rust", rtt_ns_p99=106)
+        self.assertEqual(len(regression_failures([baseline, candidate], [16], 1.05, "window")), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

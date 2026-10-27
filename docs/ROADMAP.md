@@ -18,13 +18,13 @@ This audit is based on the source tree and local checks on 2026-10-27. It is not
 
 | Area | Existing foundation | Remaining work |
 | --- | --- | --- |
-| Async application APIs | Futures and streams, service availability and timeouts, action goal/result/cancel APIs, typed parameter clients. | Compare complete application workflows with rclcpp; reduce repetitive executor/spin setup and improve cancellation and shutdown examples. |
+| Async application APIs | Futures and streams, service availability and timeouts, action goal/result/cancel APIs, typed parameter clients. The runnable `service_pipeline` example composes a service/client with bounded futures-rs concurrency and a runtime-agnostic timeout. | Compare complete application workflows with rclcpp; reduce repetitive executor/spin setup and improve cancellation and shutdown examples. |
 | Messages and native storage | Typed, untyped, raw and loaned message paths; fallible native copies; capacity reuse for primitive and nested-message sequences and string fields. `MessageSerializer<T>` reuses native fields and exposes borrowed wire bytes, with full codec and lifecycle oracles. | Allocation and copy accounting across complete transport paths; extend reuse to string/wstring sequences and investigate middleware output-buffer resizing; keep allocation-failure and capacity invariants explicit. |
 | Service events | Iron and newer service/action event bindings; empty and populated native/CDR/JSON roundtrips; bounded request/response rejection; typed/untyped client and server configuration. Four integration tests pass on local Jazzy with both CycloneDDS and Fast DDS, covering mode transitions, simulated timestamps, native identities, ownership, and retained QoS history. | Extend the local Jazzy RMW evidence to the other supported modern distributions and external rclcpp endpoints; maintain the documented middleware-dependent event identity encoding. |
 | Graph, QoS, parameters, clocks | Graph queries, endpoint identities and QoS, parameter services/events, managed ROS clocks and jump callbacks. | Audit remaining application-facing RCL and rclcpp features and test real middleware behavior per distribution. |
 | Distribution compatibility | Build-time checks and CI cover Humble, Iron, Jazzy, Kilted, Lyrical and Rolling. Library tests and Clippy pass with native Jazzy and containerized Humble/Kilted using Rust 1.85. | Complete runtime and RMW checks for each supported distribution and keep version-specific API boundaries explicit; Iron, Lyrical and Rolling remain CI matrix entries whose current local runtime evidence is not available. |
 | Documentation builds | `cargo check --workspace --features doc-only` works with saved bindings. | Saved bindings omit some example packages and new event types; refresh them and make documentation/example test coverage consistent. `--all-targets --features doc-only` currently fails on existing example-package dependencies. |
-| Performance evidence | Criterion benches, an independent Rust/rclcpp message-stage harness and [native-message reuse evidence](benchmarks/native-message-reuse-2026-10-27.md). The [independent-process pub/sub matrix](benchmarks/pubsub-roundtrip-2026-10-27.md) covers both language directions with raw individual RTT samples under two RMWs. | Add pipelined/fanout pub/sub, service and action workloads, allocation counters and scaling measurements. Current stage and stop-and-wait comparisons do not establish overall superiority over C++. |
+| Performance evidence | Criterion benches and Rust/rclcpp message-stage evidence, the [independent-process pub/sub matrix](benchmarks/pubsub-roundtrip-2026-10-27.md), and the [service window matrix](benchmarks/service-roundtrip-2026-10-28.md). Both language directions and raw individual RTT samples are covered under two RMWs. | Add pipelined/fanout pub/sub, dynamic service payloads, cancellation and action workloads, allocation counters and scaling measurements. Current stage and fixed-workload comparisons do not establish overall superiority over C++. |
 | Module structure | Small modules exist for availability, wait sets, time sources and parameter clients. | Decompose the large node module by stable responsibility; keep unit tests near implementation and integration tests at module or crate boundaries. |
 
 ## Execution order
@@ -51,6 +51,11 @@ native initialization contract.
 borrowed-byte API alongside existing owned-byte paths under both RMWs. Ownership choice and
 middleware output-buffer resizing remain explicit; reduced codec-stage time is not an
 end-to-end transport claim.
+
+The [native service matrix](benchmarks/service-roundtrip-2026-10-28.md) covers both language
+directions, one and 16 in-flight requests, complete sum/sequence oracles and raw RTT samples under
+two RMWs. Its fixed-size results leave dynamic service payloads, cancellation under load and
+multithread/action protocols as explicit remaining scope.
 
 ## Reproducible local gates
 

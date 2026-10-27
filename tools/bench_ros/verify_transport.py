@@ -13,6 +13,10 @@ from transport import regression_failures, validate_endpoint
 def verify(path, require_performance_pass=False):
     report = json.loads(path.read_text())
     metadata = report["metadata"]
+    workload = metadata.get("workload", "pubsub")
+    if workload not in {"pubsub", "service"}:
+        raise RuntimeError("unknown transport workload")
+    dimension = "window" if workload == "service" else "elements"
     artifact = metadata["samples_artifact"]
     compressed = (path.parent / artifact["file"]).read_bytes()
     if hashlib.sha256(compressed).hexdigest() != artifact["sha256"]:
@@ -27,7 +31,7 @@ def verify(path, require_performance_pass=False):
     keys = set()
     for trace in traces:
         record = records[trace["record"]]
-        key = (record["elements"], record["ping_language"], record["echo_language"], record["repetition"])
+        key = (record[dimension], record["ping_language"], record["echo_language"], record["repetition"])
         if key in keys:
             raise RuntimeError("duplicate benchmark record")
         keys.add(key)
@@ -38,9 +42,10 @@ def verify(path, require_performance_pass=False):
             if role == "ping":
                 endpoint["samples_ns"] = trace["samples_ns"]
             language = record[f"{role}_language"]
-            validate_endpoint(endpoint, role, metadata["rmw"], record["elements"], metadata["iterations"],
-                              metadata["warmup"], "rclcpp" if language == "cpp" else "r2r")
-    sizes = metadata.get("payload_sizes", sorted({record["elements"] for record in records}))
+            validate_endpoint(endpoint, role, metadata["rmw"], record[dimension], metadata["iterations"],
+                              metadata["warmup"], "rclcpp" if language == "cpp" else "r2r", dimension)
+    sizes = metadata.get("request_windows" if workload == "service" else "payload_sizes",
+                         sorted({record[dimension] for record in records}))
     pairs = [("rust", "rust"), ("cpp", "cpp"), ("rust", "cpp"), ("cpp", "rust")]
     if "baseline" in metadata.get("binary_sha256", {}):
         pairs += [("baseline", "baseline"), ("baseline", "cpp"), ("cpp", "baseline")]
@@ -49,20 +54,20 @@ def verify(path, require_performance_pass=False):
     if keys != expected_keys:
         raise RuntimeError("incomplete language, payload or repetition matrix")
     for row in report["summary"]:
-        group = [record["ping"] for record in records if (record["elements"], record["ping_language"], record["echo_language"]) ==
-                 (row["elements"], row["ping_language"], row["echo_language"])]
+        group = [record["ping"] for record in records if (record[dimension], record["ping_language"], record["echo_language"]) ==
+                 (row[dimension], row["ping_language"], row["echo_language"])]
         if len(group) != metadata["repetitions"]:
             raise RuntimeError("missing repetition")
         for field in ["rtt_ns_p50", "rtt_ns_p95", "rtt_ns_p99", "roundtrips_per_second"]:
             if row[field] != statistics.median(record[field] for record in group):
                 raise RuntimeError("summary median mismatch")
-    expected_rows = {(record["elements"], record["ping_language"], record["echo_language"]) for record in records}
-    actual_rows = {(row["elements"], row["ping_language"], row["echo_language"]) for row in report["summary"]}
+    expected_rows = {(record[dimension], record["ping_language"], record["echo_language"]) for record in records}
+    actual_rows = {(row[dimension], row["ping_language"], row["echo_language"]) for row in report["summary"]}
     if expected_rows != actual_rows or len(actual_rows) != len(report["summary"]):
         raise RuntimeError("summary rows are missing or duplicated")
     if "regression_gate" in metadata:
         gate = metadata["regression_gate"]
-        failures = regression_failures(report["summary"], sizes, gate["maximum_ratio"])
+        failures = regression_failures(report["summary"], sizes, gate["maximum_ratio"], dimension)
         if gate["passed"] != (not failures) or gate["failures"] != failures:
             raise RuntimeError("recorded regression gate does not match measurements")
     if require_performance_pass:
