@@ -67,3 +67,7 @@ harness = false
 [[bench]]
 name = "message_info"
 harness = false
+
+[[bench]]
+name = "ros_comparison"
+harness = false

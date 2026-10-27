@@ -1212,3 +1212,6 @@ mod tests {
     )
 ))]
 mod service_events;
+
+#[cfg(all(test, not(feature = "doc-only")))]
+mod native_sequences;

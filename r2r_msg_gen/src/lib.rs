@@ -546,13 +546,20 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                         quote! {
                             #assert_stmt
                             unsafe {
-                                #fini_func (&mut msg. #field_name);
-                                if !#init_func (&mut msg. #field_name , self. #field_name .len()) {
-                                    return Err(Error::RCL_RET_BAD_ALLOC);
+                                let length = self. #field_name .len();
+                                if length > msg. #field_name .capacity {
+                                    let mut replacement = std::mem::zeroed();
+                                    if !#init_func (&mut replacement, length) {
+                                        return Err(Error::RCL_RET_BAD_ALLOC);
+                                    }
+                                    #fini_func (&mut msg. #field_name);
+                                    msg. #field_name = replacement;
                                 }
-
-                                if msg. #field_name .data != std::ptr::null_mut() {
-                                    let slice = std::slice::from_raw_parts_mut(msg. #field_name .data, msg. #field_name .size);
+                                // Native sequence finalizers destroy all capacity elements, so
+                                // retained slots remain initialized when the logical size shrinks.
+                                msg. #field_name .size = length;
+                                if length != 0 {
+                                    let slice = std::slice::from_raw_parts_mut(msg. #field_name .data, length);
                                     for (t, s) in slice.iter_mut().zip(&self. #field_name ) {
                                         s.try_copy_to_native(t)?;
                                     }

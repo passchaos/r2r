@@ -11,6 +11,8 @@ Documentation can be found on docs.rs: <https://docs.rs/r2r/latest/r2r>.
 
 The ongoing development goal, evidence requirements, and known capability, usability and performance gaps are tracked in [the development roadmap](docs/ROADMAP.md).
 
+For repeated message publication, keep a `NativeMsg<T>`, update it with `try_copy_to_native`, and use `publish_native`. Primitive and nested-message sequences retain capacity across smaller updates, and string fields reuse existing storage when it fits. Run `cargo run -p r2r --example native_message_reuse` for a complete example. [The Rust/rclcpp comparison harness](tools/bench_ros/README.md) measures the copy and codec stages with identical message fixtures.
+
 On ROS 2 Iron and newer, typed and untyped services and clients expose `configure_introspection(&mut node, state, event_qos)`. Choose `ServiceIntrospectionState::Metadata` for identities and timestamps or `Contents` to include payloads; `Off` disables publication. Subscribe to the generated service `Event` type on `<service_name>/_service_event`. Run `cargo run -p r2r --example service_introspection` for a complete request, response and event stream example.
 
 Generated service bindings provide the associated `Event` type automatically. Manual implementations of `WrappedServiceTypeSupport` on Iron and newer must also define `type Event` to match their native service event type.
