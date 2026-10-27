@@ -23,7 +23,6 @@ const GENERATED_FILES: &[&str] = &[
     BINDINGS_FILENAME,
     BINDINGS_DOC_ONLY_FILENAME,
 ];
-const SRV_SUFFICES: &[&str] = &["Request", "Response"];
 const ACTION_SUFFICES: &[&str] = &["Goal", "Result", "Feedback", "FeedbackMessage"];
 
 fn main() {
@@ -128,6 +127,8 @@ fn generate_includes(bindgen_dir: &Path, msg_list: &[RosMsg]) {
 
 fn generate_introspecion_map(bindgen_dir: &Path, msg_list: &[RosMsg]) {
     let introspection_file = bindgen_dir.join(INTROSPECTION_FILENAME);
+    let ros_distro = env::var("ROS_DISTRO").unwrap_or_default();
+    let service_suffixes = r2r_common::service_message_suffixes(&ros_distro);
 
     let mut entries: Vec<_> = msg_list
         .par_iter()
@@ -139,7 +140,7 @@ fn generate_introspecion_map(bindgen_dir: &Path, msg_list: &[RosMsg]) {
             } = msg;
 
             match prefix.as_str() {
-                "srv" => SRV_SUFFICES
+                "srv" => service_suffixes
                     .iter()
                     .map(|s| {
                         let key = format!("{module}__{prefix}__{name}_{s}");
@@ -168,8 +169,8 @@ fn generate_introspecion_map(bindgen_dir: &Path, msg_list: &[RosMsg]) {
                     });
 
                     // "internal" services
-                    let iter2 =
-                        iproduct!(["SendGoal", "GetResult"], SRV_SUFFICES).map(move |(srv, s)| {
+                    let iter2 = iproduct!(["SendGoal", "GetResult"], service_suffixes).map(
+                        move |(srv, s)| {
                             // TODO: refactor this is copy paste from services...
                             let msgname = format!("{name}_{srv}_{s}");
                             let key = format!("{module}__{prefix}__{msgname}");
@@ -181,7 +182,8 @@ fn generate_introspecion_map(bindgen_dir: &Path, msg_list: &[RosMsg]) {
                                  {msgname}"
                             );
                             (key, ident)
-                        });
+                        },
+                    );
 
                     chain!(iter1, iter2)
                         .map(|(key, ident)| (key, ident))
@@ -355,6 +357,8 @@ fn generate_bindings_file(bindgen_dir: &Path) -> Bindings {
 
 fn generate_constants(bindgen_dir: &Path, msg_list: &[RosMsg], bindings: &Bindings) {
     let constants_file = bindgen_dir.join(CONSTANTS_FILENAME);
+    let ros_distro = env::var("ROS_DISTRO").unwrap_or_default();
+    let service_suffixes = r2r_common::service_message_suffixes(&ros_distro);
 
     // Turn the source string into tokens.
     let tokens: syn::File =
@@ -401,7 +405,7 @@ fn generate_constants(bindgen_dir: &Path, msg_list: &[RosMsg], bindings: &Bindin
                 };
 
                 if let Some(suffix) = &suffix {
-                    if !SRV_SUFFICES.contains(&suffix.as_str())
+                    if !service_suffixes.contains(&suffix.as_str())
                         && !ACTION_SUFFICES.contains(&suffix.as_str())
                     {
                         return None;
@@ -446,7 +450,7 @@ fn generate_constants(bindgen_dir: &Path, msg_list: &[RosMsg], bindings: &Bindin
                     name: name.to_string(),
                     suffix: None,
                 }],
-                "srv" => SRV_SUFFICES
+                "srv" => service_suffixes
                     .iter()
                     .map(|suffix| Key {
                         module: module.to_string(),

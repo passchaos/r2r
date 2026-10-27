@@ -150,6 +150,11 @@ unsafe fn introspection<'a>(
     (module.to_owned(), prefix.to_owned(), name.to_owned(), c_struct, memberslice)
 }
 
+#[cfg(any(test, not(feature = "doc-only")))]
+mod message_path;
+#[cfg(not(feature = "doc-only"))]
+use message_path::{rust_message_name, rust_message_path};
+
 #[cfg(not(feature = "doc-only"))]
 pub fn generate_rust_service(
     module_: &str, prefix_: &str, name_: &str,
@@ -168,6 +173,13 @@ pub fn generate_rust_service(
         unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
+            #[cfg(any(
+                r2r__ros__distro__iron,
+                r2r__ros__distro__jazzy,
+                r2r__ros__distro__lyrical,
+                r2r__ros__distro__rolling
+            ))]
+            type Event = Event;
 
             fn get_ts() -> &'static rosidl_service_type_support_t {
                 unsafe {
@@ -279,27 +291,7 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
     assert_eq!(prefix, prefix_);
     assert_eq!(name, name_);
 
-    let name = if ["srv", "action"].contains(&prefix.as_str()) {
-        // for srv, the message name is both the service name and _Request or _Respone
-        // we only want to keep the last part.
-        // same for actions with _Goal, _Result, _Feedback
-        // TODO: refactor...
-        // handle special case of ActionName_ServiceName_Response
-        let nn: Vec<&str> = name.splitn(3, '_').collect();
-        if let [_mod_name, _srv_name, msg_name] = &nn[..] {
-            msg_name.to_string()
-        } else if let [_mod_name, msg_name] = &nn[..] {
-            msg_name.to_string()
-        } else {
-            panic!("malformed service name {}", name);
-        }
-    } else {
-        name
-    };
-
-    // let module = format_ident!("{module}");
-    // let prefix = format_ident!("{prefix}");
-    let name = format_ident!("{name}");
+    let name = format_ident!("{}", rust_message_name(&prefix, &name));
     let c_struct = format_ident!("{c_struct}");
 
     let fields = {
@@ -321,23 +313,7 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                 let rust_field_type = member.type_id();
                 let rust_field_type = if rust_field_type == MemberType::Message {
                     let (module, prefix, name, _, _) = unsafe { introspection(c_member.members_) };
-                    let module = format_ident!("{module}");
-                    let prefix = format_ident!("{prefix}");
-
-                    // hack here to rustify nested action type names
-                    if prefix == "action" {
-                        if let Some((n1, n2)) = name.rsplit_once("_") {
-                            let n1 = format_ident!("{n1}");
-                            let n2 = format_ident!("{n2}");
-                            quote! { #module :: #prefix :: #n1  :: #n2 }
-                        } else {
-                            let name = format_ident!("{name}");
-                            quote! { #module :: #prefix :: #name }
-                        }
-                    } else {
-                        let name = format_ident!("{name}");
-                        quote! { #module :: #prefix :: #name }
-                    }
+                    rust_message_path(&module, &prefix, &name)
                 } else {
                     rust_field_type.to_rust_type()
                 };
@@ -394,16 +370,14 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                         MemberType::Message => {
                             let (module, prefix, name, _, _) =
                                 unsafe { introspection(c_member.members_) };
-                            let module = format_ident!("{module}");
-                            let prefix = format_ident!("{prefix}");
-                            let name = format_ident!("{name}");
+                            let path = rust_message_path(&module, &prefix, &name);
 
                             quote! {
                                 #field_name: {
                                     let vec: Vec<_> = msg
                                         .#field_name
                                         .iter()
-                                        .map(|s| #module :: #prefix :: #name :: from_native(s))
+                                        .map(|s| #path :: from_native(s))
                                         .collect();
                                     vec
                                 },
@@ -428,6 +402,7 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                     }
                 } else {
                     // these are __Sequence:s
+
                     // let is_upper_bound = member.is_upper_bound();
                     // let array_size = array_info.size;
 
@@ -439,9 +414,7 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                     let field2 = if rust_field_type == MemberType::Message {
                         let (module, prefix, name, _, _) =
                             unsafe { introspection(c_member.members_) };
-                        let module = format_ident!("{module}");
-                        let prefix = format_ident!("{prefix}");
-                        let name = format_ident!("{name}");
+                        let path = rust_message_path(&module, &prefix, &name);
 
                         quote! {
                             #field_name : {
@@ -454,7 +427,7 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                                         )
                                     };
                                     for s in slice {
-                                        temp.push( #module :: #prefix :: #name :: from_native(s));
+                                        temp.push( #path :: from_native(s));
                                     }
                                 }
                                 temp
@@ -481,31 +454,9 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                     MemberType::Message => {
                         let (module, prefix, name, _, _) =
                             unsafe { introspection(c_member.members_) };
-                        let module = format_ident!("{module}");
-                        let prefix = format_ident!("{prefix}");
-
-                        // same hack as above to rustify message type names
-                        if prefix == "action" {
-                            let (srvname, msgname) =
-                                name.rsplit_once("_").expect("ooops at from_native");
-                            let srvname = format_ident!("{srvname}");
-                            let msgname = format_ident!("{msgname}");
-
-                            quote! {
-                                #field_name:
-                                #module ::
-                                #prefix ::
-                                #srvname ::
-                                #msgname ::
-                                from_native(&msg. #field_name ),
-                            }
-                        } else {
-                            let name = format_ident!("{name}");
-
-                            quote! {
-                                #field_name :
-                                #module :: #prefix :: #name ::from_native(&msg. #field_name),
-                            }
+                        let path = rust_message_path(&module, &prefix, &name);
+                        quote! {
+                            #field_name : #path ::from_native(&msg. #field_name),
                         }
                     }
                     _ => {
@@ -578,6 +529,13 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                 } else {
                     // these are __Sequence:s
 
+                    let assert_stmt = array_info.is_upper_bound.then(|| {
+                        quote! {
+                            if self. #field_name .len() > #array_size {
+                                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                            }
+                        }
+                    });
                     if rust_field_type == MemberType::Message {
                         let (_, _, _, c_struct, _) = unsafe { introspection(c_member.members_) };
                         let init_func = format_ident!("{c_struct}__Sequence__init");
@@ -585,6 +543,7 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                         let field_name = format_ident!("{field_name}");
 
                         quote! {
+                            #assert_stmt
                             unsafe {
                                 #fini_func (&mut msg. #field_name);
                                 if !#init_func (&mut msg. #field_name , self. #field_name .len()) {
@@ -600,15 +559,6 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                             }
                         }
                     } else {
-                        // extra assertion
-                        let assert_stmt = array_info.is_upper_bound.then(|| {
-                            quote! {
-                                if self. #field_name .len() > #array_size {
-                                    return Err(Error::RCL_RET_INVALID_ARGUMENT);
-                                }
-                            }
-                        });
-
                         quote! {
                             #assert_stmt
                             check_rosidl_runtime_ret(

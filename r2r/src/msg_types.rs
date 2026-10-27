@@ -178,6 +178,13 @@ pub(crate) fn check_rosidl_runtime_ret(success: bool) -> Result<()> {
 pub unsafe trait WrappedServiceTypeSupport: Debug + Clone + Send + Sync {
     type Request: WrappedTypesupport;
     type Response: WrappedTypesupport;
+    #[cfg(any(
+        r2r__ros__distro__iron,
+        r2r__ros__distro__jazzy,
+        r2r__ros__distro__lyrical,
+        r2r__ros__distro__rolling
+    ))]
+    type Event: WrappedTypesupport;
 
     fn get_ts() -> &'static rosidl_service_type_support_t;
 }
@@ -1189,3 +1196,15 @@ mod tests {
         assert_eq!(3, CancelGoal::Response::ERROR_GOAL_TERMINATED as i8);
     }
 }
+
+#[cfg(all(
+    test,
+    not(feature = "doc-only"),
+    any(
+        r2r__ros__distro__iron,
+        r2r__ros__distro__jazzy,
+        r2r__ros__distro__lyrical,
+        r2r__ros__distro__rolling
+    )
+))]
+mod service_events;

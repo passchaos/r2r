@@ -84,6 +84,9 @@ fn main() {
 fn generate_bindings(bindgen_dir: &Path) {
     fs::create_dir_all(bindgen_dir).unwrap();
 
+    let ros_distro = env::var("ROS_DISTRO").unwrap_or_default();
+    let service_suffixes = r2r_common::service_message_suffixes(&ros_distro);
+
     let msg_list = r2r_common::get_wanted_messages();
     let msgs = r2r_common::as_map(&msg_list);
 
@@ -134,7 +137,7 @@ fn generate_bindings(bindgen_dir: &Path) {
                             let msg_snipplets = msgs.iter().map(|msg| {
                                 let service_snipplet =
                                     r2r_msg_gen::generate_rust_service(module, prefix, msg);
-                                let msg_snipplets = ["Request", "Response"].iter().map(|s| {
+                                let msg_snipplets = service_suffixes.iter().map(|s| {
                                     let msgname = format!("{}_{}", msg, s);
                                     println!(
                                         "cargo:rustc-cfg=r2r__{}__{}__{}",
@@ -181,13 +184,10 @@ fn generate_bindings(bindgen_dir: &Path) {
                                             module, prefix, &srvname,
                                         );
 
-                                        let msg_snipplets =
-                                            ["Request", "Response"].iter().map(|s| {
-                                                let msgname = format!("{}_{}_{}", msg, srv, s);
-                                                r2r_msg_gen::generate_rust_msg(
-                                                    module, prefix, &msgname,
-                                                )
-                                            });
+                                        let msg_snipplets = service_suffixes.iter().map(|s| {
+                                            let msgname = format!("{}_{}_{}", msg, srv, s);
+                                            r2r_msg_gen::generate_rust_msg(module, prefix, &msgname)
+                                        });
 
                                         let srv = format_ident!("{srv}");
                                         quote! {

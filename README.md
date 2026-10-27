@@ -9,6 +9,8 @@ This library differ a bit in style from rclpy and rclcpp as it eliminates all sy
 
 Documentation can be found on docs.rs: <https://docs.rs/r2r/latest/r2r>.
 
+The ongoing development goal, evidence requirements, and known capability, usability and performance gaps are tracked in [the development roadmap](docs/ROADMAP.md).
+
 These bindings are being written organically when things are needed by me and others so please be aware that the API will change. As of now I have no intention of wrapping all of the RCL just for the sake of completeness. However, if you need some specific functionality, feel free to open an issue or a PR!
 
 How to use

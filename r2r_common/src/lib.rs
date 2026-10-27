@@ -13,6 +13,14 @@ const SUPPORTED_ROS_DISTROS: &[&str] = &[
     "foxy", "galactic", "humble", "iron", "jazzy", "lyrical", "rolling",
 ];
 
+/// Message suffixes generated for ROS services, including internal action services.
+pub fn service_message_suffixes(ros_distro: &str) -> &'static [&'static str] {
+    match ros_distro {
+        "iron" | "jazzy" | "lyrical" | "rolling" => &["Request", "Response", "Event"],
+        _ => &["Request", "Response"],
+    }
+}
+
 const WATCHED_ENV_VARS: &[&str] = &[
     "AMENT_PREFIX_PATH",
     "CMAKE_PREFIX_PATH",
@@ -444,6 +452,16 @@ pub fn camel_to_snake(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn service_events_follow_ros_distro_support() {
+        for distro in ["foxy", "galactic", "humble", "", "unsupported"] {
+            assert_eq!(service_message_suffixes(distro), &["Request", "Response"]);
+        }
+        for distro in ["iron", "jazzy", "lyrical", "rolling"] {
+            assert_eq!(service_message_suffixes(distro), &["Request", "Response", "Event"]);
+        }
+    }
 
     #[test]
     fn test_parse_msgs() {
