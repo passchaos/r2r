@@ -81,10 +81,12 @@ mod error;
 pub use error::{Error, Result};
 
 mod msg_types;
+mod serialization;
 pub use msg_types::{
     generated_msgs::*, WrappedActionTypeSupport, WrappedNativeMsg as NativeMsg,
     WrappedNativeMsgUntyped, WrappedServiceTypeSupport, WrappedTypesupport,
 };
+pub use serialization::MessageSerializer;
 
 mod utils;
 pub use utils::*;

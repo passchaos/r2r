@@ -1,5 +1,7 @@
 use std::{hint::black_box, time::Instant};
 
+#[cfg(r2r_bench_serializer)]
+use r2r::MessageSerializer;
 use r2r::{
     std_msgs::msg::{Int32MultiArray, MultiArrayDimension, MultiArrayLayout},
     NativeMsg, WrappedTypesupport,
@@ -30,7 +32,7 @@ fn fingerprint(data: &[u8]) -> u64 {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let arguments: Vec<_> = std::env::args().skip(1).collect();
     if arguments.len() < 3 || arguments.len() > 4 {
-        return Err("usage: ros_comparison <copy_reuse|serialize_owned|deserialize_owned> <elements> <iterations> [wire-file]".into());
+        return Err("usage: ros_comparison <copy_reuse|serialize_owned|serialize_reuse|serialize_owned_reuse|deserialize_owned> <elements> <iterations> [wire-file]".into());
     }
     let mode = &arguments[0];
     let elements: usize = arguments[1].parse()?;
@@ -47,6 +49,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::fs::write(path, &bytes)?;
     }
     let mut native = NativeMsg::<Int32MultiArray>::try_from(&source)?;
+    #[cfg(r2r_bench_serializer)]
+    let mut serializer = MessageSerializer::<Int32MultiArray>::new()?;
+    #[cfg(r2r_bench_serializer)]
+    assert_eq!(serializer.serialize(&source)?, bytes);
     let copy_pointer = native.data.data;
     let copy_dimension_pointer = native.layout.dim.data;
     let mut copy_reallocations = 0;
@@ -65,6 +71,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "serialize_owned" => {
                 let output = black_box(&source).to_serialized_bytes()?;
                 Ok(output.len() as u64 ^ u64::from(*output.last().unwrap()))
+            }
+            "serialize_reuse" | "serialize_owned_reuse" => {
+                #[cfg(r2r_bench_serializer)]
+                {
+                    let output = serializer.serialize(black_box(&source))?;
+                    if mode == "serialize_owned_reuse" {
+                        let output = black_box(output.to_vec());
+                        Ok(output.len() as u64 ^ u64::from(*output.last().unwrap()))
+                    } else {
+                        Ok(output.len() as u64 ^ u64::from(*output.last().unwrap()))
+                    }
+                }
+                #[cfg(not(r2r_bench_serializer))]
+                {
+                    // Historical public API always returns owned bytes. Consume the same
+                    // result without retaining it, including its allocation/copy cost.
+                    let output = black_box(&source).to_serialized_bytes()?;
+                    Ok(output.len() as u64 ^ u64::from(*output.last().unwrap()))
+                }
             }
             "deserialize_owned" => {
                 let output = Int32MultiArray::from_serialized_bytes(black_box(&bytes))?;
@@ -93,6 +118,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if mode == "copy_reuse" {
         assert_eq!(Int32MultiArray::from_native(&native), source);
     }
+    #[cfg(r2r_bench_serializer)]
+    assert_eq!(serializer.serialize(&source)?, bytes);
     batches.sort_by(f64::total_cmp);
     let percentile = |percent: usize| batches[((batches.len() - 1) * percent).div_ceil(100)];
     println!(

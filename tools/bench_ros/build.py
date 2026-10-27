@@ -19,11 +19,18 @@ def rust_binary(source, target, destination, env, workload="codec"):
     build_env = env.copy()
     build_env["CARGO_TARGET_DIR"] = str(target)
     benchmark = "ros_comparison" if workload == "codec" else "pubsub_roundtrip"
+    if workload == "codec":
+        flags = build_env.get("RUSTFLAGS", "") + " --check-cfg=cfg(r2r_bench_serializer)"
+        if (source / "r2r/src/serialization.rs").exists():
+            flags += " --cfg r2r_bench_serializer"
+        build_env["RUSTFLAGS"] = flags.strip()
     output = command(["cargo", "build", "--locked", "--release", "-p", "r2r", "--bench", benchmark, "--message-format=json"], source, build_env)
     artifacts = [json.loads(line) for line in output.splitlines() if line.startswith("{")]
     executable = next(item["executable"] for item in artifacts if item.get("reason") == "compiler-artifact" and item.get("target", {}).get("name") == benchmark and item.get("executable"))
     shutil.copy2(executable, destination)
-    return {str(path.relative_to(source)): hashlib.sha256(path.read_bytes()).hexdigest() for path in [source / f"r2r/benches/{benchmark}.rs", source / "r2r/src/nodes.rs", source / "r2r/src/subscribers.rs", source / "r2r/src/publishers.rs", source / "r2r_rcl/src/lib.rs", source / "r2r_msg_gen/src/lib.rs", source / "Cargo.lock"]}
+    sources = [source / f"r2r/benches/{benchmark}.rs", source / "r2r/src/msg_types.rs", source / "r2r/src/nodes.rs", source / "r2r/src/subscribers.rs", source / "r2r/src/publishers.rs", source / "r2r_rcl/src/lib.rs", source / "r2r_msg_gen/src/lib.rs", source / "Cargo.lock"]
+    if (source / "r2r/src/serialization.rs").exists(): sources.append(source / "r2r/src/serialization.rs")
+    return {str(path.relative_to(source)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources}
 
 
 def main():
@@ -38,6 +45,9 @@ def main():
     env = os.environ.copy()
     manifests = {}
     manifests["workload"] = args.workload
+    if args.workload == "codec":
+        manifests["serializer_api_detection"] = "r2r/src/serialization.rs present: reusable API; absent: historical owned-byte API fallback for serialize_reuse modes"
+        manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_serializer); --cfg r2r_bench_serializer only when serializer API exists"
     benchmark = "ros_comparison" if args.workload == "codec" else "pubsub_roundtrip"
     manifests["candidate"] = rust_binary(root, output / "candidate-cargo", output / "r2r-candidate", env, args.workload)
     if args.baseline_ref:

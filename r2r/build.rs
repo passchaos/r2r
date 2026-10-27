@@ -35,6 +35,7 @@ mod filenames {
 use filenames::*;
 
 fn main() {
+    println!("cargo:rustc-check-cfg=cfg(r2r_bench_serializer)");
     r2r_common::print_cargo_watches();
     // Declare all the custom cfg directives we use
     // to silence cargo warnings.

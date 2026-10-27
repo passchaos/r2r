@@ -24,7 +24,7 @@ uint64_t fingerprint(const uint8_t *data, size_t size) {
 
 int main(int argc, char **argv) {
   try {
-    if (argc < 4 || argc > 5) throw std::invalid_argument("usage: rclcpp_comparison <copy_reuse|serialize_owned|deserialize_owned> <elements> <iterations> [wire-file]");
+    if (argc < 4 || argc > 5) throw std::invalid_argument("usage: rclcpp_comparison <copy_reuse|serialize_owned|serialize_reuse|serialize_owned_reuse|deserialize_owned> <elements> <iterations> [wire-file]");
     const std::string mode = argv[1];
     const size_t elements = std::stoull(argv[2]), iterations = std::stoull(argv[3]);
     if (iterations == 0 || elements > UINT32_MAX) throw std::invalid_argument("invalid benchmark dimensions");
@@ -61,10 +61,14 @@ int main(int argc, char **argv) {
         escape(destination);
         return destination.data.size() ^ destination.layout.dim.size();
       }
-      if (mode == "serialize_owned") {
+      if (mode == "serialize_owned" || mode == "serialize_owned_reuse" || mode == "serialize_reuse") {
         escape(source);
         serializer.serialize_message(&source, &serialized_scratch);
         const auto &serialized = serialized_scratch.get_rcl_serialized_message();
+        if (mode == "serialize_reuse") {
+          escape(serialized);
+          return serialized.buffer_length ^ serialized.buffer[serialized.buffer_length - 1];
+        }
         std::vector<uint8_t> output(serialized.buffer, serialized.buffer + serialized.buffer_length);
         escape(output);
         return output.size() ^ output.back();
@@ -91,6 +95,9 @@ int main(int argc, char **argv) {
     }
     const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count();
     if (mode == "copy_reuse" && destination != source) throw std::runtime_error("full copy oracle failed");
+    if ((mode == "serialize_reuse" || mode == "serialize_owned_reuse") &&
+        (serialized_scratch.size() != input.size() || std::memcmp(serialized_scratch.get_rcl_serialized_message().buffer, wire.buffer, wire.buffer_length)))
+      throw std::runtime_error("full serialized output oracle failed");
     std::sort(batches.begin(), batches.end());
     auto percentile = [&](size_t percent) { return batches[((batches.size() - 1) * percent + 99) / 100]; };
     std::cout << "{\"implementation\":\"rclcpp\",\"rmw\":\"" << rmw_get_implementation_identifier()

@@ -19,7 +19,7 @@ This audit is based on the source tree and local checks on 2026-10-27. It is not
 | Area | Existing foundation | Remaining work |
 | --- | --- | --- |
 | Async application APIs | Futures and streams, service availability and timeouts, action goal/result/cancel APIs, typed parameter clients. | Compare complete application workflows with rclcpp; reduce repetitive executor/spin setup and improve cancellation and shutdown examples. |
-| Messages and native storage | Typed, untyped, raw and loaned message paths; fallible native copies; capacity reuse for primitive and nested-message sequences and string fields, with empty/shrinking/growing and native oracle tests. | Allocation and copy accounting across complete transport paths; extend reuse to string/wstring sequences and codec scratch storage; keep allocation-failure and capacity invariants explicit. |
+| Messages and native storage | Typed, untyped, raw and loaned message paths; fallible native copies; capacity reuse for primitive and nested-message sequences and string fields. `MessageSerializer<T>` reuses native fields and exposes borrowed wire bytes, with full codec and lifecycle oracles. | Allocation and copy accounting across complete transport paths; extend reuse to string/wstring sequences and investigate middleware output-buffer resizing; keep allocation-failure and capacity invariants explicit. |
 | Service events | Iron and newer service/action event bindings; empty and populated native/CDR/JSON roundtrips; bounded request/response rejection; typed/untyped client and server configuration. Four integration tests pass on local Jazzy with both CycloneDDS and Fast DDS, covering mode transitions, simulated timestamps, native identities, ownership, and retained QoS history. | Extend the local Jazzy RMW evidence to the other supported modern distributions and external rclcpp endpoints; maintain the documented middleware-dependent event identity encoding. |
 | Graph, QoS, parameters, clocks | Graph queries, endpoint identities and QoS, parameter services/events, managed ROS clocks and jump callbacks. | Audit remaining application-facing RCL and rclcpp features and test real middleware behavior per distribution. |
 | Distribution compatibility | Build-time checks and CI cover Humble, Iron, Jazzy, Kilted, Lyrical and Rolling. Library tests and Clippy pass with native Jazzy and containerized Humble/Kilted using Rust 1.85. | Complete runtime and RMW checks for each supported distribution and keep version-specific API boundaries explicit; Iron, Lyrical and Rolling remain CI matrix entries whose current local runtime evidence is not available. |
@@ -46,6 +46,11 @@ now retain baseline/baseline and both baseline/C++ directions alongside the cand
 Reports explicitly record the gate outcome; integrity validation cannot substitute for a passing
 performance gate. Next receive work should remove payload copies while respecting each RMW's
 native initialization contract.
+
+[Reusable serialization evidence](benchmarks/reusable-serialization-2026-10-28.md) measures the
+borrowed-byte API alongside existing owned-byte paths under both RMWs. Ownership choice and
+middleware output-buffer resizing remain explicit; reduced codec-stage time is not an
+end-to-end transport claim.
 
 ## Reproducible local gates
 

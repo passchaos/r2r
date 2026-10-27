@@ -15,6 +15,13 @@ The stages are:
   reused. Rust uses `WrappedTypesupport::try_copy_to_native`; C++ uses message assignment.
 * `serialize_owned`: serialize a borrowed message and return a new owned byte buffer. Both
   reuse the middleware's output buffer, then copy to a fresh `Vec<u8>` or `std::vector<uint8_t>`.
+* `serialize_reuse`: use `MessageSerializer<T>` to reuse native fields and consume its borrowed
+  bytes without an application copy. C++ consumes its reusable `SerializedMessage` buffer.
+  A historical Rust baseline without this API uses `to_serialized_bytes()`, including its native
+  allocation and owned-result copy, then consumes the same bytes. This measures the improvement
+  available through the new API rather than a change to the old API's ownership semantics.
+* `serialize_owned_reuse`: use the new serializer but explicitly copy the result to fresh owned
+  bytes; C++ likewise copies its reusable output to `std::vector<uint8_t>`.
 * `deserialize_owned`: deserialize identical bytes into a freshly owned message. Rust includes
   its native-to-Rust conversion; C++ uses `rclcpp::Serialization` directly.
 
@@ -53,6 +60,14 @@ hashes, compiler and ROS package versions, CPU affinity, build settings, and med
 Values below 1 in `relative_to_rclcpp` indicate less time per operation than rclcpp.
 `--max-regression` rejects a candidate whose median exceeds the baseline by the configured ratio
 in any measured stage. It writes the raw report before reporting a failed gate.
+Use `python3 tools/bench_ros/verify_codec.py <report.json>` to recheck archived workload identity,
+raw records, summary medians and gate consistency. `--require-performance-pass` additionally
+requires a recorded passing regression gate.
+
+Select extra API modes with `--modes serialize_owned,serialize_reuse,serialize_owned_reuse`.
+The builder records whether the serializer API exists in each checkout and uses a benchmark cfg
+to select the historical fallback without adding this feature to a baseline library. Default
+modes preserve the original copy/owned-serialization/owned-deserialization workload.
 
 `batch_ns_per_op_p50/p95/p99` describe operation time averaged over batches of up to 1000 calls.
 They are not individual-message tail-latency measurements. `native_copy_pointer_changes` only

@@ -29,7 +29,44 @@ pub(crate) fn uuid_msg_to_uuid(msg: &unique_identifier_msgs::msg::UUID) -> Resul
     })
 }
 
-struct SerializedMessageBuffer(rcl_serialized_message_t);
+pub(crate) struct SerializedMessageBuffer(rcl_serialized_message_t);
+
+impl SerializedMessageBuffer {
+    pub(crate) fn with_capacity(capacity: usize) -> std::result::Result<Self, i32> {
+        let mut buffer = unsafe { r2r_rcl::rcutils_get_zero_initialized_uint8_array() };
+        let result = unsafe {
+            r2r_rcl::rcutils_uint8_array_init(
+                &mut buffer,
+                capacity,
+                &r2r_rcl::rcutils_get_default_allocator(),
+            )
+        };
+        if result == r2r_rcl::RCL_RET_OK as i32 {
+            Ok(Self(buffer))
+        } else {
+            Err(result)
+        }
+    }
+
+    pub(crate) fn capacity(&self) -> usize {
+        self.0.buffer_capacity
+    }
+
+    pub(crate) fn serialize<T: WrappedTypesupport>(
+        &mut self, message: &WrappedNativeMsg<T>,
+    ) -> Result<&[u8]> {
+        let result =
+            unsafe { r2r_rcl::rmw_serialize(message.void_ptr(), T::get_ts(), &mut self.0) };
+        if result != r2r_rcl::RCL_RET_OK as i32 {
+            return Err(Error::from_rcl_error(result));
+        }
+        unsafe { serialized_message_bytes(&self.0) }
+    }
+}
+
+// SAFETY: the buffer is exclusively owned and uses process-lifetime default allocator callbacks.
+// Moving it does not move its allocation or permit concurrent access.
+unsafe impl Send for SerializedMessageBuffer {}
 
 pub(crate) unsafe fn serialized_message_bytes(msg: &rcl_serialized_message_t) -> Result<&[u8]> {
     if msg.buffer_length == 0 {
@@ -52,26 +89,8 @@ impl Drop for SerializedMessageBuffer {
 
 // Keep one reusable serialization buffer per thread.
 thread_local! {
-    static SERIALIZED_MESSAGE_CACHE: std::result::Result<RefCell<SerializedMessageBuffer>, i32> = {
-        use r2r_rcl::*;
-
-        let mut msg_buf: rcl_serialized_message_t  = unsafe { rcutils_get_zero_initialized_uint8_array() };
-
-        let ret = unsafe {
-            rcutils_uint8_array_init(
-                &mut msg_buf as *mut rcl_serialized_message_t,
-                0,
-                &rcutils_get_default_allocator(),
-            )
-        };
-
-        if ret != RCL_RET_OK as i32 {
-            Err(ret)
-        } else {
-            Ok(RefCell::new(SerializedMessageBuffer(msg_buf)))
-        }
-
-    };
+    static SERIALIZED_MESSAGE_CACHE: std::result::Result<RefCell<SerializedMessageBuffer>, i32> =
+        SerializedMessageBuffer::with_capacity(0).map(RefCell::new);
 }
 
 /// Connects a Rust message type to its generated ROS C representation.
@@ -100,8 +119,6 @@ pub unsafe trait WrappedTypesupport:
 
     /// This serializes the message using ROS2 methods.
     fn to_serialized_bytes(&self) -> Result<Vec<u8>> {
-        use r2r_rcl::*;
-
         SERIALIZED_MESSAGE_CACHE.with(|msg_buf| {
             let native_msg = WrappedNativeMsg::<Self>::try_from(self)?;
 
@@ -109,21 +126,7 @@ pub unsafe trait WrappedTypesupport:
                 .as_ref()
                 .map_err(|err| Error::from_rcl_error(*err))?
                 .borrow_mut();
-            let msg_buf = &mut msg_buf.0;
-
-            let result = unsafe {
-                rmw_serialize(
-                    native_msg.msg as *const ::std::os::raw::c_void,
-                    Self::get_ts(),
-                    msg_buf as *mut rcl_serialized_message_t,
-                )
-            };
-
-            if result == RCL_RET_OK as i32 {
-                Ok(unsafe { serialized_message_bytes(msg_buf) }?.to_vec())
-            } else {
-                Err(Error::from_rcl_error(result))
-            }
+            Ok(msg_buf.serialize(&native_msg)?.to_vec())
         })
     }
 

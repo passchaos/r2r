@@ -36,6 +36,11 @@ class ResultValidation(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     self.validate()
 
+    def test_incorrect_operation_time_calculation_is_rejected(self):
+        self.result["ns_per_op"] = 14.0
+        with self.assertRaisesRegex(RuntimeError, "calculation"):
+            self.validate()
+
 
 if __name__ == "__main__":
     unittest.main()
