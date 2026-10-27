@@ -9,9 +9,9 @@ import shutil
 import subprocess
 import tempfile
 
-BENCHMARKS = {"codec": "ros_comparison", "transport": "pubsub_roundtrip", "service": "service_roundtrip", "action": "action_roundtrip", "future": "future_execution"}
-CPP_BINARIES = {"codec": "rclcpp_comparison", "transport": "rclcpp_roundtrip", "service": "rclcpp_service", "action": "rclcpp_action_roundtrip"}
-CPP_SOURCES = {"codec": "comparison.cpp", "transport": "roundtrip.cpp", "service": "service.cpp", "action": "action.cpp"}
+BENCHMARKS = {"codec": "ros_comparison", "transport": "pubsub_roundtrip", "native_views": "pubsub_view_roundtrip", "service": "service_roundtrip", "action": "action_roundtrip", "future": "future_execution"}
+CPP_BINARIES = {"codec": "rclcpp_comparison", "transport": "rclcpp_roundtrip", "native_views": "rclcpp_roundtrip", "service": "rclcpp_service", "action": "rclcpp_action_roundtrip"}
+CPP_SOURCES = {"codec": "comparison.cpp", "transport": "roundtrip.cpp", "native_views": "roundtrip.cpp", "service": "service.cpp", "action": "action.cpp"}
 
 
 def command(arguments, cwd, env):
@@ -23,6 +23,11 @@ def rust_binary(source, target, destination, env, workload="codec"):
     build_env = env.copy()
     build_env["CARGO_TARGET_DIR"] = str(target)
     benchmark = BENCHMARKS[workload]
+    if workload == "native_views":
+        flags = build_env.get("RUSTFLAGS", "") + " --check-cfg=cfg(r2r_bench_native_views)"
+        if (source / "r2r/src/native_views.rs").exists():
+            flags += " --cfg r2r_bench_native_views"
+        build_env["RUSTFLAGS"] = flags.strip()
     if workload == "codec":
         flags = build_env.get("RUSTFLAGS", "") + " --check-cfg=cfg(r2r_bench_serializer)"
         if (source / "r2r/src/serialization.rs").exists():
@@ -34,6 +39,9 @@ def rust_binary(source, target, destination, env, workload="codec"):
     shutil.copy2(executable, destination)
     sources = [source / f"r2r/benches/{benchmark}.rs", source / "r2r/src/msg_types.rs", source / "r2r/src/nodes.rs", source / "r2r/src/subscribers.rs", source / "r2r/src/publishers.rs", source / "r2r/src/clients.rs", source / "r2r/src/services.rs", source / "r2r_rcl/src/lib.rs", source / "r2r_msg_gen/src/lib.rs", source / "Cargo.lock"]
     if (source / "r2r/src/serialization.rs").exists(): sources.append(source / "r2r/src/serialization.rs")
+    if workload == "native_views":
+        for relative in ["r2r/src/native_views.rs", "r2r/src/nodes/native_views.rs", "r2r_msg_gen/src/native_views.rs"]:
+            if (source / relative).exists(): sources.append(source / relative)
     if workload == "action":
         sources.extend(source / f"r2r/src/{name}.rs" for name in ["action_common", "action_clients", "action_clients_untyped", "action_servers"])
         sources.extend(sorted((source / "r2r/src/action_clients").rglob("*.rs")))
@@ -60,6 +68,9 @@ def main():
     env = os.environ.copy()
     manifests = {}
     manifests["workload"] = args.workload
+    if args.workload == "native_views":
+        manifests["receive_api_detection"] = "native_views.rs present: subscribe_view and publish_view echo; absent: normal typed receive/publish fallback"
+        manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_native_views); --cfg r2r_bench_native_views only where the view API exists"
     if args.workload == "codec":
         manifests["serializer_api_detection"] = "r2r/src/serialization.rs present: reusable API; absent: historical owned-byte API fallback for serialize_reuse modes"
         manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_serializer); --cfg r2r_bench_serializer only when serializer API exists"

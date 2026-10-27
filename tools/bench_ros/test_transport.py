@@ -1,7 +1,52 @@
 import copy
 import unittest
 
-from transport import regression_failures, validate_endpoint
+from transport import calibration_failures, regression_failures, validate_endpoint, validate_receive_path
+
+
+class ReceivePathValidation(unittest.TestCase):
+    def test_view_owned_and_same_path_controls_are_explicit(self):
+        metadata = {"workload":"pubsub", "binary_sha256":{"rust":"a", "baseline":"b"},
+                    "rust_receive_paths":{"rust":"view", "baseline":"owned"}}
+        validate_receive_path(metadata, "rust", {"receive_path":"view"})
+        validate_receive_path(metadata, "baseline", {"receive_path":"owned"})
+        validate_receive_path(metadata, "cpp", {})
+        metadata["rust_receive_paths"]["baseline"] = "view"
+        validate_receive_path(metadata, "baseline", {"receive_path":"view"})
+
+    def test_mislabeled_or_undeclared_view_evidence_fails(self):
+        metadata = {"workload":"pubsub", "binary_sha256":{"rust":"a", "baseline":"b"},
+                    "rust_receive_paths":{"rust":"view", "baseline":"owned"}}
+        for language, endpoint in [("rust", {"receive_path":"owned"}), ("rust", {}),
+                                   ("baseline", {"receive_path":"view"})]:
+            with self.subTest(language=language, endpoint=endpoint), self.assertRaises(RuntimeError):
+                validate_receive_path(metadata, language, endpoint)
+        with self.assertRaises(RuntimeError):
+            validate_receive_path({}, "rust", {"receive_path":"view"})
+
+    def test_invalid_path_metadata_fails(self):
+        metadata = {"workload":"pubsub", "binary_sha256":{"rust":"a", "baseline":"b"},
+                    "rust_receive_paths":{"rust":"view", "baseline":"owned"}}
+        for paths in [{"rust":"view"},
+                      {"rust":"view", "baseline":"unknown"}, {"rust":"view", "baseline":"owned", "cpp":"view"}]:
+            with self.subTest(paths=paths), self.assertRaises(RuntimeError):
+                validate_receive_path(dict(metadata, rust_receive_paths=paths), "rust", {"receive_path":"view"})
+        with self.assertRaises(RuntimeError):
+            validate_receive_path(dict(metadata, workload="service"), "rust", {"receive_path":"view"})
+
+
+class CalibrationValidation(unittest.TestCase):
+    def test_same_binary_apparent_improvements_are_also_instability(self):
+        baseline = {"elements":0, "ping_language":"baseline", "echo_language":"baseline",
+                    "rtt_ns_p50":100, "rtt_ns_p95":200, "rtt_ns_p99":300, "roundtrips_per_second":1000}
+        candidate = dict(baseline, ping_language="rust", echo_language="rust")
+        self.assertFalse(calibration_failures([baseline,candidate],[0],1.05))
+        for field in ["rtt_ns_p50","rtt_ns_p95","rtt_ns_p99","roundtrips_per_second"]:
+            for multiplier in [0.8,1.2]:
+                changed=dict(candidate)
+                changed[field] *= multiplier
+                with self.subTest(field=field, multiplier=multiplier):
+                    self.assertTrue(calibration_failures([baseline,changed],[0],1.05))
 
 
 class EndpointValidation(unittest.TestCase):

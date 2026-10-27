@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 from verify_transport import verify
-from transport import regression_failures
+from transport import calibration_failures, regression_failures
 
 
 class ArchivedMatrixValidation(unittest.TestCase):
@@ -63,6 +63,19 @@ class ArchivedMatrixValidation(unittest.TestCase):
         self.summary[0]["rtt_ns_p99"] = 10
         self.write()
         with self.assertRaisesRegex(RuntimeError, "median"):
+            verify(self.path)
+
+    def test_candidate_patch_digest_and_baseline_are_verified(self):
+        self.write()
+        patch = self.path.with_name("candidate.patch.gz")
+        patch.write_bytes(b"fixture patch")
+        report = json.loads(self.path.read_text())
+        report["metadata"].update(build_manifest={"baseline_ref":"base"},
+            candidate_patch={"file":patch.name, "sha256":hashlib.sha256(patch.read_bytes()).hexdigest(), "base_ref":"base"})
+        self.path.write_text(json.dumps(report))
+        verify(self.path)
+        patch.write_bytes(b"corrupted patch")
+        with self.assertRaisesRegex(RuntimeError,"patch digest"):
             verify(self.path)
 
     def test_service_matrix_checks_window_and_overlapping_latencies(self):
@@ -136,6 +149,27 @@ class ArchivedMatrixValidation(unittest.TestCase):
         self.write()
         with self.assertRaisesRegex(RuntimeError, "passing performance"):
             verify(self.path, require_performance_pass=True)
+
+    def test_same_binary_calibration_must_match_the_archive(self):
+        for ping, echo in [("baseline", "baseline"), ("baseline", "cpp"), ("cpp", "baseline")]:
+            record = copy.deepcopy(self.records[0])
+            record.update(ping_language=ping, echo_language=echo)
+            for role, language in [("ping", ping), ("echo", echo)]:
+                record[role]["implementation"] = "rclcpp" if language == "cpp" else "r2r"
+            self.traces.append({"record":len(self.records), "samples_ns":[10,20]})
+            self.records.append(record)
+            self.summary.append(dict(self.summary[0], ping_language=ping, echo_language=echo))
+        self.write()
+        report = json.loads(self.path.read_text())
+        report["metadata"].update(binary_sha256={"rust":"same", "baseline":"same"}, control="same-binary A/A")
+        report["metadata"]["calibration_gate"] = {"maximum_ratio":1.05, "passed":True,
+            "failures":calibration_failures(self.summary,[0],1.05)}
+        self.path.write_text(json.dumps(report))
+        verify(self.path)
+        report["metadata"]["calibration_gate"]["passed"] = False
+        self.path.write_text(json.dumps(report))
+        with self.assertRaisesRegex(RuntimeError,"calibration gate does not match"):
+            verify(self.path)
 
     def test_recorded_gate_must_agree_with_raw_measurements(self):
         for ping, echo in [("baseline", "baseline"), ("baseline", "cpp"), ("cpp", "baseline")]:

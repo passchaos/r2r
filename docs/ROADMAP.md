@@ -86,6 +86,13 @@ under Jazzy/CycloneDDS, Jazzy/Fast DDS, Humble and Kilted, and the complete matc
 example runs in all four environments. This is a correctness and workflow improvement; the
 existing external-future A/B does not measure these ROS endpoint paths.
 
+The [borrowed native receive/forwarding experiment](benchmarks/native-views-2026-10-28-rejected/README.md)
+is removed after a failed CycloneDDS tail gate, despite 7.6–8.0% large-payload p50 gains.
+The comparison now includes 65536-value payloads and explicit receive-path identities. A
+same-binary control passes the one-way regression test but fails symmetric calibration for
+zero-payload p99/rate. Apparent gains are now checked as calibration drift too. Stable small
+transport tails and complete allocation/buffer-lifetime evidence remain prerequisites.
+
 ## Reproducible local gates
 
 With the ROS environment sourced and the repository-pinned Rust toolchain:

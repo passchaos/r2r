@@ -1,0 +1,154 @@
+{
+  "metadata": {
+    "stage": "native_receive_decode",
+    "message_type": "std_msgs/msg/Int32MultiArray",
+    "cpu": 24,
+    "iterations": 500000,
+    "repetitions": 5,
+    "elements": [
+      1,
+      33,
+      4097
+    ],
+    "scope": "same binary stage evidence; fixture/full oracle outside timing; owned conversion/destruction or borrowed read with common four-value checksum; not transport performance",
+    "source_sha256": "f183da48796fdf7162a15fa73d37dcd5f7f37febdb632ccf225c6876fdc55634",
+    "binary_sha256": "72ba810de962a8fb49c2e7381e568345ca78d1cd34304dc43aa05527723b8532"
+  },
+  "records": [
+    {
+      "checksum": 500000,
+      "elements": 1,
+      "iterations": 500000,
+      "owned_ns": 22.476266,
+      "repetition": 0,
+      "stage": "native_receive_decode",
+      "view_ns": 1.75251
+    },
+    {
+      "checksum": 500000,
+      "elements": 1,
+      "iterations": 500000,
+      "owned_ns": 22.060446,
+      "repetition": 1,
+      "stage": "native_receive_decode",
+      "view_ns": 1.806702
+    },
+    {
+      "checksum": 500000,
+      "elements": 1,
+      "iterations": 500000,
+      "owned_ns": 21.76603,
+      "repetition": 2,
+      "stage": "native_receive_decode",
+      "view_ns": 1.710018
+    },
+    {
+      "checksum": 500000,
+      "elements": 1,
+      "iterations": 500000,
+      "owned_ns": 22.290502,
+      "repetition": 3,
+      "stage": "native_receive_decode",
+      "view_ns": 1.709562
+    },
+    {
+      "checksum": 500000,
+      "elements": 1,
+      "iterations": 500000,
+      "owned_ns": 21.906972,
+      "repetition": 4,
+      "stage": "native_receive_decode",
+      "view_ns": 1.707878
+    },
+    {
+      "checksum": 40500000,
+      "elements": 33,
+      "iterations": 500000,
+      "owned_ns": 25.064564,
+      "repetition": 0,
+      "stage": "native_receive_decode",
+      "view_ns": 1.748748
+    },
+    {
+      "checksum": 40500000,
+      "elements": 33,
+      "iterations": 500000,
+      "owned_ns": 25.26367,
+      "repetition": 1,
+      "stage": "native_receive_decode",
+      "view_ns": 1.70898
+    },
+    {
+      "checksum": 40500000,
+      "elements": 33,
+      "iterations": 500000,
+      "owned_ns": 25.563652,
+      "repetition": 2,
+      "stage": "native_receive_decode",
+      "view_ns": 1.7104
+    },
+    {
+      "checksum": 40500000,
+      "elements": 33,
+      "iterations": 500000,
+      "owned_ns": 25.014296,
+      "repetition": 3,
+      "stage": "native_receive_decode",
+      "view_ns": 1.708072
+    },
+    {
+      "checksum": 40500000,
+      "elements": 33,
+      "iterations": 500000,
+      "owned_ns": 25.267736,
+      "repetition": 4,
+      "stage": "native_receive_decode",
+      "view_ns": 1.717004
+    },
+    {
+      "checksum": 5120500000,
+      "elements": 4097,
+      "iterations": 500000,
+      "owned_ns": 331.645112,
+      "repetition": 0,
+      "stage": "native_receive_decode",
+      "view_ns": 1.757254
+    },
+    {
+      "checksum": 5120500000,
+      "elements": 4097,
+      "iterations": 500000,
+      "owned_ns": 329.24843,
+      "repetition": 1,
+      "stage": "native_receive_decode",
+      "view_ns": 1.731358
+    },
+    {
+      "checksum": 5120500000,
+      "elements": 4097,
+      "iterations": 500000,
+      "owned_ns": 330.585684,
+      "repetition": 2,
+      "stage": "native_receive_decode",
+      "view_ns": 1.718198
+    },
+    {
+      "checksum": 5120500000,
+      "elements": 4097,
+      "iterations": 500000,
+      "owned_ns": 331.608654,
+      "repetition": 3,
+      "stage": "native_receive_decode",
+      "view_ns": 1.7099
+    },
+    {
+      "checksum": 5120500000,
+      "elements": 4097,
+      "iterations": 500000,
+      "owned_ns": 330.83255,
+      "repetition": 4,
+      "stage": "native_receive_decode",
+      "view_ns": 1.714368
+    }
+  ]
+}

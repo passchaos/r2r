@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import statistics
 
-from transport import regression_failures, validate_endpoint
+from transport import calibration_failures, regression_failures, validate_endpoint, validate_receive_path
 from action_support.validation import language_pairs
 
 
@@ -15,6 +15,12 @@ def verify(path, require_performance_pass=False):
     report = json.loads(path.read_text())
     metadata = report["metadata"]
     workload = metadata.get("workload", "pubsub")
+    if "candidate_patch" in metadata:
+        patch = metadata["candidate_patch"]
+        if hashlib.sha256((path.parent / patch["file"]).read_bytes()).hexdigest() != patch["sha256"]:
+            raise RuntimeError("candidate patch digest mismatch")
+        if patch["base_ref"] != metadata["build_manifest"]["baseline_ref"]:
+            raise RuntimeError("candidate patch baseline mismatch")
     if workload not in {"pubsub", "service", "action"}:
         raise RuntimeError("unknown transport workload")
     if "action_cohorts" in metadata:
@@ -57,6 +63,7 @@ def verify(path, require_performance_pass=False):
                 endpoint["samples_ns"] = trace["samples_ns"]
                 if workload == "action": endpoint["stage_samples_ns"] = trace["stage_samples_ns"]
             language = record[f"{role}_language"]
+            validate_receive_path(metadata, language, endpoint)
             frames = [endpoint.get("probe")] if "cohorts" not in endpoint else [cohort.get("probe") for cohort in endpoint["cohorts"]]
             if any(frame is not None for frame in frames) and not instrumentation.get("enabled"):
                 raise RuntimeError("undeclared instrumented action timing")
@@ -100,6 +107,15 @@ def verify(path, require_performance_pass=False):
     if require_performance_pass:
         if "regression_gate" not in metadata or not metadata["regression_gate"]["passed"]:
             raise RuntimeError("a recorded, passing performance regression gate is required")
+    if "calibration_gate" in metadata:
+        if not metadata.get("control", "").startswith("same-binary A/A"):
+            raise RuntimeError("calibration requires a declared same-binary A/A control")
+        gate = metadata["calibration_gate"]
+        failures = calibration_failures(report["summary"], sizes, gate["maximum_ratio"], dimension)
+        if gate["passed"] != (not failures) or gate["failures"] != failures:
+            raise RuntimeError("recorded A/A calibration gate does not match measurements")
+        if require_performance_pass and not gate["passed"]:
+            raise RuntimeError("a passing symmetric A/A calibration gate is required")
     print(f"{path}: {len(records)} records and {sum(len(trace['samples_ns']) for trace in traces)} RTT samples verified")
 
 

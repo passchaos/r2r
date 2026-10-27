@@ -87,3 +87,10 @@ harness = false
 [[bench]]
 name = "future_execution"
 harness = false
+
+[[bench]]
+name = "pubsub_view_roundtrip"
+harness = false
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(r2r_bench_native_views)"] }

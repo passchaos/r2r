@@ -17,6 +17,18 @@ localhost DDS on an isolated ROS domain. This measures application API, conversi
 and transport together. It does not measure a pipelined throughput workload or same-process
 zero-copy communication.
 
+The optional `pubsub_view_roundtrip` harness supports explicit borrowed-receive prototypes and
+an owned fallback. Build with `build.py --workload native_views`; the builder enables its
+borrowed mode only when the native-view API exists. Run with `--native-views`, declaring
+`--rust-receive-path owned` for the fallback and `--baseline-native-views` for a view baseline.
+The verifier rejects endpoint path labels that disagree with the report metadata. The current
+library has no promoted view API; the [rejected prototype](../../docs/benchmarks/native-views-2026-10-28-rejected/README.md)
+is retained for isolated replay.
+
+`--same-binary-control --max-regression 1.05` requires byte-identical Rust executables and
+records a separate symmetric calibration gate. Latency and rate differences count in both
+directions, so an apparent improvement cannot hide an unstable A/A control.
+
 ```sh
 python3 tools/bench_ros/build.py --workload transport --output-dir target/ros-transport
 python3 tools/bench_ros/transport.py \

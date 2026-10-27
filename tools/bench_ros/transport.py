@@ -23,6 +23,19 @@ def percentile(samples, percent):
     return ordered[math.ceil((len(ordered) - 1) * percent / 100)]
 
 
+def validate_receive_path(metadata, language, endpoint):
+    paths = metadata.get("rust_receive_paths")
+    if paths is None:
+        if "receive_path" in endpoint:
+            raise RuntimeError("undeclared Rust receive path")
+        return
+    expected = {"rust"} | ({"baseline"} if "baseline" in metadata["binary_sha256"] else set())
+    if metadata["workload"] != "pubsub" or set(paths) != expected or any(value not in {"owned", "view"} for value in paths.values()):
+        raise RuntimeError("invalid Rust receive path metadata")
+    if language != "cpp" and endpoint.get("receive_path") != paths[language]:
+        raise RuntimeError("Rust receive path mismatch")
+
+
 def regression_failures(summary, sizes, maximum, dimension="elements"):
     failures = []
     for size in sizes:
@@ -32,6 +45,19 @@ def regression_failures(summary, sizes, maximum, dimension="elements"):
         ratios["inverse_throughput"] = baseline["roundtrips_per_second"] / candidate["roundtrips_per_second"]
         if any(ratio > maximum for ratio in ratios.values()):
             failures.append({dimension: size, "ratios": ratios})
+    return failures
+
+
+def calibration_failures(summary, sizes, maximum, dimension="elements"):
+    """An A/A calibration must remain close in both directions, including apparent gains."""
+    failures = []
+    for size in sizes:
+        baseline = next(row for row in summary if row[dimension] == size and row["ping_language"] == row["echo_language"] == "baseline")
+        candidate = next(row for row in summary if row[dimension] == size and row["ping_language"] == row["echo_language"] == "rust")
+        ratios = {field:max(candidate[field]/baseline[field], baseline[field]/candidate[field])
+                  for field in ["rtt_ns_p50", "rtt_ns_p95", "rtt_ns_p99", "roundtrips_per_second"]}
+        if any(ratio > maximum for ratio in ratios.values()):
+            failures.append({dimension:size, "maximum_bidirectional_ratios":ratios})
     return failures
 
 
@@ -115,6 +141,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rust", type=Path, required=True)
     parser.add_argument("--workload", choices=["pubsub", "service", "action"], default="pubsub")
+    parser.add_argument("--native-views", action="store_true", help="compare borrowed native receive/echo with historical typed receive")
+    parser.add_argument("--rust-receive-path", choices=["owned", "view"], default="view", help="explicit candidate path for the native-view harness, including its owned fallback")
+    parser.add_argument("--baseline-native-views", action="store_true", help="baseline also uses views, for independent-build or same-binary controls")
+    parser.add_argument("--same-binary-control", action="store_true", help="require identical Rust binaries and a symmetric A/A calibration gate")
     parser.add_argument("--baseline-rust", type=Path)
     parser.add_argument("--cpp", type=Path, required=True)
     parser.add_argument("--cpu-ping", type=int, required=True)
@@ -134,6 +164,10 @@ def main():
     parser.add_argument("--build-manifest", type=Path)
     parser.add_argument("--max-regression", type=float, help="Maximum candidate/baseline ratio for same-language RTT percentiles and inverse throughput")
     args = parser.parse_args()
+    if (args.native_views and args.workload != "pubsub") or (args.baseline_native_views and (not args.native_views or args.baseline_rust is None)):
+        parser.error("native receive paths require a pub/sub workload; view baseline controls also require a baseline")
+    if args.same_binary_control and (args.baseline_rust is None or args.max_regression is None):
+        parser.error("same-binary calibration requires a baseline and an explicit tolerance")
     if not 1 <= args.action_cohorts <= 1024 or (args.action_cohorts != 1 and args.workload != "action"):
         parser.error("cohorts require an action workload and a count from 1 to 1024")
     if args.probe and (args.workload != "action" or args.max_regression is not None):
@@ -188,9 +222,21 @@ def main():
         "workload": args.workload,
         {"pubsub": "payload_sizes", "service": "request_windows", "action": "action_scenarios"}[args.workload]: sizes,
         "source_sha256": {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in
-                          [Path("r2r/benches") / {"pubsub": "pubsub_roundtrip.rs", "service": "service_roundtrip.rs", "action": "action_roundtrip.rs"}[args.workload],
+                          [Path("r2r/benches") / ("pubsub_view_roundtrip.rs" if args.native_views else {"pubsub": "pubsub_roundtrip.rs", "service": "service_roundtrip.rs", "action": "action_roundtrip.rs"}[args.workload]),
                            Path("tools/bench_ros") / {"pubsub": "roundtrip.cpp", "service": "service.cpp", "action": "action.cpp"}[args.workload], Path("tools/bench_ros/transport.py")]},
     }
+    if args.native_views:
+        metadata["rust_receive_paths"] = {"rust":args.rust_receive_path}
+        if args.baseline_rust:
+            metadata["rust_receive_paths"]["baseline"] = "view" if args.baseline_native_views else "owned"
+        metadata["echo_work"] = "complete sequence/layout/payload validation; view-tagged Rust echo borrows immutable storage through publish_view; owned-tagged Rust/C++ echo uses normal typed publish"
+        metadata["api_comparison"] = "explicit borrowed native receive and forwarding API versus historical Rust owned-message API; ordinary typed subscription behavior is unchanged"
+        if args.rust_receive_path == "owned":
+            metadata["api_comparison"] = "owned-message fallback/control of the native-view harness; no view API is used"
+    if args.same_binary_control:
+        if metadata["binary_sha256"]["rust"] != metadata["binary_sha256"]["baseline"]:
+            parser.error("same-binary calibration requires byte-identical Rust binaries")
+        metadata["control"] = "same-binary A/A; both latency and throughput differences are checked symmetrically"
     if args.workload == "service":
         metadata.update(qos="ServicesQoS: reliable, volatile, KeepLast(max(16, window))",
                         scheduling="single-threaded executor/spin loop; 100 ms wait cap; bounded request window; responses observed in submission order",
@@ -237,6 +283,8 @@ def main():
                                   "rclcpp" if ping_label == "cpp" else "r2r", dimension, args.action_cohorts, bool(args.probe))
                 validate_endpoint(echo, "echo", args.rmw, elements, args.iterations*args.action_cohorts, args.warmup*args.action_cohorts,
                                   "rclcpp" if echo_label == "cpp" else "r2r", dimension, args.action_cohorts, bool(args.probe))
+                validate_receive_path(metadata, ping_label, ping)
+                validate_receive_path(metadata, echo_label, echo)
                 samples = ping.pop("samples_ns")
                 stages = ping.pop("stage_samples_ns", None)
                 record = {"ping_language": ping_label, "echo_language": echo_label, "repetition": repetition, dimension: elements, "ping": ping, "echo": echo}
@@ -264,8 +312,13 @@ def main():
     if args.max_regression is not None:
         metadata["regression_gate"] = {"maximum_ratio": args.max_regression,
                                        "passed": not regressions, "failures": regressions}
+    calibration = calibration_failures(summary, sizes, args.max_regression, dimension) if args.same_binary_control else []
+    if args.same_binary_control:
+        metadata["calibration_gate"] = {"maximum_ratio":args.max_regression, "passed":not calibration, "failures":calibration}
     args.output.write_text(json.dumps({"metadata": metadata, "records": records, "summary": summary}, indent=2) + "\n")
     print(json.dumps(summary, indent=2))
+    if calibration:
+        raise RuntimeError(f"A/A calibration gate failed: {calibration}")
     if args.max_regression is not None:
         if regressions:
             raise RuntimeError(f"transport regression gate failed: {regressions}")
