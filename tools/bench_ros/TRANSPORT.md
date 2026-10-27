@@ -50,3 +50,34 @@ Run `python3 -m unittest discover -s tools/bench_ros -p 'test_*.py'` to verify t
 validator rejects incorrect counts, sequences, RMW identity, percentile values and timings.
 Use `python3 tools/bench_ros/verify_transport.py <report.json>` to independently recheck every
 archived endpoint, individual RTT sample, percentile and summary median against the gzip sidecar.
+
+## Interleaved library regression comparison
+
+Build an independent Rust baseline with the same current benchmark source and lockfile, then
+pass `--baseline-rust` to the transport runner:
+
+```sh
+python3 tools/bench_ros/build.py --workload transport --baseline-ref c661305 \
+  --output-dir target/receive-buffer-transport
+python3 tools/bench_ros/transport.py \
+  --rust target/receive-buffer-transport/r2r-candidate \
+  --baseline-rust target/receive-buffer-transport/r2r-baseline \
+  --cpp target/receive-buffer-transport/rclcpp-comparison \
+  --cpu-ping 30 --cpu-echo 31 --domain-id 115 --rmw rmw_cyclonedds_cpp \
+  --sizes 0,32,4096 --iterations 5000 --warmup 100 --repetitions 5 \
+  --max-regression 1.05 \
+  --build-manifest target/receive-buffer-transport/build-manifest.json \
+  --output target/receive-buffer-transport/cyclonedds.json
+```
+
+This adds baseline/baseline, baseline/C++ and C++/baseline to the four candidate combinations.
+All seven pairs run in alternating order under the same environment. The offline verifier
+requires the complete seven-combination matrix. `--max-regression` checks candidate/candidate
+against baseline/baseline for the median repetition p50, p95, p99 and inverse throughput,
+writing the raw evidence before failing if any metric exceeds the allowed ratio. A failed
+performance gate requires investigation before promoting the implementation.
+
+The report records the regression limit, pass/fail outcome and metric ratios. Integrity
+verification remains useful for a rejected experiment and does not claim that its performance
+passed. Add `--require-performance-pass` to `verify_transport.py` when a passing regression gate
+is a requirement; absent or failed gates are then rejected.

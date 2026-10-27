@@ -7,10 +7,10 @@ import json
 from pathlib import Path
 import statistics
 
-from transport import validate_endpoint
+from transport import regression_failures, validate_endpoint
 
 
-def verify(path):
+def verify(path, require_performance_pass=False):
     report = json.loads(path.read_text())
     metadata = report["metadata"]
     artifact = metadata["samples_artifact"]
@@ -31,7 +31,7 @@ def verify(path):
         if key in keys:
             raise RuntimeError("duplicate benchmark record")
         keys.add(key)
-        if record["ping_language"] not in {"rust", "cpp"} or record["echo_language"] not in {"rust", "cpp"}:
+        if record["ping_language"] not in {"rust", "cpp", "baseline"} or record["echo_language"] not in {"rust", "cpp", "baseline"}:
             raise RuntimeError("unknown endpoint language")
         for role in ["ping", "echo"]:
             endpoint = dict(record[role])
@@ -39,10 +39,13 @@ def verify(path):
                 endpoint["samples_ns"] = trace["samples_ns"]
             language = record[f"{role}_language"]
             validate_endpoint(endpoint, role, metadata["rmw"], record["elements"], metadata["iterations"],
-                              metadata["warmup"], "r2r" if language == "rust" else "rclcpp")
+                              metadata["warmup"], "rclcpp" if language == "cpp" else "r2r")
     sizes = metadata.get("payload_sizes", sorted({record["elements"] for record in records}))
-    expected_keys = {(size, ping, echo, repetition) for size in sizes for ping in ["rust", "cpp"]
-                     for echo in ["rust", "cpp"] for repetition in range(metadata["repetitions"])}
+    pairs = [("rust", "rust"), ("cpp", "cpp"), ("rust", "cpp"), ("cpp", "rust")]
+    if "baseline" in metadata.get("binary_sha256", {}):
+        pairs += [("baseline", "baseline"), ("baseline", "cpp"), ("cpp", "baseline")]
+    expected_keys = {(size, ping, echo, repetition) for size in sizes for ping, echo in pairs
+                     for repetition in range(metadata["repetitions"])}
     if keys != expected_keys:
         raise RuntimeError("incomplete language, payload or repetition matrix")
     for row in report["summary"]:
@@ -57,15 +60,24 @@ def verify(path):
     actual_rows = {(row["elements"], row["ping_language"], row["echo_language"]) for row in report["summary"]}
     if expected_rows != actual_rows or len(actual_rows) != len(report["summary"]):
         raise RuntimeError("summary rows are missing or duplicated")
+    if "regression_gate" in metadata:
+        gate = metadata["regression_gate"]
+        failures = regression_failures(report["summary"], sizes, gate["maximum_ratio"])
+        if gate["passed"] != (not failures) or gate["failures"] != failures:
+            raise RuntimeError("recorded regression gate does not match measurements")
+    if require_performance_pass:
+        if "regression_gate" not in metadata or not metadata["regression_gate"]["passed"]:
+            raise RuntimeError("a recorded, passing performance regression gate is required")
     print(f"{path}: {len(records)} records and {sum(len(trace['samples_ns']) for trace in traces)} RTT samples verified")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("report", type=Path, nargs="+")
+    parser.add_argument("--require-performance-pass", action="store_true")
     args = parser.parse_args()
     for path in args.report:
-        verify(path)
+        verify(path, args.require_performance_pass)
 
 
 if __name__ == "__main__":

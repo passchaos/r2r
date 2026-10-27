@@ -21,6 +21,18 @@ def percentile(samples, percent):
     return ordered[math.ceil((len(ordered) - 1) * percent / 100)]
 
 
+def regression_failures(summary, sizes, maximum):
+    failures = []
+    for size in sizes:
+        baseline = next(row for row in summary if row["elements"] == size and row["ping_language"] == row["echo_language"] == "baseline")
+        candidate = next(row for row in summary if row["elements"] == size and row["ping_language"] == row["echo_language"] == "rust")
+        ratios = {field: candidate[field] / baseline[field] for field in ["rtt_ns_p50", "rtt_ns_p95", "rtt_ns_p99"]}
+        ratios["inverse_throughput"] = baseline["roundtrips_per_second"] / candidate["roundtrips_per_second"]
+        if any(ratio > maximum for ratio in ratios.values()):
+            failures.append({"elements": size, "ratios": ratios})
+    return failures
+
+
 def validate_endpoint(result, role, rmw, elements, iterations, warmup, implementation=None):
     if implementation is not None and result["implementation"] != implementation:
         raise RuntimeError("language implementation mismatch")
@@ -77,6 +89,7 @@ def pair(ping, echo, cpu_ping, cpu_echo, env, elements, iterations, warmup, pref
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rust", type=Path, required=True)
+    parser.add_argument("--baseline-rust", type=Path)
     parser.add_argument("--cpp", type=Path, required=True)
     parser.add_argument("--cpu-ping", type=int, required=True)
     parser.add_argument("--cpu-echo", type=int, required=True)
@@ -88,6 +101,7 @@ def main():
     parser.add_argument("--repetitions", type=int, default=5)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--build-manifest", type=Path)
+    parser.add_argument("--max-regression", type=float, help="Maximum candidate/baseline ratio for same-language RTT percentiles and inverse throughput")
     args = parser.parse_args()
     allowed = os.sched_getaffinity(0)
     if args.cpu_ping == args.cpu_echo or not {args.cpu_ping, args.cpu_echo}.issubset(allowed):
@@ -97,7 +111,11 @@ def main():
     sizes = [int(size) for size in args.sizes.split(",")]
     if not sizes or any(size < 0 or size > 1_000_000 for size in sizes):
         parser.error("invalid payload sizes")
+    if args.max_regression is not None and (args.baseline_rust is None or not math.isfinite(args.max_regression) or args.max_regression < 1):
+        parser.error("a regression limit needs a baseline and a finite ratio at least one")
     binaries = {"rust": args.rust.resolve(), "cpp": args.cpp.resolve()}
+    if args.baseline_rust:
+        binaries["baseline"] = args.baseline_rust.resolve()
     env = os.environ.copy()
     env.update(RMW_IMPLEMENTATION=args.rmw, ROS_DOMAIN_ID=str(args.domain_id), ROS_LOCALHOST_ONLY="1")
     env.pop("CYCLONEDDS_URI", None)
@@ -129,15 +147,17 @@ def main():
     metadata["ros_packages"] = {name: ET.parse(prefix / name / "package.xml").findtext("version") for name in ["rclcpp", "rcl", "rmw", "std_msgs", args.rmw]}
     records, traces = [], []
     pairs = [("rust", "rust"), ("cpp", "cpp"), ("rust", "cpp"), ("cpp", "rust")]
+    if args.baseline_rust:
+        pairs = [("baseline", "baseline"), *pairs, ("baseline", "cpp"), ("cpp", "baseline")]
     for elements in sizes:
         for repetition in range(args.repetitions):
             for ping_label, echo_label in pairs if repetition % 2 == 0 else reversed(pairs):
                 run_prefix = "/r2r_roundtrip_" + uuid.uuid4().hex
                 ping, echo = pair(binaries[ping_label], binaries[echo_label], args.cpu_ping, args.cpu_echo, env, elements, args.iterations, args.warmup, run_prefix)
                 validate_endpoint(ping, "ping", args.rmw, elements, args.iterations, args.warmup,
-                                  "r2r" if ping_label == "rust" else "rclcpp")
+                                  "rclcpp" if ping_label == "cpp" else "r2r")
                 validate_endpoint(echo, "echo", args.rmw, elements, args.iterations, args.warmup,
-                                  "r2r" if echo_label == "rust" else "rclcpp")
+                                  "rclcpp" if echo_label == "cpp" else "r2r")
                 samples = ping.pop("samples_ns")
                 record = {"ping_language": ping_label, "echo_language": echo_label, "repetition": repetition, "elements": elements, "ping": ping, "echo": echo}
                 traces.append({"record": len(records), "samples_ns": samples})
@@ -155,8 +175,15 @@ def main():
     trace_path.write_bytes(compressed)
     metadata["samples_artifact"] = {"file": trace_path.name, "sha256": hashlib.sha256(compressed).hexdigest(), "record_count": len(traces)}
     metadata["completed_utc"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    regressions = regression_failures(summary, sizes, args.max_regression) if args.max_regression is not None else []
+    if args.max_regression is not None:
+        metadata["regression_gate"] = {"maximum_ratio": args.max_regression,
+                                       "passed": not regressions, "failures": regressions}
     args.output.write_text(json.dumps({"metadata": metadata, "records": records, "summary": summary}, indent=2) + "\n")
     print(json.dumps(summary, indent=2))
+    if args.max_regression is not None:
+        if regressions:
+            raise RuntimeError(f"transport regression gate failed: {regressions}")
 
 
 if __name__ == "__main__":

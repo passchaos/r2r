@@ -1,7 +1,7 @@
 import copy
 import unittest
 
-from transport import validate_endpoint
+from transport import regression_failures, validate_endpoint
 
 
 class EndpointValidation(unittest.TestCase):
@@ -36,6 +36,18 @@ class EndpointValidation(unittest.TestCase):
             result[field] = value
             with self.subTest(field=field), self.assertRaises(RuntimeError):
                 self.validate(result)
+
+    def test_regression_gate_catches_latency_and_throughput_losses(self):
+        baseline = {"elements": 32, "ping_language": "baseline", "echo_language": "baseline",
+                    "rtt_ns_p50": 100, "rtt_ns_p95": 100, "rtt_ns_p99": 100, "roundtrips_per_second": 100}
+        candidate = dict(baseline, ping_language="rust", echo_language="rust")
+        self.assertEqual(regression_failures([baseline, candidate], [32], 1.05), [])
+        for field, value in [("rtt_ns_p50", 106), ("rtt_ns_p95", 106), ("rtt_ns_p99", 106),
+                             ("roundtrips_per_second", 94)]:
+            with self.subTest(field=field):
+                worse = dict(candidate)
+                worse[field] = value
+                self.assertEqual(len(regression_failures([baseline, worse], [32], 1.05)), 1)
 
 
 if __name__ == "__main__":

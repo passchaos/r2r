@@ -40,6 +40,13 @@ Optimized runtime behavior is checked with the [release validation gates](RELEAS
 State registration and cleanup must execute outside debug assertions; the complete Jazzy library
 suite runs with assertions disabled in CI as well as under the supported-distribution test matrix.
 
+The [typed receive-container experiment](benchmarks/typed-receive-buffer-2026-10-27-rejected.md)
+was rejected by the 5% tail-latency regression gate and removed. Interleaved transport comparisons
+now retain baseline/baseline and both baseline/C++ directions alongside the candidate matrix.
+Reports explicitly record the gate outcome; integrity validation cannot substitute for a passing
+performance gate. Next receive work should remove payload copies while respecting each RMW's
+native initialization contract.
+
 ## Reproducible local gates
 
 With the ROS environment sourced and the repository-pinned Rust toolchain:
