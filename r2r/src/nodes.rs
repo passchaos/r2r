@@ -42,6 +42,9 @@ use crate::{
 
 const SPIN_UNTIL_FUTURE_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
+#[cfg(all(test, r2r__example_interfaces__action__Fibonacci))]
+mod action_cancel_tests;
+
 /// Options controlling native timer startup and Rust-side tick buffering.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TimerOptions {
@@ -4375,6 +4378,7 @@ impl Node {
             .iter()
             .copied()
             .collect::<Vec<_>>();
+        let mut local_action_progress = false;
         for id in action_servers_with_pending_cancels {
             let Some(index) = self.action_server_indexes.get(&id).copied() else {
                 self.action_servers_with_pending_cancels.remove(&id);
@@ -4386,8 +4390,10 @@ impl Node {
                 complete_action_server_operation(action_server, |server, completions| {
                     completions
                         .extend(server.take_pending_cancel_delivery(Arc::clone(action_server)));
+                    let delivery_completions = completions.len();
                     server
                         .send_completed_cancel_requests(Arc::clone(action_server), completions)?;
+                    local_action_progress |= completions.len() > delivery_completions;
                     Ok(())
                 });
             if !action_server.lock().has_pending_cancel_work() {
@@ -4516,7 +4522,15 @@ impl Node {
             }
         }
 
+        // Completed local cancel work may wake application logic before the native wait.
+        // Drain already-ready native events, then let the application observe the transition
+        // without sleeping through the caller's timeout before it can publish a final result.
         let timeout_nanos = duration_to_rcl_nanos(timeout)?;
+        let (timeout, timeout_nanos) = if local_action_progress {
+            (Duration::ZERO, 0)
+        } else {
+            (timeout, timeout_nanos)
+        };
 
         // #[doc = "* This function is thread-safe for unique wait sets with unique contents."]
         // #[doc = "* This function cannot operate on the same wait set in multiple threads, and"]
