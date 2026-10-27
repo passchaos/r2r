@@ -1,0 +1,1920 @@
+{
+  "metadata": {
+    "started_utc": "2026-10-27T19:09:26.315796+00:00",
+    "cpu_ping": 24,
+    "cpu_echo": 25,
+    "domain_id": 195,
+    "rmw": "rmw_fastrtps_cpp",
+    "ros_distro": "kilted",
+    "platform": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+    "cpu_model": "13th Gen Intel(R) Core(TM) i9-13900K",
+    "git_head": "b416c0fef51b0c4e372c574406a0516e0e9938a0",
+    "working_tree_dirty": true,
+    "rustc": "rustc 1.85.0 (4d91de4e4 2025-02-17)",
+    "cxx": "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "binary_sha256": {
+      "rust": "db685bf192909e896336fda3598853b001b94e95e78ef67de2956363af4bbded",
+      "cpp": "e7f66a8c3114f90db310e63f7933fc8d8447046ea71db848e581f1f861422257"
+    },
+    "qos": "goal/result/cancel/feedback: reliable volatile KeepLast(16); status native defaults; result retention 10 s",
+    "transport": "independent processes, localhost DDS, intra-process disabled",
+    "scheduling": "single-threaded executor/spin loop; 100 ms wait cap; one goal in flight",
+    "rtt_boundary": "before goal submission through acceptance/result observer setup, execution-start readiness service, exactly one validated feedback, feedback acknowledgement or cancellation, and terminal result retrieval",
+    "echo_work": "defer execution until readiness confirmation, validate order, publish exact three-element feedback/result; scenario 1 accepts cancellation before Canceled result",
+    "throughput_boundary": "complete action lifecycle including validation; excludes discovery/warmup/control rejection protocol",
+    "iterations": 10,
+    "warmup": 2,
+    "repetitions": 1,
+    "workload": "action",
+    "action_scenarios": [
+      0,
+      1
+    ],
+    "source_sha256": {
+      "r2r/benches/action_roundtrip.rs": "f4a1401dd58e6955f9e55995c8c640ba59966e924c89f82fb021b1c136f82d5d",
+      "tools/bench_ros/action.cpp": "1cf2dbe8365804787aefccf31e05e5911e81f32778c0da13f80d65cac5f30ce1",
+      "tools/bench_ros/transport.py": "317f6c22fc99f6f900694035a2205c213fd3a49724e821273b100f0bc6605622"
+    },
+    "action_cohorts": 2,
+    "iterations_per_cohort": 5,
+    "warmup_per_cohort": 1,
+    "cohort_boundary": "new action/ready endpoints for each cohort; shared process/node/context; two rejected controls after all results; setup/discovery/warmup/teardown excluded from aggregated elapsed time",
+    "instrumentation": {
+      "enabled": true,
+      "latency_evidence": false,
+      "probe_sha256": "7602fb54d07cf65818e4e5da8bab16034cbe181fa2d896e61b7a48bc07fe1592",
+      "scope": "allocation entry points across all process threads in measured windows; CPU/context switches from getrusage; Rust future wakes only; max RSS is process-lifetime high water"
+    },
+    "acceptance_boundary": "before submission through accepted goal retrieval and sending the result request; no execution-start handshake",
+    "cancellation_boundary": "before cancel request through accepted cancel response retrieval",
+    "auxiliary_protocol": "AddTwoInts /ready handshake phase 0 confirms client observation readiness; success phase 1 confirms feedback consumption before completing the result; cancellation instead confirms feedback consumption via the cancel request",
+    "completion_protocol": "control goals -1 and -2 rejected after all measured terminal results complete",
+    "scenario_labels": {
+      "0": "success",
+      "1": "cancel"
+    },
+    "ros_packages": {
+      "rclcpp": "29.5.11",
+      "rcl": "10.1.5",
+      "rmw": "7.8.3",
+      "example_interfaces": "0.13.1",
+      "rmw_fastrtps_cpp": "9.3.5",
+      "rclcpp_action": "29.5.11",
+      "rcl_action": "10.1.5"
+    },
+    "samples_artifact": {
+      "file": "compat-kilted-probe.samples.json.gz",
+      "sha256": "2a1987460d80d25729db4ab457dd9e667744c74ab39f94bb0f1bd42c185e1d50",
+      "record_count": 8
+    },
+    "completed_utc": "2026-10-27T19:09:28.660813+00:00"
+  },
+  "records": [
+    {
+      "ping_language": "rust",
+      "echo_language": "rust",
+      "repetition": 0,
+      "scenario": 0,
+      "ping": {
+        "acceptance_ns_p50": 124873,
+        "accepted": 12,
+        "canceled": 0,
+        "cancellation_ns_p50": null,
+        "checksum": 66,
+        "cohort_config": {
+          "count": 2,
+          "fresh_endpoints": true,
+          "iterations": 5,
+          "maximum_retained_goals": 6,
+          "warmup": 1
+        },
+        "cohort_process_elapsed_ns": 124738795,
+        "cohorts": [
+          {
+            "accepted": 6,
+            "canceled": 0,
+            "checksum": 15,
+            "elapsed_ns": 1788672,
+            "feedback": 6,
+            "index": 0,
+            "iterations": 5,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "aligned_calls": 0,
+                "calloc_calls": 15,
+                "counter_overflows": 0,
+                "failed_allocations": 0,
+                "free_calls": 800,
+                "malloc_calls": 785,
+                "null_free_calls": 0,
+                "realloc_calls": 5,
+                "requested_bytes": 40699,
+                "size_overflows": 0
+              },
+              "application": {
+                "future_polls": 65,
+                "future_wakes": 25,
+                "spin_calls": 40
+              },
+              "resources": {
+                "involuntary_context_switches": 13,
+                "process_max_rss_kib": 26112,
+                "system_cpu_ns": 760000,
+                "user_cpu_ns": 407000,
+                "voluntary_context_switches": 104
+              }
+            },
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 0,
+            "warmup": 1
+          },
+          {
+            "accepted": 6,
+            "canceled": 0,
+            "checksum": 51,
+            "elapsed_ns": 1796022,
+            "feedback": 6,
+            "index": 1,
+            "iterations": 5,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "aligned_calls": 0,
+                "calloc_calls": 15,
+                "counter_overflows": 0,
+                "failed_allocations": 0,
+                "free_calls": 762,
+                "malloc_calls": 747,
+                "null_free_calls": 0,
+                "realloc_calls": 5,
+                "requested_bytes": 39819,
+                "size_overflows": 0
+              },
+              "application": {
+                "future_polls": 65,
+                "future_wakes": 25,
+                "spin_calls": 40
+              },
+              "resources": {
+                "involuntary_context_switches": 76,
+                "process_max_rss_kib": 26880,
+                "system_cpu_ns": 768000,
+                "user_cpu_ns": 543000,
+                "voluntary_context_switches": 148
+              }
+            },
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 6,
+            "warmup": 1
+          }
+        ],
+        "elapsed_ns": 3584694,
+        "feedback": 12,
+        "implementation": "r2r",
+        "iterations": 10,
+        "received": 12,
+        "results": 12,
+        "rmw": "rmw_fastrtps_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 2789.6383903340143,
+        "rtt_ns_max": 453656,
+        "rtt_ns_p50": 352972,
+        "rtt_ns_p95": 453656,
+        "rtt_ns_p99": 453656,
+        "scenario": 0,
+        "warmup": 2
+      },
+      "echo": {
+        "accepted": 12,
+        "canceled": 0,
+        "checksum": 66,
+        "cohort_config": {
+          "count": 2,
+          "fresh_endpoints": true,
+          "iterations": 5,
+          "maximum_retained_goals": 6,
+          "warmup": 1
+        },
+        "cohort_process_elapsed_ns": 125342646,
+        "cohorts": [
+          {
+            "accepted": 6,
+            "canceled": 0,
+            "checksum": 15,
+            "feedback": 6,
+            "index": 0,
+            "iterations": 5,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "aligned_calls": 0,
+                "calloc_calls": 15,
+                "counter_overflows": 0,
+                "failed_allocations": 0,
+                "free_calls": 533,
+                "malloc_calls": 568,
+                "null_free_calls": 0,
+                "realloc_calls": 25,
+                "requested_bytes": 31046,
+                "size_overflows": 0
+              },
+              "application": {
+                "future_polls": 34,
+                "future_wakes": 15,
+                "spin_calls": 19
+              },
+              "resources": {
+                "involuntary_context_switches": 164,
+                "process_max_rss_kib": 26368,
+                "system_cpu_ns": 1179000,
+                "user_cpu_ns": 330000,
+                "voluntary_context_switches": 188
+              }
+            },
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 0,
+            "warmup": 1
+          },
+          {
+            "accepted": 6,
+            "canceled": 0,
+            "checksum": 51,
+            "feedback": 6,
+            "index": 1,
+            "iterations": 5,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "aligned_calls": 0,
+                "calloc_calls": 15,
+                "counter_overflows": 0,
+                "failed_allocations": 0,
+                "free_calls": 586,
+                "malloc_calls": 620,
+                "null_free_calls": 0,
+                "realloc_calls": 25,
+                "requested_bytes": 32470,
+                "size_overflows": 0
+              },
+              "application": {
+                "future_polls": 40,
+                "future_wakes": 15,
+                "spin_calls": 25
+              },
+              "resources": {
+                "involuntary_context_switches": 176,
+                "process_max_rss_kib": 26368,
+                "system_cpu_ns": 1222000,
+                "user_cpu_ns": 327000,
+                "voluntary_context_switches": 214
+              }
+            },
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 6,
+            "warmup": 1
+          }
+        ],
+        "feedback": 12,
+        "implementation": "r2r",
+        "iterations": 10,
+        "received": 12,
+        "results": 12,
+        "rmw": "rmw_fastrtps_cpp",
+        "role": "echo",
+        "scenario": 0,
+        "warmup": 2
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "cpp",
+      "repetition": 0,
+      "scenario": 0,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_fastrtps_cpp",
+        "scenario": 0,
+        "iterations": 10,
+        "warmup": 2,
+        "received": 12,
+        "checksum": 66,
+        "accepted": 12,
+        "feedback": 12,
+        "results": 12,
+        "canceled": 0,
+        "elapsed_ns": 2313029,
+        "roundtrips_per_second": 4323.34,
+        "rtt_ns_p50": 229379,
+        "rtt_ns_p95": 248527,
+        "rtt_ns_p99": 248527,
+        "rtt_ns_max": 248527,
+        "acceptance_ns_p50": 79936,
+        "cancellation_ns_p50": null,
+        "cohort_process_elapsed_ns": 122501269,
+        "cohort_config": {
+          "count": 2,
+          "iterations": 5,
+          "warmup": 1,
+          "maximum_retained_goals": 6,
+          "fresh_endpoints": true
+        },
+        "cohorts": [
+          {
+            "index": 0,
+            "sequence_offset": 0,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 0,
+            "checksum": 15,
+            "elapsed_ns": 1187832,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "malloc_calls": 633,
+                "calloc_calls": 0,
+                "realloc_calls": 5,
+                "free_calls": 633,
+                "null_free_calls": 0,
+                "aligned_calls": 0,
+                "failed_allocations": 0,
+                "requested_bytes": 33308,
+                "size_overflows": 0,
+                "counter_overflows": 0
+              },
+              "resources": {
+                "user_cpu_ns": 504000,
+                "system_cpu_ns": 437000,
+                "voluntary_context_switches": 62,
+                "involuntary_context_switches": 15,
+                "process_max_rss_kib": 26624
+              },
+              "application": {
+                "future_polls": 55,
+                "spin_calls": 40,
+                "future_wakes": null
+              }
+            }
+          },
+          {
+            "index": 1,
+            "sequence_offset": 6,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 0,
+            "checksum": 51,
+            "elapsed_ns": 1125197,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "malloc_calls": 634,
+                "calloc_calls": 0,
+                "realloc_calls": 5,
+                "free_calls": 634,
+                "null_free_calls": 0,
+                "aligned_calls": 0,
+                "failed_allocations": 0,
+                "requested_bytes": 33324,
+                "size_overflows": 0,
+                "counter_overflows": 0
+              },
+              "resources": {
+                "user_cpu_ns": 882000,
+                "system_cpu_ns": 0,
+                "voluntary_context_switches": 55,
+                "involuntary_context_switches": 10,
+                "process_max_rss_kib": 26624
+              },
+              "application": {
+                "future_polls": 55,
+                "spin_calls": 40,
+                "future_wakes": null
+              }
+            }
+          }
+        ]
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_fastrtps_cpp",
+        "scenario": 0,
+        "iterations": 10,
+        "warmup": 2,
+        "received": 12,
+        "checksum": 66,
+        "accepted": 12,
+        "feedback": 12,
+        "results": 12,
+        "canceled": 0,
+        "cohort_process_elapsed_ns": 122266269,
+        "cohort_config": {
+          "count": 2,
+          "iterations": 5,
+          "warmup": 1,
+          "maximum_retained_goals": 6,
+          "fresh_endpoints": true
+        },
+        "cohorts": [
+          {
+            "index": 0,
+            "sequence_offset": 0,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 0,
+            "checksum": 15,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "malloc_calls": 530,
+                "calloc_calls": 15,
+                "realloc_calls": 25,
+                "free_calls": 495,
+                "null_free_calls": 0,
+                "aligned_calls": 0,
+                "failed_allocations": 0,
+                "requested_bytes": 28390,
+                "size_overflows": 0,
+                "counter_overflows": 0
+              },
+              "resources": {
+                "user_cpu_ns": 879000,
+                "system_cpu_ns": 0,
+                "voluntary_context_switches": 45,
+                "involuntary_context_switches": 0,
+                "process_max_rss_kib": 26112
+              },
+              "application": {
+                "future_polls": 0,
+                "spin_calls": 25,
+                "future_wakes": null
+              }
+            }
+          },
+          {
+            "index": 1,
+            "sequence_offset": 6,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 0,
+            "checksum": 51,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "malloc_calls": 530,
+                "calloc_calls": 15,
+                "realloc_calls": 25,
+                "free_calls": 495,
+                "null_free_calls": 0,
+                "aligned_calls": 0,
+                "failed_allocations": 0,
+                "requested_bytes": 28390,
+                "size_overflows": 0,
+                "counter_overflows": 0
+              },
+              "resources": {
+                "user_cpu_ns": 836000,
+                "system_cpu_ns": 0,
+                "voluntary_context_switches": 45,
+                "involuntary_context_switches": 0,
+                "process_max_rss_kib": 26368
+              },
+              "application": {
+                "future_polls": 0,
+                "spin_calls": 25,
+                "future_wakes": null
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "ping_language": "rust",
+      "echo_language": "cpp",
+      "repetition": 0,
+      "scenario": 0,
+      "ping": {
+        "acceptance_ns_p50": 113663,
+        "accepted": 12,
+        "canceled": 0,
+        "cancellation_ns_p50": null,
+        "checksum": 66,
+        "cohort_config": {
+          "count": 2,
+          "fresh_endpoints": true,
+          "iterations": 5,
+          "maximum_retained_goals": 6,
+          "warmup": 1
+        },
+        "cohort_process_elapsed_ns": 134032913,
+        "cohorts": [
+          {
+            "accepted": 6,
+            "canceled": 0,
+            "checksum": 15,
+            "elapsed_ns": 1787111,
+            "feedback": 6,
+            "index": 0,
+            "iterations": 5,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "aligned_calls": 0,
+                "calloc_calls": 17,
+                "counter_overflows": 0,
+                "failed_allocations": 0,
+                "free_calls": 833,
+                "malloc_calls": 811,
+                "null_free_calls": 0,
+                "realloc_calls": 5,
+                "requested_bytes": 89736,
+                "size_overflows": 0
+              },
+              "application": {
+                "future_polls": 63,
+                "future_wakes": 25,
+                "spin_calls": 38
+              },
+              "resources": {
+                "involuntary_context_switches": 98,
+                "process_max_rss_kib": 27136,
+                "system_cpu_ns": 1081000,
+                "user_cpu_ns": 322000,
+                "voluntary_context_switches": 158
+              }
+            },
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 0,
+            "warmup": 1
+          },
+          {
+            "accepted": 6,
+            "canceled": 0,
+            "checksum": 51,
+            "elapsed_ns": 1101450,
+            "feedback": 6,
+            "index": 1,
+            "iterations": 5,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "aligned_calls": 0,
+                "calloc_calls": 15,
+                "counter_overflows": 0,
+                "failed_allocations": 0,
+                "free_calls": 693,
+                "malloc_calls": 678,
+                "null_free_calls": 0,
+                "realloc_calls": 5,
+                "requested_bytes": 37163,
+                "size_overflows": 0
+              },
+              "application": {
+                "future_polls": 50,
+                "future_wakes": 20,
+                "spin_calls": 25
+              },
+              "resources": {
+                "involuntary_context_switches": 13,
+                "process_max_rss_kib": 27648,
+                "system_cpu_ns": 0,
+                "user_cpu_ns": 856000,
+                "voluntary_context_switches": 58
+              }
+            },
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 6,
+            "warmup": 1
+          }
+        ],
+        "elapsed_ns": 2888561,
+        "feedback": 12,
+        "implementation": "r2r",
+        "iterations": 10,
+        "received": 12,
+        "results": 12,
+        "rmw": "rmw_fastrtps_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 3461.931390751312,
+        "rtt_ns_max": 396284,
+        "rtt_ns_p50": 337440,
+        "rtt_ns_p95": 396284,
+        "rtt_ns_p99": 396284,
+        "scenario": 0,
+        "warmup": 2
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_fastrtps_cpp",
+        "scenario": 0,
+        "iterations": 10,
+        "warmup": 2,
+        "received": 12,
+        "checksum": 66,
+        "accepted": 12,
+        "feedback": 12,
+        "results": 12,
+        "canceled": 0,
+        "cohort_process_elapsed_ns": 142646821,
+        "cohort_config": {
+          "count": 2,
+          "iterations": 5,
+          "warmup": 1,
+          "maximum_retained_goals": 6,
+          "fresh_endpoints": true
+        },
+        "cohorts": [
+          {
+            "index": 0,
+            "sequence_offset": 0,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 0,
+            "checksum": 15,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "malloc_calls": 555,
+                "calloc_calls": 15,
+                "realloc_calls": 25,
+                "free_calls": 521,
+                "null_free_calls": 0,
+                "aligned_calls": 0,
+                "failed_allocations": 0,
+                "requested_bytes": 29710,
+                "size_overflows": 0,
+                "counter_overflows": 0
+              },
+              "resources": {
+                "user_cpu_ns": 1524000,
+                "system_cpu_ns": 0,
+                "voluntary_context_switches": 203,
+                "involuntary_context_switches": 164,
+                "process_max_rss_kib": 26368
+              },
+              "application": {
+                "future_polls": 0,
+                "spin_calls": 25,
+                "future_wakes": null
+              }
+            }
+          },
+          {
+            "index": 1,
+            "sequence_offset": 6,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 0,
+            "checksum": 51,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "malloc_calls": 530,
+                "calloc_calls": 15,
+                "realloc_calls": 25,
+                "free_calls": 495,
+                "null_free_calls": 0,
+                "aligned_calls": 0,
+                "failed_allocations": 0,
+                "requested_bytes": 28390,
+                "size_overflows": 0,
+                "counter_overflows": 0
+              },
+              "resources": {
+                "user_cpu_ns": 600000,
+                "system_cpu_ns": 248000,
+                "voluntary_context_switches": 45,
+                "involuntary_context_switches": 0,
+                "process_max_rss_kib": 26368
+              },
+              "application": {
+                "future_polls": 0,
+                "spin_calls": 25,
+                "future_wakes": null
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "rust",
+      "repetition": 0,
+      "scenario": 0,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_fastrtps_cpp",
+        "scenario": 0,
+        "iterations": 10,
+        "warmup": 2,
+        "received": 12,
+        "checksum": 66,
+        "accepted": 12,
+        "feedback": 12,
+        "results": 12,
+        "canceled": 0,
+        "elapsed_ns": 2558157,
+        "roundtrips_per_second": 3909.06,
+        "rtt_ns_p50": 245959,
+        "rtt_ns_p95": 323140,
+        "rtt_ns_p99": 323140,
+        "rtt_ns_max": 323140,
+        "acceptance_ns_p50": 92069,
+        "cancellation_ns_p50": null,
+        "cohort_process_elapsed_ns": 208239037,
+        "cohort_config": {
+          "count": 2,
+          "iterations": 5,
+          "warmup": 1,
+          "maximum_retained_goals": 6,
+          "fresh_endpoints": true
+        },
+        "cohorts": [
+          {
+            "index": 0,
+            "sequence_offset": 0,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 0,
+            "checksum": 15,
+            "elapsed_ns": 1260264,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "malloc_calls": 639,
+                "calloc_calls": 0,
+                "realloc_calls": 5,
+                "free_calls": 639,
+                "null_free_calls": 0,
+                "aligned_calls": 0,
+                "failed_allocations": 0,
+                "requested_bytes": 33484,
+                "size_overflows": 0,
+                "counter_overflows": 0
+              },
+              "resources": {
+                "user_cpu_ns": 959000,
+                "system_cpu_ns": 14000,
+                "voluntary_context_switches": 68,
+                "involuntary_context_switches": 26,
+                "process_max_rss_kib": 26368
+              },
+              "application": {
+                "future_polls": 55,
+                "spin_calls": 40,
+                "future_wakes": null
+              }
+            }
+          },
+          {
+            "index": 1,
+            "sequence_offset": 6,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 0,
+            "checksum": 51,
+            "elapsed_ns": 1297893,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "malloc_calls": 676,
+                "calloc_calls": 0,
+                "realloc_calls": 5,
+                "free_calls": 676,
+                "null_free_calls": 0,
+                "aligned_calls": 0,
+                "failed_allocations": 0,
+                "requested_bytes": 35280,
+                "size_overflows": 0,
+                "counter_overflows": 0
+              },
+              "resources": {
+                "user_cpu_ns": 640000,
+                "system_cpu_ns": 343000,
+                "voluntary_context_switches": 67,
+                "involuntary_context_switches": 11,
+                "process_max_rss_kib": 26624
+              },
+              "application": {
+                "future_polls": 56,
+                "spin_calls": 41,
+                "future_wakes": null
+              }
+            }
+          }
+        ]
+      },
+      "echo": {
+        "accepted": 12,
+        "canceled": 0,
+        "checksum": 66,
+        "cohort_config": {
+          "count": 2,
+          "fresh_endpoints": true,
+          "iterations": 5,
+          "maximum_retained_goals": 6,
+          "warmup": 1
+        },
+        "cohort_process_elapsed_ns": 201101657,
+        "cohorts": [
+          {
+            "accepted": 6,
+            "canceled": 0,
+            "checksum": 15,
+            "feedback": 6,
+            "index": 0,
+            "iterations": 5,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "aligned_calls": 0,
+                "calloc_calls": 15,
+                "counter_overflows": 0,
+                "failed_allocations": 0,
+                "free_calls": 567,
+                "malloc_calls": 602,
+                "null_free_calls": 0,
+                "realloc_calls": 25,
+                "requested_bytes": 31878,
+                "size_overflows": 0
+              },
+              "application": {
+                "future_polls": 36,
+                "future_wakes": 15,
+                "spin_calls": 21
+              },
+              "resources": {
+                "involuntary_context_switches": 0,
+                "process_max_rss_kib": 27136,
+                "system_cpu_ns": 0,
+                "user_cpu_ns": 879000,
+                "voluntary_context_switches": 47
+              }
+            },
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 0,
+            "warmup": 1
+          },
+          {
+            "accepted": 6,
+            "canceled": 0,
+            "checksum": 51,
+            "feedback": 6,
+            "index": 1,
+            "iterations": 5,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "aligned_calls": 0,
+                "calloc_calls": 15,
+                "counter_overflows": 0,
+                "failed_allocations": 0,
+                "free_calls": 569,
+                "malloc_calls": 604,
+                "null_free_calls": 0,
+                "realloc_calls": 25,
+                "requested_bytes": 32022,
+                "size_overflows": 0
+              },
+              "application": {
+                "future_polls": 36,
+                "future_wakes": 15,
+                "spin_calls": 21
+              },
+              "resources": {
+                "involuntary_context_switches": 34,
+                "process_max_rss_kib": 27392,
+                "system_cpu_ns": 0,
+                "user_cpu_ns": 981000,
+                "voluntary_context_switches": 77
+              }
+            },
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 6,
+            "warmup": 1
+          }
+        ],
+        "feedback": 12,
+        "implementation": "r2r",
+        "iterations": 10,
+        "received": 12,
+        "results": 12,
+        "rmw": "rmw_fastrtps_cpp",
+        "role": "echo",
+        "scenario": 0,
+        "warmup": 2
+      }
+    },
+    {
+      "ping_language": "rust",
+      "echo_language": "rust",
+      "repetition": 0,
+      "scenario": 1,
+      "ping": {
+        "acceptance_ns_p50": 83376,
+        "accepted": 12,
+        "canceled": 12,
+        "cancellation_ns_p50": 72528,
+        "checksum": 66,
+        "cohort_config": {
+          "count": 2,
+          "fresh_endpoints": true,
+          "iterations": 5,
+          "maximum_retained_goals": 6,
+          "warmup": 1
+        },
+        "cohort_process_elapsed_ns": 132280020,
+        "cohorts": [
+          {
+            "accepted": 6,
+            "canceled": 6,
+            "checksum": 15,
+            "elapsed_ns": 1569115,
+            "feedback": 6,
+            "index": 0,
+            "iterations": 5,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "aligned_calls": 0,
+                "calloc_calls": 25,
+                "counter_overflows": 0,
+                "failed_allocations": 0,
+                "free_calls": 810,
+                "malloc_calls": 785,
+                "null_free_calls": 0,
+                "realloc_calls": 5,
+                "requested_bytes": 43184,
+                "size_overflows": 0
+              },
+              "application": {
+                "future_polls": 46,
+                "future_wakes": 20,
+                "spin_calls": 21
+              },
+              "resources": {
+                "involuntary_context_switches": 1,
+                "process_max_rss_kib": 26368,
+                "system_cpu_ns": 0,
+                "user_cpu_ns": 947000,
+                "voluntary_context_switches": 56
+              }
+            },
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 0,
+            "warmup": 1
+          },
+          {
+            "accepted": 6,
+            "canceled": 6,
+            "checksum": 51,
+            "elapsed_ns": 1507205,
+            "feedback": 6,
+            "index": 1,
+            "iterations": 5,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "aligned_calls": 0,
+                "calloc_calls": 25,
+                "counter_overflows": 0,
+                "failed_allocations": 0,
+                "free_calls": 815,
+                "malloc_calls": 790,
+                "null_free_calls": 0,
+                "realloc_calls": 5,
+                "requested_bytes": 43192,
+                "size_overflows": 0
+              },
+              "application": {
+                "future_polls": 46,
+                "future_wakes": 20,
+                "spin_calls": 21
+              },
+              "resources": {
+                "involuntary_context_switches": 7,
+                "process_max_rss_kib": 26880,
+                "system_cpu_ns": 0,
+                "user_cpu_ns": 921000,
+                "voluntary_context_switches": 64
+              }
+            },
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 6,
+            "warmup": 1
+          }
+        ],
+        "elapsed_ns": 3076320,
+        "feedback": 12,
+        "implementation": "r2r",
+        "iterations": 10,
+        "received": 12,
+        "results": 12,
+        "rmw": "rmw_fastrtps_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 3250.637124876476,
+        "rtt_ns_max": 324067,
+        "rtt_ns_p50": 308414,
+        "rtt_ns_p95": 324067,
+        "rtt_ns_p99": 324067,
+        "scenario": 1,
+        "warmup": 2
+      },
+      "echo": {
+        "accepted": 12,
+        "canceled": 12,
+        "checksum": 66,
+        "cohort_config": {
+          "count": 2,
+          "fresh_endpoints": true,
+          "iterations": 5,
+          "maximum_retained_goals": 6,
+          "warmup": 1
+        },
+        "cohort_process_elapsed_ns": 133695549,
+        "cohorts": [
+          {
+            "accepted": 6,
+            "canceled": 6,
+            "checksum": 15,
+            "feedback": 6,
+            "index": 0,
+            "iterations": 5,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "aligned_calls": 0,
+                "calloc_calls": 30,
+                "counter_overflows": 0,
+                "failed_allocations": 0,
+                "free_calls": 688,
+                "malloc_calls": 708,
+                "null_free_calls": 0,
+                "realloc_calls": 30,
+                "requested_bytes": 43291,
+                "size_overflows": 0
+              },
+              "application": {
+                "future_polls": 35,
+                "future_wakes": 15,
+                "spin_calls": 25
+              },
+              "resources": {
+                "involuntary_context_switches": 0,
+                "process_max_rss_kib": 27136,
+                "system_cpu_ns": 0,
+                "user_cpu_ns": 1021000,
+                "voluntary_context_switches": 55
+              }
+            },
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 0,
+            "warmup": 1
+          },
+          {
+            "accepted": 6,
+            "canceled": 6,
+            "checksum": 51,
+            "feedback": 6,
+            "index": 1,
+            "iterations": 5,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "aligned_calls": 0,
+                "calloc_calls": 30,
+                "counter_overflows": 0,
+                "failed_allocations": 0,
+                "free_calls": 692,
+                "malloc_calls": 712,
+                "null_free_calls": 0,
+                "realloc_calls": 30,
+                "requested_bytes": 43403,
+                "size_overflows": 0
+              },
+              "application": {
+                "future_polls": 36,
+                "future_wakes": 15,
+                "spin_calls": 26
+              },
+              "resources": {
+                "involuntary_context_switches": 0,
+                "process_max_rss_kib": 27136,
+                "system_cpu_ns": 0,
+                "user_cpu_ns": 967000,
+                "voluntary_context_switches": 57
+              }
+            },
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 6,
+            "warmup": 1
+          }
+        ],
+        "feedback": 12,
+        "implementation": "r2r",
+        "iterations": 10,
+        "received": 12,
+        "results": 12,
+        "rmw": "rmw_fastrtps_cpp",
+        "role": "echo",
+        "scenario": 1,
+        "warmup": 2
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "cpp",
+      "repetition": 0,
+      "scenario": 1,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_fastrtps_cpp",
+        "scenario": 1,
+        "iterations": 10,
+        "warmup": 2,
+        "received": 12,
+        "checksum": 66,
+        "accepted": 12,
+        "feedback": 12,
+        "results": 12,
+        "canceled": 12,
+        "elapsed_ns": 2993642,
+        "roundtrips_per_second": 3340.41,
+        "rtt_ns_p50": 307641,
+        "rtt_ns_p95": 367754,
+        "rtt_ns_p99": 367754,
+        "rtt_ns_max": 367754,
+        "acceptance_ns_p50": 103397,
+        "cancellation_ns_p50": 91302,
+        "cohort_process_elapsed_ns": 197962103,
+        "cohort_config": {
+          "count": 2,
+          "iterations": 5,
+          "warmup": 1,
+          "maximum_retained_goals": 6,
+          "fresh_endpoints": true
+        },
+        "cohorts": [
+          {
+            "index": 0,
+            "sequence_offset": 0,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 6,
+            "checksum": 15,
+            "elapsed_ns": 1352655,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "malloc_calls": 671,
+                "calloc_calls": 0,
+                "realloc_calls": 9,
+                "free_calls": 671,
+                "null_free_calls": 0,
+                "aligned_calls": 0,
+                "failed_allocations": 0,
+                "requested_bytes": 36004,
+                "size_overflows": 0,
+                "counter_overflows": 0
+              },
+              "resources": {
+                "user_cpu_ns": 1064000,
+                "system_cpu_ns": 0,
+                "voluntary_context_switches": 67,
+                "involuntary_context_switches": 21,
+                "process_max_rss_kib": 26624
+              },
+              "application": {
+                "future_polls": 56,
+                "spin_calls": 41,
+                "future_wakes": null
+              }
+            }
+          },
+          {
+            "index": 1,
+            "sequence_offset": 6,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 6,
+            "checksum": 51,
+            "elapsed_ns": 1640987,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "malloc_calls": 779,
+                "calloc_calls": 0,
+                "realloc_calls": 5,
+                "free_calls": 780,
+                "null_free_calls": 0,
+                "aligned_calls": 0,
+                "failed_allocations": 0,
+                "requested_bytes": 40768,
+                "size_overflows": 0,
+                "counter_overflows": 0
+              },
+              "resources": {
+                "user_cpu_ns": 223000,
+                "system_cpu_ns": 1150000,
+                "voluntary_context_switches": 149,
+                "involuntary_context_switches": 102,
+                "process_max_rss_kib": 26624
+              },
+              "application": {
+                "future_polls": 57,
+                "spin_calls": 46,
+                "future_wakes": null
+              }
+            }
+          }
+        ]
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_fastrtps_cpp",
+        "scenario": 1,
+        "iterations": 10,
+        "warmup": 2,
+        "received": 12,
+        "checksum": 66,
+        "accepted": 12,
+        "feedback": 12,
+        "results": 12,
+        "canceled": 12,
+        "cohort_process_elapsed_ns": 197131546,
+        "cohort_config": {
+          "count": 2,
+          "iterations": 5,
+          "warmup": 1,
+          "maximum_retained_goals": 6,
+          "fresh_endpoints": true
+        },
+        "cohorts": [
+          {
+            "index": 0,
+            "sequence_offset": 0,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 6,
+            "checksum": 15,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "malloc_calls": 560,
+                "calloc_calls": 25,
+                "realloc_calls": 30,
+                "free_calls": 535,
+                "null_free_calls": 0,
+                "aligned_calls": 0,
+                "failed_allocations": 0,
+                "requested_bytes": 31430,
+                "size_overflows": 0,
+                "counter_overflows": 0
+              },
+              "resources": {
+                "user_cpu_ns": 669000,
+                "system_cpu_ns": 277000,
+                "voluntary_context_switches": 47,
+                "involuntary_context_switches": 0,
+                "process_max_rss_kib": 26368
+              },
+              "application": {
+                "future_polls": 0,
+                "spin_calls": 25,
+                "future_wakes": null
+              }
+            }
+          },
+          {
+            "index": 1,
+            "sequence_offset": 6,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 6,
+            "checksum": 51,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "malloc_calls": 581,
+                "calloc_calls": 25,
+                "realloc_calls": 30,
+                "free_calls": 556,
+                "null_free_calls": 0,
+                "aligned_calls": 0,
+                "failed_allocations": 0,
+                "requested_bytes": 32462,
+                "size_overflows": 0,
+                "counter_overflows": 0
+              },
+              "resources": {
+                "user_cpu_ns": 1057000,
+                "system_cpu_ns": 0,
+                "voluntary_context_switches": 59,
+                "involuntary_context_switches": 5,
+                "process_max_rss_kib": 26624
+              },
+              "application": {
+                "future_polls": 0,
+                "spin_calls": 25,
+                "future_wakes": null
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "ping_language": "rust",
+      "echo_language": "cpp",
+      "repetition": 0,
+      "scenario": 1,
+      "ping": {
+        "acceptance_ns_p50": 92420,
+        "accepted": 12,
+        "canceled": 12,
+        "cancellation_ns_p50": 85196,
+        "checksum": 66,
+        "cohort_config": {
+          "count": 2,
+          "fresh_endpoints": true,
+          "iterations": 5,
+          "maximum_retained_goals": 6,
+          "warmup": 1
+        },
+        "cohort_process_elapsed_ns": 133457112,
+        "cohorts": [
+          {
+            "accepted": 6,
+            "canceled": 6,
+            "checksum": 15,
+            "elapsed_ns": 1396406,
+            "feedback": 6,
+            "index": 0,
+            "iterations": 5,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "aligned_calls": 0,
+                "calloc_calls": 23,
+                "counter_overflows": 0,
+                "failed_allocations": 0,
+                "free_calls": 770,
+                "malloc_calls": 747,
+                "null_free_calls": 0,
+                "realloc_calls": 6,
+                "requested_bytes": 41147,
+                "size_overflows": 0
+              },
+              "application": {
+                "future_polls": 49,
+                "future_wakes": 18,
+                "spin_calls": 24
+              },
+              "resources": {
+                "involuntary_context_switches": 48,
+                "process_max_rss_kib": 27136,
+                "system_cpu_ns": 57000,
+                "user_cpu_ns": 1108000,
+                "voluntary_context_switches": 97
+              }
+            },
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 0,
+            "warmup": 1
+          },
+          {
+            "accepted": 6,
+            "canceled": 6,
+            "checksum": 51,
+            "elapsed_ns": 1258480,
+            "feedback": 6,
+            "index": 1,
+            "iterations": 5,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "aligned_calls": 0,
+                "calloc_calls": 24,
+                "counter_overflows": 0,
+                "failed_allocations": 0,
+                "free_calls": 802,
+                "malloc_calls": 778,
+                "null_free_calls": 0,
+                "realloc_calls": 5,
+                "requested_bytes": 42106,
+                "size_overflows": 0
+              },
+              "application": {
+                "future_polls": 49,
+                "future_wakes": 19,
+                "spin_calls": 24
+              },
+              "resources": {
+                "involuntary_context_switches": 36,
+                "process_max_rss_kib": 27648,
+                "system_cpu_ns": 969000,
+                "user_cpu_ns": 60000,
+                "voluntary_context_switches": 86
+              }
+            },
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 6,
+            "warmup": 1
+          }
+        ],
+        "elapsed_ns": 2654886,
+        "feedback": 12,
+        "implementation": "r2r",
+        "iterations": 10,
+        "received": 12,
+        "results": 12,
+        "rmw": "rmw_fastrtps_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 3766.640074187743,
+        "rtt_ns_max": 306707,
+        "rtt_ns_p50": 273918,
+        "rtt_ns_p95": 306707,
+        "rtt_ns_p99": 306707,
+        "scenario": 1,
+        "warmup": 2
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_fastrtps_cpp",
+        "scenario": 1,
+        "iterations": 10,
+        "warmup": 2,
+        "received": 12,
+        "checksum": 66,
+        "accepted": 12,
+        "feedback": 12,
+        "results": 12,
+        "canceled": 12,
+        "cohort_process_elapsed_ns": 141472765,
+        "cohort_config": {
+          "count": 2,
+          "iterations": 5,
+          "warmup": 1,
+          "maximum_retained_goals": 6,
+          "fresh_endpoints": true
+        },
+        "cohorts": [
+          {
+            "index": 0,
+            "sequence_offset": 0,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 6,
+            "checksum": 15,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "malloc_calls": 575,
+                "calloc_calls": 25,
+                "realloc_calls": 30,
+                "free_calls": 550,
+                "null_free_calls": 0,
+                "aligned_calls": 0,
+                "failed_allocations": 0,
+                "requested_bytes": 32150,
+                "size_overflows": 0,
+                "counter_overflows": 0
+              },
+              "resources": {
+                "user_cpu_ns": 581000,
+                "system_cpu_ns": 472000,
+                "voluntary_context_switches": 53,
+                "involuntary_context_switches": 0,
+                "process_max_rss_kib": 26112
+              },
+              "application": {
+                "future_polls": 0,
+                "spin_calls": 25,
+                "future_wakes": null
+              }
+            }
+          },
+          {
+            "index": 1,
+            "sequence_offset": 6,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 6,
+            "checksum": 51,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "malloc_calls": 570,
+                "calloc_calls": 25,
+                "realloc_calls": 30,
+                "free_calls": 545,
+                "null_free_calls": 0,
+                "aligned_calls": 0,
+                "failed_allocations": 0,
+                "requested_bytes": 31910,
+                "size_overflows": 0,
+                "counter_overflows": 0
+              },
+              "resources": {
+                "user_cpu_ns": 943000,
+                "system_cpu_ns": 0,
+                "voluntary_context_switches": 51,
+                "involuntary_context_switches": 0,
+                "process_max_rss_kib": 26112
+              },
+              "application": {
+                "future_polls": 0,
+                "spin_calls": 25,
+                "future_wakes": null
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "rust",
+      "repetition": 0,
+      "scenario": 1,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_fastrtps_cpp",
+        "scenario": 1,
+        "iterations": 10,
+        "warmup": 2,
+        "received": 12,
+        "checksum": 66,
+        "accepted": 12,
+        "feedback": 12,
+        "results": 12,
+        "canceled": 12,
+        "elapsed_ns": 3078573,
+        "roundtrips_per_second": 3248.26,
+        "rtt_ns_p50": 305927,
+        "rtt_ns_p95": 333147,
+        "rtt_ns_p99": 333147,
+        "rtt_ns_max": 333147,
+        "acceptance_ns_p50": 83344,
+        "cancellation_ns_p50": 75281,
+        "cohort_process_elapsed_ns": 208521327,
+        "cohort_config": {
+          "count": 2,
+          "iterations": 5,
+          "warmup": 1,
+          "maximum_retained_goals": 6,
+          "fresh_endpoints": true
+        },
+        "cohorts": [
+          {
+            "index": 0,
+            "sequence_offset": 0,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 6,
+            "checksum": 15,
+            "elapsed_ns": 1577027,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "malloc_calls": 736,
+                "calloc_calls": 0,
+                "realloc_calls": 5,
+                "free_calls": 736,
+                "null_free_calls": 0,
+                "aligned_calls": 0,
+                "failed_allocations": 0,
+                "requested_bytes": 38732,
+                "size_overflows": 0,
+                "counter_overflows": 0
+              },
+              "resources": {
+                "user_cpu_ns": 1047000,
+                "system_cpu_ns": 0,
+                "voluntary_context_switches": 65,
+                "involuntary_context_switches": 8,
+                "process_max_rss_kib": 26368
+              },
+              "application": {
+                "future_polls": 60,
+                "spin_calls": 45,
+                "future_wakes": null
+              }
+            }
+          },
+          {
+            "index": 1,
+            "sequence_offset": 6,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 6,
+            "checksum": 51,
+            "elapsed_ns": 1501546,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "malloc_calls": 731,
+                "calloc_calls": 0,
+                "realloc_calls": 5,
+                "free_calls": 731,
+                "null_free_calls": 0,
+                "aligned_calls": 0,
+                "failed_allocations": 0,
+                "requested_bytes": 38492,
+                "size_overflows": 0,
+                "counter_overflows": 0
+              },
+              "resources": {
+                "user_cpu_ns": 973000,
+                "system_cpu_ns": 8000,
+                "voluntary_context_switches": 58,
+                "involuntary_context_switches": 4,
+                "process_max_rss_kib": 26624
+              },
+              "application": {
+                "future_polls": 60,
+                "spin_calls": 45,
+                "future_wakes": null
+              }
+            }
+          }
+        ]
+      },
+      "echo": {
+        "accepted": 12,
+        "canceled": 12,
+        "checksum": 66,
+        "cohort_config": {
+          "count": 2,
+          "fresh_endpoints": true,
+          "iterations": 5,
+          "maximum_retained_goals": 6,
+          "warmup": 1
+        },
+        "cohort_process_elapsed_ns": 202018078,
+        "cohorts": [
+          {
+            "accepted": 6,
+            "canceled": 6,
+            "checksum": 15,
+            "feedback": 6,
+            "index": 0,
+            "iterations": 5,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "aligned_calls": 0,
+                "calloc_calls": 30,
+                "counter_overflows": 0,
+                "failed_allocations": 0,
+                "free_calls": 693,
+                "malloc_calls": 713,
+                "null_free_calls": 0,
+                "realloc_calls": 30,
+                "requested_bytes": 43475,
+                "size_overflows": 0
+              },
+              "application": {
+                "future_polls": 36,
+                "future_wakes": 15,
+                "spin_calls": 26
+              },
+              "resources": {
+                "involuntary_context_switches": 0,
+                "process_max_rss_kib": 27136,
+                "system_cpu_ns": 358000,
+                "user_cpu_ns": 645000,
+                "voluntary_context_switches": 57
+              }
+            },
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 0,
+            "warmup": 1
+          },
+          {
+            "accepted": 6,
+            "canceled": 6,
+            "checksum": 51,
+            "feedback": 6,
+            "index": 1,
+            "iterations": 5,
+            "probe": {
+              "abi": 1,
+              "allocations": {
+                "aligned_calls": 0,
+                "calloc_calls": 30,
+                "counter_overflows": 0,
+                "failed_allocations": 0,
+                "free_calls": 689,
+                "malloc_calls": 709,
+                "null_free_calls": 0,
+                "realloc_calls": 30,
+                "requested_bytes": 43363,
+                "size_overflows": 0
+              },
+              "application": {
+                "future_polls": 35,
+                "future_wakes": 15,
+                "spin_calls": 25
+              },
+              "resources": {
+                "involuntary_context_switches": 1,
+                "process_max_rss_kib": 27392,
+                "system_cpu_ns": 316000,
+                "user_cpu_ns": 632000,
+                "voluntary_context_switches": 56
+              }
+            },
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 6,
+            "warmup": 1
+          }
+        ],
+        "feedback": 12,
+        "implementation": "r2r",
+        "iterations": 10,
+        "received": 12,
+        "results": 12,
+        "rmw": "rmw_fastrtps_cpp",
+        "role": "echo",
+        "scenario": 1,
+        "warmup": 2
+      }
+    }
+  ],
+  "summary": [
+    {
+      "scenario": 0,
+      "ping_language": "rust",
+      "echo_language": "rust",
+      "rtt_ns_p50": 352972,
+      "rtt_ns_p95": 453656,
+      "rtt_ns_p99": 453656,
+      "roundtrips_per_second": 2789.6383903340143,
+      "acceptance_ns_p50": 124873
+    },
+    {
+      "scenario": 0,
+      "ping_language": "cpp",
+      "echo_language": "cpp",
+      "rtt_ns_p50": 229379,
+      "rtt_ns_p95": 248527,
+      "rtt_ns_p99": 248527,
+      "roundtrips_per_second": 4323.34,
+      "acceptance_ns_p50": 79936
+    },
+    {
+      "scenario": 0,
+      "ping_language": "rust",
+      "echo_language": "cpp",
+      "rtt_ns_p50": 337440,
+      "rtt_ns_p95": 396284,
+      "rtt_ns_p99": 396284,
+      "roundtrips_per_second": 3461.931390751312,
+      "acceptance_ns_p50": 113663
+    },
+    {
+      "scenario": 0,
+      "ping_language": "cpp",
+      "echo_language": "rust",
+      "rtt_ns_p50": 245959,
+      "rtt_ns_p95": 323140,
+      "rtt_ns_p99": 323140,
+      "roundtrips_per_second": 3909.06,
+      "acceptance_ns_p50": 92069
+    },
+    {
+      "scenario": 1,
+      "ping_language": "rust",
+      "echo_language": "rust",
+      "rtt_ns_p50": 308414,
+      "rtt_ns_p95": 324067,
+      "rtt_ns_p99": 324067,
+      "roundtrips_per_second": 3250.637124876476,
+      "acceptance_ns_p50": 83376,
+      "cancellation_ns_p50": 72528
+    },
+    {
+      "scenario": 1,
+      "ping_language": "cpp",
+      "echo_language": "cpp",
+      "rtt_ns_p50": 307641,
+      "rtt_ns_p95": 367754,
+      "rtt_ns_p99": 367754,
+      "roundtrips_per_second": 3340.41,
+      "acceptance_ns_p50": 103397,
+      "cancellation_ns_p50": 91302
+    },
+    {
+      "scenario": 1,
+      "ping_language": "rust",
+      "echo_language": "cpp",
+      "rtt_ns_p50": 273918,
+      "rtt_ns_p95": 306707,
+      "rtt_ns_p99": 306707,
+      "roundtrips_per_second": 3766.640074187743,
+      "acceptance_ns_p50": 92420,
+      "cancellation_ns_p50": 85196
+    },
+    {
+      "scenario": 1,
+      "ping_language": "cpp",
+      "echo_language": "rust",
+      "rtt_ns_p50": 305927,
+      "rtt_ns_p95": 333147,
+      "rtt_ns_p99": 333147,
+      "roundtrips_per_second": 3248.26,
+      "acceptance_ns_p50": 83344,
+      "cancellation_ns_p50": 75281
+    }
+  ]
+}

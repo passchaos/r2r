@@ -1,0 +1,870 @@
+[
+  {
+    "distro": "humble",
+    "mode": "plain",
+    "report": "compat-humble-plain.json",
+    "records": 8,
+    "measured_samples": 80,
+    "endpoint_counts": [
+      {
+        "scenario": 0,
+        "ping_language": "rust",
+        "echo_language": "rust",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 0,
+        "ping_language": "cpp",
+        "echo_language": "cpp",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 0,
+        "ping_language": "rust",
+        "echo_language": "cpp",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 0,
+        "ping_language": "cpp",
+        "echo_language": "rust",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 1,
+        "ping_language": "rust",
+        "echo_language": "rust",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 1,
+        "ping_language": "cpp",
+        "echo_language": "cpp",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 1,
+        "ping_language": "rust",
+        "echo_language": "cpp",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 1,
+        "ping_language": "cpp",
+        "echo_language": "rust",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        }
+      }
+    ]
+  },
+  {
+    "distro": "humble",
+    "mode": "probe",
+    "report": "compat-humble-probe.json",
+    "records": 8,
+    "measured_samples": 80,
+    "endpoint_counts": [
+      {
+        "scenario": 0,
+        "ping_language": "rust",
+        "echo_language": "rust",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 0,
+        "ping_language": "cpp",
+        "echo_language": "cpp",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 0,
+        "ping_language": "rust",
+        "echo_language": "cpp",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 0,
+        "ping_language": "cpp",
+        "echo_language": "rust",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 1,
+        "ping_language": "rust",
+        "echo_language": "rust",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 1,
+        "ping_language": "cpp",
+        "echo_language": "cpp",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 1,
+        "ping_language": "rust",
+        "echo_language": "cpp",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 1,
+        "ping_language": "cpp",
+        "echo_language": "rust",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        }
+      }
+    ]
+  },
+  {
+    "distro": "kilted",
+    "mode": "plain",
+    "report": "compat-kilted-plain.json",
+    "records": 8,
+    "measured_samples": 80,
+    "endpoint_counts": [
+      {
+        "scenario": 0,
+        "ping_language": "rust",
+        "echo_language": "rust",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 0,
+        "ping_language": "cpp",
+        "echo_language": "cpp",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 0,
+        "ping_language": "rust",
+        "echo_language": "cpp",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 0,
+        "ping_language": "cpp",
+        "echo_language": "rust",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 1,
+        "ping_language": "rust",
+        "echo_language": "rust",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 1,
+        "ping_language": "cpp",
+        "echo_language": "cpp",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 1,
+        "ping_language": "rust",
+        "echo_language": "cpp",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 1,
+        "ping_language": "cpp",
+        "echo_language": "rust",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        }
+      }
+    ]
+  },
+  {
+    "distro": "kilted",
+    "mode": "probe",
+    "report": "compat-kilted-probe.json",
+    "records": 8,
+    "measured_samples": 80,
+    "endpoint_counts": [
+      {
+        "scenario": 0,
+        "ping_language": "rust",
+        "echo_language": "rust",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 0,
+        "ping_language": "cpp",
+        "echo_language": "cpp",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 0,
+        "ping_language": "rust",
+        "echo_language": "cpp",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 0,
+        "ping_language": "cpp",
+        "echo_language": "rust",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 0,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 1,
+        "ping_language": "rust",
+        "echo_language": "rust",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 1,
+        "ping_language": "cpp",
+        "echo_language": "cpp",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 1,
+        "ping_language": "rust",
+        "echo_language": "cpp",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        }
+      },
+      {
+        "scenario": 1,
+        "ping_language": "cpp",
+        "echo_language": "rust",
+        "repetition": 0,
+        "ping": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        },
+        "echo": {
+          "iterations": 10,
+          "warmup": 2,
+          "received": 12,
+          "accepted": 12,
+          "feedback": 12,
+          "results": 12,
+          "canceled": 12,
+          "checksum": 66
+        }
+      }
+    ]
+  }
+]

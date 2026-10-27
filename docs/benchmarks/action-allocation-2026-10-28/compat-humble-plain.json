@@ -1,0 +1,1070 @@
+{
+  "metadata": {
+    "started_utc": "2026-10-27T19:08:29.864903+00:00",
+    "cpu_ping": 24,
+    "cpu_echo": 25,
+    "domain_id": 194,
+    "rmw": "rmw_fastrtps_cpp",
+    "ros_distro": "humble",
+    "platform": "Linux-6.8.0-147-generic-x86_64-with-glibc2.35",
+    "cpu_model": "13th Gen Intel(R) Core(TM) i9-13900K",
+    "git_head": "b416c0fef51b0c4e372c574406a0516e0e9938a0",
+    "working_tree_dirty": true,
+    "rustc": "rustc 1.85.0 (4d91de4e4 2025-02-17)",
+    "cxx": "c++ (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+    "binary_sha256": {
+      "rust": "e3ed84b159875150202d870955038ce70ce1c18933d316664f3de1a2d14ff330",
+      "cpp": "0aebaf6a3cf58c94ad13dd154e5595a667901d7c687ae86c46b10eef8366d219"
+    },
+    "qos": "goal/result/cancel/feedback: reliable volatile KeepLast(16); status native defaults; result retention 10 s",
+    "transport": "independent processes, localhost DDS, intra-process disabled",
+    "scheduling": "single-threaded executor/spin loop; 100 ms wait cap; one goal in flight",
+    "rtt_boundary": "before goal submission through acceptance/result observer setup, execution-start readiness service, exactly one validated feedback, feedback acknowledgement or cancellation, and terminal result retrieval",
+    "echo_work": "defer execution until readiness confirmation, validate order, publish exact three-element feedback/result; scenario 1 accepts cancellation before Canceled result",
+    "throughput_boundary": "complete action lifecycle including validation; excludes discovery/warmup/control rejection protocol",
+    "iterations": 10,
+    "warmup": 2,
+    "repetitions": 1,
+    "workload": "action",
+    "action_scenarios": [
+      0,
+      1
+    ],
+    "source_sha256": {
+      "r2r/benches/action_roundtrip.rs": "f4a1401dd58e6955f9e55995c8c640ba59966e924c89f82fb021b1c136f82d5d",
+      "tools/bench_ros/action.cpp": "1cf2dbe8365804787aefccf31e05e5911e81f32778c0da13f80d65cac5f30ce1",
+      "tools/bench_ros/transport.py": "317f6c22fc99f6f900694035a2205c213fd3a49724e821273b100f0bc6605622"
+    },
+    "action_cohorts": 2,
+    "iterations_per_cohort": 5,
+    "warmup_per_cohort": 1,
+    "cohort_boundary": "new action/ready endpoints for each cohort; shared process/node/context; two rejected controls after all results; setup/discovery/warmup/teardown excluded from aggregated elapsed time",
+    "instrumentation": {
+      "enabled": false,
+      "latency_evidence": true
+    },
+    "acceptance_boundary": "before submission through accepted goal retrieval and sending the result request; no execution-start handshake",
+    "cancellation_boundary": "before cancel request through accepted cancel response retrieval",
+    "auxiliary_protocol": "AddTwoInts /ready handshake phase 0 confirms client observation readiness; success phase 1 confirms feedback consumption before completing the result; cancellation instead confirms feedback consumption via the cancel request",
+    "completion_protocol": "control goals -1 and -2 rejected after all measured terminal results complete",
+    "scenario_labels": {
+      "0": "success",
+      "1": "cancel"
+    },
+    "ros_packages": {
+      "rclcpp": "16.0.21",
+      "rcl": "5.3.13",
+      "rmw": "6.1.4",
+      "example_interfaces": "0.9.3",
+      "rmw_fastrtps_cpp": "6.2.10",
+      "rclcpp_action": "16.0.21",
+      "rcl_action": "5.3.13"
+    },
+    "samples_artifact": {
+      "file": "compat-humble-plain.samples.json.gz",
+      "sha256": "6c6765c9bc6770046d81f252f701873527a835c56de3a7bcaa1d55feb2087cbf",
+      "record_count": 8
+    },
+    "completed_utc": "2026-10-27T19:08:31.277412+00:00"
+  },
+  "records": [
+    {
+      "ping_language": "rust",
+      "echo_language": "rust",
+      "repetition": 0,
+      "scenario": 0,
+      "ping": {
+        "acceptance_ns_p50": 66710,
+        "accepted": 12,
+        "canceled": 0,
+        "cancellation_ns_p50": null,
+        "checksum": 66,
+        "cohort_config": {
+          "count": 2,
+          "fresh_endpoints": true,
+          "iterations": 5,
+          "maximum_retained_goals": 6,
+          "warmup": 1
+        },
+        "cohort_process_elapsed_ns": 189343330,
+        "cohorts": [
+          {
+            "accepted": 6,
+            "canceled": 0,
+            "checksum": 15,
+            "elapsed_ns": 976407,
+            "feedback": 6,
+            "index": 0,
+            "iterations": 5,
+            "probe": null,
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 0,
+            "warmup": 1
+          },
+          {
+            "accepted": 6,
+            "canceled": 0,
+            "checksum": 51,
+            "elapsed_ns": 947415,
+            "feedback": 6,
+            "index": 1,
+            "iterations": 5,
+            "probe": null,
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 6,
+            "warmup": 1
+          }
+        ],
+        "elapsed_ns": 1923822,
+        "feedback": 12,
+        "implementation": "r2r",
+        "iterations": 10,
+        "received": 12,
+        "results": 12,
+        "rmw": "rmw_fastrtps_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 5197.986092268411,
+        "rtt_ns_max": 233581,
+        "rtt_ns_p50": 187311,
+        "rtt_ns_p95": 233581,
+        "rtt_ns_p99": 233581,
+        "scenario": 0,
+        "warmup": 2
+      },
+      "echo": {
+        "accepted": 12,
+        "canceled": 0,
+        "checksum": 66,
+        "cohort_config": {
+          "count": 2,
+          "fresh_endpoints": true,
+          "iterations": 5,
+          "maximum_retained_goals": 6,
+          "warmup": 1
+        },
+        "cohort_process_elapsed_ns": 189731945,
+        "cohorts": [
+          {
+            "accepted": 6,
+            "canceled": 0,
+            "checksum": 15,
+            "feedback": 6,
+            "index": 0,
+            "iterations": 5,
+            "probe": null,
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 0,
+            "warmup": 1
+          },
+          {
+            "accepted": 6,
+            "canceled": 0,
+            "checksum": 51,
+            "feedback": 6,
+            "index": 1,
+            "iterations": 5,
+            "probe": null,
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 6,
+            "warmup": 1
+          }
+        ],
+        "feedback": 12,
+        "implementation": "r2r",
+        "iterations": 10,
+        "received": 12,
+        "results": 12,
+        "rmw": "rmw_fastrtps_cpp",
+        "role": "echo",
+        "scenario": 0,
+        "warmup": 2
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "cpp",
+      "repetition": 0,
+      "scenario": 0,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_fastrtps_cpp",
+        "scenario": 0,
+        "iterations": 10,
+        "warmup": 2,
+        "received": 12,
+        "checksum": 66,
+        "accepted": 12,
+        "feedback": 12,
+        "results": 12,
+        "canceled": 0,
+        "elapsed_ns": 3018519,
+        "roundtrips_per_second": 3312.88,
+        "rtt_ns_p50": 307978,
+        "rtt_ns_p95": 319395,
+        "rtt_ns_p99": 319395,
+        "rtt_ns_max": 319395,
+        "acceptance_ns_p50": 104445,
+        "cancellation_ns_p50": null,
+        "cohort_process_elapsed_ns": 11983343,
+        "cohort_config": {
+          "count": 2,
+          "iterations": 5,
+          "warmup": 1,
+          "maximum_retained_goals": 6,
+          "fresh_endpoints": true
+        },
+        "cohorts": [
+          {
+            "index": 0,
+            "sequence_offset": 0,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 0,
+            "checksum": 15,
+            "elapsed_ns": 1449555
+          },
+          {
+            "index": 1,
+            "sequence_offset": 6,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 0,
+            "checksum": 51,
+            "elapsed_ns": 1568964
+          }
+        ]
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_fastrtps_cpp",
+        "scenario": 0,
+        "iterations": 10,
+        "warmup": 2,
+        "received": 12,
+        "checksum": 66,
+        "accepted": 12,
+        "feedback": 12,
+        "results": 12,
+        "canceled": 0,
+        "cohort_process_elapsed_ns": 11866334,
+        "cohort_config": {
+          "count": 2,
+          "iterations": 5,
+          "warmup": 1,
+          "maximum_retained_goals": 6,
+          "fresh_endpoints": true
+        },
+        "cohorts": [
+          {
+            "index": 0,
+            "sequence_offset": 0,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 0,
+            "checksum": 15
+          },
+          {
+            "index": 1,
+            "sequence_offset": 6,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 0,
+            "checksum": 51
+          }
+        ]
+      }
+    },
+    {
+      "ping_language": "rust",
+      "echo_language": "cpp",
+      "repetition": 0,
+      "scenario": 0,
+      "ping": {
+        "acceptance_ns_p50": 92094,
+        "accepted": 12,
+        "canceled": 0,
+        "cancellation_ns_p50": null,
+        "checksum": 66,
+        "cohort_config": {
+          "count": 2,
+          "fresh_endpoints": true,
+          "iterations": 5,
+          "maximum_retained_goals": 6,
+          "warmup": 1
+        },
+        "cohort_process_elapsed_ns": 33985887,
+        "cohorts": [
+          {
+            "accepted": 6,
+            "canceled": 0,
+            "checksum": 15,
+            "elapsed_ns": 1343546,
+            "feedback": 6,
+            "index": 0,
+            "iterations": 5,
+            "probe": null,
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 0,
+            "warmup": 1
+          },
+          {
+            "accepted": 6,
+            "canceled": 0,
+            "checksum": 51,
+            "elapsed_ns": 958824,
+            "feedback": 6,
+            "index": 1,
+            "iterations": 5,
+            "probe": null,
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 6,
+            "warmup": 1
+          }
+        ],
+        "elapsed_ns": 2302370,
+        "feedback": 12,
+        "implementation": "r2r",
+        "iterations": 10,
+        "received": 12,
+        "results": 12,
+        "rmw": "rmw_fastrtps_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 4343.3505474793365,
+        "rtt_ns_max": 312065,
+        "rtt_ns_p50": 232401,
+        "rtt_ns_p95": 312065,
+        "rtt_ns_p99": 312065,
+        "scenario": 0,
+        "warmup": 2
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_fastrtps_cpp",
+        "scenario": 0,
+        "iterations": 10,
+        "warmup": 2,
+        "received": 12,
+        "checksum": 66,
+        "accepted": 12,
+        "feedback": 12,
+        "results": 12,
+        "canceled": 0,
+        "cohort_process_elapsed_ns": 38693736,
+        "cohort_config": {
+          "count": 2,
+          "iterations": 5,
+          "warmup": 1,
+          "maximum_retained_goals": 6,
+          "fresh_endpoints": true
+        },
+        "cohorts": [
+          {
+            "index": 0,
+            "sequence_offset": 0,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 0,
+            "checksum": 15
+          },
+          {
+            "index": 1,
+            "sequence_offset": 6,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 0,
+            "checksum": 51
+          }
+        ]
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "rust",
+      "repetition": 0,
+      "scenario": 0,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_fastrtps_cpp",
+        "scenario": 0,
+        "iterations": 10,
+        "warmup": 2,
+        "received": 12,
+        "checksum": 66,
+        "accepted": 12,
+        "feedback": 12,
+        "results": 12,
+        "canceled": 0,
+        "elapsed_ns": 5882256,
+        "roundtrips_per_second": 1700.03,
+        "rtt_ns_p50": 234059,
+        "rtt_ns_p95": 3686251,
+        "rtt_ns_p99": 3686251,
+        "rtt_ns_max": 3686251,
+        "acceptance_ns_p50": 100124,
+        "cancellation_ns_p50": null,
+        "cohort_process_elapsed_ns": 24286947,
+        "cohort_config": {
+          "count": 2,
+          "iterations": 5,
+          "warmup": 1,
+          "maximum_retained_goals": 6,
+          "fresh_endpoints": true
+        },
+        "cohorts": [
+          {
+            "index": 0,
+            "sequence_offset": 0,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 0,
+            "checksum": 15,
+            "elapsed_ns": 4713973
+          },
+          {
+            "index": 1,
+            "sequence_offset": 6,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 0,
+            "checksum": 51,
+            "elapsed_ns": 1168283
+          }
+        ]
+      },
+      "echo": {
+        "accepted": 12,
+        "canceled": 0,
+        "checksum": 66,
+        "cohort_config": {
+          "count": 2,
+          "fresh_endpoints": true,
+          "iterations": 5,
+          "maximum_retained_goals": 6,
+          "warmup": 1
+        },
+        "cohort_process_elapsed_ns": 20121343,
+        "cohorts": [
+          {
+            "accepted": 6,
+            "canceled": 0,
+            "checksum": 15,
+            "feedback": 6,
+            "index": 0,
+            "iterations": 5,
+            "probe": null,
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 0,
+            "warmup": 1
+          },
+          {
+            "accepted": 6,
+            "canceled": 0,
+            "checksum": 51,
+            "feedback": 6,
+            "index": 1,
+            "iterations": 5,
+            "probe": null,
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 6,
+            "warmup": 1
+          }
+        ],
+        "feedback": 12,
+        "implementation": "r2r",
+        "iterations": 10,
+        "received": 12,
+        "results": 12,
+        "rmw": "rmw_fastrtps_cpp",
+        "role": "echo",
+        "scenario": 0,
+        "warmup": 2
+      }
+    },
+    {
+      "ping_language": "rust",
+      "echo_language": "rust",
+      "repetition": 0,
+      "scenario": 1,
+      "ping": {
+        "acceptance_ns_p50": 69774,
+        "accepted": 12,
+        "canceled": 12,
+        "cancellation_ns_p50": 63654,
+        "checksum": 66,
+        "cohort_config": {
+          "count": 2,
+          "fresh_endpoints": true,
+          "iterations": 5,
+          "maximum_retained_goals": 6,
+          "warmup": 1
+        },
+        "cohort_process_elapsed_ns": 31364729,
+        "cohorts": [
+          {
+            "accepted": 6,
+            "canceled": 6,
+            "checksum": 15,
+            "elapsed_ns": 1383740,
+            "feedback": 6,
+            "index": 0,
+            "iterations": 5,
+            "probe": null,
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 0,
+            "warmup": 1
+          },
+          {
+            "accepted": 6,
+            "canceled": 6,
+            "checksum": 51,
+            "elapsed_ns": 1348692,
+            "feedback": 6,
+            "index": 1,
+            "iterations": 5,
+            "probe": null,
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 6,
+            "warmup": 1
+          }
+        ],
+        "elapsed_ns": 2732432,
+        "feedback": 12,
+        "implementation": "r2r",
+        "iterations": 10,
+        "received": 12,
+        "results": 12,
+        "rmw": "rmw_fastrtps_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 3659.743408070173,
+        "rtt_ns_max": 303089,
+        "rtt_ns_p50": 273607,
+        "rtt_ns_p95": 303089,
+        "rtt_ns_p99": 303089,
+        "scenario": 1,
+        "warmup": 2
+      },
+      "echo": {
+        "accepted": 12,
+        "canceled": 12,
+        "checksum": 66,
+        "cohort_config": {
+          "count": 2,
+          "fresh_endpoints": true,
+          "iterations": 5,
+          "maximum_retained_goals": 6,
+          "warmup": 1
+        },
+        "cohort_process_elapsed_ns": 32177626,
+        "cohorts": [
+          {
+            "accepted": 6,
+            "canceled": 6,
+            "checksum": 15,
+            "feedback": 6,
+            "index": 0,
+            "iterations": 5,
+            "probe": null,
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 0,
+            "warmup": 1
+          },
+          {
+            "accepted": 6,
+            "canceled": 6,
+            "checksum": 51,
+            "feedback": 6,
+            "index": 1,
+            "iterations": 5,
+            "probe": null,
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 6,
+            "warmup": 1
+          }
+        ],
+        "feedback": 12,
+        "implementation": "r2r",
+        "iterations": 10,
+        "received": 12,
+        "results": 12,
+        "rmw": "rmw_fastrtps_cpp",
+        "role": "echo",
+        "scenario": 1,
+        "warmup": 2
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "cpp",
+      "repetition": 0,
+      "scenario": 1,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_fastrtps_cpp",
+        "scenario": 1,
+        "iterations": 10,
+        "warmup": 2,
+        "received": 12,
+        "checksum": 66,
+        "accepted": 12,
+        "feedback": 12,
+        "results": 12,
+        "canceled": 12,
+        "elapsed_ns": 3152892,
+        "roundtrips_per_second": 3171.69,
+        "rtt_ns_p50": 315307,
+        "rtt_ns_p95": 355046,
+        "rtt_ns_p99": 355046,
+        "rtt_ns_max": 355046,
+        "acceptance_ns_p50": 97376,
+        "cancellation_ns_p50": 91838,
+        "cohort_process_elapsed_ns": 11461152,
+        "cohort_config": {
+          "count": 2,
+          "iterations": 5,
+          "warmup": 1,
+          "maximum_retained_goals": 6,
+          "fresh_endpoints": true
+        },
+        "cohorts": [
+          {
+            "index": 0,
+            "sequence_offset": 0,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 6,
+            "checksum": 15,
+            "elapsed_ns": 1662543
+          },
+          {
+            "index": 1,
+            "sequence_offset": 6,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 6,
+            "checksum": 51,
+            "elapsed_ns": 1490349
+          }
+        ]
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_fastrtps_cpp",
+        "scenario": 1,
+        "iterations": 10,
+        "warmup": 2,
+        "received": 12,
+        "checksum": 66,
+        "accepted": 12,
+        "feedback": 12,
+        "results": 12,
+        "canceled": 12,
+        "cohort_process_elapsed_ns": 11855237,
+        "cohort_config": {
+          "count": 2,
+          "iterations": 5,
+          "warmup": 1,
+          "maximum_retained_goals": 6,
+          "fresh_endpoints": true
+        },
+        "cohorts": [
+          {
+            "index": 0,
+            "sequence_offset": 0,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 6,
+            "checksum": 15
+          },
+          {
+            "index": 1,
+            "sequence_offset": 6,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 6,
+            "checksum": 51
+          }
+        ]
+      }
+    },
+    {
+      "ping_language": "rust",
+      "echo_language": "cpp",
+      "repetition": 0,
+      "scenario": 1,
+      "ping": {
+        "acceptance_ns_p50": 85979,
+        "accepted": 12,
+        "canceled": 12,
+        "cancellation_ns_p50": 65868,
+        "checksum": 66,
+        "cohort_config": {
+          "count": 2,
+          "fresh_endpoints": true,
+          "iterations": 5,
+          "maximum_retained_goals": 6,
+          "warmup": 1
+        },
+        "cohort_process_elapsed_ns": 20385597,
+        "cohorts": [
+          {
+            "accepted": 6,
+            "canceled": 6,
+            "checksum": 15,
+            "elapsed_ns": 1308785,
+            "feedback": 6,
+            "index": 0,
+            "iterations": 5,
+            "probe": null,
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 0,
+            "warmup": 1
+          },
+          {
+            "accepted": 6,
+            "canceled": 6,
+            "checksum": 51,
+            "elapsed_ns": 1053852,
+            "feedback": 6,
+            "index": 1,
+            "iterations": 5,
+            "probe": null,
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 6,
+            "warmup": 1
+          }
+        ],
+        "elapsed_ns": 2362637,
+        "feedback": 12,
+        "implementation": "r2r",
+        "iterations": 10,
+        "received": 12,
+        "results": 12,
+        "rmw": "rmw_fastrtps_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 4232.558789183441,
+        "rtt_ns_max": 288455,
+        "rtt_ns_p50": 243559,
+        "rtt_ns_p95": 288455,
+        "rtt_ns_p99": 288455,
+        "scenario": 1,
+        "warmup": 2
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_fastrtps_cpp",
+        "scenario": 1,
+        "iterations": 10,
+        "warmup": 2,
+        "received": 12,
+        "checksum": 66,
+        "accepted": 12,
+        "feedback": 12,
+        "results": 12,
+        "canceled": 12,
+        "cohort_process_elapsed_ns": 25560527,
+        "cohort_config": {
+          "count": 2,
+          "iterations": 5,
+          "warmup": 1,
+          "maximum_retained_goals": 6,
+          "fresh_endpoints": true
+        },
+        "cohorts": [
+          {
+            "index": 0,
+            "sequence_offset": 0,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 6,
+            "checksum": 15
+          },
+          {
+            "index": 1,
+            "sequence_offset": 6,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 6,
+            "checksum": 51
+          }
+        ]
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "rust",
+      "repetition": 0,
+      "scenario": 1,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_fastrtps_cpp",
+        "scenario": 1,
+        "iterations": 10,
+        "warmup": 2,
+        "received": 12,
+        "checksum": 66,
+        "accepted": 12,
+        "feedback": 12,
+        "results": 12,
+        "canceled": 12,
+        "elapsed_ns": 3408135,
+        "roundtrips_per_second": 2934.16,
+        "rtt_ns_p50": 343636,
+        "rtt_ns_p95": 525465,
+        "rtt_ns_p99": 525465,
+        "rtt_ns_max": 525465,
+        "acceptance_ns_p50": 74501,
+        "cancellation_ns_p50": 83341,
+        "cohort_process_elapsed_ns": 22001753,
+        "cohort_config": {
+          "count": 2,
+          "iterations": 5,
+          "warmup": 1,
+          "maximum_retained_goals": 6,
+          "fresh_endpoints": true
+        },
+        "cohorts": [
+          {
+            "index": 0,
+            "sequence_offset": 0,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 6,
+            "checksum": 15,
+            "elapsed_ns": 1471027
+          },
+          {
+            "index": 1,
+            "sequence_offset": 6,
+            "iterations": 5,
+            "warmup": 1,
+            "received": 6,
+            "accepted": 6,
+            "feedback": 6,
+            "results": 6,
+            "canceled": 6,
+            "checksum": 51,
+            "elapsed_ns": 1937108
+          }
+        ]
+      },
+      "echo": {
+        "accepted": 12,
+        "canceled": 12,
+        "checksum": 66,
+        "cohort_config": {
+          "count": 2,
+          "fresh_endpoints": true,
+          "iterations": 5,
+          "maximum_retained_goals": 6,
+          "warmup": 1
+        },
+        "cohort_process_elapsed_ns": 18076067,
+        "cohorts": [
+          {
+            "accepted": 6,
+            "canceled": 6,
+            "checksum": 15,
+            "feedback": 6,
+            "index": 0,
+            "iterations": 5,
+            "probe": null,
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 0,
+            "warmup": 1
+          },
+          {
+            "accepted": 6,
+            "canceled": 6,
+            "checksum": 51,
+            "feedback": 6,
+            "index": 1,
+            "iterations": 5,
+            "probe": null,
+            "received": 6,
+            "results": 6,
+            "sequence_offset": 6,
+            "warmup": 1
+          }
+        ],
+        "feedback": 12,
+        "implementation": "r2r",
+        "iterations": 10,
+        "received": 12,
+        "results": 12,
+        "rmw": "rmw_fastrtps_cpp",
+        "role": "echo",
+        "scenario": 1,
+        "warmup": 2
+      }
+    }
+  ],
+  "summary": [
+    {
+      "scenario": 0,
+      "ping_language": "rust",
+      "echo_language": "rust",
+      "rtt_ns_p50": 187311,
+      "rtt_ns_p95": 233581,
+      "rtt_ns_p99": 233581,
+      "roundtrips_per_second": 5197.986092268411,
+      "acceptance_ns_p50": 66710
+    },
+    {
+      "scenario": 0,
+      "ping_language": "cpp",
+      "echo_language": "cpp",
+      "rtt_ns_p50": 307978,
+      "rtt_ns_p95": 319395,
+      "rtt_ns_p99": 319395,
+      "roundtrips_per_second": 3312.88,
+      "acceptance_ns_p50": 104445
+    },
+    {
+      "scenario": 0,
+      "ping_language": "rust",
+      "echo_language": "cpp",
+      "rtt_ns_p50": 232401,
+      "rtt_ns_p95": 312065,
+      "rtt_ns_p99": 312065,
+      "roundtrips_per_second": 4343.3505474793365,
+      "acceptance_ns_p50": 92094
+    },
+    {
+      "scenario": 0,
+      "ping_language": "cpp",
+      "echo_language": "rust",
+      "rtt_ns_p50": 234059,
+      "rtt_ns_p95": 3686251,
+      "rtt_ns_p99": 3686251,
+      "roundtrips_per_second": 1700.03,
+      "acceptance_ns_p50": 100124
+    },
+    {
+      "scenario": 1,
+      "ping_language": "rust",
+      "echo_language": "rust",
+      "rtt_ns_p50": 273607,
+      "rtt_ns_p95": 303089,
+      "rtt_ns_p99": 303089,
+      "roundtrips_per_second": 3659.743408070173,
+      "acceptance_ns_p50": 69774,
+      "cancellation_ns_p50": 63654
+    },
+    {
+      "scenario": 1,
+      "ping_language": "cpp",
+      "echo_language": "cpp",
+      "rtt_ns_p50": 315307,
+      "rtt_ns_p95": 355046,
+      "rtt_ns_p99": 355046,
+      "roundtrips_per_second": 3171.69,
+      "acceptance_ns_p50": 97376,
+      "cancellation_ns_p50": 91838
+    },
+    {
+      "scenario": 1,
+      "ping_language": "rust",
+      "echo_language": "cpp",
+      "rtt_ns_p50": 243559,
+      "rtt_ns_p95": 288455,
+      "rtt_ns_p99": 288455,
+      "roundtrips_per_second": 4232.558789183441,
+      "acceptance_ns_p50": 85979,
+      "cancellation_ns_p50": 65868
+    },
+    {
+      "scenario": 1,
+      "ping_language": "cpp",
+      "echo_language": "rust",
+      "rtt_ns_p50": 343636,
+      "rtt_ns_p95": 525465,
+      "rtt_ns_p99": 525465,
+      "roundtrips_per_second": 2934.16,
+      "acceptance_ns_p50": 74501,
+      "cancellation_ns_p50": 83341
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "compiler": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+  "platform": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+  "libc": [
+    "glibc",
+    "2.39"
+  ],
+  "compile_flags": [
+    "-std=c11",
+    "-O2",
+    "-g",
+    "-Wall",
+    "-Wextra",
+    "-Werror"
+  ],
+  "source_sha256": {
+    "probe.c": "fb969b91fc6e8f4755e4932f89044c1d35dc1dc5b5a9ff2175735e877bcb6394",
+    "probe.h": "1e158b3e377055c8b746728a4920a74523bbf0958054d04c926d79becbb8fe8a",
+    "test_probe.c": "bd75690ec777447a2a5610fde88b2ff9f86fcb956bbae0f07cbdb0d3d75790c3",
+    "test_dynamic.c": "6b534c7783849ad8a8526fbe7f8d8d5e12a9ce3cde2dd01c2b63dd4bd44277c2"
+  },
+  "oracles": [
+    {
+      "mode": "normal",
+      "passed": true,
+      "stdout": "probe allocation/content/alignment/failure/epoch/thread/reset oracles passed\n",
+      "library_sha256": "85283f1184b00c227e02c8c56eec9283051265a779511c39c6c8cf4272baa59e",
+      "executable_sha256": "5b943a1f3370321d26ddd2a69256ce8324038c19dc86d3d2302a801481e1a5a5"
+    },
+    {
+      "mode": "epoch_testing",
+      "passed": true,
+      "stdout": "probe allocation/content/alignment/failure/epoch/thread/reset oracles passed\n",
+      "library_sha256": "8c54c4813b786cb9401de0b494f1be6f574d5148b7e77be963b405775924a7e1",
+      "executable_sha256": "58d71b702a7cf93eb8cc1d3353a811f95709ee1e343480941a60cc8ed20a971a"
+    }
+  ]
+}

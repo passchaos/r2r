@@ -72,6 +72,12 @@ the 5% regression limit. Large-cohort gains are retained as experimental evidenc
 promoted runtime behavior. Next routing work needs a stable short-cohort measurement design
 and workload-level profiling; production retains the native decoder at `d45e261`.
 
+[Action allocation/resource evidence](benchmarks/action-allocation-2026-10-28/README.md) now
+records process-wide allocation entry points, requested bytes, CPU/context switches and
+application polling/wakes under both RMWs. Fresh endpoint cohorts retain full protocol oracles
+and native settings. A native status-iterator candidate was removed after a short-tail failure;
+same-binary A/A also fails the 5% limit, so improved tail precision remains a prerequisite.
+
 ## Reproducible local gates
 
 With the ROS environment sourced and the repository-pinned Rust toolchain:

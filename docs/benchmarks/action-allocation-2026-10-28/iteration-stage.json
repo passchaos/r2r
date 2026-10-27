@@ -1,0 +1,273 @@
+{
+  "metadata": {
+    "completed_utc": "2026-10-27T18:48:15.128211+00:00",
+    "cpu": 24,
+    "rustc": "rustc 1.85.0 (4d91de4e4 2025-02-17)",
+    "binary_sha256": "c089e5d7f034c2d0999869b1a4c892f50414ea722ebd111b426432e1168a11d6",
+    "source_sha256": "eedb864bec8811d7077eeb69ff00ad2964ee6d597c2d6d98f129b41bb4fcf074",
+    "repetitions": 5,
+    "boundary": "validated native batch to fully consumed UUID/status checksum; native fixture setup and map routing excluded; output Vec allocation/destruction included in baseline mode"
+  },
+  "records": [
+    {
+      "elapsed_ns": 91900015,
+      "iterations": 5000000,
+      "mode": "updates_vec",
+      "ns_per_op": 18.380003,
+      "statuses": 1,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 23857304,
+      "iterations": 5000000,
+      "mode": "native_iterator",
+      "ns_per_op": 4.7714608,
+      "statuses": 1,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 91853830,
+      "iterations": 5000000,
+      "mode": "updates_vec",
+      "ns_per_op": 18.370766,
+      "statuses": 1,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 23858711,
+      "iterations": 5000000,
+      "mode": "native_iterator",
+      "ns_per_op": 4.7717422,
+      "statuses": 1,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 89913989,
+      "iterations": 5000000,
+      "mode": "updates_vec",
+      "ns_per_op": 17.9827978,
+      "statuses": 1,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 23856365,
+      "iterations": 5000000,
+      "mode": "native_iterator",
+      "ns_per_op": 4.771273,
+      "statuses": 1,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 91639610,
+      "iterations": 5000000,
+      "mode": "updates_vec",
+      "ns_per_op": 18.327922,
+      "statuses": 1,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 23858849,
+      "iterations": 5000000,
+      "mode": "native_iterator",
+      "ns_per_op": 4.7717698,
+      "statuses": 1,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 91973243,
+      "iterations": 5000000,
+      "mode": "updates_vec",
+      "ns_per_op": 18.3946486,
+      "statuses": 1,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 23854101,
+      "iterations": 5000000,
+      "mode": "native_iterator",
+      "ns_per_op": 4.7708202,
+      "statuses": 1,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 55084556,
+      "iterations": 200000,
+      "mode": "updates_vec",
+      "ns_per_op": 275.42278,
+      "statuses": 128,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 40739210,
+      "iterations": 200000,
+      "mode": "native_iterator",
+      "ns_per_op": 203.69605,
+      "statuses": 128,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 53679305,
+      "iterations": 200000,
+      "mode": "updates_vec",
+      "ns_per_op": 268.396525,
+      "statuses": 128,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 40739917,
+      "iterations": 200000,
+      "mode": "native_iterator",
+      "ns_per_op": 203.699585,
+      "statuses": 128,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 56470473,
+      "iterations": 200000,
+      "mode": "updates_vec",
+      "ns_per_op": 282.352365,
+      "statuses": 128,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 40752664,
+      "iterations": 200000,
+      "mode": "native_iterator",
+      "ns_per_op": 203.76332,
+      "statuses": 128,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 53803747,
+      "iterations": 200000,
+      "mode": "updates_vec",
+      "ns_per_op": 269.018735,
+      "statuses": 128,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 40744173,
+      "iterations": 200000,
+      "mode": "native_iterator",
+      "ns_per_op": 203.720865,
+      "statuses": 128,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 56134044,
+      "iterations": 200000,
+      "mode": "updates_vec",
+      "ns_per_op": 280.67022,
+      "statuses": 128,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 40740974,
+      "iterations": 200000,
+      "mode": "native_iterator",
+      "ns_per_op": 203.70487,
+      "statuses": 128,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 49316359,
+      "iterations": 25000,
+      "mode": "updates_vec",
+      "ns_per_op": 1972.65436,
+      "statuses": 1024,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 38928824,
+      "iterations": 25000,
+      "mode": "native_iterator",
+      "ns_per_op": 1557.15296,
+      "statuses": 1024,
+      "repetition": 0
+    },
+    {
+      "elapsed_ns": 61931368,
+      "iterations": 25000,
+      "mode": "updates_vec",
+      "ns_per_op": 2477.25472,
+      "statuses": 1024,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 38935218,
+      "iterations": 25000,
+      "mode": "native_iterator",
+      "ns_per_op": 1557.40872,
+      "statuses": 1024,
+      "repetition": 1
+    },
+    {
+      "elapsed_ns": 49230092,
+      "iterations": 25000,
+      "mode": "updates_vec",
+      "ns_per_op": 1969.20368,
+      "statuses": 1024,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 38947207,
+      "iterations": 25000,
+      "mode": "native_iterator",
+      "ns_per_op": 1557.88828,
+      "statuses": 1024,
+      "repetition": 2
+    },
+    {
+      "elapsed_ns": 49322522,
+      "iterations": 25000,
+      "mode": "updates_vec",
+      "ns_per_op": 1972.90088,
+      "statuses": 1024,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 38944645,
+      "iterations": 25000,
+      "mode": "native_iterator",
+      "ns_per_op": 1557.7858,
+      "statuses": 1024,
+      "repetition": 3
+    },
+    {
+      "elapsed_ns": 49500176,
+      "iterations": 25000,
+      "mode": "updates_vec",
+      "ns_per_op": 1980.00704,
+      "statuses": 1024,
+      "repetition": 4
+    },
+    {
+      "elapsed_ns": 38946782,
+      "iterations": 25000,
+      "mode": "native_iterator",
+      "ns_per_op": 1557.87128,
+      "statuses": 1024,
+      "repetition": 4
+    }
+  ],
+  "summary": [
+    {
+      "statuses": 1,
+      "updates_vec": 18.370766,
+      "native_iterator": 4.7714608,
+      "ratio": 0.2597311837731753
+    },
+    {
+      "statuses": 128,
+      "updates_vec": 275.42278,
+      "native_iterator": 203.70487,
+      "ratio": 0.7396079220462447
+    },
+    {
+      "statuses": 1024,
+      "updates_vec": 1972.90088,
+      "native_iterator": 1557.7858,
+      "ratio": 0.7895915176438059
+    }
+  ]
+}

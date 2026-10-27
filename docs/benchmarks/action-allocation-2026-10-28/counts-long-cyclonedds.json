@@ -1,0 +1,2521 @@
+{
+  "metadata": {
+    "started_utc": "2026-10-27T18:34:09.092435+00:00",
+    "cpu_ping": 24,
+    "cpu_echo": 25,
+    "domain_id": 180,
+    "rmw": "rmw_cyclonedds_cpp",
+    "ros_distro": "jazzy",
+    "platform": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+    "cpu_model": "13th Gen Intel(R) Core(TM) i9-13900K",
+    "git_head": "b416c0fef51b0c4e372c574406a0516e0e9938a0",
+    "working_tree_dirty": true,
+    "rustc": "rustc 1.85.0 (4d91de4e4 2025-02-17)",
+    "cxx": "c++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "binary_sha256": {
+      "rust": "98e303698c64f65bcc1463bb10fa5580c719137ec63f965ada609fcf62b0d173",
+      "cpp": "547677f0aa734ed161bc087407a044ba9f5a972ea93a902dbca3f3e6c3ead30f"
+    },
+    "qos": "goal/result/cancel/feedback: reliable volatile KeepLast(16); status native defaults; result retention 10 s",
+    "transport": "independent processes, localhost DDS, intra-process disabled",
+    "scheduling": "single-threaded executor/spin loop; 100 ms wait cap; one goal in flight",
+    "rtt_boundary": "before goal submission through acceptance/result observer setup, execution-start readiness service, exactly one validated feedback, feedback acknowledgement or cancellation, and terminal result retrieval",
+    "echo_work": "defer execution until readiness confirmation, validate order, publish exact three-element feedback/result; scenario 1 accepts cancellation before Canceled result",
+    "throughput_boundary": "complete action lifecycle including validation; excludes discovery/warmup/control rejection protocol",
+    "iterations": 1000,
+    "warmup": 50,
+    "repetitions": 3,
+    "workload": "action",
+    "action_scenarios": [
+      0,
+      1
+    ],
+    "source_sha256": {
+      "r2r/benches/action_roundtrip.rs": "02f089fe1ad46d0030892836d3d9ae0346baceb0d46a1aefbc6623d88cda24f8",
+      "tools/bench_ros/action.cpp": "1cf2dbe8365804787aefccf31e05e5911e81f32778c0da13f80d65cac5f30ce1",
+      "tools/bench_ros/transport.py": "0b5d0d77bdd8a09ed3b1e68f4f17e13841e38f0388599bcd1ada672a858144ba"
+    },
+    "action_cohorts": 1,
+    "iterations_per_cohort": 1000,
+    "warmup_per_cohort": 50,
+    "cohort_boundary": "new action/ready endpoints for each cohort; shared process/node/context; two rejected controls after all results; setup/discovery/warmup/teardown excluded from aggregated elapsed time",
+    "instrumentation": {
+      "enabled": true,
+      "latency_evidence": false,
+      "probe_sha256": "7602fb54d07cf65818e4e5da8bab16034cbe181fa2d896e61b7a48bc07fe1592",
+      "scope": "allocation entry points across all process threads in measured windows; CPU/context switches from getrusage; Rust future wakes only; max RSS is process-lifetime high water"
+    },
+    "acceptance_boundary": "before submission through accepted goal retrieval and sending the result request; no execution-start handshake",
+    "cancellation_boundary": "before cancel request through accepted cancel response retrieval",
+    "auxiliary_protocol": "AddTwoInts /ready handshake phase 0 confirms client observation readiness; success phase 1 confirms feedback consumption before completing the result; cancellation instead confirms feedback consumption via the cancel request",
+    "completion_protocol": "control goals -1 and -2 rejected after all measured terminal results complete",
+    "scenario_labels": {
+      "0": "success",
+      "1": "cancel"
+    },
+    "build_manifest": {
+      "workload": "action",
+      "candidate": {
+        "r2r/benches/action_roundtrip.rs": "02f089fe1ad46d0030892836d3d9ae0346baceb0d46a1aefbc6623d88cda24f8",
+        "r2r/src/msg_types.rs": "78725de3e8e6a30c3ac5694babe8cb1b9d68c9496b4ad7bbd1b2756fabf685a5",
+        "r2r/src/nodes.rs": "ab9099fe998434817d631473523f1daebad71839e656ef67e1f50cc958fe761d",
+        "r2r/src/subscribers.rs": "8edd1704d1ec0575c3b285bec7bc4266167e5cea765fb3f484b2ad8640f21904",
+        "r2r/src/publishers.rs": "c8675f0c976cbd13eea43b418cf6ed3b26e5177997621e7cac70d3ae8dbac721",
+        "r2r/src/clients.rs": "ff5392bc6d09f7cf10639fecd8278dbc54224543a832574ace33c34dac44fd34",
+        "r2r/src/services.rs": "a6a0a990fe34f954f8174eddac6ef533c85503b0c16e2c5410993c19de895f5d",
+        "r2r_rcl/src/lib.rs": "d4f9ac1238b8fb29d1f50351e7403a4d13a137ac4f08383b055df1ce67f568f0",
+        "r2r_msg_gen/src/lib.rs": "aa23f531e645db8e42c32f8cf20499de07688d2a7af8f325dc05c57ff4290866",
+        "Cargo.lock": "6a85d01b56d3ce79bb93ee003a0cb5005beb2623797754c0daca55971ebbfb93",
+        "r2r/src/serialization.rs": "a1d697444fdc3ca6dd542e6cdf5514f6653b0f3aa4e69de7250cc6e4c0c57169",
+        "r2r/src/action_common.rs": "d024de33962e9a90db7990b0864bb06dde1a102a284ef61a1af736c9c5069cf8",
+        "r2r/src/action_clients.rs": "9e61cb9b0594ae34e78cabc94b83426157a8a25a569089eac3987669afae8940",
+        "r2r/src/action_clients_untyped.rs": "b1884047514733c921e4b39dca51022941dbd6343e120cffe3a00459ba27be8d",
+        "r2r/src/action_servers.rs": "0a78a6c5d96d70cfbd4c1efd7a901f3b547deba9ef20c4539c6720da8504c8b6",
+        "r2r/src/action_clients/status.rs": "38f068f7dae4613c26db1b26c83bc6ddb46a0d933f5516169e587fe5a899ff2f",
+        "r2r/benches/support/action_driver.rs": "43b2427b44044ecbc5ca77bcae866e9ce2a81dd1b6ae6286be7786e4b048b8c2",
+        "r2r/benches/support/action_report.rs": "238b6e701a619a765b1c82407047a22d17800cf3b3f0062f9f03c15a11e97312"
+      },
+      "baseline": {
+        "r2r/benches/action_roundtrip.rs": "02f089fe1ad46d0030892836d3d9ae0346baceb0d46a1aefbc6623d88cda24f8",
+        "r2r/src/msg_types.rs": "78725de3e8e6a30c3ac5694babe8cb1b9d68c9496b4ad7bbd1b2756fabf685a5",
+        "r2r/src/nodes.rs": "ab9099fe998434817d631473523f1daebad71839e656ef67e1f50cc958fe761d",
+        "r2r/src/subscribers.rs": "8edd1704d1ec0575c3b285bec7bc4266167e5cea765fb3f484b2ad8640f21904",
+        "r2r/src/publishers.rs": "c8675f0c976cbd13eea43b418cf6ed3b26e5177997621e7cac70d3ae8dbac721",
+        "r2r/src/clients.rs": "ff5392bc6d09f7cf10639fecd8278dbc54224543a832574ace33c34dac44fd34",
+        "r2r/src/services.rs": "a6a0a990fe34f954f8174eddac6ef533c85503b0c16e2c5410993c19de895f5d",
+        "r2r_rcl/src/lib.rs": "d4f9ac1238b8fb29d1f50351e7403a4d13a137ac4f08383b055df1ce67f568f0",
+        "r2r_msg_gen/src/lib.rs": "aa23f531e645db8e42c32f8cf20499de07688d2a7af8f325dc05c57ff4290866",
+        "Cargo.lock": "6a85d01b56d3ce79bb93ee003a0cb5005beb2623797754c0daca55971ebbfb93",
+        "r2r/src/serialization.rs": "a1d697444fdc3ca6dd542e6cdf5514f6653b0f3aa4e69de7250cc6e4c0c57169",
+        "r2r/src/action_common.rs": "d024de33962e9a90db7990b0864bb06dde1a102a284ef61a1af736c9c5069cf8",
+        "r2r/src/action_clients.rs": "9e61cb9b0594ae34e78cabc94b83426157a8a25a569089eac3987669afae8940",
+        "r2r/src/action_clients_untyped.rs": "b1884047514733c921e4b39dca51022941dbd6343e120cffe3a00459ba27be8d",
+        "r2r/src/action_servers.rs": "0a78a6c5d96d70cfbd4c1efd7a901f3b547deba9ef20c4539c6720da8504c8b6",
+        "r2r/src/action_clients/status.rs": "38f068f7dae4613c26db1b26c83bc6ddb46a0d933f5516169e587fe5a899ff2f",
+        "r2r/benches/support/action_driver.rs": "43b2427b44044ecbc5ca77bcae866e9ce2a81dd1b6ae6286be7786e4b048b8c2",
+        "r2r/benches/support/action_report.rs": "238b6e701a619a765b1c82407047a22d17800cf3b3f0062f9f03c15a11e97312"
+      },
+      "baseline_ref": "b416c0fef51b0c4e372c574406a0516e0e9938a0",
+      "cpp_source_sha256": {
+        "tools/bench_ros/CMakeLists.txt": "982d6476227765cdc1fccfe1ceb6f7d4668849d1e9441d77a7b6bb6aac9c5ad9",
+        "tools/bench_ros/action.cpp": "1cf2dbe8365804787aefccf31e05e5911e81f32778c0da13f80d65cac5f30ce1",
+        "tools/bench_ros/action_support/probe.hpp": "e2217f152cfc7bd594f41bb3fce08a163f6f995cbfa5e24d913f9278b8846bc5",
+        "tools/bench_ros/action_support/report.hpp": "3c04380c2a9c818576f7557b4ce600ebc7740037571d1c6c0701adf7f4848d3e",
+        "tools/bench_ros/probe/probe.h": "1e158b3e377055c8b746728a4920a74523bbf0958054d04c926d79becbb8fe8a"
+      },
+      "probe_source_sha256": {
+        "tools/bench_ros/probe/probe.c": "fb969b91fc6e8f4755e4932f89044c1d35dc1dc5b5a9ff2175735e877bcb6394",
+        "tools/bench_ros/probe/probe.h": "1e158b3e377055c8b746728a4920a74523bbf0958054d04c926d79becbb8fe8a"
+      },
+      "rustflags": "",
+      "cargo_release_opt_level": "3"
+    },
+    "ros_packages": {
+      "rclcpp": "28.1.22",
+      "rcl": "9.2.11",
+      "rmw": "7.3.4",
+      "example_interfaces": "0.12.1",
+      "rmw_cyclonedds_cpp": "2.2.4",
+      "rclcpp_action": "28.1.22",
+      "rcl_action": "9.2.11"
+    },
+    "samples_artifact": {
+      "file": "counts-long-cyclonedds.samples.json.gz",
+      "sha256": "74775dc26e1593f978b13a86b35ddfa3450d88321fbf55e46b5cedaa25ec2fcc",
+      "record_count": 24
+    },
+    "completed_utc": "2026-10-27T18:34:39.589182+00:00"
+  },
+  "records": [
+    {
+      "ping_language": "rust",
+      "echo_language": "rust",
+      "repetition": 0,
+      "scenario": 0,
+      "ping": {
+        "acceptance_ns_p50": 212073,
+        "accepted": 1050,
+        "canceled": 0,
+        "cancellation_ns_p50": null,
+        "checksum": 550725,
+        "elapsed_ns": 611518437,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 2999,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 88033,
+            "malloc_calls": 85034,
+            "null_free_calls": 0,
+            "realloc_calls": 0,
+            "requested_bytes": 150991074,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 11997,
+            "future_wakes": 4009,
+            "spin_calls": 6997
+          },
+          "resources": {
+            "involuntary_context_switches": 70,
+            "process_max_rss_kib": 21504,
+            "system_cpu_ns": 69865000,
+            "user_cpu_ns": 228496000,
+            "voluntary_context_switches": 14345
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 1635.2736720511991,
+        "rtt_ns_max": 1035314,
+        "rtt_ns_p50": 625709,
+        "rtt_ns_p95": 975778,
+        "rtt_ns_p99": 1010593,
+        "scenario": 0,
+        "warmup": 50
+      },
+      "echo": {
+        "accepted": 1050,
+        "canceled": 0,
+        "checksum": 550725,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 3000,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 244029,
+            "malloc_calls": 251033,
+            "null_free_calls": 0,
+            "realloc_calls": 1000,
+            "requested_bytes": 117739976,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 7012,
+            "future_wakes": 3000,
+            "spin_calls": 4012
+          },
+          "resources": {
+            "involuntary_context_switches": 2011,
+            "process_max_rss_kib": 21504,
+            "system_cpu_ns": 78445000,
+            "user_cpu_ns": 475320000,
+            "voluntary_context_switches": 6025
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "echo",
+        "scenario": 0,
+        "warmup": 50
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "cpp",
+      "repetition": 0,
+      "scenario": 0,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 0,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 0,
+        "elapsed_ns": 644708821,
+        "roundtrips_per_second": 1551.09,
+        "rtt_ns_p50": 647761,
+        "rtt_ns_p95": 1010295,
+        "rtt_ns_p99": 1049156,
+        "rtt_ns_max": 1108312,
+        "acceptance_ns_p50": 218594,
+        "cancellation_ns_p50": null,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 110073,
+            "calloc_calls": 0,
+            "realloc_calls": 0,
+            "free_calls": 110073,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 123151748,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 204366000,
+            "system_cpu_ns": 81013000,
+            "voluntary_context_switches": 14630,
+            "involuntary_context_switches": 560,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 10659,
+            "spin_calls": 7998,
+            "future_wakes": null
+          }
+        }
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 0,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 0,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 261969,
+            "calloc_calls": 3000,
+            "realloc_calls": 1000,
+            "free_calls": 254969,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 163451540,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 537940000,
+            "system_cpu_ns": 82781000,
+            "voluntary_context_switches": 6023,
+            "involuntary_context_switches": 2041,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 0,
+            "spin_calls": 4981,
+            "future_wakes": null
+          }
+        }
+      }
+    },
+    {
+      "ping_language": "rust",
+      "echo_language": "cpp",
+      "repetition": 0,
+      "scenario": 0,
+      "ping": {
+        "acceptance_ns_p50": 216487,
+        "accepted": 1050,
+        "canceled": 0,
+        "cancellation_ns_p50": null,
+        "checksum": 550725,
+        "elapsed_ns": 633887650,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 3000,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 88036,
+            "malloc_calls": 85036,
+            "null_free_calls": 0,
+            "realloc_calls": 0,
+            "requested_bytes": 151003556,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 12485,
+            "future_wakes": 4997,
+            "spin_calls": 7485
+          },
+          "resources": {
+            "involuntary_context_switches": 97,
+            "process_max_rss_kib": 21504,
+            "system_cpu_ns": 65903000,
+            "user_cpu_ns": 237726000,
+            "voluntary_context_switches": 15361
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 1577.56662399086,
+        "rtt_ns_max": 1060707,
+        "rtt_ns_p50": 642561,
+        "rtt_ns_p95": 1001031,
+        "rtt_ns_p99": 1047873,
+        "scenario": 0,
+        "warmup": 50
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 0,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 0,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 261976,
+            "calloc_calls": 3000,
+            "realloc_calls": 1000,
+            "free_calls": 254972,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 163408316,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 497763000,
+            "system_cpu_ns": 80039000,
+            "voluntary_context_switches": 6035,
+            "involuntary_context_switches": 2040,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 0,
+            "spin_calls": 4982,
+            "future_wakes": null
+          }
+        }
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "rust",
+      "repetition": 0,
+      "scenario": 0,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 0,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 0,
+        "elapsed_ns": 611668598,
+        "roundtrips_per_second": 1634.87,
+        "rtt_ns_p50": 636939,
+        "rtt_ns_p95": 964718,
+        "rtt_ns_p99": 996556,
+        "rtt_ns_max": 1347228,
+        "acceptance_ns_p50": 203046,
+        "cancellation_ns_p50": null,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 110080,
+            "calloc_calls": 0,
+            "realloc_calls": 0,
+            "free_calls": 110080,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 123149404,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 194789000,
+            "system_cpu_ns": 90512000,
+            "voluntary_context_switches": 14647,
+            "involuntary_context_switches": 470,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 10980,
+            "spin_calls": 7999,
+            "future_wakes": null
+          }
+        }
+      },
+      "echo": {
+        "accepted": 1050,
+        "canceled": 0,
+        "checksum": 550725,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 3000,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 244029,
+            "malloc_calls": 251029,
+            "null_free_calls": 0,
+            "realloc_calls": 1000,
+            "requested_bytes": 117695264,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 7018,
+            "future_wakes": 3000,
+            "spin_calls": 4018
+          },
+          "resources": {
+            "involuntary_context_switches": 1974,
+            "process_max_rss_kib": 21504,
+            "system_cpu_ns": 78253000,
+            "user_cpu_ns": 478058000,
+            "voluntary_context_switches": 6026
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "echo",
+        "scenario": 0,
+        "warmup": 50
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "rust",
+      "repetition": 1,
+      "scenario": 0,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 0,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 0,
+        "elapsed_ns": 613977598,
+        "roundtrips_per_second": 1628.72,
+        "rtt_ns_p50": 630312,
+        "rtt_ns_p95": 966906,
+        "rtt_ns_p99": 997191,
+        "rtt_ns_max": 1148419,
+        "acceptance_ns_p50": 203042,
+        "cancellation_ns_p50": null,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 110066,
+            "calloc_calls": 0,
+            "realloc_calls": 0,
+            "free_calls": 110066,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 123134756,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 209827000,
+            "system_cpu_ns": 75507000,
+            "voluntary_context_switches": 14592,
+            "involuntary_context_switches": 397,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 10980,
+            "spin_calls": 7997,
+            "future_wakes": null
+          }
+        }
+      },
+      "echo": {
+        "accepted": 1050,
+        "canceled": 0,
+        "checksum": 550725,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 3000,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 244029,
+            "malloc_calls": 251033,
+            "null_free_calls": 0,
+            "realloc_calls": 1000,
+            "requested_bytes": 117739984,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 7005,
+            "future_wakes": 3000,
+            "spin_calls": 4005
+          },
+          "resources": {
+            "involuntary_context_switches": 1989,
+            "process_max_rss_kib": 21504,
+            "system_cpu_ns": 85995000,
+            "user_cpu_ns": 472765000,
+            "voluntary_context_switches": 6024
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "echo",
+        "scenario": 0,
+        "warmup": 50
+      }
+    },
+    {
+      "ping_language": "rust",
+      "echo_language": "cpp",
+      "repetition": 1,
+      "scenario": 0,
+      "ping": {
+        "acceptance_ns_p50": 215718,
+        "accepted": 1050,
+        "canceled": 0,
+        "cancellation_ns_p50": null,
+        "checksum": 550725,
+        "elapsed_ns": 633588702,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 2999,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 88032,
+            "malloc_calls": 85033,
+            "null_free_calls": 0,
+            "realloc_calls": 0,
+            "requested_bytes": 150972337,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 12418,
+            "future_wakes": 4997,
+            "spin_calls": 7418
+          },
+          "resources": {
+            "involuntary_context_switches": 118,
+            "process_max_rss_kib": 22144,
+            "system_cpu_ns": 63253000,
+            "user_cpu_ns": 246681000,
+            "voluntary_context_switches": 15246
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 1578.3109718392673,
+        "rtt_ns_max": 2188648,
+        "rtt_ns_p50": 642374,
+        "rtt_ns_p95": 997097,
+        "rtt_ns_p99": 1049255,
+        "scenario": 0,
+        "warmup": 50
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 0,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 0,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 262005,
+            "calloc_calls": 3000,
+            "realloc_calls": 1000,
+            "free_calls": 255005,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 163452300,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 491225000,
+            "system_cpu_ns": 83326000,
+            "voluntary_context_switches": 6028,
+            "involuntary_context_switches": 2043,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 0,
+            "spin_calls": 4993,
+            "future_wakes": null
+          }
+        }
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "cpp",
+      "repetition": 1,
+      "scenario": 0,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 0,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 0,
+        "elapsed_ns": 626439522,
+        "roundtrips_per_second": 1596.32,
+        "rtt_ns_p50": 617482,
+        "rtt_ns_p95": 987701,
+        "rtt_ns_p99": 1036098,
+        "rtt_ns_max": 1078967,
+        "acceptance_ns_p50": 207759,
+        "cancellation_ns_p50": null,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 110066,
+            "calloc_calls": 0,
+            "realloc_calls": 0,
+            "free_calls": 110066,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 123127232,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 207073000,
+            "system_cpu_ns": 77743000,
+            "voluntary_context_switches": 14944,
+            "involuntary_context_switches": 630,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 10550,
+            "spin_calls": 7997,
+            "future_wakes": null
+          }
+        }
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 0,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 0,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 261988,
+            "calloc_calls": 3000,
+            "realloc_calls": 1000,
+            "free_calls": 254984,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 163452580,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 524039000,
+            "system_cpu_ns": 74363000,
+            "voluntary_context_switches": 6027,
+            "involuntary_context_switches": 2037,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 0,
+            "spin_calls": 4986,
+            "future_wakes": null
+          }
+        }
+      }
+    },
+    {
+      "ping_language": "rust",
+      "echo_language": "rust",
+      "repetition": 1,
+      "scenario": 0,
+      "ping": {
+        "acceptance_ns_p50": 214126,
+        "accepted": 1050,
+        "canceled": 0,
+        "cancellation_ns_p50": null,
+        "checksum": 550725,
+        "elapsed_ns": 614965016,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 3000,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 88039,
+            "malloc_calls": 85039,
+            "null_free_calls": 0,
+            "realloc_calls": 0,
+            "requested_bytes": 151004028,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 11996,
+            "future_wakes": 4008,
+            "spin_calls": 6996
+          },
+          "resources": {
+            "involuntary_context_switches": 62,
+            "process_max_rss_kib": 21848,
+            "system_cpu_ns": 82089000,
+            "user_cpu_ns": 222521000,
+            "voluntary_context_switches": 14397
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 1626.108760632328,
+        "rtt_ns_max": 1028681,
+        "rtt_ns_p50": 628372,
+        "rtt_ns_p95": 979423,
+        "rtt_ns_p99": 1017536,
+        "scenario": 0,
+        "warmup": 50
+      },
+      "echo": {
+        "accepted": 1050,
+        "canceled": 0,
+        "checksum": 550725,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 3000,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 244029,
+            "malloc_calls": 251033,
+            "null_free_calls": 0,
+            "realloc_calls": 1000,
+            "requested_bytes": 117695976,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 7005,
+            "future_wakes": 3000,
+            "spin_calls": 4005
+          },
+          "resources": {
+            "involuntary_context_switches": 2020,
+            "process_max_rss_kib": 21504,
+            "system_cpu_ns": 95414000,
+            "user_cpu_ns": 458745000,
+            "voluntary_context_switches": 6021
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "echo",
+        "scenario": 0,
+        "warmup": 50
+      }
+    },
+    {
+      "ping_language": "rust",
+      "echo_language": "rust",
+      "repetition": 2,
+      "scenario": 0,
+      "ping": {
+        "acceptance_ns_p50": 211873,
+        "accepted": 1050,
+        "canceled": 0,
+        "cancellation_ns_p50": null,
+        "checksum": 550725,
+        "elapsed_ns": 611852120,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 3000,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 88039,
+            "malloc_calls": 85039,
+            "null_free_calls": 0,
+            "realloc_calls": 0,
+            "requested_bytes": 151004028,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 11994,
+            "future_wakes": 4026,
+            "spin_calls": 6994
+          },
+          "resources": {
+            "involuntary_context_switches": 74,
+            "process_max_rss_kib": 21872,
+            "system_cpu_ns": 84105000,
+            "user_cpu_ns": 218506000,
+            "voluntary_context_switches": 14339
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 1634.3818503072278,
+        "rtt_ns_max": 1027679,
+        "rtt_ns_p50": 626540,
+        "rtt_ns_p95": 969892,
+        "rtt_ns_p99": 1008771,
+        "scenario": 0,
+        "warmup": 50
+      },
+      "echo": {
+        "accepted": 1050,
+        "canceled": 0,
+        "checksum": 550725,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 3000,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 244029,
+            "malloc_calls": 251033,
+            "null_free_calls": 0,
+            "realloc_calls": 1000,
+            "requested_bytes": 117695976,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 7001,
+            "future_wakes": 3000,
+            "spin_calls": 4001
+          },
+          "resources": {
+            "involuntary_context_switches": 2024,
+            "process_max_rss_kib": 21504,
+            "system_cpu_ns": 77454000,
+            "user_cpu_ns": 474731000,
+            "voluntary_context_switches": 6019
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "echo",
+        "scenario": 0,
+        "warmup": 50
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "cpp",
+      "repetition": 2,
+      "scenario": 0,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 0,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 0,
+        "elapsed_ns": 597725047,
+        "roundtrips_per_second": 1673.01,
+        "rtt_ns_p50": 595343,
+        "rtt_ns_p95": 923158,
+        "rtt_ns_p99": 952411,
+        "rtt_ns_max": 991190,
+        "acceptance_ns_p50": 198821,
+        "cancellation_ns_p50": null,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 110080,
+            "calloc_calls": 0,
+            "realloc_calls": 0,
+            "free_calls": 110080,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 123171728,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 215519000,
+            "system_cpu_ns": 66925000,
+            "voluntary_context_switches": 14892,
+            "involuntary_context_switches": 558,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 10593,
+            "spin_calls": 7999,
+            "future_wakes": null
+          }
+        }
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 0,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 0,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 261960,
+            "calloc_calls": 3000,
+            "realloc_calls": 1000,
+            "free_calls": 254960,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 163407348,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 483845000,
+            "system_cpu_ns": 87148000,
+            "voluntary_context_switches": 6019,
+            "involuntary_context_switches": 2038,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 0,
+            "spin_calls": 4978,
+            "future_wakes": null
+          }
+        }
+      }
+    },
+    {
+      "ping_language": "rust",
+      "echo_language": "cpp",
+      "repetition": 2,
+      "scenario": 0,
+      "ping": {
+        "acceptance_ns_p50": 216419,
+        "accepted": 1050,
+        "canceled": 0,
+        "cancellation_ns_p50": null,
+        "checksum": 550725,
+        "elapsed_ns": 627952340,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 2999,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 88031,
+            "malloc_calls": 85032,
+            "null_free_calls": 0,
+            "realloc_calls": 0,
+            "requested_bytes": 151000572,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 12450,
+            "future_wakes": 5000,
+            "spin_calls": 7450
+          },
+          "resources": {
+            "involuntary_context_switches": 109,
+            "process_max_rss_kib": 22132,
+            "system_cpu_ns": 62958000,
+            "user_cpu_ns": 244784000,
+            "voluntary_context_switches": 15232
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 1592.4775437575406,
+        "rtt_ns_max": 1061198,
+        "rtt_ns_p50": 640039,
+        "rtt_ns_p95": 997606,
+        "rtt_ns_p99": 1034247,
+        "scenario": 0,
+        "warmup": 50
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 0,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 0,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 261984,
+            "calloc_calls": 3000,
+            "realloc_calls": 1000,
+            "free_calls": 254984,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 163451852,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 490313000,
+            "system_cpu_ns": 80756000,
+            "voluntary_context_switches": 6018,
+            "involuntary_context_switches": 2044,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 0,
+            "spin_calls": 4986,
+            "future_wakes": null
+          }
+        }
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "rust",
+      "repetition": 2,
+      "scenario": 0,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 0,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 0,
+        "elapsed_ns": 614550594,
+        "roundtrips_per_second": 1627.21,
+        "rtt_ns_p50": 628114,
+        "rtt_ns_p95": 973256,
+        "rtt_ns_p99": 1005440,
+        "rtt_ns_max": 1093152,
+        "acceptance_ns_p50": 202067,
+        "cancellation_ns_p50": null,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 110087,
+            "calloc_calls": 0,
+            "realloc_calls": 0,
+            "free_calls": 110087,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 123173724,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 200735000,
+            "system_cpu_ns": 81085000,
+            "voluntary_context_switches": 14676,
+            "involuntary_context_switches": 455,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 10987,
+            "spin_calls": 8000,
+            "future_wakes": null
+          }
+        }
+      },
+      "echo": {
+        "accepted": 1050,
+        "canceled": 0,
+        "checksum": 550725,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 3000,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 244029,
+            "malloc_calls": 251033,
+            "null_free_calls": 0,
+            "realloc_calls": 1000,
+            "requested_bytes": 117695984,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 7003,
+            "future_wakes": 3000,
+            "spin_calls": 4003
+          },
+          "resources": {
+            "involuntary_context_switches": 1993,
+            "process_max_rss_kib": 21504,
+            "system_cpu_ns": 78420000,
+            "user_cpu_ns": 483038000,
+            "voluntary_context_switches": 6019
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "echo",
+        "scenario": 0,
+        "warmup": 50
+      }
+    },
+    {
+      "ping_language": "rust",
+      "echo_language": "rust",
+      "repetition": 0,
+      "scenario": 1,
+      "ping": {
+        "acceptance_ns_p50": 211958,
+        "accepted": 1050,
+        "canceled": 1050,
+        "cancellation_ns_p50": 250236,
+        "checksum": 550725,
+        "elapsed_ns": 838232514,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 4998,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 103782,
+            "malloc_calls": 98784,
+            "null_free_calls": 0,
+            "realloc_calls": 0,
+            "requested_bytes": 201329306,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 12738,
+            "future_wakes": 3788,
+            "spin_calls": 7738
+          },
+          "resources": {
+            "involuntary_context_switches": 219,
+            "process_max_rss_kib": 22144,
+            "system_cpu_ns": 87316000,
+            "user_cpu_ns": 285655000,
+            "voluntary_context_switches": 15762
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 1192.9864128367608,
+        "rtt_ns_max": 4774295,
+        "rtt_ns_p50": 837009,
+        "rtt_ns_p95": 1301801,
+        "rtt_ns_p99": 1358177,
+        "scenario": 1,
+        "warmup": 50
+      },
+      "echo": {
+        "accepted": 1050,
+        "canceled": 1050,
+        "checksum": 550725,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 6000,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 266029,
+            "malloc_calls": 270033,
+            "null_free_calls": 0,
+            "realloc_calls": 1000,
+            "requested_bytes": 155026976,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 7007,
+            "future_wakes": 3000,
+            "spin_calls": 5007
+          },
+          "resources": {
+            "involuntary_context_switches": 1975,
+            "process_max_rss_kib": 21504,
+            "system_cpu_ns": 100532000,
+            "user_cpu_ns": 609234000,
+            "voluntary_context_switches": 7026
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "echo",
+        "scenario": 1,
+        "warmup": 50
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "cpp",
+      "repetition": 0,
+      "scenario": 1,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 1,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 1050,
+        "elapsed_ns": 764418049,
+        "roundtrips_per_second": 1308.18,
+        "rtt_ns_p50": 764181,
+        "rtt_ns_p95": 1220657,
+        "rtt_ns_p99": 1272658,
+        "rtt_ns_max": 1327886,
+        "acceptance_ns_p50": 178942,
+        "cancellation_ns_p50": 251213,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 122096,
+            "calloc_calls": 0,
+            "realloc_calls": 0,
+            "free_calls": 122096,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 163919348,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 247718000,
+            "system_cpu_ns": 86182000,
+            "voluntary_context_switches": 15422,
+            "involuntary_context_switches": 185,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 11503,
+            "spin_calls": 9000,
+            "future_wakes": null
+          }
+        }
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 1,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 1050,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 267983,
+            "calloc_calls": 5000,
+            "realloc_calls": 1000,
+            "free_calls": 262981,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 214416444,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 649806000,
+            "system_cpu_ns": 85923000,
+            "voluntary_context_switches": 6024,
+            "involuntary_context_switches": 2049,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 0,
+            "spin_calls": 4985,
+            "future_wakes": null
+          }
+        }
+      }
+    },
+    {
+      "ping_language": "rust",
+      "echo_language": "cpp",
+      "repetition": 0,
+      "scenario": 1,
+      "ping": {
+        "acceptance_ns_p50": 178233,
+        "accepted": 1050,
+        "canceled": 1050,
+        "cancellation_ns_p50": 254075,
+        "checksum": 550725,
+        "elapsed_ns": 779218888,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 4999,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 103091,
+            "malloc_calls": 98092,
+            "null_free_calls": 0,
+            "realloc_calls": 0,
+            "requested_bytes": 201249873,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 12550,
+            "future_wakes": 4084,
+            "spin_calls": 7550
+          },
+          "resources": {
+            "involuntary_context_switches": 158,
+            "process_max_rss_kib": 22184,
+            "system_cpu_ns": 75532000,
+            "user_cpu_ns": 298667000,
+            "voluntary_context_switches": 15435
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 1283.3364480764485,
+        "rtt_ns_max": 4272962,
+        "rtt_ns_p50": 790822,
+        "rtt_ns_p95": 1258099,
+        "rtt_ns_p99": 1315472,
+        "scenario": 1,
+        "warmup": 50
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 1,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 1050,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 268000,
+            "calloc_calls": 5000,
+            "realloc_calls": 1000,
+            "free_calls": 262996,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 214416828,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 619408000,
+            "system_cpu_ns": 97607000,
+            "voluntary_context_switches": 6032,
+            "involuntary_context_switches": 2013,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 0,
+            "spin_calls": 4990,
+            "future_wakes": null
+          }
+        }
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "rust",
+      "repetition": 0,
+      "scenario": 1,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 1,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 1050,
+        "elapsed_ns": 822377855,
+        "roundtrips_per_second": 1215.99,
+        "rtt_ns_p50": 837916,
+        "rtt_ns_p95": 1280032,
+        "rtt_ns_p99": 1323170,
+        "rtt_ns_max": 3897611,
+        "acceptance_ns_p50": 202106,
+        "cancellation_ns_p50": 242591,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 122068,
+            "calloc_calls": 0,
+            "realloc_calls": 0,
+            "free_calls": 122068,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 163868092,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 273090000,
+            "system_cpu_ns": 64564000,
+            "voluntary_context_switches": 16174,
+            "involuntary_context_switches": 176,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 11977,
+            "spin_calls": 8996,
+            "future_wakes": null
+          }
+        }
+      },
+      "echo": {
+        "accepted": 1050,
+        "canceled": 1050,
+        "checksum": 550725,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 6000,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 266029,
+            "malloc_calls": 270033,
+            "null_free_calls": 0,
+            "realloc_calls": 1000,
+            "requested_bytes": 155026984,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 7009,
+            "future_wakes": 3000,
+            "spin_calls": 5009
+          },
+          "resources": {
+            "involuntary_context_switches": 1981,
+            "process_max_rss_kib": 21504,
+            "system_cpu_ns": 93141000,
+            "user_cpu_ns": 617709000,
+            "voluntary_context_switches": 7034
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "echo",
+        "scenario": 1,
+        "warmup": 50
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "rust",
+      "repetition": 1,
+      "scenario": 1,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 1,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 1050,
+        "elapsed_ns": 815635743,
+        "roundtrips_per_second": 1226.04,
+        "rtt_ns_p50": 837152,
+        "rtt_ns_p95": 1290277,
+        "rtt_ns_p99": 1338178,
+        "rtt_ns_max": 1358943,
+        "acceptance_ns_p50": 204091,
+        "cancellation_ns_p50": 242219,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 122089,
+            "calloc_calls": 0,
+            "realloc_calls": 0,
+            "free_calls": 122089,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 163912716,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 260627000,
+            "system_cpu_ns": 75438000,
+            "voluntary_context_switches": 16243,
+            "involuntary_context_switches": 163,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 11988,
+            "spin_calls": 8999,
+            "future_wakes": null
+          }
+        }
+      },
+      "echo": {
+        "accepted": 1050,
+        "canceled": 1050,
+        "checksum": 550725,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 6000,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 266029,
+            "malloc_calls": 270033,
+            "null_free_calls": 0,
+            "realloc_calls": 1000,
+            "requested_bytes": 154982984,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 7013,
+            "future_wakes": 3000,
+            "spin_calls": 5013
+          },
+          "resources": {
+            "involuntary_context_switches": 1975,
+            "process_max_rss_kib": 21504,
+            "system_cpu_ns": 104650000,
+            "user_cpu_ns": 609052000,
+            "voluntary_context_switches": 7012
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "echo",
+        "scenario": 1,
+        "warmup": 50
+      }
+    },
+    {
+      "ping_language": "rust",
+      "echo_language": "cpp",
+      "repetition": 1,
+      "scenario": 1,
+      "ping": {
+        "acceptance_ns_p50": 178730,
+        "accepted": 1050,
+        "canceled": 1050,
+        "cancellation_ns_p50": 254320,
+        "checksum": 550725,
+        "elapsed_ns": 777976753,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 5000,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 103091,
+            "malloc_calls": 98091,
+            "null_free_calls": 0,
+            "realloc_calls": 0,
+            "requested_bytes": 201259032,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 12547,
+            "future_wakes": 4055,
+            "spin_calls": 7547
+          },
+          "resources": {
+            "involuntary_context_switches": 144,
+            "process_max_rss_kib": 22176,
+            "system_cpu_ns": 77445000,
+            "user_cpu_ns": 286389000,
+            "voluntary_context_switches": 15519
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 1285.3854516138736,
+        "rtt_ns_max": 1516486,
+        "rtt_ns_p50": 787998,
+        "rtt_ns_p95": 1245104,
+        "rtt_ns_p99": 1290858,
+        "scenario": 1,
+        "warmup": 50
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 1,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 1050,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 268006,
+            "calloc_calls": 5000,
+            "realloc_calls": 1000,
+            "free_calls": 263002,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 214372956,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 623277000,
+            "system_cpu_ns": 97738000,
+            "voluntary_context_switches": 6046,
+            "involuntary_context_switches": 2043,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 0,
+            "spin_calls": 4992,
+            "future_wakes": null
+          }
+        }
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "cpp",
+      "repetition": 1,
+      "scenario": 1,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 1,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 1050,
+        "elapsed_ns": 754062031,
+        "roundtrips_per_second": 1326.15,
+        "rtt_ns_p50": 752338,
+        "rtt_ns_p95": 1199439,
+        "rtt_ns_p99": 1282577,
+        "rtt_ns_max": 1573876,
+        "acceptance_ns_p50": 174436,
+        "cancellation_ns_p50": 247573,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 122089,
+            "calloc_calls": 0,
+            "realloc_calls": 0,
+            "free_calls": 122089,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 163911492,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 248672000,
+            "system_cpu_ns": 86612000,
+            "voluntary_context_switches": 15469,
+            "involuntary_context_switches": 208,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 11502,
+            "spin_calls": 8999,
+            "future_wakes": null
+          }
+        }
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 1,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 1050,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 267994,
+            "calloc_calls": 5000,
+            "realloc_calls": 1000,
+            "free_calls": 262990,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 214328708,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 644085000,
+            "system_cpu_ns": 80946000,
+            "voluntary_context_switches": 6026,
+            "involuntary_context_switches": 2047,
+            "process_max_rss_kib": 21504
+          },
+          "application": {
+            "future_polls": 0,
+            "spin_calls": 4988,
+            "future_wakes": null
+          }
+        }
+      }
+    },
+    {
+      "ping_language": "rust",
+      "echo_language": "rust",
+      "repetition": 1,
+      "scenario": 1,
+      "ping": {
+        "acceptance_ns_p50": 213424,
+        "accepted": 1050,
+        "canceled": 1050,
+        "cancellation_ns_p50": 247863,
+        "checksum": 550725,
+        "elapsed_ns": 822615630,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 5000,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 103849,
+            "malloc_calls": 98849,
+            "null_free_calls": 0,
+            "realloc_calls": 0,
+            "requested_bytes": 201380304,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 12796,
+            "future_wakes": 3817,
+            "spin_calls": 7796
+          },
+          "resources": {
+            "involuntary_context_switches": 175,
+            "process_max_rss_kib": 21896,
+            "system_cpu_ns": 72120000,
+            "user_cpu_ns": 290841000,
+            "voluntary_context_switches": 15960
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 1215.634572856341,
+        "rtt_ns_max": 1393296,
+        "rtt_ns_p50": 841815,
+        "rtt_ns_p95": 1313812,
+        "rtt_ns_p99": 1372624,
+        "scenario": 1,
+        "warmup": 50
+      },
+      "echo": {
+        "accepted": 1050,
+        "canceled": 1050,
+        "checksum": 550725,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 6000,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 266029,
+            "malloc_calls": 270029,
+            "null_free_calls": 0,
+            "realloc_calls": 1000,
+            "requested_bytes": 155026256,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 7011,
+            "future_wakes": 3000,
+            "spin_calls": 5011
+          },
+          "resources": {
+            "involuntary_context_switches": 1992,
+            "process_max_rss_kib": 21504,
+            "system_cpu_ns": 88173000,
+            "user_cpu_ns": 627520000,
+            "voluntary_context_switches": 7026
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "echo",
+        "scenario": 1,
+        "warmup": 50
+      }
+    },
+    {
+      "ping_language": "rust",
+      "echo_language": "rust",
+      "repetition": 2,
+      "scenario": 1,
+      "ping": {
+        "acceptance_ns_p50": 214842,
+        "accepted": 1050,
+        "canceled": 1050,
+        "cancellation_ns_p50": 250615,
+        "checksum": 550725,
+        "elapsed_ns": 824676899,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 5000,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 103817,
+            "malloc_calls": 98817,
+            "null_free_calls": 0,
+            "realloc_calls": 0,
+            "requested_bytes": 201375496,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 12780,
+            "future_wakes": 3794,
+            "spin_calls": 7780
+          },
+          "resources": {
+            "involuntary_context_switches": 150,
+            "process_max_rss_kib": 21908,
+            "system_cpu_ns": 75374000,
+            "user_cpu_ns": 291861000,
+            "voluntary_context_switches": 15918
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 1212.5961103222317,
+        "rtt_ns_max": 1364361,
+        "rtt_ns_p50": 836382,
+        "rtt_ns_p95": 1287219,
+        "rtt_ns_p99": 1344997,
+        "scenario": 1,
+        "warmup": 50
+      },
+      "echo": {
+        "accepted": 1050,
+        "canceled": 1050,
+        "checksum": 550725,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 6000,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 266015,
+            "malloc_calls": 270019,
+            "null_free_calls": 0,
+            "realloc_calls": 1000,
+            "requested_bytes": 155025048,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 7015,
+            "future_wakes": 3000,
+            "spin_calls": 5015
+          },
+          "resources": {
+            "involuntary_context_switches": 1984,
+            "process_max_rss_kib": 21504,
+            "system_cpu_ns": 98857000,
+            "user_cpu_ns": 618235000,
+            "voluntary_context_switches": 7027
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "echo",
+        "scenario": 1,
+        "warmup": 50
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "cpp",
+      "repetition": 2,
+      "scenario": 1,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 1,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 1050,
+        "elapsed_ns": 799064307,
+        "roundtrips_per_second": 1251.46,
+        "rtt_ns_p50": 791585,
+        "rtt_ns_p95": 1241425,
+        "rtt_ns_p99": 1411425,
+        "rtt_ns_max": 4535558,
+        "acceptance_ns_p50": 182043,
+        "cancellation_ns_p50": 255811,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 122047,
+            "calloc_calls": 0,
+            "realloc_calls": 0,
+            "free_calls": 122047,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 163818632,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 253776000,
+            "system_cpu_ns": 86129000,
+            "voluntary_context_switches": 15372,
+            "involuntary_context_switches": 207,
+            "process_max_rss_kib": 21728
+          },
+          "application": {
+            "future_polls": 11553,
+            "spin_calls": 8993,
+            "future_wakes": null
+          }
+        }
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 1,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 1050,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 267994,
+            "calloc_calls": 5000,
+            "realloc_calls": 1000,
+            "free_calls": 262990,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 214328708,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 652036000,
+            "system_cpu_ns": 100453000,
+            "voluntary_context_switches": 6042,
+            "involuntary_context_switches": 2037,
+            "process_max_rss_kib": 21728
+          },
+          "application": {
+            "future_polls": 0,
+            "spin_calls": 4988,
+            "future_wakes": null
+          }
+        }
+      }
+    },
+    {
+      "ping_language": "rust",
+      "echo_language": "cpp",
+      "repetition": 2,
+      "scenario": 1,
+      "ping": {
+        "acceptance_ns_p50": 178277,
+        "accepted": 1050,
+        "canceled": 1050,
+        "cancellation_ns_p50": 254424,
+        "checksum": 550725,
+        "elapsed_ns": 773360796,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 4999,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 103099,
+            "malloc_calls": 98100,
+            "null_free_calls": 0,
+            "realloc_calls": 0,
+            "requested_bytes": 201248633,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 12502,
+            "future_wakes": 4085,
+            "spin_calls": 7502
+          },
+          "resources": {
+            "involuntary_context_switches": 183,
+            "process_max_rss_kib": 22180,
+            "system_cpu_ns": 77830000,
+            "user_cpu_ns": 286489000,
+            "voluntary_context_switches": 15404
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "ping",
+        "roundtrips_per_second": 1293.0575291277112,
+        "rtt_ns_max": 1303524,
+        "rtt_ns_p50": 790592,
+        "rtt_ns_p95": 1244584,
+        "rtt_ns_p99": 1293025,
+        "scenario": 1,
+        "warmup": 50
+      },
+      "echo": {
+        "implementation": "rclcpp",
+        "role": "echo",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 1,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 1050,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 267994,
+            "calloc_calls": 5000,
+            "realloc_calls": 1000,
+            "free_calls": 262990,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 214372700,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 619976000,
+            "system_cpu_ns": 96229000,
+            "voluntary_context_switches": 6042,
+            "involuntary_context_switches": 2055,
+            "process_max_rss_kib": 21728
+          },
+          "application": {
+            "future_polls": 0,
+            "spin_calls": 4988,
+            "future_wakes": null
+          }
+        }
+      }
+    },
+    {
+      "ping_language": "cpp",
+      "echo_language": "rust",
+      "repetition": 2,
+      "scenario": 1,
+      "ping": {
+        "implementation": "rclcpp",
+        "role": "ping",
+        "rmw": "rmw_cyclonedds_cpp",
+        "scenario": 1,
+        "iterations": 1000,
+        "warmup": 50,
+        "received": 1050,
+        "checksum": 550725,
+        "accepted": 1050,
+        "feedback": 1050,
+        "results": 1050,
+        "canceled": 1050,
+        "elapsed_ns": 813166698,
+        "roundtrips_per_second": 1229.76,
+        "rtt_ns_p50": 837336,
+        "rtt_ns_p95": 1272606,
+        "rtt_ns_p99": 1324648,
+        "rtt_ns_max": 1340476,
+        "acceptance_ns_p50": 202731,
+        "cancellation_ns_p50": 242840,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "malloc_calls": 122082,
+            "calloc_calls": 0,
+            "realloc_calls": 0,
+            "free_calls": 122082,
+            "null_free_calls": 0,
+            "aligned_calls": 0,
+            "failed_allocations": 0,
+            "requested_bytes": 163895676,
+            "size_overflows": 0,
+            "counter_overflows": 0
+          },
+          "resources": {
+            "user_cpu_ns": 259192000,
+            "system_cpu_ns": 78513000,
+            "voluntary_context_switches": 16261,
+            "involuntary_context_switches": 176,
+            "process_max_rss_kib": 21728
+          },
+          "application": {
+            "future_polls": 11990,
+            "spin_calls": 8998,
+            "future_wakes": null
+          }
+        }
+      },
+      "echo": {
+        "accepted": 1050,
+        "canceled": 1050,
+        "checksum": 550725,
+        "feedback": 1050,
+        "implementation": "r2r",
+        "iterations": 1000,
+        "probe": {
+          "abi": 1,
+          "allocations": {
+            "aligned_calls": 0,
+            "calloc_calls": 6000,
+            "counter_overflows": 0,
+            "failed_allocations": 0,
+            "free_calls": 266029,
+            "malloc_calls": 270031,
+            "null_free_calls": 0,
+            "realloc_calls": 1000,
+            "requested_bytes": 155026624,
+            "size_overflows": 0
+          },
+          "application": {
+            "future_polls": 7004,
+            "future_wakes": 3000,
+            "spin_calls": 5004
+          },
+          "resources": {
+            "involuntary_context_switches": 2000,
+            "process_max_rss_kib": 21728,
+            "system_cpu_ns": 90252000,
+            "user_cpu_ns": 620077000,
+            "voluntary_context_switches": 7029
+          }
+        },
+        "received": 1050,
+        "results": 1050,
+        "rmw": "rmw_cyclonedds_cpp",
+        "role": "echo",
+        "scenario": 1,
+        "warmup": 50
+      }
+    }
+  ],
+  "summary": [
+    {
+      "scenario": 0,
+      "ping_language": "rust",
+      "echo_language": "rust",
+      "rtt_ns_p50": 626540,
+      "rtt_ns_p95": 975778,
+      "rtt_ns_p99": 1010593,
+      "roundtrips_per_second": 1634.3818503072278,
+      "acceptance_ns_p50": 212073
+    },
+    {
+      "scenario": 0,
+      "ping_language": "cpp",
+      "echo_language": "cpp",
+      "rtt_ns_p50": 617482,
+      "rtt_ns_p95": 987701,
+      "rtt_ns_p99": 1036098,
+      "roundtrips_per_second": 1596.32,
+      "acceptance_ns_p50": 207759
+    },
+    {
+      "scenario": 0,
+      "ping_language": "rust",
+      "echo_language": "cpp",
+      "rtt_ns_p50": 642374,
+      "rtt_ns_p95": 997606,
+      "rtt_ns_p99": 1047873,
+      "roundtrips_per_second": 1578.3109718392673,
+      "acceptance_ns_p50": 216419
+    },
+    {
+      "scenario": 0,
+      "ping_language": "cpp",
+      "echo_language": "rust",
+      "rtt_ns_p50": 630312,
+      "rtt_ns_p95": 966906,
+      "rtt_ns_p99": 997191,
+      "roundtrips_per_second": 1628.72,
+      "acceptance_ns_p50": 203042
+    },
+    {
+      "scenario": 1,
+      "ping_language": "rust",
+      "echo_language": "rust",
+      "rtt_ns_p50": 837009,
+      "rtt_ns_p95": 1301801,
+      "rtt_ns_p99": 1358177,
+      "roundtrips_per_second": 1212.5961103222317,
+      "acceptance_ns_p50": 213424,
+      "cancellation_ns_p50": 250236
+    },
+    {
+      "scenario": 1,
+      "ping_language": "cpp",
+      "echo_language": "cpp",
+      "rtt_ns_p50": 764181,
+      "rtt_ns_p95": 1220657,
+      "rtt_ns_p99": 1282577,
+      "roundtrips_per_second": 1308.18,
+      "acceptance_ns_p50": 178942,
+      "cancellation_ns_p50": 251213
+    },
+    {
+      "scenario": 1,
+      "ping_language": "rust",
+      "echo_language": "cpp",
+      "rtt_ns_p50": 790592,
+      "rtt_ns_p95": 1245104,
+      "rtt_ns_p99": 1293025,
+      "roundtrips_per_second": 1285.3854516138736,
+      "acceptance_ns_p50": 178277,
+      "cancellation_ns_p50": 254320
+    },
+    {
+      "scenario": 1,
+      "ping_language": "cpp",
+      "echo_language": "rust",
+      "rtt_ns_p50": 837336,
+      "rtt_ns_p95": 1280032,
+      "rtt_ns_p99": 1324648,
+      "roundtrips_per_second": 1226.04,
+      "acceptance_ns_p50": 202731,
+      "cancellation_ns_p50": 242591
+    }
+  ]
+}
