@@ -9,9 +9,9 @@ import shutil
 import subprocess
 import tempfile
 
-BENCHMARKS = {"codec": "ros_comparison", "transport": "pubsub_roundtrip", "native_views": "pubsub_view_roundtrip", "service": "service_roundtrip", "action": "action_roundtrip", "future": "future_execution"}
-CPP_BINARIES = {"codec": "rclcpp_comparison", "transport": "rclcpp_roundtrip", "native_views": "rclcpp_roundtrip", "service": "rclcpp_service", "action": "rclcpp_action_roundtrip"}
-CPP_SOURCES = {"codec": "comparison.cpp", "transport": "roundtrip.cpp", "native_views": "roundtrip.cpp", "service": "service.cpp", "action": "action.cpp"}
+BENCHMARKS = {"codec": "ros_comparison", "transport": "pubsub_roundtrip", "native_views": "pubsub_view_roundtrip", "executor": "multi_node_service", "service": "service_roundtrip", "action": "action_roundtrip", "future": "future_execution"}
+CPP_BINARIES = {"codec": "rclcpp_comparison", "transport": "rclcpp_roundtrip", "native_views": "rclcpp_roundtrip", "executor": "rclcpp_multi_node_service", "service": "rclcpp_service", "action": "rclcpp_action_roundtrip"}
+CPP_SOURCES = {"codec": "comparison.cpp", "transport": "roundtrip.cpp", "native_views": "roundtrip.cpp", "executor": "multi_node_service.cpp", "service": "service.cpp", "action": "action.cpp"}
 
 
 def command(arguments, cwd, env):
@@ -23,6 +23,11 @@ def rust_binary(source, target, destination, env, workload="codec"):
     build_env = env.copy()
     build_env["CARGO_TARGET_DIR"] = str(target)
     benchmark = BENCHMARKS[workload]
+    if workload == "executor":
+        flags = build_env.get("RUSTFLAGS", "") + " --check-cfg=cfg(r2r_bench_shared_executor)"
+        if (source / "r2r/src/nodes/executor.rs").exists():
+            flags += " --cfg r2r_bench_shared_executor"
+        build_env["RUSTFLAGS"] = flags.strip()
     if workload == "native_views":
         flags = build_env.get("RUSTFLAGS", "") + " --check-cfg=cfg(r2r_bench_native_views)"
         if (source / "r2r/src/native_views.rs").exists():
@@ -42,6 +47,10 @@ def rust_binary(source, target, destination, env, workload="codec"):
     if workload == "native_views":
         for relative in ["r2r/src/native_views.rs", "r2r/src/nodes/native_views.rs", "r2r_msg_gen/src/native_views.rs"]:
             if (source / relative).exists(): sources.append(source / relative)
+    if workload == "executor":
+        sources.append(source / "r2r/src/context.rs")
+        sources.extend(sorted((source / "r2r/src/nodes").rglob("*.rs")))
+        sources.append(source / "r2r/Cargo.toml")
     if workload == "action":
         sources.extend(source / f"r2r/src/{name}.rs" for name in ["action_common", "action_clients", "action_clients_untyped", "action_servers"])
         sources.extend(sorted((source / "r2r/src/action_clients").rglob("*.rs")))
@@ -68,6 +77,9 @@ def main():
     env = os.environ.copy()
     manifests = {}
     manifests["workload"] = args.workload
+    if args.workload == "executor":
+        manifests["executor_api_detection"] = "nodes/executor.rs present: shared native wait; absent: Node native wait for one node and nonblocking round-robin for multiple nodes"
+        manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_shared_executor); --cfg r2r_bench_shared_executor only where the shared executor API exists"
     if args.workload == "native_views":
         manifests["receive_api_detection"] = "native_views.rs present: subscribe_view and publish_view echo; absent: normal typed receive/publish fallback"
         manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_native_views); --cfg r2r_bench_native_views only where the view API exists"
@@ -91,6 +103,8 @@ def main():
             manifest = source / "r2r/Cargo.toml"
             if f'name = "{benchmark}"' not in manifest.read_text():
                 manifest.write_text(manifest.read_text() + f'\n[[bench]]\nname = "{benchmark}"\nharness = false\n')
+            if args.workload == "executor" and 'libc = ' not in manifest.read_text():
+                manifest.write_text(manifest.read_text().replace('[dev-dependencies]\n', '[dev-dependencies]\nlibc = "0.2"\n', 1))
             manifests["baseline"] = rust_binary(source, output / "baseline-cargo", output / "r2r-baseline", env, args.workload)
         manifests["baseline_ref"] = revision
     if args.workload == "future":
@@ -100,7 +114,7 @@ def main():
         print(f"Future execution binaries and source manifest: {output}")
         return
     ros_prefix = f"/opt/ros/{env['ROS_DISTRO']}"
-    command(["cmake", "-S", str(root / "tools/bench_ros"), "-B", str(output / "cpp"), "-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_PREFIX_PATH={ros_prefix}", "-DPython3_EXECUTABLE=/usr/bin/python3", f"-DR2R_BUILD_SERVICE_BENCH={'ON' if args.workload == 'service' else 'OFF'}", f"-DR2R_BUILD_ACTION_BENCH={'ON' if args.workload == 'action' else 'OFF'}", f"-DR2R_BUILD_ALLOCATION_PROBE={'ON' if args.with_probe else 'OFF'}"], root, env)
+    command(["cmake", "-S", str(root / "tools/bench_ros"), "-B", str(output / "cpp"), "-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_PREFIX_PATH={ros_prefix}", "-DPython3_EXECUTABLE=/usr/bin/python3", f"-DR2R_BUILD_SERVICE_BENCH={'ON' if args.workload == 'service' else 'OFF'}", f"-DR2R_BUILD_ACTION_BENCH={'ON' if args.workload == 'action' else 'OFF'}", f"-DR2R_BUILD_EXECUTOR_BENCH={'ON' if args.workload == 'executor' else 'OFF'}", f"-DR2R_BUILD_ALLOCATION_PROBE={'ON' if args.with_probe else 'OFF'}"], root, env)
     cpp_binary = CPP_BINARIES[args.workload]
     command(["cmake", "--build", str(output / "cpp"), "--target", cpp_binary, "-j", "4"], root, env)
     shutil.copy2(output / f"cpp/{cpp_binary}", output / "rclcpp-comparison")

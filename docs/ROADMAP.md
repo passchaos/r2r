@@ -18,7 +18,7 @@ This audit is based on the source tree and local checks through 2026-10-28. It i
 
 | Area | Existing foundation | Remaining work |
 | --- | --- | --- |
-| Async application APIs | Futures and streams, service availability/timeouts, action APIs and typed parameter clients. [Native future execution](FUTURE_EXECUTION.md) bridges external Rust wakes into the ROS wait, with reusable storage, configurable periodic/notification-driven waiting and shutdown handling. Pub/sub matching uses graph notifications; pending reliable ACK observers use a bounded native query. Runnable `service_pipeline`, `future_execution` and `pubsub_workflow` examples compose complete workflows. | Compare broader application workflows with rclcpp; add multi-node executor/runtime-reactor integration, concurrency scaling and more complete cancellation/shutdown examples. |
+| Async application APIs | Futures and streams, service availability/timeouts, action APIs and typed parameter clients. [Native future execution](FUTURE_EXECUTION.md) bridges external Rust wakes into the ROS wait, with reusable storage and shutdown handling. [Multi-node execution](MULTI_NODE_EXECUTION.md) owns nodes and shares one native wait with ordinary/action readiness spans. Matching uses graph notifications; ACK observers use bounded native queries. Runnable `service_pipeline`, `future_execution`, `pubsub_workflow` and `multi_node_pipeline` examples compose complete workflows. | Compare broader application workflows with rclcpp; add runtime-reactor integration, concurrent callback scheduling, scaling and more complete cancellation/shutdown examples. |
 | Messages and native storage | Typed, untyped, raw and loaned message paths; fallible native copies; capacity reuse for primitive and nested-message sequences and string fields. `MessageSerializer<T>` reuses native fields and exposes borrowed wire bytes, with full codec and lifecycle oracles. | Allocation and copy accounting across complete transport paths; extend reuse to string/wstring sequences and investigate middleware output-buffer resizing; keep allocation-failure and capacity invariants explicit. |
 | Service events | Iron and newer service/action event bindings; empty and populated native/CDR/JSON roundtrips; bounded request/response rejection; typed/untyped client and server configuration. Four integration tests pass on local Jazzy with both CycloneDDS and Fast DDS, covering mode transitions, simulated timestamps, native identities, ownership, and retained QoS history. | Extend the local Jazzy RMW evidence to the other supported modern distributions and external rclcpp endpoints; maintain the documented middleware-dependent event identity encoding. |
 | Graph, QoS, parameters, clocks | Graph queries, endpoint identities and QoS, parameter services/events, managed ROS clocks and jump callbacks. | Audit remaining application-facing RCL and rclcpp features and test real middleware behavior per distribution. |
@@ -92,6 +92,14 @@ The comparison now includes 65536-value payloads and explicit receive-path ident
 same-binary control passes the one-way regression test but fails symmetric calibration for
 zero-payload p99/rate. Apparent gains are now checked as calibration drift too. Stable small
 transport tails and complete allocation/buffer-lifetime evidence remain prerequisites.
+
+The [multi-node service-application A/B](benchmarks/multi-node-executor-2026-10-28/README.md)
+passes the preselected 5% latency, throughput and CPU/request gates under both Jazzy RMWs.
+One shared native wait removes historical nonblocking per-node polling. Eight-node/window-16
+Rust throughput reaches about 103k requests/s under CycloneDDS and 69k under Fast DDS, versus
+97k/58k for the same-run rclcpp application. Eleven shared-wait cases and the complete pipeline
+example pass in native Humble/Kilted. Other hardware, payloads, threaded callbacks, reactors,
+fanout and cross-distribution performance remain open.
 
 ## Reproducible local gates
 

@@ -27,6 +27,10 @@ must make progress themselves; this synchronous method does not run another runt
 reactor. A current-thread runtime reactor cannot progress while its only thread is inside a
 blocking call to this method.
 
+For an application spanning nodes, [`Executor`](MULTI_NODE_EXECUTION.md) owns the nodes and
+uses one native wait set for their events. Its `spin_until_future_complete` methods share the
+same wake/coalescing and timeout implementation and support non-Send application futures.
+
 The [pub/sub workflow example](../r2r/examples/pubsub_workflow.rs) waits for both endpoint
 matches, awaits a wall timer, publishes and validates 8192 integers, awaits reliable
 acknowledgements and destroys its timer and endpoints. Publisher/subscription matching waits

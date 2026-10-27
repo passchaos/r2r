@@ -49,13 +49,13 @@ pub(super) struct FutureGuard {
     pub(super) active: AtomicBool,
     _context: Context,
     #[cfg(test)]
-    waiting: AtomicBool,
+    pub(super) waiting: AtomicBool,
     #[cfg(test)]
-    wait_return: AtomicI32,
+    pub(super) wait_return: AtomicI32,
     #[cfg(test)]
-    wait_timeout_ns: std::sync::atomic::AtomicI64,
+    pub(super) wait_timeout_ns: std::sync::atomic::AtomicI64,
     #[cfg(test)]
-    triggers: std::sync::atomic::AtomicUsize,
+    pub(super) triggers: std::sync::atomic::AtomicUsize,
 }
 // RCL permits concurrent trigger calls and triggering while rcl_wait is blocked. The stable
 // handle is initialized before sharing; Arc ownership excludes fini until every trigger ends.
@@ -63,7 +63,7 @@ pub(super) struct FutureGuard {
 unsafe impl Send for FutureGuard {}
 unsafe impl Sync for FutureGuard {}
 impl FutureGuard {
-    fn new(context: &Context) -> Result<Arc<Self>> {
+    pub(super) fn new(context: &Context) -> Result<Arc<Self>> {
         let handle =
             Box::new(UnsafeCell::new(unsafe { rcl_get_zero_initialized_guard_condition() }));
         let ret = {
@@ -208,71 +208,104 @@ impl Node {
         &mut self, future: impl Future<Output = Result<T>>, timeout: Duration,
         options: FutureExecutionOptions,
     ) -> Result<T> {
-        if options
-            .poll_interval
-            .is_some_and(|interval| interval.is_zero())
-        {
-            return Err(Error::RCL_RET_INVALID_ARGUMENT);
+        drive_future(self, future, timeout, options)
+    }
+}
+
+pub(super) trait FutureDriver {
+    fn future_context(&self) -> &Context;
+    fn cached_future_guard(&self) -> Option<Arc<FutureGuard>>;
+    fn cache_future_guard(&mut self, guard: Arc<FutureGuard>);
+    fn set_future_wake(&mut self, wake: Arc<FutureWake>);
+    fn spin_future_events(&mut self, timeout: Duration) -> Result<()>;
+}
+
+impl FutureDriver for Node {
+    fn future_context(&self) -> &Context {
+        &self.context
+    }
+    fn cached_future_guard(&self) -> Option<Arc<FutureGuard>> {
+        self.future_wake_guard.clone()
+    }
+    fn cache_future_guard(&mut self, guard: Arc<FutureGuard>) {
+        self.future_wake_guard = Some(guard);
+    }
+    fn set_future_wake(&mut self, wake: Arc<FutureWake>) {
+        self.future_wake_state = Some(wake);
+    }
+    fn spin_future_events(&mut self, timeout: Duration) -> Result<()> {
+        self.try_spin_once(timeout)
+    }
+}
+
+pub(super) fn drive_future<T>(
+    driver: &mut impl FutureDriver, future: impl Future<Output = Result<T>>, timeout: Duration,
+    options: FutureExecutionOptions,
+) -> Result<T> {
+    if options
+        .poll_interval
+        .is_some_and(|interval| interval.is_zero())
+    {
+        return Err(Error::RCL_RET_INVALID_ARGUMENT);
+    }
+    futures::pin_mut!(future);
+    let started = Instant::now();
+    // Preserve the allocation-free already-ready path and zero-timeout behavior.
+    let mut initial = TaskContext::from_waker(futures::task::noop_waker_ref());
+    if let Poll::Ready(result) = future.as_mut().poll(&mut initial) {
+        return result;
+    }
+    if timeout.saturating_sub(started.elapsed()).is_zero() {
+        return Err(Error::RCL_RET_TIMEOUT);
+    }
+    let guard = match driver.cached_future_guard() {
+        Some(guard) => guard,
+        None => {
+            let guard = FutureGuard::new(driver.future_context())?;
+            driver.cache_future_guard(Arc::clone(&guard));
+            guard
         }
-        futures::pin_mut!(future);
-        let started = Instant::now();
-        // Preserve the allocation-free already-ready path and zero-timeout behavior.
-        let mut initial = TaskContext::from_waker(futures::task::noop_waker_ref());
-        if let Poll::Ready(result) = future.as_mut().poll(&mut initial) {
+    };
+    let wake = Arc::new(FutureWake {
+        guard: Arc::downgrade(&guard),
+        flags: AtomicU8::new(ARMED),
+        error: AtomicI32::new(0),
+    });
+    driver.set_future_wake(Arc::clone(&wake));
+    guard.active.store(true, Ordering::Release);
+    let run = FutureRun { guard, wake };
+    let waker = Waker::from(Arc::clone(&run.wake));
+    let mut context = TaskContext::from_waker(&waker);
+    loop {
+        run.wake
+            .flags
+            .fetch_and(!(NOTIFIED | WAITING), Ordering::AcqRel);
+        if let Poll::Ready(result) = future.as_mut().poll(&mut context) {
             return result;
         }
-        if timeout.saturating_sub(started.elapsed()).is_zero() {
+        let error = run.wake.error.load(Ordering::Acquire);
+        if error != 0 {
+            return Err(Error::from_rcl_error(error));
+        }
+        let remaining = timeout.saturating_sub(started.elapsed());
+        if remaining.is_zero() {
             return Err(Error::RCL_RET_TIMEOUT);
         }
-        let guard = match &self.future_wake_guard {
-            Some(guard) => Arc::clone(guard),
-            None => {
-                let guard = FutureGuard::new(&self.context)?;
-                self.future_wake_guard = Some(Arc::clone(&guard));
-                guard
-            }
-        };
-        let wake = Arc::new(FutureWake {
-            guard: Arc::downgrade(&guard),
-            flags: AtomicU8::new(ARMED),
-            error: AtomicI32::new(0),
-        });
-        self.future_wake_state = Some(Arc::clone(&wake));
-        guard.active.store(true, Ordering::Release);
-        let run = FutureRun { guard, wake };
-        let waker = Waker::from(Arc::clone(&run.wake));
-        let mut context = TaskContext::from_waker(&waker);
-        loop {
-            run.wake
-                .flags
-                .fetch_and(!(NOTIFIED | WAITING), Ordering::AcqRel);
-            if let Poll::Ready(result) = future.as_mut().poll(&mut context) {
-                return result;
-            }
-            let error = run.wake.error.load(Ordering::Acquire);
-            if error != 0 {
-                return Err(Error::from_rcl_error(error));
-            }
-            let remaining = timeout.saturating_sub(started.elapsed());
-            if remaining.is_zero() {
-                return Err(Error::RCL_RET_TIMEOUT);
-            }
-            // One atomic state prevents lost-wake store/load races. Self-wakes still drain
-            // ready ROS work with a zero wait, rather than starving the node.
-            let previous = run.wake.flags.fetch_or(WAITING, Ordering::AcqRel);
-            let wait = if previous & NOTIFIED != 0 {
-                run.wake.flags.fetch_and(!WAITING, Ordering::AcqRel);
-                Duration::ZERO
-            } else {
-                options
-                    .poll_interval
-                    .map_or(remaining, |interval| remaining.min(interval))
-                    .min(Duration::from_nanos(i64::MAX as u64))
-            };
-            let result = self.try_spin_once(wait);
+        // One atomic state prevents lost-wake store/load races. Self-wakes still drain
+        // ready ROS work with a zero wait, rather than starving the node.
+        let previous = run.wake.flags.fetch_or(WAITING, Ordering::AcqRel);
+        let wait = if previous & NOTIFIED != 0 {
             run.wake.flags.fetch_and(!WAITING, Ordering::AcqRel);
-            result?;
-        }
+            Duration::ZERO
+        } else {
+            options
+                .poll_interval
+                .map_or(remaining, |interval| remaining.min(interval))
+                .min(Duration::from_nanos(i64::MAX as u64))
+        };
+        let result = driver.spin_future_events(wait);
+        run.wake.flags.fetch_and(!WAITING, Ordering::AcqRel);
+        result?;
     }
 }
 

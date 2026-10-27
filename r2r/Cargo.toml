@@ -38,6 +38,7 @@ tokio = { version = "1.22.0", features = ["rt-multi-thread", "time", "macros"] }
 rand = "0.8.5"
 cdr = "0.2.4"
 criterion = "0.5.1"
+libc = "0.2"
 
 [build-dependencies]
 r2r_common = { path = "../r2r_common", version = "0.9.7" }
@@ -92,5 +93,9 @@ harness = false
 name = "pubsub_view_roundtrip"
 harness = false
 
+[[bench]]
+name = "multi_node_service"
+harness = false
+
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(r2r_bench_native_views)"] }
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(r2r_bench_native_views)", "cfg(r2r_bench_shared_executor)"] }

@@ -179,9 +179,9 @@ mod nodes;
 #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
 pub use nodes::TimerCallInfo;
 pub use nodes::{
-    FutureExecutionOptions, Node, NodeOptions, ParameterCallbackHandle, ParameterHandlerOptions,
-    ParameterPostSetCallbackHandle, ParameterPreSetCallbackHandle, Timer, TimerOptions,
-    TopicEndpointInfo, TopicEndpointType, TopicTypeHash,
+    Executor, ExecutorNodeId, FutureExecutionOptions, Node, NodeOptions, ParameterCallbackHandle,
+    ParameterHandlerOptions, ParameterPostSetCallbackHandle, ParameterPreSetCallbackHandle, Timer,
+    TimerOptions, TopicEndpointInfo, TopicEndpointType, TopicTypeHash,
 };
 
 pub mod qos;
