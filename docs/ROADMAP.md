@@ -24,7 +24,7 @@ This audit is based on the source tree and local checks on 2026-10-27. It is not
 | Graph, QoS, parameters, clocks | Graph queries, endpoint identities and QoS, parameter services/events, managed ROS clocks and jump callbacks. | Audit remaining application-facing RCL and rclcpp features and test real middleware behavior per distribution. |
 | Distribution compatibility | Build-time checks and CI cover Humble, Iron, Jazzy, Kilted, Lyrical and Rolling. Library tests and Clippy pass with native Jazzy and containerized Humble/Kilted using Rust 1.85. | Complete runtime and RMW checks for each supported distribution and keep version-specific API boundaries explicit; Iron, Lyrical and Rolling remain CI matrix entries whose current local runtime evidence is not available. |
 | Documentation builds | `cargo check --workspace --features doc-only` works with saved bindings. | Saved bindings omit some example packages and new event types; refresh them and make documentation/example test coverage consistent. `--all-targets --features doc-only` currently fails on existing example-package dependencies. |
-| Performance evidence | Criterion benches plus an independent Rust/rclcpp message-stage harness with byte-exact CDR oracle, fixed CPU, alternating baseline/candidate/C++ runs and a regression gate. [Native-message reuse evidence](benchmarks/native-message-reuse-2026-10-27.md) records the first measured copy-path improvement. | Add end-to-end pub/sub, service and action workloads, allocation counters and scaling measurements. Message-stage comparisons do not establish overall superiority over C++. |
+| Performance evidence | Criterion benches, an independent Rust/rclcpp message-stage harness and [native-message reuse evidence](benchmarks/native-message-reuse-2026-10-27.md). The [independent-process pub/sub matrix](benchmarks/pubsub-roundtrip-2026-10-27.md) covers both language directions with raw individual RTT samples under two RMWs. | Add pipelined/fanout pub/sub, service and action workloads, allocation counters and scaling measurements. Current stage and stop-and-wait comparisons do not establish overall superiority over C++. |
 | Module structure | Small modules exist for availability, wait sets, time sources and parameter clients. | Decompose the large node module by stable responsibility; keep unit tests near implementation and integration tests at module or crate boundaries. |
 
 ## Execution order
@@ -35,6 +35,10 @@ This audit is based on the source tree and local checks on 2026-10-27. It is not
 4. Improve application ergonomics and module boundaries in the affected slice; validate it independently and checkpoint completed changes.
 
 Performance-sensitive changes follow: correctness and counterexamples/oracles, local benchmarks, pinned-CPU interleaved A/B, then the affected compatibility matrix and full verification appropriate to the change. A failed early gate stops promotion. Temporary implementations must expose a replaceable boundary and preserve the path to higher throughput, concurrency, locality and incremental processing.
+
+Optimized runtime behavior is checked with the [release validation gates](RELEASE_VALIDATION.md).
+State registration and cleanup must execute outside debug assertions; the complete Jazzy library
+suite runs with assertions disabled in CI as well as under the supported-distribution test matrix.
 
 ## Reproducible local gates
 

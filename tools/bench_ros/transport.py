@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+"""Measure independent ROS ping/echo processes, including cross-language interoperability."""
+import argparse
+import datetime
+import gzip
+import hashlib
+import json
+import math
+import os
+from pathlib import Path
+import platform
+import statistics
+import subprocess
+import tempfile
+import uuid
+import xml.etree.ElementTree as ET
+
+
+def percentile(samples, percent):
+    ordered = sorted(samples)
+    return ordered[math.ceil((len(ordered) - 1) * percent / 100)]
+
+
+def validate_endpoint(result, role, rmw, elements, iterations, warmup, implementation=None):
+    if implementation is not None and result["implementation"] != implementation:
+        raise RuntimeError("language implementation mismatch")
+    if (result["role"], result["rmw"], result["elements"], result["iterations"], result["warmup"]) != (role, rmw, elements, iterations, warmup):
+        raise RuntimeError("endpoint identity mismatch")
+    total = iterations + warmup
+    if result["received"] != total or result["checksum"] != total * (total - 1) // 2:
+        raise RuntimeError("message count or sequence checksum mismatch")
+    if role == "ping":
+        samples = result["samples_ns"]
+        if len(samples) != iterations or any(not isinstance(value, int) or value <= 0 for value in samples):
+            raise RuntimeError("invalid RTT samples")
+        for percent in [50, 95, 99]:
+            if result[f"rtt_ns_p{percent}"] != percentile(samples, percent):
+                raise RuntimeError("RTT percentile mismatch")
+        if result["rtt_ns_max"] != max(samples):
+            raise RuntimeError("RTT maximum mismatch")
+        if result["elapsed_ns"] < sum(samples) or not math.isfinite(result["roundtrips_per_second"]) or result["roundtrips_per_second"] <= 0:
+            raise RuntimeError("invalid throughput result")
+        expected_rate = iterations / (result["elapsed_ns"] * 1e-9)
+        # C++ JSON output rounds doubles to six significant digits.
+        if not math.isclose(result["roundtrips_per_second"], expected_rate, rel_tol=1e-5):
+            raise RuntimeError("throughput calculation mismatch")
+
+
+def pair(ping, echo, cpu_ping, cpu_echo, env, elements, iterations, warmup, prefix):
+    parameters = [str(elements), str(iterations), str(warmup), prefix]
+    with tempfile.TemporaryDirectory(prefix="r2r-roundtrip-") as directory:
+        output = Path(directory) / "echo.json"
+        errors = Path(directory) / "echo.log"
+        with output.open("w") as out, errors.open("w") as err:
+            responder = subprocess.Popen(["taskset", "-c", str(cpu_echo), str(echo), "echo", *parameters], env=env, stdout=out, stderr=err)
+            try:
+                initiator = subprocess.run(["taskset", "-c", str(cpu_ping), str(ping), "ping", *parameters], env=env, text=True, capture_output=True, timeout=120)
+                if initiator.returncode:
+                    raise RuntimeError(f"ping failed ({initiator.returncode}): {initiator.stderr}\necho: {errors.read_text()}")
+                if responder.wait(timeout=15):
+                    raise RuntimeError(f"echo failed: {errors.read_text()}")
+                ping_result = json.loads(initiator.stdout)
+                echo_result = json.loads(output.read_text())
+            finally:
+                if responder.poll() is None:
+                    responder.terminate()
+                    try:
+                        responder.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        responder.kill()
+                        responder.wait()
+        validate_endpoint(ping_result, "ping", env["RMW_IMPLEMENTATION"], elements, iterations, warmup)
+        validate_endpoint(echo_result, "echo", env["RMW_IMPLEMENTATION"], elements, iterations, warmup)
+        return ping_result, echo_result
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--rust", type=Path, required=True)
+    parser.add_argument("--cpp", type=Path, required=True)
+    parser.add_argument("--cpu-ping", type=int, required=True)
+    parser.add_argument("--cpu-echo", type=int, required=True)
+    parser.add_argument("--domain-id", type=int, default=102)
+    parser.add_argument("--rmw", default="rmw_cyclonedds_cpp")
+    parser.add_argument("--sizes", default="0,32,4096")
+    parser.add_argument("--iterations", type=int, default=5000)
+    parser.add_argument("--warmup", type=int, default=100)
+    parser.add_argument("--repetitions", type=int, default=5)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--build-manifest", type=Path)
+    args = parser.parse_args()
+    allowed = os.sched_getaffinity(0)
+    if args.cpu_ping == args.cpu_echo or not {args.cpu_ping, args.cpu_echo}.issubset(allowed):
+        parser.error("select two distinct available CPUs")
+    if not 0 <= args.domain_id <= 232 or args.iterations <= 0 or args.warmup < 0 or args.repetitions < 1 or args.iterations + args.warmup > 2**32 - 1:
+        parser.error("invalid run dimensions or DDS domain")
+    sizes = [int(size) for size in args.sizes.split(",")]
+    if not sizes or any(size < 0 or size > 1_000_000 for size in sizes):
+        parser.error("invalid payload sizes")
+    binaries = {"rust": args.rust.resolve(), "cpp": args.cpp.resolve()}
+    env = os.environ.copy()
+    env.update(RMW_IMPLEMENTATION=args.rmw, ROS_DOMAIN_ID=str(args.domain_id), ROS_LOCALHOST_ONLY="1")
+    env.pop("CYCLONEDDS_URI", None)
+    env.pop("FASTRTPS_DEFAULT_PROFILES_FILE", None)
+    env.pop("FASTDDS_DEFAULT_PROFILES_FILE", None)
+    metadata = {
+        "started_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "cpu_ping": args.cpu_ping, "cpu_echo": args.cpu_echo, "domain_id": args.domain_id,
+        "rmw": args.rmw, "ros_distro": env["ROS_DISTRO"], "platform": platform.platform(),
+        "cpu_model": next(line.split(":", 1)[1].strip() for line in Path("/proc/cpuinfo").read_text().splitlines() if line.startswith("model name")),
+        "git_head": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+        "working_tree_dirty": bool(subprocess.check_output(["git", "status", "--porcelain"], text=True).strip()),
+        "rustc": subprocess.check_output(["rustc", "--version"], text=True).strip(),
+        "cxx": subprocess.check_output(["c++", "--version"], text=True).splitlines()[0],
+        "binary_sha256": {label: hashlib.sha256(path.read_bytes()).hexdigest() for label, path in binaries.items()},
+        "qos": "reliable, volatile, KeepLast(16)", "transport": "independent processes, localhost DDS, intra-process disabled",
+        "scheduling": "single-threaded executor/spin loop; 100 ms blocking wait cap; one message in flight",
+        "rtt_boundary": "before request publish through response retrieval, before initiator payload validation",
+        "echo_work": "complete sequence/layout/payload validation then normal typed publish",
+        "throughput_boundary": "all measured roundtrips including initiator validation, excludes warmup/discovery/teardown",
+        "iterations": args.iterations, "warmup": args.warmup, "repetitions": args.repetitions,
+        "payload_sizes": sizes,
+        "source_sha256": {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in
+                          [Path("r2r/benches/pubsub_roundtrip.rs"), Path("tools/bench_ros/roundtrip.cpp"), Path("tools/bench_ros/transport.py")]},
+    }
+    if args.build_manifest:
+        metadata["build_manifest"] = json.loads(args.build_manifest.read_text())
+    prefix = Path("/opt/ros") / env["ROS_DISTRO"] / "share"
+    metadata["ros_packages"] = {name: ET.parse(prefix / name / "package.xml").findtext("version") for name in ["rclcpp", "rcl", "rmw", "std_msgs", args.rmw]}
+    records, traces = [], []
+    pairs = [("rust", "rust"), ("cpp", "cpp"), ("rust", "cpp"), ("cpp", "rust")]
+    for elements in sizes:
+        for repetition in range(args.repetitions):
+            for ping_label, echo_label in pairs if repetition % 2 == 0 else reversed(pairs):
+                run_prefix = "/r2r_roundtrip_" + uuid.uuid4().hex
+                ping, echo = pair(binaries[ping_label], binaries[echo_label], args.cpu_ping, args.cpu_echo, env, elements, args.iterations, args.warmup, run_prefix)
+                validate_endpoint(ping, "ping", args.rmw, elements, args.iterations, args.warmup,
+                                  "r2r" if ping_label == "rust" else "rclcpp")
+                validate_endpoint(echo, "echo", args.rmw, elements, args.iterations, args.warmup,
+                                  "r2r" if echo_label == "rust" else "rclcpp")
+                samples = ping.pop("samples_ns")
+                record = {"ping_language": ping_label, "echo_language": echo_label, "repetition": repetition, "elements": elements, "ping": ping, "echo": echo}
+                traces.append({"record": len(records), "samples_ns": samples})
+                records.append(record)
+                print(f"{ping_label}/{echo_label} elements={elements} repetition={repetition + 1}/{args.repetitions}: p50={ping['rtt_ns_p50']} ns p99={ping['rtt_ns_p99']} ns", flush=True)
+    summary = []
+    for elements in sizes:
+        for ping_label, echo_label in pairs:
+            group = [record["ping"] for record in records if record["elements"] == elements and record["ping_language"] == ping_label and record["echo_language"] == echo_label]
+            summary.append({"elements": elements, "ping_language": ping_label, "echo_language": echo_label,
+                            **{key: statistics.median(record[key] for record in group) for key in ["rtt_ns_p50", "rtt_ns_p95", "rtt_ns_p99", "roundtrips_per_second"]}})
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    trace_path = args.output.with_suffix(".samples.json.gz")
+    compressed = gzip.compress(json.dumps(traces, separators=(",", ":")).encode(), mtime=0)
+    trace_path.write_bytes(compressed)
+    metadata["samples_artifact"] = {"file": trace_path.name, "sha256": hashlib.sha256(compressed).hexdigest(), "record_count": len(traces)}
+    metadata["completed_utc"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    args.output.write_text(json.dumps({"metadata": metadata, "records": records, "summary": summary}, indent=2) + "\n")
+    print(json.dumps(summary, indent=2))
+
+
+if __name__ == "__main__":
+    main()

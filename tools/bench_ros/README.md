@@ -6,6 +6,9 @@ decoded message. The runner additionally requires byte-for-byte identical CDR fi
 operation checksums, the same RMW, input size and iteration count. Failed or malformed results
 stop the run.
 
+The [end-to-end pub/sub harness](TRANSPORT.md) compares separate ping/echo processes and
+includes both cross-language directions, individual RTT percentiles and raw sample artifacts.
+
 The stages are:
 
 * `copy_reuse`: copy a borrowed source into an initialized destination whose storage can be
