@@ -53,6 +53,7 @@ fn run_dynlink() {}
 fn run_dynlink() {
     r2r_common::print_cargo_link_search();
     println!("cargo:rustc-link-lib=dylib=rcl");
+    println!("cargo:rustc-link-lib=dylib=rcl_lifecycle");
     println!("cargo:rustc-link-lib=dylib=rcl_logging_spdlog");
     println!("cargo:rustc-link-lib=dylib=rcl_yaml_param_parser");
     println!("cargo:rustc-link-lib=dylib=rcutils");

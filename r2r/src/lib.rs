@@ -185,6 +185,13 @@ pub use nodes::{
     TopicTypeHash,
 };
 
+// The checked-in bindings used by the doc-only (docs.rs) build predate the
+// lifecycle FFI symbols; lifecycle is documented from native builds.
+#[cfg(not(feature = "doc-only"))]
+mod lifecycle;
+#[cfg(not(feature = "doc-only"))]
+pub use lifecycle::{LifecycleState, LifecycleStateMachine, LifecycleTrigger, TransitionEdge};
+
 pub mod qos;
 mod strings;
 pub use strings::{RosString, RosWString};

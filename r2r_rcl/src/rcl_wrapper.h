@@ -17,6 +17,11 @@
 // logging
 #include <rcl/logging.h>
 
+// managed/lifecycle nodes
+#if __has_include(<rcl_lifecycle/rcl_lifecycle.h>)
+#include <rcl_lifecycle/rcl_lifecycle.h>
+#endif
+
 // errors
 #include <rcutils/error_handling.h>
 
