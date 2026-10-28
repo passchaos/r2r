@@ -58,6 +58,11 @@ def rust_binary(source, target, destination, env, workload="codec"):
     sources = [source / f"r2r/benches/{benchmark}.rs", source / "r2r/src/msg_types.rs", source / "r2r/src/nodes.rs", source / "r2r/src/subscribers.rs", source / "r2r/src/publishers.rs", source / "r2r/src/clients.rs", source / "r2r/src/services.rs", source / "r2r_rcl/src/lib.rs", source / "r2r_msg_gen/src/lib.rs", source / "Cargo.lock"]
     if (source / "r2r/src/native_metadata.rs").exists():
         sources.append(source / "r2r/src/native_metadata.rs")
+    if workload in {"service", "executor"}:
+        sources.extend(sorted((source / "r2r/src/nodes").rglob("*.rs")))
+        sources.extend(sorted((source / "r2r/src/lifecycle").rglob("*.rs")))
+        if (source / "r2r/src/lifecycle.rs").exists():
+            sources.append(source / "r2r/src/lifecycle.rs")
     if workload in {"codec", "codec_strings"}:
         sources.append(source / "r2r/benches/support/codec.rs")
         sources.append(source / "r2r/benches/support/allocation_probe.rs")

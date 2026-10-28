@@ -16,6 +16,7 @@ REQUIRED_DOCUMENTATION = (
     "struct.LifecycleNode.html",
     "struct.LifecyclePublisher.html",
     "struct.LifecycleLoanedMessage.html",
+    "struct.LifecycleTimer.html",
     "struct.TimeSource.html",
     "enum.ServiceIntrospectionState.html",
     "struct.MessageSerializer.html",
@@ -25,11 +26,13 @@ REQUIRED_DOCUMENTATION = (
     "service_msgs/msg/struct.ServiceEventInfo.html",
 )
 REQUIRED_METHODS = {
-    "struct.LifecycleNode.html": ("create_publisher", "create_publisher_with_options", "configure", "activate"),
+    "struct.LifecycleNode.html": ("create_publisher", "create_publisher_with_options", "configure", "activate",
+                                "create_timer", "create_timer_with_options", "create_wall_timer", "create_wall_timer_with_options"),
     "struct.LifecyclePublisher.html": ("publish", "publish_native", "borrow_loaned_message", "destroy", "wait_for_subscribers"),
     "struct.LifecycleLoanedMessage.html": ("publish",),
     "struct.Client.html": ("configure_introspection",),
     "struct.TimeSource.html": ("enable_sim_time", "disable_sim_time", "attach_ros_clock"),
+    "struct.LifecycleTimer.html": ("tick", "tick_with_info", "cancel", "reset", "destroy"),
 }
 
 

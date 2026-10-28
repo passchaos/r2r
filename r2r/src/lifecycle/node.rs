@@ -277,6 +277,12 @@ impl LifecycleRuntime {
         self.entities.register(entity);
     }
 
+    pub(crate) fn register_managed_timer(
+        &self, timer: std::sync::Weak<crate::lifecycle::timer::state::LifecycleTimerState>,
+    ) {
+        self.entities.register_timer(timer);
+    }
+
     fn run_callback(
         &self, intermediate: LifecycleState, previous: LifecycleState,
     ) -> CallbackReturn {
@@ -375,6 +381,12 @@ pub struct LifecycleNode {
 }
 
 impl LifecycleNode {
+    pub(crate) fn register_managed_timer(
+        &self, timer: std::sync::Weak<crate::lifecycle::timer::state::LifecycleTimerState>,
+    ) {
+        self.runtime.register_managed_timer(timer);
+    }
+
     /// Create a managed node with the standard lifecycle services enabled.
     pub fn create(context: Context, name: &str, namespace: &str) -> Result<LifecycleNode> {
         let mut node = Node::create(context, name, namespace)?;

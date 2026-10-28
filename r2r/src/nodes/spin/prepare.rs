@@ -89,6 +89,7 @@ impl Node {
         for id in canceled_timers {
             Self::remove_timer(&mut self.timers, &mut self.timer_indexes, id);
         }
+        self.sync_managed_timers()?;
 
         {
             let mut dropped = self.dropped_action_clients.lock();

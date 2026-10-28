@@ -205,6 +205,37 @@ impl Drop for Timer {
 }
 
 impl Timer {
+    // Node reconciliation first cancels the native producer, so this drain is
+    // finite. Keep compatibility with the declared futures 0.3.25 minimum.
+    #[allow(deprecated)]
+    pub(crate) fn discard_pending_ticks(&mut self) {
+        while matches!(self.receiver.try_next(), Ok(Some(_))) {}
+    }
+
+    pub(crate) fn poll_tick(
+        &mut self, context: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<Duration>> {
+        Pin::new(&mut self.receiver).poll_next(context).map(|tick| {
+            tick.map(|tick| tick.elapsed)
+                .ok_or(Error::RCL_RET_TIMER_INVALID)
+        })
+    }
+
+    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
+    pub(crate) fn poll_tick_with_info(
+        &mut self, context: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<TimerCallInfo>> {
+        Pin::new(&mut self.receiver).poll_next(context).map(|tick| {
+            tick.map(|tick| TimerCallInfo {
+                elapsed: tick.elapsed,
+                expected_call_time_ns: tick.expected_call_time_ns,
+                actual_call_time_ns: tick.actual_call_time_ns,
+                clock_type: tick.clock_type,
+            })
+            .ok_or(Error::RCL_RET_TIMER_INVALID)
+        })
+    }
+
     /// Returns the type of clock driving this timer.
     pub const fn clock_type(&self) -> ClockType {
         self.clock_type

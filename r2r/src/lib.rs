@@ -189,7 +189,7 @@ pub use nodes::{
 mod lifecycle;
 pub use lifecycle::{
     CallbackReturn, LifecycleCallback, LifecycleLoanedMessage, LifecycleNode, LifecyclePublisher,
-    LifecycleState, LifecycleStateMachine, LifecycleTrigger, TransitionEdge,
+    LifecycleState, LifecycleStateMachine, LifecycleTimer, LifecycleTrigger, TransitionEdge,
 };
 
 pub mod qos;

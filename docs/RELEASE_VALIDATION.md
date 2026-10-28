@@ -185,3 +185,35 @@ retains fixed CPUs 24/25, two windows, all four Rust/C++ endpoint combinations,
 with C++; the implementation that read uninitialized metadata is not used as
 a performance baseline.
 
+## Lifecycle-managed timers (2026-10-28)
+
+[Lifecycle ROS/wall timers](LIFECYCLE_TIMERS.md) now pause the native producer
+outside active, restart from the current clock on activation and invalidate
+buffered ticks with a generation even when deactivate/reactivate occur between
+spins. Manual cancel/reset, explicit destruction, foreign-node rejection and
+native timing queries are preserved. Node destruction wakes paused observers.
+No additional thread, timer, periodic query or native guard is introduced;
+ordinary timer message storage and delivery stay on their existing path.
+
+Fourteen focused Jazzy cases cover native inactive suppression, fresh deadlines,
+stale queues, manual pause/startup, failed activation/deactivation, error/shutdown,
+drop cleanup, foreign controls, native elapsed/tick metadata, native `/clock`,
+backward ROS time and service-driven shared execution. Native elapsed values are
+checked against an ordinary timer. The complete sensor example validates 16
+publications over two active phases and three paused phases. Humble/Kilted
+optimized focused suites execute 13/14 cases; examples and full-target Clippy
+pass in both distributions. Humble lacks native `tick_with_info`.
+
+The optimized Jazzy library suite and debug workspace suite each pass 509
+library cases, with two manual benchmarks ignored. The Fast DDS optimized
+lifecycle filter executes 48 cases. Nine public API compilation boundaries
+check managed timer factories/controls and reject ordinary-timer escapes. The
+no-ROS container compiles all targets and checks 11 API artifacts/23 methods.
+
+[Default-path performance evidence](benchmarks/lifecycle-timers-2026-10-28/README.md)
+compares a safe `88f1ac7` baseline, candidate and rclcpp under both Jazzy RMWs.
+The original 5% p50/p95/p99/inverse-throughput gates pass in all window-1/16
+cells: 140 records and 700000 raw RTT samples. This service workload measures
+the optional managed registry's effect on ordinary nodes; managed-timer scaling
+remains a separate performance requirement.
+

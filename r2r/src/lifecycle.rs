@@ -16,11 +16,14 @@
 //! invisible to the r2r executor. Instead the managed node drives its machine
 //! from native r2r services with `rclcpp_lifecycle` transition semantics.
 
+mod managed;
 pub mod node;
 pub mod publisher;
 pub mod services;
 pub mod state_machine;
+pub mod timer;
 
 pub use node::{CallbackReturn, LifecycleCallback, LifecycleNode};
 pub use publisher::{LifecycleLoanedMessage, LifecyclePublisher};
 pub use state_machine::{LifecycleState, LifecycleStateMachine, LifecycleTrigger, TransitionEdge};
+pub use timer::LifecycleTimer;

@@ -10,8 +10,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Weak};
 
-use parking_lot::Mutex;
-
 use crate::error::Result;
 use crate::publishers::Publisher;
 use crate::{NativeMsg, Node, WrappedTypesupport};
@@ -28,31 +26,7 @@ mod tests;
 /// entity automatically on the next transition.
 pub(crate) type Activation = Arc<AtomicBool>;
 pub(crate) type WeakActivation = Weak<AtomicBool>;
-
-/// Registry of managed entities inside the lifecycle runtime.
-#[derive(Default)]
-pub(crate) struct ManagedEntities {
-    entities: Mutex<Vec<WeakActivation>>,
-}
-
-impl ManagedEntities {
-    pub fn register(&self, entity: WeakActivation) {
-        self.entities.lock().push(entity);
-    }
-
-    /// Activate or deactivate every still-alive managed entity. Dead weak
-    /// references are pruned while iterating.
-    pub fn set_enabled(&self, enabled: bool) {
-        let mut entities = self.entities.lock();
-        entities.retain(|weak| match weak.upgrade() {
-            Some(activation) => {
-                activation.store(enabled, Ordering::SeqCst);
-                true
-            }
-            None => false,
-        });
-    }
-}
+pub(crate) use super::managed::ManagedEntities;
 
 /// A ROS publisher whose publication follows a shared lifecycle activation flag.
 ///

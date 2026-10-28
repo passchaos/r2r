@@ -161,6 +161,7 @@ impl Node {
                 action_servers_with_pending_cancels: HashSet::new(),
                 action_wait_set_capacities: WaitSetCapacities::default(),
                 timers: Vec::new(),
+                managed_timers: None,
                 timer_indexes: HashMap::new(),
                 canceled_timers: Arc::new(Mutex::new(VecDeque::new())),
                 pubs: Vec::new(),

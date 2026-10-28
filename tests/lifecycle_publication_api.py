@@ -35,6 +35,15 @@ fn options(node: &mut r2r::LifecycleNode) -> LifecyclePublisher<Int32> {
 fn destroy(p: LifecyclePublisher<Int32>, node: &mut Node) {
     p.destroy(node);
 }
+fn timer(node: &mut r2r::LifecycleNode) -> r2r::LifecycleTimer {
+    node.create_wall_timer_with_options(std::time::Duration::from_millis(5), r2r::TimerOptions::default()).unwrap()
+}
+fn timer_controls(timer: &mut r2r::LifecycleTimer, node: &mut Node) {
+    timer.cancel(node).unwrap();
+    timer.reset(node).unwrap();
+    timer.period(node).unwrap();
+    drop(timer.tick());
+}
 """,
         None,
     ),
@@ -61,6 +70,16 @@ fn destroy(p: LifecyclePublisher<Int32>, node: &mut Node) {
     (
         "loan_field_escape",
         "fn escape<'node>(loan: LifecycleLoanedMessage<'node, Int32>) -> LoanedMessage<'node, Int32> { loan.message }",
+        "E0616",
+    ),
+    (
+        "timer_deref_escape",
+        "fn escape(timer: &r2r::LifecycleTimer) -> &r2r::Timer { timer }",
+        "E0308",
+    ),
+    (
+        "timer_field_escape",
+        "fn escape(timer: &r2r::LifecycleTimer) { let _ = timer.state; }",
         "E0616",
     ),
     (

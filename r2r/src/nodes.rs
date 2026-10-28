@@ -58,6 +58,7 @@ pub use parameter_support::{
 };
 mod action_client_api;
 mod client_api;
+mod managed_timers;
 mod publisher_api;
 mod service_api;
 mod spin;
@@ -138,6 +139,7 @@ pub struct Node {
     timers: Vec<Timer_>,
     timer_indexes: HashMap<uuid::Uuid, usize>,
     canceled_timers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    managed_timers: Option<Box<managed_timers::ManagedTimers>>,
     // and the publishers, whom we allow to be shared.. hmm.
     pub(crate) pubs: Vec<Arc<Publisher_>>,
     publisher_indexes: HashMap<uuid::Uuid, usize>,
@@ -585,6 +587,8 @@ fn c_str_to_owned(value: &CStr, context: &'static str) -> Result<String> {
 
 impl Drop for Node {
     fn drop(&mut self) {
+        // Wake managed tick observers even when their native timer is paused.
+        self.managed_timers.take();
         // fini functions are not thread safe so lock the context.
         let _ctx_handle = self.context.context_handle.lock();
         self.wait_set.fini();
