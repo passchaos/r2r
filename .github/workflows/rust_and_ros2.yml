@@ -28,6 +28,8 @@ jobs:
       run: docker run r2r_jazzy cargo clippy --workspace --all-targets -- -D warnings
     - name: Verify optimized runtime behavior
       run: docker run r2r_jazzy cargo test -p r2r --lib --release -- --test-threads=1
+    - name: Verify lifecycle publication API boundaries
+      run: docker run r2r_jazzy python3 tests/lifecycle_publication_api.py
 
   minimal_workspace_jazzy:
     runs-on: ubuntu-latest

@@ -34,7 +34,7 @@ use crate::lifecycle_msgs::msg::{
 };
 use crate::nodes::Node;
 use crate::publishers::Publisher;
-use crate::{QosProfile, WrappedServiceTypeSupport};
+use crate::{PublisherOptions, QosProfile, WrappedServiceTypeSupport};
 
 /// Outcome of a lifecycle transition callback.
 ///
@@ -441,13 +441,25 @@ impl LifecycleNode {
 
     /// Create a lifecycle-gated publisher.
     ///
-    /// The publisher starts deactivated: messages are dropped until the node
-    /// reaches the `active` primary state (via [`Self::activate`] or a
-    /// successful `change_state` service call). It is deactivated again when
-    /// the node leaves `active` through `deactivate`, `shutdown` or a
-    /// transition failure/error.
+    /// The publisher follows the settled node state: it is activated on an
+    /// already active node and otherwise starts deactivated. Successful
+    /// activation enables publication; after every transition callback chain,
+    /// publication is enabled exactly when the settled primary state is active.
     pub fn create_publisher<T>(
         &mut self, topic: &str, qos_profile: QosProfile,
+    ) -> Result<LifecyclePublisher<T>>
+    where
+        T: crate::WrappedTypesupport,
+    {
+        self.create_publisher_with_options(topic, qos_profile, PublisherOptions::default())
+    }
+
+    /// Create a lifecycle-gated publisher with explicit middleware options.
+    ///
+    /// Startup and transition behavior match [`Self::create_publisher`].
+    /// Network-flow options are passed to the ordinary native factory.
+    pub fn create_publisher_with_options<T>(
+        &mut self, topic: &str, qos_profile: QosProfile, options: PublisherOptions,
     ) -> Result<LifecyclePublisher<T>>
     where
         T: crate::WrappedTypesupport,
@@ -456,7 +468,7 @@ impl LifecycleNode {
             .node
             .as_mut()
             .expect("lifecycle node already extracted")
-            .create_publisher::<T>(topic, qos_profile)?;
+            .create_publisher_with_options::<T>(topic, qos_profile, options)?;
         let (managed, weak) = LifecyclePublisher::new(publisher);
         self.runtime.register_managed_entity(weak);
         // A publisher created on an already active node starts active too.

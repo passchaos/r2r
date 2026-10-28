@@ -22,5 +22,5 @@ pub mod services;
 pub mod state_machine;
 
 pub use node::{CallbackReturn, LifecycleCallback, LifecycleNode};
-pub use publisher::LifecyclePublisher;
+pub use publisher::{LifecycleLoanedMessage, LifecyclePublisher};
 pub use state_machine::{LifecycleState, LifecycleStateMachine, LifecycleTrigger, TransitionEdge};

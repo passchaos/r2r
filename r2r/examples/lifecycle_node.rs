@@ -15,6 +15,8 @@ use std::time::Duration;
 
 use r2r::{CallbackReturn, LifecycleNode, LifecycleState};
 
+type LifecycleStep = fn(&LifecycleNode) -> r2r::Result<CallbackReturn>;
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ctx = r2r::Context::create()?;
     let mut node = LifecycleNode::create(ctx, "lifecycle_example", "")?;
@@ -46,7 +48,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Drive the full lifecycle from Rust; each step also publishes
     // transition events and answers external change_state calls identically.
-    let steps: [(&str, fn(&LifecycleNode) -> r2r::Result<CallbackReturn>); 5] = [
+    let steps: [(&str, LifecycleStep); 5] = [
         ("configure", LifecycleNode::configure),
         ("activate", LifecycleNode::activate),
         ("deactivate", LifecycleNode::deactivate),

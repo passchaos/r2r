@@ -11,6 +11,8 @@ Documentation can be found on docs.rs: <https://docs.rs/r2r/latest/r2r>.
 
 The ongoing development goal, evidence requirements, and known capability, usability and performance gaps are tracked in [the development roadmap](docs/ROADMAP.md).
 
+For managed nodes, `LifecycleNode::create_publisher` gates typed, reusable native and middleware-loaned publication on activation. Endpoint queries and async waits remain available while inactive. Run `cargo run -p r2r --example lifecycle_publication` for a complete service-driven workflow through the shared executor; [lifecycle publication](docs/LIFECYCLE_PUBLICATION.md) describes ownership, state changes and API boundaries.
+
 For repeated message publication, keep a `NativeMsg<T>`, update it with `try_copy_to_native`, and use `publish_native`. Primitive and nested-message sequences retain capacity across smaller updates, and string fields reuse existing storage when it fits. Run `cargo run -p r2r --example native_message_reuse` for a complete example. [The Rust/rclcpp comparison harness](tools/bench_ros/README.md) measures the copy and codec stages with identical message fixtures.
 
 For repeated serialization, `MessageSerializer::<T>::new()?` keeps native message storage and returns borrowed ROS wire bytes from `serialize(&message)?`. Pass the slice directly to `publish_raw`, or call `to_vec()` when separate ownership is needed. Run `cargo run -p r2r --example reusable_serialization` for a complete typed receive/raw publish example. The selected RMW may resize the serializer's output buffer; returned bytes remain valid for their Rust borrow.
