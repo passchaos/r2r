@@ -82,10 +82,15 @@ cargo test -p r2r --lib lifecycle -- --test-threads=1
 cargo test -p r2r --lib --release lifecycle -- --test-threads=1
 ```
 
-25 lifecycle cases execute: 13 state-machine cases (full 11-state/25-edge graph
+29 lifecycle cases execute: 13 state-machine cases (full 11-state/25-edge graph
 oracle taken from the installed Jazzy rcl via a C probe, happy path,
-failure/error/shutdown edges, invalid triggers) and 12 managed-node cases over
-native r2r service clients/subscribers including the unified `Executor`.
+failure/error/shutdown edges, invalid triggers), 12 managed-node cases over
+native r2r service clients/subscribers including the unified `Executor`, and
+4 `LifecyclePublisher` cases (gating until active, manual toggle, dead-entity
+pruning, service-driven activation over DDS). Full debug and release suites
+now pass 488 tests each. `LifecycleNode::create_publisher` returns a gated
+publisher that is activated on reaching `active` and deactivated on leaving it
+(weak registry prunes dropped publishers on each transition).
 External interoperability was verified with `ros2 lifecycle get/list/set`
 against a running r2r node: configure, activate, an invalid command rejected
 with the state unchanged, deactivate, cleanup and shutdown all returned the

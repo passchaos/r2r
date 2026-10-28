@@ -23,6 +23,7 @@ use r2r_rcl::rosidl_service_type_support_t;
 use crate::clocks::Clock;
 use crate::context::Context;
 use crate::error::Result;
+use crate::lifecycle::publisher::{LifecyclePublisher, ManagedEntities};
 use crate::lifecycle::services::LifecycleService;
 use crate::lifecycle::state_machine::{
     LifecycleState, LifecycleStateMachine, LifecycleTrigger, TransitionEdge,
@@ -156,6 +157,7 @@ impl LifecycleServiceKind {
 pub(crate) struct LifecycleRuntime {
     machine: Mutex<LifecycleStateMachine>,
     callbacks: Mutex<LifecycleCallbacks>,
+    entities: ManagedEntities,
     events: Publisher<TransitionEvent>,
     clock: Arc<Mutex<Clock>>,
 }
@@ -260,7 +262,19 @@ impl LifecycleRuntime {
             self.publish_event(&recovery_edge);
         }
 
+        // Managed publishers forward only while the node is active. The flag
+        // is reconciled with the settled primary state after every command
+        // (including shutdown and error recovery), so an activate failure
+        // leaves them deactivated.
+        self.entities
+            .set_enabled(self.machine.lock().current_state() == LifecycleState::Active);
+
         Ok(primary)
+    }
+
+    /// Register a managed publisher, activated/deactivated with the node.
+    pub fn register_managed_entity(&self, entity: crate::lifecycle::publisher::WeakActivation) {
+        self.entities.register(entity);
     }
 
     fn run_callback(
@@ -374,6 +388,7 @@ impl LifecycleNode {
         let runtime = Arc::new(LifecycleRuntime {
             machine: Mutex::new(machine),
             callbacks: Mutex::new(LifecycleCallbacks::default()),
+            entities: ManagedEntities::default(),
             events,
             clock: node.ros_clock.clone(),
         });
@@ -422,6 +437,33 @@ impl LifecycleNode {
     /// The full standard transition graph (all 25 edges).
     pub fn transition_graph(&self) -> Vec<TransitionEdge> {
         self.runtime.machine.lock().transition_graph()
+    }
+
+    /// Create a lifecycle-gated publisher.
+    ///
+    /// The publisher starts deactivated: messages are dropped until the node
+    /// reaches the `active` primary state (via [`Self::activate`] or a
+    /// successful `change_state` service call). It is deactivated again when
+    /// the node leaves `active` through `deactivate`, `shutdown` or a
+    /// transition failure/error.
+    pub fn create_publisher<T>(
+        &mut self, topic: &str, qos_profile: QosProfile,
+    ) -> Result<LifecyclePublisher<T>>
+    where
+        T: crate::WrappedTypesupport,
+    {
+        let publisher = self
+            .node
+            .as_mut()
+            .expect("lifecycle node already extracted")
+            .create_publisher::<T>(topic, qos_profile)?;
+        let (managed, weak) = LifecyclePublisher::new(publisher);
+        self.runtime.register_managed_entity(weak);
+        // A publisher created on an already active node starts active too.
+        if self.lifecycle_state() == LifecycleState::Active {
+            managed.on_activate();
+        }
+        Ok(managed)
     }
 
     /// Run the `configure` transition (`unconfigured -> configuring -> inactive`

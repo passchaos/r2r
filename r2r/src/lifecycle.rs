@@ -17,8 +17,10 @@
 //! from native r2r services with `rclcpp_lifecycle` transition semantics.
 
 pub mod node;
+pub mod publisher;
 pub mod services;
 pub mod state_machine;
 
 pub use node::{CallbackReturn, LifecycleCallback, LifecycleNode};
+pub use publisher::LifecyclePublisher;
 pub use state_machine::{LifecycleState, LifecycleStateMachine, LifecycleTrigger, TransitionEdge};
