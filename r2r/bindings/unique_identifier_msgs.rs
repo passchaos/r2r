@@ -26,15 +26,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> UUID {
             UUID { uuid: msg.uuid }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            assert_eq!(
-                self.uuid.len(),
-                16usize,
-                "Field {} is fixed size of {}!",
-                "uuid",
-                16usize,
-            );
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.uuid.copy_from_slice(&self.uuid[..16usize]);
+            Ok(())
         }
     }
     impl Default for UUID {

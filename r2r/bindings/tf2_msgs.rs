@@ -127,14 +127,29 @@ pub mod action {
                     advanced: msg.advanced,
                 }
             }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                msg.target_frame.try_assign_bytes((&self.target_frame).as_bytes());
-                msg.source_frame.try_assign_bytes((&self.source_frame).as_bytes());
-                self.source_time.copy_to_native(&mut msg.source_time);
-                self.timeout.copy_to_native(&mut msg.timeout);
-                self.target_time.copy_to_native(&mut msg.target_time);
-                msg.fixed_frame.try_assign_bytes((&self.fixed_frame).as_bytes());
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                check_rosidl_runtime_ret(
+                    msg.target_frame.try_assign_bytes(self.target_frame.as_bytes()),
+                )?;
+                check_rosidl_runtime_ret(
+                    msg.source_frame.try_assign_bytes(self.source_frame.as_bytes()),
+                )?;
+                self.source_time.try_copy_to_native(&mut msg.source_time)?;
+                self.timeout.try_copy_to_native(&mut msg.timeout)?;
+                self.target_time.try_copy_to_native(&mut msg.target_time)?;
+                check_rosidl_runtime_ret(
+                    msg.fixed_frame.try_assign_bytes(self.fixed_frame.as_bytes()),
+                )?;
                 msg.advanced = self.advanced;
+                Ok(())
             }
         }
         impl Default for Goal {
@@ -176,9 +191,18 @@ pub mod action {
                     error: tf2_msgs::msg::TF2Error::from_native(&msg.error),
                 }
             }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                self.transform.copy_to_native(&mut msg.transform);
-                self.error.copy_to_native(&mut msg.error);
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                self.transform.try_copy_to_native(&mut msg.transform)?;
+                self.error.try_copy_to_native(&mut msg.error)?;
+                Ok(())
             }
         }
         impl Default for Result {
@@ -212,7 +236,17 @@ pub mod action {
             fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Feedback {
                 Feedback {}
             }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {}
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                Ok(())
+            }
         }
         impl Default for Feedback {
             fn default() -> Self {
@@ -228,6 +262,16 @@ pub mod action {
             unsafe impl WrappedServiceTypeSupport for Service {
                 type Request = Request;
                 type Response = Response;
+                #[cfg(
+                    any(
+                        r2r__ros__distro__iron,
+                        r2r__ros__distro__jazzy,
+                        r2r__ros__distro__kilted,
+                        r2r__ros__distro__lyrical,
+                        r2r__ros__distro__rolling
+                    )
+                )]
+                type Event = Event;
                 fn get_ts() -> &'static rosidl_service_type_support_t {
                     unsafe {
                         &*rosidl_typesupport_c__get_service_type_support_handle__tf2_msgs__action__LookupTransform_SendGoal()
@@ -275,9 +319,18 @@ pub mod action {
                         ),
                     }
                 }
-                fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                    self.goal_id.copy_to_native(&mut msg.goal_id);
-                    self.goal.copy_to_native(&mut msg.goal);
+                fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                    self.try_copy_to_native(msg)
+                        .expect("failed to copy Rust message into native ROS storage");
+                }
+                fn try_copy_to_native(
+                    &self,
+                    #[allow(unused)]
+                    msg: &mut Self::CStruct,
+                ) -> crate::Result<()> {
+                    self.goal_id.try_copy_to_native(&mut msg.goal_id)?;
+                    self.goal.try_copy_to_native(&mut msg.goal)?;
+                    Ok(())
                 }
             }
             impl Default for Request {
@@ -323,15 +376,176 @@ pub mod action {
                         stamp: builtin_interfaces::msg::Time::from_native(&msg.stamp),
                     }
                 }
-                fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+                fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                    self.try_copy_to_native(msg)
+                        .expect("failed to copy Rust message into native ROS storage");
+                }
+                fn try_copy_to_native(
+                    &self,
+                    #[allow(unused)]
+                    msg: &mut Self::CStruct,
+                ) -> crate::Result<()> {
                     msg.accepted = self.accepted;
-                    self.stamp.copy_to_native(&mut msg.stamp);
+                    self.stamp.try_copy_to_native(&mut msg.stamp)?;
+                    Ok(())
                 }
             }
             impl Default for Response {
                 fn default() -> Self {
                     let msg_native = WrappedNativeMsg::<Response>::new();
                     Response::from_native(&msg_native)
+                }
+            }
+            #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+            #[serde(default)]
+            pub struct Event {
+                pub info: service_msgs::msg::ServiceEventInfo,
+                pub request: Vec<tf2_msgs::action::LookupTransform::SendGoal::Request>,
+                pub response: Vec<tf2_msgs::action::LookupTransform::SendGoal::Response>,
+            }
+            unsafe impl WrappedTypesupport for Event {
+                type CStruct = tf2_msgs__action__LookupTransform_SendGoal_Event;
+                fn get_ts() -> &'static rosidl_message_type_support_t {
+                    unsafe {
+                        &*rosidl_typesupport_c__get_message_type_support_handle__tf2_msgs__action__LookupTransform_SendGoal_Event()
+                    }
+                }
+                fn create_msg() -> *mut tf2_msgs__action__LookupTransform_SendGoal_Event {
+                    #[cfg(not(feature = "doc-only"))]
+                    unsafe { tf2_msgs__action__LookupTransform_SendGoal_Event__create() }
+                    #[cfg(feature = "doc-only")]
+                    tf2_msgs__action__LookupTransform_SendGoal_Event__create()
+                }
+                fn destroy_msg(
+                    msg: *mut tf2_msgs__action__LookupTransform_SendGoal_Event,
+                ) -> () {
+                    #[cfg(not(feature = "doc-only"))]
+                    unsafe {
+                        tf2_msgs__action__LookupTransform_SendGoal_Event__destroy(msg)
+                    };
+                    #[cfg(feature = "doc-only")]
+                    tf2_msgs__action__LookupTransform_SendGoal_Event__destroy(msg)
+                }
+                fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Event {
+                    Event {
+                        info: service_msgs::msg::ServiceEventInfo::from_native(
+                            &msg.info,
+                        ),
+                        request: {
+                            let mut temp = Vec::with_capacity(msg.request.size);
+                            if msg.request.data != std::ptr::null_mut() {
+                                let slice = unsafe {
+                                    std::slice::from_raw_parts(
+                                        msg.request.data,
+                                        msg.request.size,
+                                    )
+                                };
+                                for s in slice {
+                                    temp.push(
+                                        tf2_msgs::action::LookupTransform::SendGoal::Request::from_native(
+                                            s,
+                                        ),
+                                    );
+                                }
+                            }
+                            temp
+                        },
+                        response: {
+                            let mut temp = Vec::with_capacity(msg.response.size);
+                            if msg.response.data != std::ptr::null_mut() {
+                                let slice = unsafe {
+                                    std::slice::from_raw_parts(
+                                        msg.response.data,
+                                        msg.response.size,
+                                    )
+                                };
+                                for s in slice {
+                                    temp.push(
+                                        tf2_msgs::action::LookupTransform::SendGoal::Response::from_native(
+                                            s,
+                                        ),
+                                    );
+                                }
+                            }
+                            temp
+                        },
+                    }
+                }
+                fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                    self.try_copy_to_native(msg)
+                        .expect("failed to copy Rust message into native ROS storage");
+                }
+                fn try_copy_to_native(
+                    &self,
+                    #[allow(unused)]
+                    msg: &mut Self::CStruct,
+                ) -> crate::Result<()> {
+                    self.info.try_copy_to_native(&mut msg.info)?;
+                    if self.request.len() > 1usize {
+                        return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                    }
+                    unsafe {
+                        let length = self.request.len();
+                        if length > msg.request.capacity {
+                            let mut replacement = std::mem::zeroed();
+                            if !tf2_msgs__action__LookupTransform_SendGoal_Request__Sequence__init(
+                                &mut replacement,
+                                length,
+                            ) {
+                                return Err(Error::RCL_RET_BAD_ALLOC);
+                            }
+                            tf2_msgs__action__LookupTransform_SendGoal_Request__Sequence__fini(
+                                &mut msg.request,
+                            );
+                            msg.request = replacement;
+                        }
+                        msg.request.size = length;
+                        if length != 0 {
+                            let slice = std::slice::from_raw_parts_mut(
+                                msg.request.data,
+                                length,
+                            );
+                            for (t, s) in slice.iter_mut().zip(&self.request) {
+                                s.try_copy_to_native(t)?;
+                            }
+                        }
+                    }
+                    if self.response.len() > 1usize {
+                        return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                    }
+                    unsafe {
+                        let length = self.response.len();
+                        if length > msg.response.capacity {
+                            let mut replacement = std::mem::zeroed();
+                            if !tf2_msgs__action__LookupTransform_SendGoal_Response__Sequence__init(
+                                &mut replacement,
+                                length,
+                            ) {
+                                return Err(Error::RCL_RET_BAD_ALLOC);
+                            }
+                            tf2_msgs__action__LookupTransform_SendGoal_Response__Sequence__fini(
+                                &mut msg.response,
+                            );
+                            msg.response = replacement;
+                        }
+                        msg.response.size = length;
+                        if length != 0 {
+                            let slice = std::slice::from_raw_parts_mut(
+                                msg.response.data,
+                                length,
+                            );
+                            for (t, s) in slice.iter_mut().zip(&self.response) {
+                                s.try_copy_to_native(t)?;
+                            }
+                        }
+                    }
+                    Ok(())
+                }
+            }
+            impl Default for Event {
+                fn default() -> Self {
+                    let msg_native = WrappedNativeMsg::<Event>::new();
+                    Event::from_native(&msg_native)
                 }
             }
         }
@@ -343,6 +557,16 @@ pub mod action {
             unsafe impl WrappedServiceTypeSupport for Service {
                 type Request = Request;
                 type Response = Response;
+                #[cfg(
+                    any(
+                        r2r__ros__distro__iron,
+                        r2r__ros__distro__jazzy,
+                        r2r__ros__distro__kilted,
+                        r2r__ros__distro__lyrical,
+                        r2r__ros__distro__rolling
+                    )
+                )]
+                type Event = Event;
                 fn get_ts() -> &'static rosidl_service_type_support_t {
                     unsafe {
                         &*rosidl_typesupport_c__get_service_type_support_handle__tf2_msgs__action__LookupTransform_GetResult()
@@ -386,8 +610,17 @@ pub mod action {
                         ),
                     }
                 }
-                fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                    self.goal_id.copy_to_native(&mut msg.goal_id);
+                fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                    self.try_copy_to_native(msg)
+                        .expect("failed to copy Rust message into native ROS storage");
+                }
+                fn try_copy_to_native(
+                    &self,
+                    #[allow(unused)]
+                    msg: &mut Self::CStruct,
+                ) -> crate::Result<()> {
+                    self.goal_id.try_copy_to_native(&mut msg.goal_id)?;
+                    Ok(())
                 }
             }
             impl Default for Request {
@@ -437,15 +670,180 @@ pub mod action {
                         ),
                     }
                 }
-                fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+                fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                    self.try_copy_to_native(msg)
+                        .expect("failed to copy Rust message into native ROS storage");
+                }
+                fn try_copy_to_native(
+                    &self,
+                    #[allow(unused)]
+                    msg: &mut Self::CStruct,
+                ) -> crate::Result<()> {
                     msg.status = self.status;
-                    self.result.copy_to_native(&mut msg.result);
+                    self.result.try_copy_to_native(&mut msg.result)?;
+                    Ok(())
                 }
             }
             impl Default for Response {
                 fn default() -> Self {
                     let msg_native = WrappedNativeMsg::<Response>::new();
                     Response::from_native(&msg_native)
+                }
+            }
+            #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+            #[serde(default)]
+            pub struct Event {
+                pub info: service_msgs::msg::ServiceEventInfo,
+                pub request: Vec<tf2_msgs::action::LookupTransform::GetResult::Request>,
+                pub response: Vec<
+                    tf2_msgs::action::LookupTransform::GetResult::Response,
+                >,
+            }
+            unsafe impl WrappedTypesupport for Event {
+                type CStruct = tf2_msgs__action__LookupTransform_GetResult_Event;
+                fn get_ts() -> &'static rosidl_message_type_support_t {
+                    unsafe {
+                        &*rosidl_typesupport_c__get_message_type_support_handle__tf2_msgs__action__LookupTransform_GetResult_Event()
+                    }
+                }
+                fn create_msg() -> *mut tf2_msgs__action__LookupTransform_GetResult_Event {
+                    #[cfg(not(feature = "doc-only"))]
+                    unsafe {
+                        tf2_msgs__action__LookupTransform_GetResult_Event__create()
+                    }
+                    #[cfg(feature = "doc-only")]
+                    tf2_msgs__action__LookupTransform_GetResult_Event__create()
+                }
+                fn destroy_msg(
+                    msg: *mut tf2_msgs__action__LookupTransform_GetResult_Event,
+                ) -> () {
+                    #[cfg(not(feature = "doc-only"))]
+                    unsafe {
+                        tf2_msgs__action__LookupTransform_GetResult_Event__destroy(msg)
+                    };
+                    #[cfg(feature = "doc-only")]
+                    tf2_msgs__action__LookupTransform_GetResult_Event__destroy(msg)
+                }
+                fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Event {
+                    Event {
+                        info: service_msgs::msg::ServiceEventInfo::from_native(
+                            &msg.info,
+                        ),
+                        request: {
+                            let mut temp = Vec::with_capacity(msg.request.size);
+                            if msg.request.data != std::ptr::null_mut() {
+                                let slice = unsafe {
+                                    std::slice::from_raw_parts(
+                                        msg.request.data,
+                                        msg.request.size,
+                                    )
+                                };
+                                for s in slice {
+                                    temp.push(
+                                        tf2_msgs::action::LookupTransform::GetResult::Request::from_native(
+                                            s,
+                                        ),
+                                    );
+                                }
+                            }
+                            temp
+                        },
+                        response: {
+                            let mut temp = Vec::with_capacity(msg.response.size);
+                            if msg.response.data != std::ptr::null_mut() {
+                                let slice = unsafe {
+                                    std::slice::from_raw_parts(
+                                        msg.response.data,
+                                        msg.response.size,
+                                    )
+                                };
+                                for s in slice {
+                                    temp.push(
+                                        tf2_msgs::action::LookupTransform::GetResult::Response::from_native(
+                                            s,
+                                        ),
+                                    );
+                                }
+                            }
+                            temp
+                        },
+                    }
+                }
+                fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                    self.try_copy_to_native(msg)
+                        .expect("failed to copy Rust message into native ROS storage");
+                }
+                fn try_copy_to_native(
+                    &self,
+                    #[allow(unused)]
+                    msg: &mut Self::CStruct,
+                ) -> crate::Result<()> {
+                    self.info.try_copy_to_native(&mut msg.info)?;
+                    if self.request.len() > 1usize {
+                        return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                    }
+                    unsafe {
+                        let length = self.request.len();
+                        if length > msg.request.capacity {
+                            let mut replacement = std::mem::zeroed();
+                            if !tf2_msgs__action__LookupTransform_GetResult_Request__Sequence__init(
+                                &mut replacement,
+                                length,
+                            ) {
+                                return Err(Error::RCL_RET_BAD_ALLOC);
+                            }
+                            tf2_msgs__action__LookupTransform_GetResult_Request__Sequence__fini(
+                                &mut msg.request,
+                            );
+                            msg.request = replacement;
+                        }
+                        msg.request.size = length;
+                        if length != 0 {
+                            let slice = std::slice::from_raw_parts_mut(
+                                msg.request.data,
+                                length,
+                            );
+                            for (t, s) in slice.iter_mut().zip(&self.request) {
+                                s.try_copy_to_native(t)?;
+                            }
+                        }
+                    }
+                    if self.response.len() > 1usize {
+                        return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                    }
+                    unsafe {
+                        let length = self.response.len();
+                        if length > msg.response.capacity {
+                            let mut replacement = std::mem::zeroed();
+                            if !tf2_msgs__action__LookupTransform_GetResult_Response__Sequence__init(
+                                &mut replacement,
+                                length,
+                            ) {
+                                return Err(Error::RCL_RET_BAD_ALLOC);
+                            }
+                            tf2_msgs__action__LookupTransform_GetResult_Response__Sequence__fini(
+                                &mut msg.response,
+                            );
+                            msg.response = replacement;
+                        }
+                        msg.response.size = length;
+                        if length != 0 {
+                            let slice = std::slice::from_raw_parts_mut(
+                                msg.response.data,
+                                length,
+                            );
+                            for (t, s) in slice.iter_mut().zip(&self.response) {
+                                s.try_copy_to_native(t)?;
+                            }
+                        }
+                    }
+                    Ok(())
+                }
+            }
+            impl Default for Event {
+                fn default() -> Self {
+                    let msg_native = WrappedNativeMsg::<Event>::new();
+                    Event::from_native(&msg_native)
                 }
             }
         }
@@ -488,102 +886,24 @@ pub mod action {
                     ),
                 }
             }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                self.goal_id.copy_to_native(&mut msg.goal_id);
-                self.feedback.copy_to_native(&mut msg.feedback);
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                self.goal_id.try_copy_to_native(&mut msg.goal_id)?;
+                self.feedback.try_copy_to_native(&mut msg.feedback)?;
+                Ok(())
             }
         }
         impl Default for FeedbackMessage {
             fn default() -> Self {
                 let msg_native = WrappedNativeMsg::<FeedbackMessage>::new();
                 FeedbackMessage::from_native(&msg_native)
-            }
-        }
-    }
-}
-pub mod srv {
-    #[allow(non_snake_case)]
-    pub mod FrameGraph {
-        use super::super::super::*;
-        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-        pub struct Service();
-        unsafe impl WrappedServiceTypeSupport for Service {
-            type Request = Request;
-            type Response = Response;
-            fn get_ts() -> &'static rosidl_service_type_support_t {
-                unsafe {
-                    &*rosidl_typesupport_c__get_service_type_support_handle__tf2_msgs__srv__FrameGraph()
-                }
-            }
-        }
-        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-        #[serde(default)]
-        pub struct Request {}
-        unsafe impl WrappedTypesupport for Request {
-            type CStruct = tf2_msgs__srv__FrameGraph_Request;
-            fn get_ts() -> &'static rosidl_message_type_support_t {
-                unsafe {
-                    &*rosidl_typesupport_c__get_message_type_support_handle__tf2_msgs__srv__FrameGraph_Request()
-                }
-            }
-            fn create_msg() -> *mut tf2_msgs__srv__FrameGraph_Request {
-                #[cfg(not(feature = "doc-only"))]
-                unsafe { tf2_msgs__srv__FrameGraph_Request__create() }
-                #[cfg(feature = "doc-only")] tf2_msgs__srv__FrameGraph_Request__create()
-            }
-            fn destroy_msg(msg: *mut tf2_msgs__srv__FrameGraph_Request) -> () {
-                #[cfg(not(feature = "doc-only"))]
-                unsafe { tf2_msgs__srv__FrameGraph_Request__destroy(msg) };
-                #[cfg(feature = "doc-only")]
-                tf2_msgs__srv__FrameGraph_Request__destroy(msg)
-            }
-            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Request {
-                Request {}
-            }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {}
-        }
-        impl Default for Request {
-            fn default() -> Self {
-                let msg_native = WrappedNativeMsg::<Request>::new();
-                Request::from_native(&msg_native)
-            }
-        }
-        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-        #[serde(default)]
-        pub struct Response {
-            pub frame_yaml: crate::RosString,
-        }
-        unsafe impl WrappedTypesupport for Response {
-            type CStruct = tf2_msgs__srv__FrameGraph_Response;
-            fn get_ts() -> &'static rosidl_message_type_support_t {
-                unsafe {
-                    &*rosidl_typesupport_c__get_message_type_support_handle__tf2_msgs__srv__FrameGraph_Response()
-                }
-            }
-            fn create_msg() -> *mut tf2_msgs__srv__FrameGraph_Response {
-                #[cfg(not(feature = "doc-only"))]
-                unsafe { tf2_msgs__srv__FrameGraph_Response__create() }
-                #[cfg(feature = "doc-only")] tf2_msgs__srv__FrameGraph_Response__create()
-            }
-            fn destroy_msg(msg: *mut tf2_msgs__srv__FrameGraph_Response) -> () {
-                #[cfg(not(feature = "doc-only"))]
-                unsafe { tf2_msgs__srv__FrameGraph_Response__destroy(msg) };
-                #[cfg(feature = "doc-only")]
-                tf2_msgs__srv__FrameGraph_Response__destroy(msg)
-            }
-            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Response {
-                Response {
-                    frame_yaml: crate::RosString::from(msg.frame_yaml.as_bytes()),
-                }
-            }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                msg.frame_yaml.try_assign_bytes((&self.frame_yaml).as_bytes());
-            }
-        }
-        impl Default for Response {
-            fn default() -> Self {
-                let msg_native = WrappedNativeMsg::<Response>::new();
-                Response::from_native(&msg_native)
             }
         }
     }
@@ -619,9 +939,20 @@ pub mod msg {
                 error_string: crate::RosString::from(msg.error_string.as_bytes()),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.error = self.error;
-            msg.error_string.try_assign_bytes((&self.error_string).as_bytes());
+            check_rosidl_runtime_ret(
+                msg.error_string.try_assign_bytes(self.error_string.as_bytes()),
+            )?;
+            Ok(())
         }
     }
     impl Default for TF2Error {
@@ -632,13 +963,13 @@ pub mod msg {
     }
     #[allow(non_upper_case_globals)]
     impl TF2Error {
-        pub const CONNECTIVITY_ERROR: _bindgen_ty_229 = tf2_msgs__msg__TF2Error__CONNECTIVITY_ERROR;
-        pub const EXTRAPOLATION_ERROR: _bindgen_ty_230 = tf2_msgs__msg__TF2Error__EXTRAPOLATION_ERROR;
-        pub const INVALID_ARGUMENT_ERROR: _bindgen_ty_231 = tf2_msgs__msg__TF2Error__INVALID_ARGUMENT_ERROR;
-        pub const LOOKUP_ERROR: _bindgen_ty_228 = tf2_msgs__msg__TF2Error__LOOKUP_ERROR;
-        pub const NO_ERROR: _bindgen_ty_227 = tf2_msgs__msg__TF2Error__NO_ERROR;
-        pub const TIMEOUT_ERROR: _bindgen_ty_232 = tf2_msgs__msg__TF2Error__TIMEOUT_ERROR;
-        pub const TRANSFORM_ERROR: _bindgen_ty_233 = tf2_msgs__msg__TF2Error__TRANSFORM_ERROR;
+        pub const CONNECTIVITY_ERROR: _bindgen_ty_437 = tf2_msgs__msg__TF2Error__CONNECTIVITY_ERROR;
+        pub const EXTRAPOLATION_ERROR: _bindgen_ty_438 = tf2_msgs__msg__TF2Error__EXTRAPOLATION_ERROR;
+        pub const INVALID_ARGUMENT_ERROR: _bindgen_ty_439 = tf2_msgs__msg__TF2Error__INVALID_ARGUMENT_ERROR;
+        pub const LOOKUP_ERROR: _bindgen_ty_436 = tf2_msgs__msg__TF2Error__LOOKUP_ERROR;
+        pub const NO_ERROR: _bindgen_ty_435 = tf2_msgs__msg__TF2Error__NO_ERROR;
+        pub const TIMEOUT_ERROR: _bindgen_ty_440 = tf2_msgs__msg__TF2Error__TIMEOUT_ERROR;
+        pub const TRANSFORM_ERROR: _bindgen_ty_441 = tf2_msgs__msg__TF2Error__TRANSFORM_ERROR;
     }
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
@@ -666,42 +997,324 @@ pub mod msg {
             TFMessage {
                 transforms: {
                     let mut temp = Vec::with_capacity(msg.transforms.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.transforms.data,
-                            msg.transforms.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(geometry_msgs::msg::TransformStamped::from_native(s));
+                    if msg.transforms.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.transforms.data,
+                                msg.transforms.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(
+                                geometry_msgs::msg::TransformStamped::from_native(s),
+                            );
+                        }
                     }
                     temp
                 },
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             unsafe {
-                geometry_msgs__msg__TransformStamped__Sequence__fini(
-                    &mut msg.transforms,
-                );
-                geometry_msgs__msg__TransformStamped__Sequence__init(
-                    &mut msg.transforms,
-                    self.transforms.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.transforms.data,
-                    msg.transforms.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.transforms) {
-                    s.copy_to_native(t);
+                let length = self.transforms.len();
+                if length > msg.transforms.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !geometry_msgs__msg__TransformStamped__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    geometry_msgs__msg__TransformStamped__Sequence__fini(
+                        &mut msg.transforms,
+                    );
+                    msg.transforms = replacement;
+                }
+                msg.transforms.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.transforms.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.transforms) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
+            Ok(())
         }
     }
     impl Default for TFMessage {
         fn default() -> Self {
             let msg_native = WrappedNativeMsg::<TFMessage>::new();
             TFMessage::from_native(&msg_native)
+        }
+    }
+}
+pub mod srv {
+    #[allow(non_snake_case)]
+    pub mod FrameGraph {
+        use super::super::super::*;
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        pub struct Service();
+        unsafe impl WrappedServiceTypeSupport for Service {
+            type Request = Request;
+            type Response = Response;
+            #[cfg(
+                any(
+                    r2r__ros__distro__iron,
+                    r2r__ros__distro__jazzy,
+                    r2r__ros__distro__kilted,
+                    r2r__ros__distro__lyrical,
+                    r2r__ros__distro__rolling
+                )
+            )]
+            type Event = Event;
+            fn get_ts() -> &'static rosidl_service_type_support_t {
+                unsafe {
+                    &*rosidl_typesupport_c__get_service_type_support_handle__tf2_msgs__srv__FrameGraph()
+                }
+            }
+        }
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        #[serde(default)]
+        pub struct Request {}
+        unsafe impl WrappedTypesupport for Request {
+            type CStruct = tf2_msgs__srv__FrameGraph_Request;
+            fn get_ts() -> &'static rosidl_message_type_support_t {
+                unsafe {
+                    &*rosidl_typesupport_c__get_message_type_support_handle__tf2_msgs__srv__FrameGraph_Request()
+                }
+            }
+            fn create_msg() -> *mut tf2_msgs__srv__FrameGraph_Request {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { tf2_msgs__srv__FrameGraph_Request__create() }
+                #[cfg(feature = "doc-only")] tf2_msgs__srv__FrameGraph_Request__create()
+            }
+            fn destroy_msg(msg: *mut tf2_msgs__srv__FrameGraph_Request) -> () {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { tf2_msgs__srv__FrameGraph_Request__destroy(msg) };
+                #[cfg(feature = "doc-only")]
+                tf2_msgs__srv__FrameGraph_Request__destroy(msg)
+            }
+            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Request {
+                Request {}
+            }
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                Ok(())
+            }
+        }
+        impl Default for Request {
+            fn default() -> Self {
+                let msg_native = WrappedNativeMsg::<Request>::new();
+                Request::from_native(&msg_native)
+            }
+        }
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        #[serde(default)]
+        pub struct Response {
+            pub frame_yaml: crate::RosString,
+        }
+        unsafe impl WrappedTypesupport for Response {
+            type CStruct = tf2_msgs__srv__FrameGraph_Response;
+            fn get_ts() -> &'static rosidl_message_type_support_t {
+                unsafe {
+                    &*rosidl_typesupport_c__get_message_type_support_handle__tf2_msgs__srv__FrameGraph_Response()
+                }
+            }
+            fn create_msg() -> *mut tf2_msgs__srv__FrameGraph_Response {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { tf2_msgs__srv__FrameGraph_Response__create() }
+                #[cfg(feature = "doc-only")] tf2_msgs__srv__FrameGraph_Response__create()
+            }
+            fn destroy_msg(msg: *mut tf2_msgs__srv__FrameGraph_Response) -> () {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { tf2_msgs__srv__FrameGraph_Response__destroy(msg) };
+                #[cfg(feature = "doc-only")]
+                tf2_msgs__srv__FrameGraph_Response__destroy(msg)
+            }
+            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Response {
+                Response {
+                    frame_yaml: crate::RosString::from(msg.frame_yaml.as_bytes()),
+                }
+            }
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                check_rosidl_runtime_ret(
+                    msg.frame_yaml.try_assign_bytes(self.frame_yaml.as_bytes()),
+                )?;
+                Ok(())
+            }
+        }
+        impl Default for Response {
+            fn default() -> Self {
+                let msg_native = WrappedNativeMsg::<Response>::new();
+                Response::from_native(&msg_native)
+            }
+        }
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        #[serde(default)]
+        pub struct Event {
+            pub info: service_msgs::msg::ServiceEventInfo,
+            pub request: Vec<tf2_msgs::srv::FrameGraph::Request>,
+            pub response: Vec<tf2_msgs::srv::FrameGraph::Response>,
+        }
+        unsafe impl WrappedTypesupport for Event {
+            type CStruct = tf2_msgs__srv__FrameGraph_Event;
+            fn get_ts() -> &'static rosidl_message_type_support_t {
+                unsafe {
+                    &*rosidl_typesupport_c__get_message_type_support_handle__tf2_msgs__srv__FrameGraph_Event()
+                }
+            }
+            fn create_msg() -> *mut tf2_msgs__srv__FrameGraph_Event {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { tf2_msgs__srv__FrameGraph_Event__create() }
+                #[cfg(feature = "doc-only")] tf2_msgs__srv__FrameGraph_Event__create()
+            }
+            fn destroy_msg(msg: *mut tf2_msgs__srv__FrameGraph_Event) -> () {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { tf2_msgs__srv__FrameGraph_Event__destroy(msg) };
+                #[cfg(feature = "doc-only")]
+                tf2_msgs__srv__FrameGraph_Event__destroy(msg)
+            }
+            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Event {
+                Event {
+                    info: service_msgs::msg::ServiceEventInfo::from_native(&msg.info),
+                    request: {
+                        let mut temp = Vec::with_capacity(msg.request.size);
+                        if msg.request.data != std::ptr::null_mut() {
+                            let slice = unsafe {
+                                std::slice::from_raw_parts(
+                                    msg.request.data,
+                                    msg.request.size,
+                                )
+                            };
+                            for s in slice {
+                                temp.push(
+                                    tf2_msgs::srv::FrameGraph::Request::from_native(s),
+                                );
+                            }
+                        }
+                        temp
+                    },
+                    response: {
+                        let mut temp = Vec::with_capacity(msg.response.size);
+                        if msg.response.data != std::ptr::null_mut() {
+                            let slice = unsafe {
+                                std::slice::from_raw_parts(
+                                    msg.response.data,
+                                    msg.response.size,
+                                )
+                            };
+                            for s in slice {
+                                temp.push(
+                                    tf2_msgs::srv::FrameGraph::Response::from_native(s),
+                                );
+                            }
+                        }
+                        temp
+                    },
+                }
+            }
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                self.info.try_copy_to_native(&mut msg.info)?;
+                if self.request.len() > 1usize {
+                    return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                }
+                unsafe {
+                    let length = self.request.len();
+                    if length > msg.request.capacity {
+                        let mut replacement = std::mem::zeroed();
+                        if !tf2_msgs__srv__FrameGraph_Request__Sequence__init(
+                            &mut replacement,
+                            length,
+                        ) {
+                            return Err(Error::RCL_RET_BAD_ALLOC);
+                        }
+                        tf2_msgs__srv__FrameGraph_Request__Sequence__fini(
+                            &mut msg.request,
+                        );
+                        msg.request = replacement;
+                    }
+                    msg.request.size = length;
+                    if length != 0 {
+                        let slice = std::slice::from_raw_parts_mut(
+                            msg.request.data,
+                            length,
+                        );
+                        for (t, s) in slice.iter_mut().zip(&self.request) {
+                            s.try_copy_to_native(t)?;
+                        }
+                    }
+                }
+                if self.response.len() > 1usize {
+                    return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                }
+                unsafe {
+                    let length = self.response.len();
+                    if length > msg.response.capacity {
+                        let mut replacement = std::mem::zeroed();
+                        if !tf2_msgs__srv__FrameGraph_Response__Sequence__init(
+                            &mut replacement,
+                            length,
+                        ) {
+                            return Err(Error::RCL_RET_BAD_ALLOC);
+                        }
+                        tf2_msgs__srv__FrameGraph_Response__Sequence__fini(
+                            &mut msg.response,
+                        );
+                        msg.response = replacement;
+                    }
+                    msg.response.size = length;
+                    if length != 0 {
+                        let slice = std::slice::from_raw_parts_mut(
+                            msg.response.data,
+                            length,
+                        );
+                        for (t, s) in slice.iter_mut().zip(&self.response) {
+                            s.try_copy_to_native(t)?;
+                        }
+                    }
+                }
+                Ok(())
+            }
+        }
+        impl Default for Event {
+            fn default() -> Self {
+                let msg_native = WrappedNativeMsg::<Event>::new();
+                Event::from_native(&msg_native)
+            }
         }
     }
 }

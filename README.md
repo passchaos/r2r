@@ -9,6 +9,8 @@ This library differ a bit in style from rclpy and rclcpp as it eliminates all sy
 
 Documentation can be found on docs.rs: <https://docs.rs/r2r/latest/r2r>.
 
+For documentation and type checking without ROS, `cargo check --workspace --all-targets --features doc-only` uses the checked-in Jazzy bindings, including lifecycle, service events and example packages. Run `python3 tests/check_documentation.py` for the complete compiler and public-documentation gate. [Documentation builds](docs/DOCUMENTATION_BUILDS.md) describes the snapshot and refresh workflow.
+
 The ongoing development goal, evidence requirements, and known capability, usability and performance gaps are tracked in [the development roadmap](docs/ROADMAP.md).
 
 For managed nodes, `LifecycleNode::create_publisher` gates typed, reusable native and middleware-loaned publication on activation. Endpoint queries and async waits remain available while inactive. Run `cargo run -p r2r --example lifecycle_publication` for a complete service-driven workflow through the shared executor; [lifecycle publication](docs/LIFECYCLE_PUBLICATION.md) describes ownership, state changes and API boundaries.

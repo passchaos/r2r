@@ -7,14 +7,23 @@ pub mod builtin_interfaces {
 pub mod diagnostic_msgs {
     include!(concat!(env!("OUT_DIR"), "/diagnostic_msgs.rs"));
 }
+pub mod example_interfaces {
+    include!(concat!(env!("OUT_DIR"), "/example_interfaces.rs"));
+}
 pub mod geometry_msgs {
     include!(concat!(env!("OUT_DIR"), "/geometry_msgs.rs"));
 }
 pub mod lifecycle_msgs {
     include!(concat!(env!("OUT_DIR"), "/lifecycle_msgs.rs"));
 }
+pub mod map_msgs {
+    include!(concat!(env!("OUT_DIR"), "/map_msgs.rs"));
+}
 pub mod nav_msgs {
     include!(concat!(env!("OUT_DIR"), "/nav_msgs.rs"));
+}
+pub mod pendulum_msgs {
+    include!(concat!(env!("OUT_DIR"), "/pendulum_msgs.rs"));
 }
 pub mod rcl_interfaces {
     include!(concat!(env!("OUT_DIR"), "/rcl_interfaces.rs"));
@@ -25,6 +34,9 @@ pub mod rosgraph_msgs {
 pub mod sensor_msgs {
     include!(concat!(env!("OUT_DIR"), "/sensor_msgs.rs"));
 }
+pub mod service_msgs {
+    include!(concat!(env!("OUT_DIR"), "/service_msgs.rs"));
+}
 pub mod shape_msgs {
     include!(concat!(env!("OUT_DIR"), "/shape_msgs.rs"));
 }
@@ -33,6 +45,9 @@ pub mod statistics_msgs {
 }
 pub mod std_msgs {
     include!(concat!(env!("OUT_DIR"), "/std_msgs.rs"));
+}
+pub mod std_srvs {
+    include!(concat!(env!("OUT_DIR"), "/std_srvs.rs"));
 }
 pub mod stereo_msgs {
     include!(concat!(env!("OUT_DIR"), "/stereo_msgs.rs"));

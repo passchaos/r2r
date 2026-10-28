@@ -43,44 +43,70 @@ pub mod msg {
                 ),
                 statistics: {
                     let mut temp = Vec::with_capacity(msg.statistics.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.statistics.data,
-                            msg.statistics.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(
-                            statistics_msgs::msg::StatisticDataPoint::from_native(s),
-                        );
+                    if msg.statistics.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.statistics.data,
+                                msg.statistics.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(
+                                statistics_msgs::msg::StatisticDataPoint::from_native(s),
+                            );
+                        }
                     }
                     temp
                 },
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.measurement_source_name
-                .try_assign_bytes((&self.measurement_source_name).as_bytes());
-            msg.metrics_source.try_assign_bytes((&self.metrics_source).as_bytes());
-            msg.unit.try_assign_bytes((&self.unit).as_bytes());
-            self.window_start.copy_to_native(&mut msg.window_start);
-            self.window_stop.copy_to_native(&mut msg.window_stop);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            check_rosidl_runtime_ret(
+                msg
+                    .measurement_source_name
+                    .try_assign_bytes(self.measurement_source_name.as_bytes()),
+            )?;
+            check_rosidl_runtime_ret(
+                msg.metrics_source.try_assign_bytes(self.metrics_source.as_bytes()),
+            )?;
+            check_rosidl_runtime_ret(msg.unit.try_assign_bytes(self.unit.as_bytes()))?;
+            self.window_start.try_copy_to_native(&mut msg.window_start)?;
+            self.window_stop.try_copy_to_native(&mut msg.window_stop)?;
             unsafe {
-                statistics_msgs__msg__StatisticDataPoint__Sequence__fini(
-                    &mut msg.statistics,
-                );
-                statistics_msgs__msg__StatisticDataPoint__Sequence__init(
-                    &mut msg.statistics,
-                    self.statistics.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.statistics.data,
-                    msg.statistics.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.statistics) {
-                    s.copy_to_native(t);
+                let length = self.statistics.len();
+                if length > msg.statistics.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !statistics_msgs__msg__StatisticDataPoint__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    statistics_msgs__msg__StatisticDataPoint__Sequence__fini(
+                        &mut msg.statistics,
+                    );
+                    msg.statistics = replacement;
+                }
+                msg.statistics.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.statistics.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.statistics) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
+            Ok(())
         }
     }
     impl Default for MetricsMessage {
@@ -120,9 +146,18 @@ pub mod msg {
                 data: msg.data,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.data_type = self.data_type;
             msg.data = self.data;
+            Ok(())
         }
     }
     impl Default for StatisticDataPoint {
@@ -156,7 +191,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> StatisticDataType {
             StatisticDataType {}
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {}
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            Ok(())
+        }
     }
     impl Default for StatisticDataType {
         fn default() -> Self {
@@ -166,11 +211,11 @@ pub mod msg {
     }
     #[allow(non_upper_case_globals)]
     impl StatisticDataType {
-        pub const STATISTICS_DATA_TYPE_AVERAGE: _bindgen_ty_142 = statistics_msgs__msg__StatisticDataType__STATISTICS_DATA_TYPE_AVERAGE;
-        pub const STATISTICS_DATA_TYPE_MAXIMUM: _bindgen_ty_144 = statistics_msgs__msg__StatisticDataType__STATISTICS_DATA_TYPE_MAXIMUM;
-        pub const STATISTICS_DATA_TYPE_MINIMUM: _bindgen_ty_143 = statistics_msgs__msg__StatisticDataType__STATISTICS_DATA_TYPE_MINIMUM;
-        pub const STATISTICS_DATA_TYPE_SAMPLE_COUNT: _bindgen_ty_146 = statistics_msgs__msg__StatisticDataType__STATISTICS_DATA_TYPE_SAMPLE_COUNT;
-        pub const STATISTICS_DATA_TYPE_STDDEV: _bindgen_ty_145 = statistics_msgs__msg__StatisticDataType__STATISTICS_DATA_TYPE_STDDEV;
-        pub const STATISTICS_DATA_TYPE_UNINITIALIZED: _bindgen_ty_141 = statistics_msgs__msg__StatisticDataType__STATISTICS_DATA_TYPE_UNINITIALIZED;
+        pub const STATISTICS_DATA_TYPE_AVERAGE: _bindgen_ty_330 = statistics_msgs__msg__StatisticDataType__STATISTICS_DATA_TYPE_AVERAGE;
+        pub const STATISTICS_DATA_TYPE_MAXIMUM: _bindgen_ty_332 = statistics_msgs__msg__StatisticDataType__STATISTICS_DATA_TYPE_MAXIMUM;
+        pub const STATISTICS_DATA_TYPE_MINIMUM: _bindgen_ty_331 = statistics_msgs__msg__StatisticDataType__STATISTICS_DATA_TYPE_MINIMUM;
+        pub const STATISTICS_DATA_TYPE_SAMPLE_COUNT: _bindgen_ty_334 = statistics_msgs__msg__StatisticDataType__STATISTICS_DATA_TYPE_SAMPLE_COUNT;
+        pub const STATISTICS_DATA_TYPE_STDDEV: _bindgen_ty_333 = statistics_msgs__msg__StatisticDataType__STATISTICS_DATA_TYPE_STDDEV;
+        pub const STATISTICS_DATA_TYPE_UNINITIALIZED: _bindgen_ty_329 = statistics_msgs__msg__StatisticDataType__STATISTICS_DATA_TYPE_UNINITIALIZED;
     }
 }

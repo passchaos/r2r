@@ -11,6 +11,9 @@ use std::{
 
 const SUPPORTED_ROS_DISTROS: &[&str] = &["humble", "iron", "jazzy", "kilted", "lyrical", "rolling"];
 
+mod documentation;
+pub use documentation::{bindings_directory, documentation_ros_distro};
+
 /// Message suffixes generated for ROS services, including internal action services.
 pub fn service_message_suffixes(ros_distro: &str) -> &'static [&'static str] {
     match ros_distro {
@@ -25,6 +28,7 @@ const WATCHED_ENV_VARS: &[&str] = &[
     "CMAKE_IDL_PACKAGES",
     "IDL_PACKAGE_FILTER",
     "ROS_DISTRO",
+    "R2R_BINDINGS_DIR",
 ];
 
 pub fn get_env_hash() -> String {
@@ -139,7 +143,9 @@ pub fn setup_bindgen_builder() -> bindgen::Builder {
 }
 
 #[cfg(feature = "doc-only")]
-pub fn print_cargo_ros_distro() {}
+pub fn print_cargo_ros_distro() {
+    println!("cargo:rustc-cfg=r2r__ros__distro__{}", documentation_ros_distro());
+}
 
 #[cfg(not(feature = "doc-only"))]
 pub fn print_cargo_ros_distro() {

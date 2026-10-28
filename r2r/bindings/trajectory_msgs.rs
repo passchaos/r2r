@@ -31,37 +31,57 @@ pub mod msg {
                 joint_names: msg.joint_names.to_bytes_vec::<crate::RosString>(),
                 points: {
                     let mut temp = Vec::with_capacity(msg.points.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(msg.points.data, msg.points.size)
-                    };
-                    for s in slice {
-                        temp.push(
-                            trajectory_msgs::msg::JointTrajectoryPoint::from_native(s),
-                        );
+                    if msg.points.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(msg.points.data, msg.points.size)
+                        };
+                        for s in slice {
+                            temp.push(
+                                trajectory_msgs::msg::JointTrajectoryPoint::from_native(s),
+                            );
+                        }
                     }
                     temp
                 },
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            msg.joint_names.try_update_bytes(&self.joint_names);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            check_rosidl_runtime_ret(
+                msg.joint_names.try_update_bytes(&self.joint_names),
+            )?;
             unsafe {
-                trajectory_msgs__msg__JointTrajectoryPoint__Sequence__fini(
-                    &mut msg.points,
-                );
-                trajectory_msgs__msg__JointTrajectoryPoint__Sequence__init(
-                    &mut msg.points,
-                    self.points.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.points.data,
-                    msg.points.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.points) {
-                    s.copy_to_native(t);
+                let length = self.points.len();
+                if length > msg.points.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !trajectory_msgs__msg__JointTrajectoryPoint__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    trajectory_msgs__msg__JointTrajectoryPoint__Sequence__fini(
+                        &mut msg.points,
+                    );
+                    msg.points = replacement;
+                }
+                msg.points.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(msg.points.data, length);
+                    for (t, s) in slice.iter_mut().zip(&self.points) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
+            Ok(())
         }
     }
     impl Default for JointTrajectory {
@@ -109,12 +129,21 @@ pub mod msg {
                 ),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.positions.update(&self.positions);
-            msg.velocities.update(&self.velocities);
-            msg.accelerations.update(&self.accelerations);
-            msg.effort.update(&self.effort);
-            self.time_from_start.copy_to_native(&mut msg.time_from_start);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            check_rosidl_runtime_ret(msg.positions.try_update(&self.positions))?;
+            check_rosidl_runtime_ret(msg.velocities.try_update(&self.velocities))?;
+            check_rosidl_runtime_ret(msg.accelerations.try_update(&self.accelerations))?;
+            check_rosidl_runtime_ret(msg.effort.try_update(&self.effort))?;
+            self.time_from_start.try_copy_to_native(&mut msg.time_from_start)?;
+            Ok(())
         }
     }
     impl Default for JointTrajectoryPoint {
@@ -155,39 +184,59 @@ pub mod msg {
                 joint_names: msg.joint_names.to_bytes_vec::<crate::RosString>(),
                 points: {
                     let mut temp = Vec::with_capacity(msg.points.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(msg.points.data, msg.points.size)
-                    };
-                    for s in slice {
-                        temp.push(
-                            trajectory_msgs::msg::MultiDOFJointTrajectoryPoint::from_native(
-                                s,
-                            ),
-                        );
+                    if msg.points.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(msg.points.data, msg.points.size)
+                        };
+                        for s in slice {
+                            temp.push(
+                                trajectory_msgs::msg::MultiDOFJointTrajectoryPoint::from_native(
+                                    s,
+                                ),
+                            );
+                        }
                     }
                     temp
                 },
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            msg.joint_names.try_update_bytes(&self.joint_names);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            check_rosidl_runtime_ret(
+                msg.joint_names.try_update_bytes(&self.joint_names),
+            )?;
             unsafe {
-                trajectory_msgs__msg__MultiDOFJointTrajectoryPoint__Sequence__fini(
-                    &mut msg.points,
-                );
-                trajectory_msgs__msg__MultiDOFJointTrajectoryPoint__Sequence__init(
-                    &mut msg.points,
-                    self.points.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.points.data,
-                    msg.points.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.points) {
-                    s.copy_to_native(t);
+                let length = self.points.len();
+                if length > msg.points.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !trajectory_msgs__msg__MultiDOFJointTrajectoryPoint__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    trajectory_msgs__msg__MultiDOFJointTrajectoryPoint__Sequence__fini(
+                        &mut msg.points,
+                    );
+                    msg.points = replacement;
+                }
+                msg.points.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(msg.points.data, length);
+                    for (t, s) in slice.iter_mut().zip(&self.points) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
+            Ok(())
         }
     }
     impl Default for MultiDOFJointTrajectory {
@@ -232,40 +281,46 @@ pub mod msg {
             MultiDOFJointTrajectoryPoint {
                 transforms: {
                     let mut temp = Vec::with_capacity(msg.transforms.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.transforms.data,
-                            msg.transforms.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(geometry_msgs::msg::Transform::from_native(s));
+                    if msg.transforms.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.transforms.data,
+                                msg.transforms.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(geometry_msgs::msg::Transform::from_native(s));
+                        }
                     }
                     temp
                 },
                 velocities: {
                     let mut temp = Vec::with_capacity(msg.velocities.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.velocities.data,
-                            msg.velocities.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(geometry_msgs::msg::Twist::from_native(s));
+                    if msg.velocities.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.velocities.data,
+                                msg.velocities.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(geometry_msgs::msg::Twist::from_native(s));
+                        }
                     }
                     temp
                 },
                 accelerations: {
                     let mut temp = Vec::with_capacity(msg.accelerations.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.accelerations.data,
-                            msg.accelerations.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(geometry_msgs::msg::Twist::from_native(s));
+                    if msg.accelerations.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.accelerations.data,
+                                msg.accelerations.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(geometry_msgs::msg::Twist::from_native(s));
+                        }
                     }
                     temp
                 },
@@ -274,50 +329,89 @@ pub mod msg {
                 ),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             unsafe {
-                geometry_msgs__msg__Transform__Sequence__fini(&mut msg.transforms);
-                geometry_msgs__msg__Transform__Sequence__init(
-                    &mut msg.transforms,
-                    self.transforms.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.transforms.data,
-                    msg.transforms.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.transforms) {
-                    s.copy_to_native(t);
+                let length = self.transforms.len();
+                if length > msg.transforms.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !geometry_msgs__msg__Transform__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    geometry_msgs__msg__Transform__Sequence__fini(&mut msg.transforms);
+                    msg.transforms = replacement;
+                }
+                msg.transforms.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.transforms.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.transforms) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
             unsafe {
-                geometry_msgs__msg__Twist__Sequence__fini(&mut msg.velocities);
-                geometry_msgs__msg__Twist__Sequence__init(
-                    &mut msg.velocities,
-                    self.velocities.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.velocities.data,
-                    msg.velocities.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.velocities) {
-                    s.copy_to_native(t);
+                let length = self.velocities.len();
+                if length > msg.velocities.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !geometry_msgs__msg__Twist__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    geometry_msgs__msg__Twist__Sequence__fini(&mut msg.velocities);
+                    msg.velocities = replacement;
+                }
+                msg.velocities.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.velocities.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.velocities) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
             unsafe {
-                geometry_msgs__msg__Twist__Sequence__fini(&mut msg.accelerations);
-                geometry_msgs__msg__Twist__Sequence__init(
-                    &mut msg.accelerations,
-                    self.accelerations.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.accelerations.data,
-                    msg.accelerations.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.accelerations) {
-                    s.copy_to_native(t);
+                let length = self.accelerations.len();
+                if length > msg.accelerations.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !geometry_msgs__msg__Twist__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    geometry_msgs__msg__Twist__Sequence__fini(&mut msg.accelerations);
+                    msg.accelerations = replacement;
+                }
+                msg.accelerations.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.accelerations.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.accelerations) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
-            self.time_from_start.copy_to_native(&mut msg.time_from_start);
+            self.time_from_start.try_copy_to_native(&mut msg.time_from_start)?;
+            Ok(())
         }
     }
     impl Default for MultiDOFJointTrajectoryPoint {

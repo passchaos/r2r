@@ -1,1102 +1,3 @@
-pub mod srv {
-    #[allow(non_snake_case)]
-    pub mod Arrays {
-        use super::super::super::*;
-        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-        pub struct Service();
-        unsafe impl WrappedServiceTypeSupport for Service {
-            type Request = Request;
-            type Response = Response;
-            fn get_ts() -> &'static rosidl_service_type_support_t {
-                unsafe {
-                    &*rosidl_typesupport_c__get_service_type_support_handle__test_msgs__srv__Arrays()
-                }
-            }
-        }
-        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-        #[serde(default)]
-        pub struct Request {
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub bool_values: [bool; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub byte_values: [u8; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub char_values: [u8; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub float32_values: [f32; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub float64_values: [f64; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub int8_values: [i8; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub uint8_values: [u8; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub int16_values: [i16; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub uint16_values: [u16; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub int32_values: [i32; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub uint32_values: [u32; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub int64_values: [i64; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub uint64_values: [u64; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub string_values: [crate::RosString; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub basic_types_values: [test_msgs::msg::BasicTypes; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub constants_values: [test_msgs::msg::Constants; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub defaults_values: [test_msgs::msg::Defaults; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub bool_values_default: [bool; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub byte_values_default: [u8; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub char_values_default: [u8; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub float32_values_default: [f32; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub float64_values_default: [f64; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub int8_values_default: [i8; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub uint8_values_default: [u8; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub int16_values_default: [i16; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub uint16_values_default: [u16; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub int32_values_default: [i32; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub uint32_values_default: [u32; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub int64_values_default: [i64; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub uint64_values_default: [u64; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub string_values_default: [crate::RosString; 3usize],
-        }
-        unsafe impl WrappedTypesupport for Request {
-            type CStruct = test_msgs__srv__Arrays_Request;
-            fn get_ts() -> &'static rosidl_message_type_support_t {
-                unsafe {
-                    &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__srv__Arrays_Request()
-                }
-            }
-            fn create_msg() -> *mut test_msgs__srv__Arrays_Request {
-                #[cfg(not(feature = "doc-only"))]
-                unsafe { test_msgs__srv__Arrays_Request__create() }
-                #[cfg(feature = "doc-only")] test_msgs__srv__Arrays_Request__create()
-            }
-            fn destroy_msg(msg: *mut test_msgs__srv__Arrays_Request) -> () {
-                #[cfg(not(feature = "doc-only"))]
-                unsafe { test_msgs__srv__Arrays_Request__destroy(msg) };
-                #[cfg(feature = "doc-only")] test_msgs__srv__Arrays_Request__destroy(msg)
-            }
-            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Request {
-                Request {
-                    bool_values: msg.bool_values,
-                    byte_values: msg.byte_values,
-                    char_values: msg.char_values,
-                    float32_values: msg.float32_values,
-                    float64_values: msg.float64_values,
-                    int8_values: msg.int8_values,
-                    uint8_values: msg.uint8_values,
-                    int16_values: msg.int16_values,
-                    uint16_values: msg.uint16_values,
-                    int32_values: msg.int32_values,
-                    uint32_values: msg.uint32_values,
-                    int64_values: msg.int64_values,
-                    uint64_values: msg.uint64_values,
-                    string_values: std::array::from_fn(|index| crate::RosString::from(
-                        msg.string_values[index].as_bytes(),
-                    )),
-                    basic_types_values: std::array::from_fn(|index| test_msgs::msg::BasicTypes::from_native(
-                        &msg.basic_types_values[index],
-                    )),
-                    constants_values: std::array::from_fn(|index| test_msgs::msg::Constants::from_native(
-                        &msg.constants_values[index],
-                    )),
-                    defaults_values: std::array::from_fn(|index| test_msgs::msg::Defaults::from_native(
-                        &msg.defaults_values[index],
-                    )),
-                    bool_values_default: msg.bool_values_default,
-                    byte_values_default: msg.byte_values_default,
-                    char_values_default: msg.char_values_default,
-                    float32_values_default: msg.float32_values_default,
-                    float64_values_default: msg.float64_values_default,
-                    int8_values_default: msg.int8_values_default,
-                    uint8_values_default: msg.uint8_values_default,
-                    int16_values_default: msg.int16_values_default,
-                    uint16_values_default: msg.uint16_values_default,
-                    int32_values_default: msg.int32_values_default,
-                    uint32_values_default: msg.uint32_values_default,
-                    int64_values_default: msg.int64_values_default,
-                    uint64_values_default: msg.uint64_values_default,
-                    string_values_default: std::array::from_fn(|index| crate::RosString::from(
-                        msg.string_values_default[index].as_bytes(),
-                    )),
-                }
-            }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                assert_eq!(
-                    self.bool_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "bool_values",
-                    3usize,
-                );
-                msg.bool_values.copy_from_slice(&self.bool_values[..3usize]);
-                assert_eq!(
-                    self.byte_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "byte_values",
-                    3usize,
-                );
-                msg.byte_values.copy_from_slice(&self.byte_values[..3usize]);
-                assert_eq!(
-                    self.char_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "char_values",
-                    3usize,
-                );
-                msg.char_values.copy_from_slice(&self.char_values[..3usize]);
-                assert_eq!(
-                    self.float32_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "float32_values",
-                    3usize,
-                );
-                msg.float32_values.copy_from_slice(&self.float32_values[..3usize]);
-                assert_eq!(
-                    self.float64_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "float64_values",
-                    3usize,
-                );
-                msg.float64_values.copy_from_slice(&self.float64_values[..3usize]);
-                assert_eq!(
-                    self.int8_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "int8_values",
-                    3usize,
-                );
-                msg.int8_values.copy_from_slice(&self.int8_values[..3usize]);
-                assert_eq!(
-                    self.uint8_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "uint8_values",
-                    3usize,
-                );
-                msg.uint8_values.copy_from_slice(&self.uint8_values[..3usize]);
-                assert_eq!(
-                    self.int16_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "int16_values",
-                    3usize,
-                );
-                msg.int16_values.copy_from_slice(&self.int16_values[..3usize]);
-                assert_eq!(
-                    self.uint16_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "uint16_values",
-                    3usize,
-                );
-                msg.uint16_values.copy_from_slice(&self.uint16_values[..3usize]);
-                assert_eq!(
-                    self.int32_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "int32_values",
-                    3usize,
-                );
-                msg.int32_values.copy_from_slice(&self.int32_values[..3usize]);
-                assert_eq!(
-                    self.uint32_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "uint32_values",
-                    3usize,
-                );
-                msg.uint32_values.copy_from_slice(&self.uint32_values[..3usize]);
-                assert_eq!(
-                    self.int64_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "int64_values",
-                    3usize,
-                );
-                msg.int64_values.copy_from_slice(&self.int64_values[..3usize]);
-                assert_eq!(
-                    self.uint64_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "uint64_values",
-                    3usize,
-                );
-                msg.uint64_values.copy_from_slice(&self.uint64_values[..3usize]);
-                assert_eq!(
-                    self.string_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "string_values",
-                    3usize,
-                );
-                for (t, s) in msg.string_values.iter_mut().zip(&self.string_values) {
-                    t.try_assign_bytes((&s).as_bytes());
-                }
-                assert_eq!(
-                    self.basic_types_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "basic_types_values",
-                    3usize,
-                );
-                for (t, s) in msg
-                    .basic_types_values
-                    .iter_mut()
-                    .zip(&self.basic_types_values)
-                {
-                    s.copy_to_native(t);
-                }
-                assert_eq!(
-                    self.constants_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "constants_values",
-                    3usize,
-                );
-                for (t, s) in msg.constants_values.iter_mut().zip(&self.constants_values)
-                {
-                    s.copy_to_native(t);
-                }
-                assert_eq!(
-                    self.defaults_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "defaults_values",
-                    3usize,
-                );
-                for (t, s) in msg.defaults_values.iter_mut().zip(&self.defaults_values) {
-                    s.copy_to_native(t);
-                }
-                assert_eq!(
-                    self.bool_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "bool_values_default",
-                    3usize,
-                );
-                msg.bool_values_default
-                    .copy_from_slice(&self.bool_values_default[..3usize]);
-                assert_eq!(
-                    self.byte_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "byte_values_default",
-                    3usize,
-                );
-                msg.byte_values_default
-                    .copy_from_slice(&self.byte_values_default[..3usize]);
-                assert_eq!(
-                    self.char_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "char_values_default",
-                    3usize,
-                );
-                msg.char_values_default
-                    .copy_from_slice(&self.char_values_default[..3usize]);
-                assert_eq!(
-                    self.float32_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "float32_values_default",
-                    3usize,
-                );
-                msg.float32_values_default
-                    .copy_from_slice(&self.float32_values_default[..3usize]);
-                assert_eq!(
-                    self.float64_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "float64_values_default",
-                    3usize,
-                );
-                msg.float64_values_default
-                    .copy_from_slice(&self.float64_values_default[..3usize]);
-                assert_eq!(
-                    self.int8_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "int8_values_default",
-                    3usize,
-                );
-                msg.int8_values_default
-                    .copy_from_slice(&self.int8_values_default[..3usize]);
-                assert_eq!(
-                    self.uint8_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "uint8_values_default",
-                    3usize,
-                );
-                msg.uint8_values_default
-                    .copy_from_slice(&self.uint8_values_default[..3usize]);
-                assert_eq!(
-                    self.int16_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "int16_values_default",
-                    3usize,
-                );
-                msg.int16_values_default
-                    .copy_from_slice(&self.int16_values_default[..3usize]);
-                assert_eq!(
-                    self.uint16_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "uint16_values_default",
-                    3usize,
-                );
-                msg.uint16_values_default
-                    .copy_from_slice(&self.uint16_values_default[..3usize]);
-                assert_eq!(
-                    self.int32_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "int32_values_default",
-                    3usize,
-                );
-                msg.int32_values_default
-                    .copy_from_slice(&self.int32_values_default[..3usize]);
-                assert_eq!(
-                    self.uint32_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "uint32_values_default",
-                    3usize,
-                );
-                msg.uint32_values_default
-                    .copy_from_slice(&self.uint32_values_default[..3usize]);
-                assert_eq!(
-                    self.int64_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "int64_values_default",
-                    3usize,
-                );
-                msg.int64_values_default
-                    .copy_from_slice(&self.int64_values_default[..3usize]);
-                assert_eq!(
-                    self.uint64_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "uint64_values_default",
-                    3usize,
-                );
-                msg.uint64_values_default
-                    .copy_from_slice(&self.uint64_values_default[..3usize]);
-                assert_eq!(
-                    self.string_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "string_values_default",
-                    3usize,
-                );
-                for (t, s) in msg
-                    .string_values_default
-                    .iter_mut()
-                    .zip(&self.string_values_default)
-                {
-                    t.try_assign_bytes((&s).as_bytes());
-                }
-            }
-        }
-        impl Default for Request {
-            fn default() -> Self {
-                let msg_native = WrappedNativeMsg::<Request>::new();
-                Request::from_native(&msg_native)
-            }
-        }
-        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-        #[serde(default)]
-        pub struct Response {
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub bool_values: [bool; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub byte_values: [u8; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub char_values: [u8; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub float32_values: [f32; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub float64_values: [f64; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub int8_values: [i8; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub uint8_values: [u8; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub int16_values: [i16; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub uint16_values: [u16; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub int32_values: [i32; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub uint32_values: [u32; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub int64_values: [i64; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub uint64_values: [u64; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub string_values: [crate::RosString; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub basic_types_values: [test_msgs::msg::BasicTypes; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub constants_values: [test_msgs::msg::Constants; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub defaults_values: [test_msgs::msg::Defaults; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub bool_values_default: [bool; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub byte_values_default: [u8; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub char_values_default: [u8; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub float32_values_default: [f32; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub float64_values_default: [f64; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub int8_values_default: [i8; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub uint8_values_default: [u8; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub int16_values_default: [i16; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub uint16_values_default: [u16; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub int32_values_default: [i32; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub uint32_values_default: [u32; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub int64_values_default: [i64; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub uint64_values_default: [u64; 3usize],
-            #[serde(with = "crate::msg_types::fixed_array")]
-            pub string_values_default: [crate::RosString; 3usize],
-        }
-        unsafe impl WrappedTypesupport for Response {
-            type CStruct = test_msgs__srv__Arrays_Response;
-            fn get_ts() -> &'static rosidl_message_type_support_t {
-                unsafe {
-                    &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__srv__Arrays_Response()
-                }
-            }
-            fn create_msg() -> *mut test_msgs__srv__Arrays_Response {
-                #[cfg(not(feature = "doc-only"))]
-                unsafe { test_msgs__srv__Arrays_Response__create() }
-                #[cfg(feature = "doc-only")] test_msgs__srv__Arrays_Response__create()
-            }
-            fn destroy_msg(msg: *mut test_msgs__srv__Arrays_Response) -> () {
-                #[cfg(not(feature = "doc-only"))]
-                unsafe { test_msgs__srv__Arrays_Response__destroy(msg) };
-                #[cfg(feature = "doc-only")]
-                test_msgs__srv__Arrays_Response__destroy(msg)
-            }
-            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Response {
-                Response {
-                    bool_values: msg.bool_values,
-                    byte_values: msg.byte_values,
-                    char_values: msg.char_values,
-                    float32_values: msg.float32_values,
-                    float64_values: msg.float64_values,
-                    int8_values: msg.int8_values,
-                    uint8_values: msg.uint8_values,
-                    int16_values: msg.int16_values,
-                    uint16_values: msg.uint16_values,
-                    int32_values: msg.int32_values,
-                    uint32_values: msg.uint32_values,
-                    int64_values: msg.int64_values,
-                    uint64_values: msg.uint64_values,
-                    string_values: std::array::from_fn(|index| crate::RosString::from(
-                        msg.string_values[index].as_bytes(),
-                    )),
-                    basic_types_values: std::array::from_fn(|index| test_msgs::msg::BasicTypes::from_native(
-                        &msg.basic_types_values[index],
-                    )),
-                    constants_values: std::array::from_fn(|index| test_msgs::msg::Constants::from_native(
-                        &msg.constants_values[index],
-                    )),
-                    defaults_values: std::array::from_fn(|index| test_msgs::msg::Defaults::from_native(
-                        &msg.defaults_values[index],
-                    )),
-                    bool_values_default: msg.bool_values_default,
-                    byte_values_default: msg.byte_values_default,
-                    char_values_default: msg.char_values_default,
-                    float32_values_default: msg.float32_values_default,
-                    float64_values_default: msg.float64_values_default,
-                    int8_values_default: msg.int8_values_default,
-                    uint8_values_default: msg.uint8_values_default,
-                    int16_values_default: msg.int16_values_default,
-                    uint16_values_default: msg.uint16_values_default,
-                    int32_values_default: msg.int32_values_default,
-                    uint32_values_default: msg.uint32_values_default,
-                    int64_values_default: msg.int64_values_default,
-                    uint64_values_default: msg.uint64_values_default,
-                    string_values_default: std::array::from_fn(|index| crate::RosString::from(
-                        msg.string_values_default[index].as_bytes(),
-                    )),
-                }
-            }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                assert_eq!(
-                    self.bool_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "bool_values",
-                    3usize,
-                );
-                msg.bool_values.copy_from_slice(&self.bool_values[..3usize]);
-                assert_eq!(
-                    self.byte_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "byte_values",
-                    3usize,
-                );
-                msg.byte_values.copy_from_slice(&self.byte_values[..3usize]);
-                assert_eq!(
-                    self.char_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "char_values",
-                    3usize,
-                );
-                msg.char_values.copy_from_slice(&self.char_values[..3usize]);
-                assert_eq!(
-                    self.float32_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "float32_values",
-                    3usize,
-                );
-                msg.float32_values.copy_from_slice(&self.float32_values[..3usize]);
-                assert_eq!(
-                    self.float64_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "float64_values",
-                    3usize,
-                );
-                msg.float64_values.copy_from_slice(&self.float64_values[..3usize]);
-                assert_eq!(
-                    self.int8_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "int8_values",
-                    3usize,
-                );
-                msg.int8_values.copy_from_slice(&self.int8_values[..3usize]);
-                assert_eq!(
-                    self.uint8_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "uint8_values",
-                    3usize,
-                );
-                msg.uint8_values.copy_from_slice(&self.uint8_values[..3usize]);
-                assert_eq!(
-                    self.int16_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "int16_values",
-                    3usize,
-                );
-                msg.int16_values.copy_from_slice(&self.int16_values[..3usize]);
-                assert_eq!(
-                    self.uint16_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "uint16_values",
-                    3usize,
-                );
-                msg.uint16_values.copy_from_slice(&self.uint16_values[..3usize]);
-                assert_eq!(
-                    self.int32_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "int32_values",
-                    3usize,
-                );
-                msg.int32_values.copy_from_slice(&self.int32_values[..3usize]);
-                assert_eq!(
-                    self.uint32_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "uint32_values",
-                    3usize,
-                );
-                msg.uint32_values.copy_from_slice(&self.uint32_values[..3usize]);
-                assert_eq!(
-                    self.int64_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "int64_values",
-                    3usize,
-                );
-                msg.int64_values.copy_from_slice(&self.int64_values[..3usize]);
-                assert_eq!(
-                    self.uint64_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "uint64_values",
-                    3usize,
-                );
-                msg.uint64_values.copy_from_slice(&self.uint64_values[..3usize]);
-                assert_eq!(
-                    self.string_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "string_values",
-                    3usize,
-                );
-                for (t, s) in msg.string_values.iter_mut().zip(&self.string_values) {
-                    t.try_assign_bytes((&s).as_bytes());
-                }
-                assert_eq!(
-                    self.basic_types_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "basic_types_values",
-                    3usize,
-                );
-                for (t, s) in msg
-                    .basic_types_values
-                    .iter_mut()
-                    .zip(&self.basic_types_values)
-                {
-                    s.copy_to_native(t);
-                }
-                assert_eq!(
-                    self.constants_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "constants_values",
-                    3usize,
-                );
-                for (t, s) in msg.constants_values.iter_mut().zip(&self.constants_values)
-                {
-                    s.copy_to_native(t);
-                }
-                assert_eq!(
-                    self.defaults_values.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "defaults_values",
-                    3usize,
-                );
-                for (t, s) in msg.defaults_values.iter_mut().zip(&self.defaults_values) {
-                    s.copy_to_native(t);
-                }
-                assert_eq!(
-                    self.bool_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "bool_values_default",
-                    3usize,
-                );
-                msg.bool_values_default
-                    .copy_from_slice(&self.bool_values_default[..3usize]);
-                assert_eq!(
-                    self.byte_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "byte_values_default",
-                    3usize,
-                );
-                msg.byte_values_default
-                    .copy_from_slice(&self.byte_values_default[..3usize]);
-                assert_eq!(
-                    self.char_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "char_values_default",
-                    3usize,
-                );
-                msg.char_values_default
-                    .copy_from_slice(&self.char_values_default[..3usize]);
-                assert_eq!(
-                    self.float32_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "float32_values_default",
-                    3usize,
-                );
-                msg.float32_values_default
-                    .copy_from_slice(&self.float32_values_default[..3usize]);
-                assert_eq!(
-                    self.float64_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "float64_values_default",
-                    3usize,
-                );
-                msg.float64_values_default
-                    .copy_from_slice(&self.float64_values_default[..3usize]);
-                assert_eq!(
-                    self.int8_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "int8_values_default",
-                    3usize,
-                );
-                msg.int8_values_default
-                    .copy_from_slice(&self.int8_values_default[..3usize]);
-                assert_eq!(
-                    self.uint8_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "uint8_values_default",
-                    3usize,
-                );
-                msg.uint8_values_default
-                    .copy_from_slice(&self.uint8_values_default[..3usize]);
-                assert_eq!(
-                    self.int16_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "int16_values_default",
-                    3usize,
-                );
-                msg.int16_values_default
-                    .copy_from_slice(&self.int16_values_default[..3usize]);
-                assert_eq!(
-                    self.uint16_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "uint16_values_default",
-                    3usize,
-                );
-                msg.uint16_values_default
-                    .copy_from_slice(&self.uint16_values_default[..3usize]);
-                assert_eq!(
-                    self.int32_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "int32_values_default",
-                    3usize,
-                );
-                msg.int32_values_default
-                    .copy_from_slice(&self.int32_values_default[..3usize]);
-                assert_eq!(
-                    self.uint32_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "uint32_values_default",
-                    3usize,
-                );
-                msg.uint32_values_default
-                    .copy_from_slice(&self.uint32_values_default[..3usize]);
-                assert_eq!(
-                    self.int64_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "int64_values_default",
-                    3usize,
-                );
-                msg.int64_values_default
-                    .copy_from_slice(&self.int64_values_default[..3usize]);
-                assert_eq!(
-                    self.uint64_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "uint64_values_default",
-                    3usize,
-                );
-                msg.uint64_values_default
-                    .copy_from_slice(&self.uint64_values_default[..3usize]);
-                assert_eq!(
-                    self.string_values_default.len(),
-                    3usize,
-                    "Field {} is fixed size of {}!",
-                    "string_values_default",
-                    3usize,
-                );
-                for (t, s) in msg
-                    .string_values_default
-                    .iter_mut()
-                    .zip(&self.string_values_default)
-                {
-                    t.try_assign_bytes((&s).as_bytes());
-                }
-            }
-        }
-        impl Default for Response {
-            fn default() -> Self {
-                let msg_native = WrappedNativeMsg::<Response>::new();
-                Response::from_native(&msg_native)
-            }
-        }
-    }
-    #[allow(non_snake_case)]
-    pub mod BasicTypes {
-        use super::super::super::*;
-        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-        pub struct Service();
-        unsafe impl WrappedServiceTypeSupport for Service {
-            type Request = Request;
-            type Response = Response;
-            fn get_ts() -> &'static rosidl_service_type_support_t {
-                unsafe {
-                    &*rosidl_typesupport_c__get_service_type_support_handle__test_msgs__srv__BasicTypes()
-                }
-            }
-        }
-        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-        #[serde(default)]
-        pub struct Request {
-            pub bool_value: bool,
-            pub byte_value: u8,
-            pub char_value: u8,
-            pub float32_value: f32,
-            pub float64_value: f64,
-            pub int8_value: i8,
-            pub uint8_value: u8,
-            pub int16_value: i16,
-            pub uint16_value: u16,
-            pub int32_value: i32,
-            pub uint32_value: u32,
-            pub int64_value: i64,
-            pub uint64_value: u64,
-            pub string_value: crate::RosString,
-        }
-        unsafe impl WrappedTypesupport for Request {
-            type CStruct = test_msgs__srv__BasicTypes_Request;
-            fn get_ts() -> &'static rosidl_message_type_support_t {
-                unsafe {
-                    &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__srv__BasicTypes_Request()
-                }
-            }
-            fn create_msg() -> *mut test_msgs__srv__BasicTypes_Request {
-                #[cfg(not(feature = "doc-only"))]
-                unsafe { test_msgs__srv__BasicTypes_Request__create() }
-                #[cfg(feature = "doc-only")] test_msgs__srv__BasicTypes_Request__create()
-            }
-            fn destroy_msg(msg: *mut test_msgs__srv__BasicTypes_Request) -> () {
-                #[cfg(not(feature = "doc-only"))]
-                unsafe { test_msgs__srv__BasicTypes_Request__destroy(msg) };
-                #[cfg(feature = "doc-only")]
-                test_msgs__srv__BasicTypes_Request__destroy(msg)
-            }
-            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Request {
-                Request {
-                    bool_value: msg.bool_value,
-                    byte_value: msg.byte_value,
-                    char_value: msg.char_value,
-                    float32_value: msg.float32_value,
-                    float64_value: msg.float64_value,
-                    int8_value: msg.int8_value,
-                    uint8_value: msg.uint8_value,
-                    int16_value: msg.int16_value,
-                    uint16_value: msg.uint16_value,
-                    int32_value: msg.int32_value,
-                    uint32_value: msg.uint32_value,
-                    int64_value: msg.int64_value,
-                    uint64_value: msg.uint64_value,
-                    string_value: crate::RosString::from(msg.string_value.as_bytes()),
-                }
-            }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                msg.bool_value = self.bool_value;
-                msg.byte_value = self.byte_value;
-                msg.char_value = self.char_value;
-                msg.float32_value = self.float32_value;
-                msg.float64_value = self.float64_value;
-                msg.int8_value = self.int8_value;
-                msg.uint8_value = self.uint8_value;
-                msg.int16_value = self.int16_value;
-                msg.uint16_value = self.uint16_value;
-                msg.int32_value = self.int32_value;
-                msg.uint32_value = self.uint32_value;
-                msg.int64_value = self.int64_value;
-                msg.uint64_value = self.uint64_value;
-                msg.string_value.try_assign_bytes((&self.string_value).as_bytes());
-            }
-        }
-        impl Default for Request {
-            fn default() -> Self {
-                let msg_native = WrappedNativeMsg::<Request>::new();
-                Request::from_native(&msg_native)
-            }
-        }
-        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-        #[serde(default)]
-        pub struct Response {
-            pub bool_value: bool,
-            pub byte_value: u8,
-            pub char_value: u8,
-            pub float32_value: f32,
-            pub float64_value: f64,
-            pub int8_value: i8,
-            pub uint8_value: u8,
-            pub int16_value: i16,
-            pub uint16_value: u16,
-            pub int32_value: i32,
-            pub uint32_value: u32,
-            pub int64_value: i64,
-            pub uint64_value: u64,
-            pub string_value: crate::RosString,
-        }
-        unsafe impl WrappedTypesupport for Response {
-            type CStruct = test_msgs__srv__BasicTypes_Response;
-            fn get_ts() -> &'static rosidl_message_type_support_t {
-                unsafe {
-                    &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__srv__BasicTypes_Response()
-                }
-            }
-            fn create_msg() -> *mut test_msgs__srv__BasicTypes_Response {
-                #[cfg(not(feature = "doc-only"))]
-                unsafe { test_msgs__srv__BasicTypes_Response__create() }
-                #[cfg(feature = "doc-only")]
-                test_msgs__srv__BasicTypes_Response__create()
-            }
-            fn destroy_msg(msg: *mut test_msgs__srv__BasicTypes_Response) -> () {
-                #[cfg(not(feature = "doc-only"))]
-                unsafe { test_msgs__srv__BasicTypes_Response__destroy(msg) };
-                #[cfg(feature = "doc-only")]
-                test_msgs__srv__BasicTypes_Response__destroy(msg)
-            }
-            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Response {
-                Response {
-                    bool_value: msg.bool_value,
-                    byte_value: msg.byte_value,
-                    char_value: msg.char_value,
-                    float32_value: msg.float32_value,
-                    float64_value: msg.float64_value,
-                    int8_value: msg.int8_value,
-                    uint8_value: msg.uint8_value,
-                    int16_value: msg.int16_value,
-                    uint16_value: msg.uint16_value,
-                    int32_value: msg.int32_value,
-                    uint32_value: msg.uint32_value,
-                    int64_value: msg.int64_value,
-                    uint64_value: msg.uint64_value,
-                    string_value: crate::RosString::from(msg.string_value.as_bytes()),
-                }
-            }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                msg.bool_value = self.bool_value;
-                msg.byte_value = self.byte_value;
-                msg.char_value = self.char_value;
-                msg.float32_value = self.float32_value;
-                msg.float64_value = self.float64_value;
-                msg.int8_value = self.int8_value;
-                msg.uint8_value = self.uint8_value;
-                msg.int16_value = self.int16_value;
-                msg.uint16_value = self.uint16_value;
-                msg.int32_value = self.int32_value;
-                msg.uint32_value = self.uint32_value;
-                msg.int64_value = self.int64_value;
-                msg.uint64_value = self.uint64_value;
-                msg.string_value.try_assign_bytes((&self.string_value).as_bytes());
-            }
-        }
-        impl Default for Response {
-            fn default() -> Self {
-                let msg_native = WrappedNativeMsg::<Response>::new();
-                Response::from_native(&msg_native)
-            }
-        }
-    }
-    #[allow(non_snake_case)]
-    pub mod Empty {
-        use super::super::super::*;
-        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-        pub struct Service();
-        unsafe impl WrappedServiceTypeSupport for Service {
-            type Request = Request;
-            type Response = Response;
-            fn get_ts() -> &'static rosidl_service_type_support_t {
-                unsafe {
-                    &*rosidl_typesupport_c__get_service_type_support_handle__test_msgs__srv__Empty()
-                }
-            }
-        }
-        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-        #[serde(default)]
-        pub struct Request {}
-        unsafe impl WrappedTypesupport for Request {
-            type CStruct = test_msgs__srv__Empty_Request;
-            fn get_ts() -> &'static rosidl_message_type_support_t {
-                unsafe {
-                    &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__srv__Empty_Request()
-                }
-            }
-            fn create_msg() -> *mut test_msgs__srv__Empty_Request {
-                #[cfg(not(feature = "doc-only"))]
-                unsafe { test_msgs__srv__Empty_Request__create() }
-                #[cfg(feature = "doc-only")] test_msgs__srv__Empty_Request__create()
-            }
-            fn destroy_msg(msg: *mut test_msgs__srv__Empty_Request) -> () {
-                #[cfg(not(feature = "doc-only"))]
-                unsafe { test_msgs__srv__Empty_Request__destroy(msg) };
-                #[cfg(feature = "doc-only")] test_msgs__srv__Empty_Request__destroy(msg)
-            }
-            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Request {
-                Request {}
-            }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {}
-        }
-        impl Default for Request {
-            fn default() -> Self {
-                let msg_native = WrappedNativeMsg::<Request>::new();
-                Request::from_native(&msg_native)
-            }
-        }
-        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-        #[serde(default)]
-        pub struct Response {}
-        unsafe impl WrappedTypesupport for Response {
-            type CStruct = test_msgs__srv__Empty_Response;
-            fn get_ts() -> &'static rosidl_message_type_support_t {
-                unsafe {
-                    &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__srv__Empty_Response()
-                }
-            }
-            fn create_msg() -> *mut test_msgs__srv__Empty_Response {
-                #[cfg(not(feature = "doc-only"))]
-                unsafe { test_msgs__srv__Empty_Response__create() }
-                #[cfg(feature = "doc-only")] test_msgs__srv__Empty_Response__create()
-            }
-            fn destroy_msg(msg: *mut test_msgs__srv__Empty_Response) -> () {
-                #[cfg(not(feature = "doc-only"))]
-                unsafe { test_msgs__srv__Empty_Response__destroy(msg) };
-                #[cfg(feature = "doc-only")] test_msgs__srv__Empty_Response__destroy(msg)
-            }
-            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Response {
-                Response {}
-            }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {}
-        }
-        impl Default for Response {
-            fn default() -> Self {
-                let msg_native = WrappedNativeMsg::<Response>::new();
-                Response::from_native(&msg_native)
-            }
-        }
-    }
-}
 pub mod action {
     #[allow(non_snake_case)]
     pub mod Fibonacci {
@@ -1205,8 +106,17 @@ pub mod action {
             fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Goal {
                 Goal { order: msg.order }
             }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
                 msg.order = self.order;
+                Ok(())
             }
         }
         impl Default for Goal {
@@ -1244,8 +154,17 @@ pub mod action {
                     sequence: msg.sequence.to_vec(),
                 }
             }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                msg.sequence.update(&self.sequence);
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                check_rosidl_runtime_ret(msg.sequence.try_update(&self.sequence))?;
+                Ok(())
             }
         }
         impl Default for Result {
@@ -1283,8 +202,17 @@ pub mod action {
                     sequence: msg.sequence.to_vec(),
                 }
             }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                msg.sequence.update(&self.sequence);
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                check_rosidl_runtime_ret(msg.sequence.try_update(&self.sequence))?;
+                Ok(())
             }
         }
         impl Default for Feedback {
@@ -1301,6 +229,16 @@ pub mod action {
             unsafe impl WrappedServiceTypeSupport for Service {
                 type Request = Request;
                 type Response = Response;
+                #[cfg(
+                    any(
+                        r2r__ros__distro__iron,
+                        r2r__ros__distro__jazzy,
+                        r2r__ros__distro__kilted,
+                        r2r__ros__distro__lyrical,
+                        r2r__ros__distro__rolling
+                    )
+                )]
+                type Event = Event;
                 fn get_ts() -> &'static rosidl_service_type_support_t {
                     unsafe {
                         &*rosidl_typesupport_c__get_service_type_support_handle__test_msgs__action__Fibonacci_SendGoal()
@@ -1344,9 +282,18 @@ pub mod action {
                         goal: test_msgs::action::Fibonacci::Goal::from_native(&msg.goal),
                     }
                 }
-                fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                    self.goal_id.copy_to_native(&mut msg.goal_id);
-                    self.goal.copy_to_native(&mut msg.goal);
+                fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                    self.try_copy_to_native(msg)
+                        .expect("failed to copy Rust message into native ROS storage");
+                }
+                fn try_copy_to_native(
+                    &self,
+                    #[allow(unused)]
+                    msg: &mut Self::CStruct,
+                ) -> crate::Result<()> {
+                    self.goal_id.try_copy_to_native(&mut msg.goal_id)?;
+                    self.goal.try_copy_to_native(&mut msg.goal)?;
+                    Ok(())
                 }
             }
             impl Default for Request {
@@ -1390,15 +337,174 @@ pub mod action {
                         stamp: builtin_interfaces::msg::Time::from_native(&msg.stamp),
                     }
                 }
-                fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+                fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                    self.try_copy_to_native(msg)
+                        .expect("failed to copy Rust message into native ROS storage");
+                }
+                fn try_copy_to_native(
+                    &self,
+                    #[allow(unused)]
+                    msg: &mut Self::CStruct,
+                ) -> crate::Result<()> {
                     msg.accepted = self.accepted;
-                    self.stamp.copy_to_native(&mut msg.stamp);
+                    self.stamp.try_copy_to_native(&mut msg.stamp)?;
+                    Ok(())
                 }
             }
             impl Default for Response {
                 fn default() -> Self {
                     let msg_native = WrappedNativeMsg::<Response>::new();
                     Response::from_native(&msg_native)
+                }
+            }
+            #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+            #[serde(default)]
+            pub struct Event {
+                pub info: service_msgs::msg::ServiceEventInfo,
+                pub request: Vec<test_msgs::action::Fibonacci::SendGoal::Request>,
+                pub response: Vec<test_msgs::action::Fibonacci::SendGoal::Response>,
+            }
+            unsafe impl WrappedTypesupport for Event {
+                type CStruct = test_msgs__action__Fibonacci_SendGoal_Event;
+                fn get_ts() -> &'static rosidl_message_type_support_t {
+                    unsafe {
+                        &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__action__Fibonacci_SendGoal_Event()
+                    }
+                }
+                fn create_msg() -> *mut test_msgs__action__Fibonacci_SendGoal_Event {
+                    #[cfg(not(feature = "doc-only"))]
+                    unsafe { test_msgs__action__Fibonacci_SendGoal_Event__create() }
+                    #[cfg(feature = "doc-only")]
+                    test_msgs__action__Fibonacci_SendGoal_Event__create()
+                }
+                fn destroy_msg(
+                    msg: *mut test_msgs__action__Fibonacci_SendGoal_Event,
+                ) -> () {
+                    #[cfg(not(feature = "doc-only"))]
+                    unsafe { test_msgs__action__Fibonacci_SendGoal_Event__destroy(msg) };
+                    #[cfg(feature = "doc-only")]
+                    test_msgs__action__Fibonacci_SendGoal_Event__destroy(msg)
+                }
+                fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Event {
+                    Event {
+                        info: service_msgs::msg::ServiceEventInfo::from_native(
+                            &msg.info,
+                        ),
+                        request: {
+                            let mut temp = Vec::with_capacity(msg.request.size);
+                            if msg.request.data != std::ptr::null_mut() {
+                                let slice = unsafe {
+                                    std::slice::from_raw_parts(
+                                        msg.request.data,
+                                        msg.request.size,
+                                    )
+                                };
+                                for s in slice {
+                                    temp.push(
+                                        test_msgs::action::Fibonacci::SendGoal::Request::from_native(
+                                            s,
+                                        ),
+                                    );
+                                }
+                            }
+                            temp
+                        },
+                        response: {
+                            let mut temp = Vec::with_capacity(msg.response.size);
+                            if msg.response.data != std::ptr::null_mut() {
+                                let slice = unsafe {
+                                    std::slice::from_raw_parts(
+                                        msg.response.data,
+                                        msg.response.size,
+                                    )
+                                };
+                                for s in slice {
+                                    temp.push(
+                                        test_msgs::action::Fibonacci::SendGoal::Response::from_native(
+                                            s,
+                                        ),
+                                    );
+                                }
+                            }
+                            temp
+                        },
+                    }
+                }
+                fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                    self.try_copy_to_native(msg)
+                        .expect("failed to copy Rust message into native ROS storage");
+                }
+                fn try_copy_to_native(
+                    &self,
+                    #[allow(unused)]
+                    msg: &mut Self::CStruct,
+                ) -> crate::Result<()> {
+                    self.info.try_copy_to_native(&mut msg.info)?;
+                    if self.request.len() > 1usize {
+                        return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                    }
+                    unsafe {
+                        let length = self.request.len();
+                        if length > msg.request.capacity {
+                            let mut replacement = std::mem::zeroed();
+                            if !test_msgs__action__Fibonacci_SendGoal_Request__Sequence__init(
+                                &mut replacement,
+                                length,
+                            ) {
+                                return Err(Error::RCL_RET_BAD_ALLOC);
+                            }
+                            test_msgs__action__Fibonacci_SendGoal_Request__Sequence__fini(
+                                &mut msg.request,
+                            );
+                            msg.request = replacement;
+                        }
+                        msg.request.size = length;
+                        if length != 0 {
+                            let slice = std::slice::from_raw_parts_mut(
+                                msg.request.data,
+                                length,
+                            );
+                            for (t, s) in slice.iter_mut().zip(&self.request) {
+                                s.try_copy_to_native(t)?;
+                            }
+                        }
+                    }
+                    if self.response.len() > 1usize {
+                        return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                    }
+                    unsafe {
+                        let length = self.response.len();
+                        if length > msg.response.capacity {
+                            let mut replacement = std::mem::zeroed();
+                            if !test_msgs__action__Fibonacci_SendGoal_Response__Sequence__init(
+                                &mut replacement,
+                                length,
+                            ) {
+                                return Err(Error::RCL_RET_BAD_ALLOC);
+                            }
+                            test_msgs__action__Fibonacci_SendGoal_Response__Sequence__fini(
+                                &mut msg.response,
+                            );
+                            msg.response = replacement;
+                        }
+                        msg.response.size = length;
+                        if length != 0 {
+                            let slice = std::slice::from_raw_parts_mut(
+                                msg.response.data,
+                                length,
+                            );
+                            for (t, s) in slice.iter_mut().zip(&self.response) {
+                                s.try_copy_to_native(t)?;
+                            }
+                        }
+                    }
+                    Ok(())
+                }
+            }
+            impl Default for Event {
+                fn default() -> Self {
+                    let msg_native = WrappedNativeMsg::<Event>::new();
+                    Event::from_native(&msg_native)
                 }
             }
         }
@@ -1410,6 +516,16 @@ pub mod action {
             unsafe impl WrappedServiceTypeSupport for Service {
                 type Request = Request;
                 type Response = Response;
+                #[cfg(
+                    any(
+                        r2r__ros__distro__iron,
+                        r2r__ros__distro__jazzy,
+                        r2r__ros__distro__kilted,
+                        r2r__ros__distro__lyrical,
+                        r2r__ros__distro__rolling
+                    )
+                )]
+                type Event = Event;
                 fn get_ts() -> &'static rosidl_service_type_support_t {
                     unsafe {
                         &*rosidl_typesupport_c__get_service_type_support_handle__test_msgs__action__Fibonacci_GetResult()
@@ -1451,8 +567,17 @@ pub mod action {
                         ),
                     }
                 }
-                fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                    self.goal_id.copy_to_native(&mut msg.goal_id);
+                fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                    self.try_copy_to_native(msg)
+                        .expect("failed to copy Rust message into native ROS storage");
+                }
+                fn try_copy_to_native(
+                    &self,
+                    #[allow(unused)]
+                    msg: &mut Self::CStruct,
+                ) -> crate::Result<()> {
+                    self.goal_id.try_copy_to_native(&mut msg.goal_id)?;
+                    Ok(())
                 }
             }
             impl Default for Request {
@@ -1498,15 +623,176 @@ pub mod action {
                         ),
                     }
                 }
-                fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+                fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                    self.try_copy_to_native(msg)
+                        .expect("failed to copy Rust message into native ROS storage");
+                }
+                fn try_copy_to_native(
+                    &self,
+                    #[allow(unused)]
+                    msg: &mut Self::CStruct,
+                ) -> crate::Result<()> {
                     msg.status = self.status;
-                    self.result.copy_to_native(&mut msg.result);
+                    self.result.try_copy_to_native(&mut msg.result)?;
+                    Ok(())
                 }
             }
             impl Default for Response {
                 fn default() -> Self {
                     let msg_native = WrappedNativeMsg::<Response>::new();
                     Response::from_native(&msg_native)
+                }
+            }
+            #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+            #[serde(default)]
+            pub struct Event {
+                pub info: service_msgs::msg::ServiceEventInfo,
+                pub request: Vec<test_msgs::action::Fibonacci::GetResult::Request>,
+                pub response: Vec<test_msgs::action::Fibonacci::GetResult::Response>,
+            }
+            unsafe impl WrappedTypesupport for Event {
+                type CStruct = test_msgs__action__Fibonacci_GetResult_Event;
+                fn get_ts() -> &'static rosidl_message_type_support_t {
+                    unsafe {
+                        &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__action__Fibonacci_GetResult_Event()
+                    }
+                }
+                fn create_msg() -> *mut test_msgs__action__Fibonacci_GetResult_Event {
+                    #[cfg(not(feature = "doc-only"))]
+                    unsafe { test_msgs__action__Fibonacci_GetResult_Event__create() }
+                    #[cfg(feature = "doc-only")]
+                    test_msgs__action__Fibonacci_GetResult_Event__create()
+                }
+                fn destroy_msg(
+                    msg: *mut test_msgs__action__Fibonacci_GetResult_Event,
+                ) -> () {
+                    #[cfg(not(feature = "doc-only"))]
+                    unsafe {
+                        test_msgs__action__Fibonacci_GetResult_Event__destroy(msg)
+                    };
+                    #[cfg(feature = "doc-only")]
+                    test_msgs__action__Fibonacci_GetResult_Event__destroy(msg)
+                }
+                fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Event {
+                    Event {
+                        info: service_msgs::msg::ServiceEventInfo::from_native(
+                            &msg.info,
+                        ),
+                        request: {
+                            let mut temp = Vec::with_capacity(msg.request.size);
+                            if msg.request.data != std::ptr::null_mut() {
+                                let slice = unsafe {
+                                    std::slice::from_raw_parts(
+                                        msg.request.data,
+                                        msg.request.size,
+                                    )
+                                };
+                                for s in slice {
+                                    temp.push(
+                                        test_msgs::action::Fibonacci::GetResult::Request::from_native(
+                                            s,
+                                        ),
+                                    );
+                                }
+                            }
+                            temp
+                        },
+                        response: {
+                            let mut temp = Vec::with_capacity(msg.response.size);
+                            if msg.response.data != std::ptr::null_mut() {
+                                let slice = unsafe {
+                                    std::slice::from_raw_parts(
+                                        msg.response.data,
+                                        msg.response.size,
+                                    )
+                                };
+                                for s in slice {
+                                    temp.push(
+                                        test_msgs::action::Fibonacci::GetResult::Response::from_native(
+                                            s,
+                                        ),
+                                    );
+                                }
+                            }
+                            temp
+                        },
+                    }
+                }
+                fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                    self.try_copy_to_native(msg)
+                        .expect("failed to copy Rust message into native ROS storage");
+                }
+                fn try_copy_to_native(
+                    &self,
+                    #[allow(unused)]
+                    msg: &mut Self::CStruct,
+                ) -> crate::Result<()> {
+                    self.info.try_copy_to_native(&mut msg.info)?;
+                    if self.request.len() > 1usize {
+                        return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                    }
+                    unsafe {
+                        let length = self.request.len();
+                        if length > msg.request.capacity {
+                            let mut replacement = std::mem::zeroed();
+                            if !test_msgs__action__Fibonacci_GetResult_Request__Sequence__init(
+                                &mut replacement,
+                                length,
+                            ) {
+                                return Err(Error::RCL_RET_BAD_ALLOC);
+                            }
+                            test_msgs__action__Fibonacci_GetResult_Request__Sequence__fini(
+                                &mut msg.request,
+                            );
+                            msg.request = replacement;
+                        }
+                        msg.request.size = length;
+                        if length != 0 {
+                            let slice = std::slice::from_raw_parts_mut(
+                                msg.request.data,
+                                length,
+                            );
+                            for (t, s) in slice.iter_mut().zip(&self.request) {
+                                s.try_copy_to_native(t)?;
+                            }
+                        }
+                    }
+                    if self.response.len() > 1usize {
+                        return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                    }
+                    unsafe {
+                        let length = self.response.len();
+                        if length > msg.response.capacity {
+                            let mut replacement = std::mem::zeroed();
+                            if !test_msgs__action__Fibonacci_GetResult_Response__Sequence__init(
+                                &mut replacement,
+                                length,
+                            ) {
+                                return Err(Error::RCL_RET_BAD_ALLOC);
+                            }
+                            test_msgs__action__Fibonacci_GetResult_Response__Sequence__fini(
+                                &mut msg.response,
+                            );
+                            msg.response = replacement;
+                        }
+                        msg.response.size = length;
+                        if length != 0 {
+                            let slice = std::slice::from_raw_parts_mut(
+                                msg.response.data,
+                                length,
+                            );
+                            for (t, s) in slice.iter_mut().zip(&self.response) {
+                                s.try_copy_to_native(t)?;
+                            }
+                        }
+                    }
+                    Ok(())
+                }
+            }
+            impl Default for Event {
+                fn default() -> Self {
+                    let msg_native = WrappedNativeMsg::<Event>::new();
+                    Event::from_native(&msg_native)
                 }
             }
         }
@@ -1547,9 +833,18 @@ pub mod action {
                     ),
                 }
             }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                self.goal_id.copy_to_native(&mut msg.goal_id);
-                self.feedback.copy_to_native(&mut msg.feedback);
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                self.goal_id.try_copy_to_native(&mut msg.goal_id)?;
+                self.feedback.try_copy_to_native(&mut msg.feedback)?;
+                Ok(())
             }
         }
         impl Default for FeedbackMessage {
@@ -1679,10 +974,21 @@ pub mod action {
                     ),
                 }
             }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                self.nested_field_no_pkg.copy_to_native(&mut msg.nested_field_no_pkg);
-                self.nested_field.copy_to_native(&mut msg.nested_field);
-                self.nested_different_pkg.copy_to_native(&mut msg.nested_different_pkg);
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                self.nested_field_no_pkg
+                    .try_copy_to_native(&mut msg.nested_field_no_pkg)?;
+                self.nested_field.try_copy_to_native(&mut msg.nested_field)?;
+                self.nested_different_pkg
+                    .try_copy_to_native(&mut msg.nested_different_pkg)?;
+                Ok(())
             }
         }
         impl Default for Goal {
@@ -1730,10 +1036,21 @@ pub mod action {
                     ),
                 }
             }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                self.nested_field_no_pkg.copy_to_native(&mut msg.nested_field_no_pkg);
-                self.nested_field.copy_to_native(&mut msg.nested_field);
-                self.nested_different_pkg.copy_to_native(&mut msg.nested_different_pkg);
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                self.nested_field_no_pkg
+                    .try_copy_to_native(&mut msg.nested_field_no_pkg)?;
+                self.nested_field.try_copy_to_native(&mut msg.nested_field)?;
+                self.nested_different_pkg
+                    .try_copy_to_native(&mut msg.nested_different_pkg)?;
+                Ok(())
             }
         }
         impl Default for Result {
@@ -1781,10 +1098,21 @@ pub mod action {
                     ),
                 }
             }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                self.nested_field_no_pkg.copy_to_native(&mut msg.nested_field_no_pkg);
-                self.nested_field.copy_to_native(&mut msg.nested_field);
-                self.nested_different_pkg.copy_to_native(&mut msg.nested_different_pkg);
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                self.nested_field_no_pkg
+                    .try_copy_to_native(&mut msg.nested_field_no_pkg)?;
+                self.nested_field.try_copy_to_native(&mut msg.nested_field)?;
+                self.nested_different_pkg
+                    .try_copy_to_native(&mut msg.nested_different_pkg)?;
+                Ok(())
             }
         }
         impl Default for Feedback {
@@ -1801,6 +1129,16 @@ pub mod action {
             unsafe impl WrappedServiceTypeSupport for Service {
                 type Request = Request;
                 type Response = Response;
+                #[cfg(
+                    any(
+                        r2r__ros__distro__iron,
+                        r2r__ros__distro__jazzy,
+                        r2r__ros__distro__kilted,
+                        r2r__ros__distro__lyrical,
+                        r2r__ros__distro__rolling
+                    )
+                )]
+                type Event = Event;
                 fn get_ts() -> &'static rosidl_service_type_support_t {
                     unsafe {
                         &*rosidl_typesupport_c__get_service_type_support_handle__test_msgs__action__NestedMessage_SendGoal()
@@ -1848,9 +1186,18 @@ pub mod action {
                         ),
                     }
                 }
-                fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                    self.goal_id.copy_to_native(&mut msg.goal_id);
-                    self.goal.copy_to_native(&mut msg.goal);
+                fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                    self.try_copy_to_native(msg)
+                        .expect("failed to copy Rust message into native ROS storage");
+                }
+                fn try_copy_to_native(
+                    &self,
+                    #[allow(unused)]
+                    msg: &mut Self::CStruct,
+                ) -> crate::Result<()> {
+                    self.goal_id.try_copy_to_native(&mut msg.goal_id)?;
+                    self.goal.try_copy_to_native(&mut msg.goal)?;
+                    Ok(())
                 }
             }
             impl Default for Request {
@@ -1896,15 +1243,176 @@ pub mod action {
                         stamp: builtin_interfaces::msg::Time::from_native(&msg.stamp),
                     }
                 }
-                fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+                fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                    self.try_copy_to_native(msg)
+                        .expect("failed to copy Rust message into native ROS storage");
+                }
+                fn try_copy_to_native(
+                    &self,
+                    #[allow(unused)]
+                    msg: &mut Self::CStruct,
+                ) -> crate::Result<()> {
                     msg.accepted = self.accepted;
-                    self.stamp.copy_to_native(&mut msg.stamp);
+                    self.stamp.try_copy_to_native(&mut msg.stamp)?;
+                    Ok(())
                 }
             }
             impl Default for Response {
                 fn default() -> Self {
                     let msg_native = WrappedNativeMsg::<Response>::new();
                     Response::from_native(&msg_native)
+                }
+            }
+            #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+            #[serde(default)]
+            pub struct Event {
+                pub info: service_msgs::msg::ServiceEventInfo,
+                pub request: Vec<test_msgs::action::NestedMessage::SendGoal::Request>,
+                pub response: Vec<test_msgs::action::NestedMessage::SendGoal::Response>,
+            }
+            unsafe impl WrappedTypesupport for Event {
+                type CStruct = test_msgs__action__NestedMessage_SendGoal_Event;
+                fn get_ts() -> &'static rosidl_message_type_support_t {
+                    unsafe {
+                        &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__action__NestedMessage_SendGoal_Event()
+                    }
+                }
+                fn create_msg() -> *mut test_msgs__action__NestedMessage_SendGoal_Event {
+                    #[cfg(not(feature = "doc-only"))]
+                    unsafe { test_msgs__action__NestedMessage_SendGoal_Event__create() }
+                    #[cfg(feature = "doc-only")]
+                    test_msgs__action__NestedMessage_SendGoal_Event__create()
+                }
+                fn destroy_msg(
+                    msg: *mut test_msgs__action__NestedMessage_SendGoal_Event,
+                ) -> () {
+                    #[cfg(not(feature = "doc-only"))]
+                    unsafe {
+                        test_msgs__action__NestedMessage_SendGoal_Event__destroy(msg)
+                    };
+                    #[cfg(feature = "doc-only")]
+                    test_msgs__action__NestedMessage_SendGoal_Event__destroy(msg)
+                }
+                fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Event {
+                    Event {
+                        info: service_msgs::msg::ServiceEventInfo::from_native(
+                            &msg.info,
+                        ),
+                        request: {
+                            let mut temp = Vec::with_capacity(msg.request.size);
+                            if msg.request.data != std::ptr::null_mut() {
+                                let slice = unsafe {
+                                    std::slice::from_raw_parts(
+                                        msg.request.data,
+                                        msg.request.size,
+                                    )
+                                };
+                                for s in slice {
+                                    temp.push(
+                                        test_msgs::action::NestedMessage::SendGoal::Request::from_native(
+                                            s,
+                                        ),
+                                    );
+                                }
+                            }
+                            temp
+                        },
+                        response: {
+                            let mut temp = Vec::with_capacity(msg.response.size);
+                            if msg.response.data != std::ptr::null_mut() {
+                                let slice = unsafe {
+                                    std::slice::from_raw_parts(
+                                        msg.response.data,
+                                        msg.response.size,
+                                    )
+                                };
+                                for s in slice {
+                                    temp.push(
+                                        test_msgs::action::NestedMessage::SendGoal::Response::from_native(
+                                            s,
+                                        ),
+                                    );
+                                }
+                            }
+                            temp
+                        },
+                    }
+                }
+                fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                    self.try_copy_to_native(msg)
+                        .expect("failed to copy Rust message into native ROS storage");
+                }
+                fn try_copy_to_native(
+                    &self,
+                    #[allow(unused)]
+                    msg: &mut Self::CStruct,
+                ) -> crate::Result<()> {
+                    self.info.try_copy_to_native(&mut msg.info)?;
+                    if self.request.len() > 1usize {
+                        return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                    }
+                    unsafe {
+                        let length = self.request.len();
+                        if length > msg.request.capacity {
+                            let mut replacement = std::mem::zeroed();
+                            if !test_msgs__action__NestedMessage_SendGoal_Request__Sequence__init(
+                                &mut replacement,
+                                length,
+                            ) {
+                                return Err(Error::RCL_RET_BAD_ALLOC);
+                            }
+                            test_msgs__action__NestedMessage_SendGoal_Request__Sequence__fini(
+                                &mut msg.request,
+                            );
+                            msg.request = replacement;
+                        }
+                        msg.request.size = length;
+                        if length != 0 {
+                            let slice = std::slice::from_raw_parts_mut(
+                                msg.request.data,
+                                length,
+                            );
+                            for (t, s) in slice.iter_mut().zip(&self.request) {
+                                s.try_copy_to_native(t)?;
+                            }
+                        }
+                    }
+                    if self.response.len() > 1usize {
+                        return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                    }
+                    unsafe {
+                        let length = self.response.len();
+                        if length > msg.response.capacity {
+                            let mut replacement = std::mem::zeroed();
+                            if !test_msgs__action__NestedMessage_SendGoal_Response__Sequence__init(
+                                &mut replacement,
+                                length,
+                            ) {
+                                return Err(Error::RCL_RET_BAD_ALLOC);
+                            }
+                            test_msgs__action__NestedMessage_SendGoal_Response__Sequence__fini(
+                                &mut msg.response,
+                            );
+                            msg.response = replacement;
+                        }
+                        msg.response.size = length;
+                        if length != 0 {
+                            let slice = std::slice::from_raw_parts_mut(
+                                msg.response.data,
+                                length,
+                            );
+                            for (t, s) in slice.iter_mut().zip(&self.response) {
+                                s.try_copy_to_native(t)?;
+                            }
+                        }
+                    }
+                    Ok(())
+                }
+            }
+            impl Default for Event {
+                fn default() -> Self {
+                    let msg_native = WrappedNativeMsg::<Event>::new();
+                    Event::from_native(&msg_native)
                 }
             }
         }
@@ -1916,6 +1424,16 @@ pub mod action {
             unsafe impl WrappedServiceTypeSupport for Service {
                 type Request = Request;
                 type Response = Response;
+                #[cfg(
+                    any(
+                        r2r__ros__distro__iron,
+                        r2r__ros__distro__jazzy,
+                        r2r__ros__distro__kilted,
+                        r2r__ros__distro__lyrical,
+                        r2r__ros__distro__rolling
+                    )
+                )]
+                type Event = Event;
                 fn get_ts() -> &'static rosidl_service_type_support_t {
                     unsafe {
                         &*rosidl_typesupport_c__get_service_type_support_handle__test_msgs__action__NestedMessage_GetResult()
@@ -1959,8 +1477,17 @@ pub mod action {
                         ),
                     }
                 }
-                fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                    self.goal_id.copy_to_native(&mut msg.goal_id);
+                fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                    self.try_copy_to_native(msg)
+                        .expect("failed to copy Rust message into native ROS storage");
+                }
+                fn try_copy_to_native(
+                    &self,
+                    #[allow(unused)]
+                    msg: &mut Self::CStruct,
+                ) -> crate::Result<()> {
+                    self.goal_id.try_copy_to_native(&mut msg.goal_id)?;
+                    Ok(())
                 }
             }
             impl Default for Request {
@@ -2008,15 +1535,176 @@ pub mod action {
                         ),
                     }
                 }
-                fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+                fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                    self.try_copy_to_native(msg)
+                        .expect("failed to copy Rust message into native ROS storage");
+                }
+                fn try_copy_to_native(
+                    &self,
+                    #[allow(unused)]
+                    msg: &mut Self::CStruct,
+                ) -> crate::Result<()> {
                     msg.status = self.status;
-                    self.result.copy_to_native(&mut msg.result);
+                    self.result.try_copy_to_native(&mut msg.result)?;
+                    Ok(())
                 }
             }
             impl Default for Response {
                 fn default() -> Self {
                     let msg_native = WrappedNativeMsg::<Response>::new();
                     Response::from_native(&msg_native)
+                }
+            }
+            #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+            #[serde(default)]
+            pub struct Event {
+                pub info: service_msgs::msg::ServiceEventInfo,
+                pub request: Vec<test_msgs::action::NestedMessage::GetResult::Request>,
+                pub response: Vec<test_msgs::action::NestedMessage::GetResult::Response>,
+            }
+            unsafe impl WrappedTypesupport for Event {
+                type CStruct = test_msgs__action__NestedMessage_GetResult_Event;
+                fn get_ts() -> &'static rosidl_message_type_support_t {
+                    unsafe {
+                        &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__action__NestedMessage_GetResult_Event()
+                    }
+                }
+                fn create_msg() -> *mut test_msgs__action__NestedMessage_GetResult_Event {
+                    #[cfg(not(feature = "doc-only"))]
+                    unsafe { test_msgs__action__NestedMessage_GetResult_Event__create() }
+                    #[cfg(feature = "doc-only")]
+                    test_msgs__action__NestedMessage_GetResult_Event__create()
+                }
+                fn destroy_msg(
+                    msg: *mut test_msgs__action__NestedMessage_GetResult_Event,
+                ) -> () {
+                    #[cfg(not(feature = "doc-only"))]
+                    unsafe {
+                        test_msgs__action__NestedMessage_GetResult_Event__destroy(msg)
+                    };
+                    #[cfg(feature = "doc-only")]
+                    test_msgs__action__NestedMessage_GetResult_Event__destroy(msg)
+                }
+                fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Event {
+                    Event {
+                        info: service_msgs::msg::ServiceEventInfo::from_native(
+                            &msg.info,
+                        ),
+                        request: {
+                            let mut temp = Vec::with_capacity(msg.request.size);
+                            if msg.request.data != std::ptr::null_mut() {
+                                let slice = unsafe {
+                                    std::slice::from_raw_parts(
+                                        msg.request.data,
+                                        msg.request.size,
+                                    )
+                                };
+                                for s in slice {
+                                    temp.push(
+                                        test_msgs::action::NestedMessage::GetResult::Request::from_native(
+                                            s,
+                                        ),
+                                    );
+                                }
+                            }
+                            temp
+                        },
+                        response: {
+                            let mut temp = Vec::with_capacity(msg.response.size);
+                            if msg.response.data != std::ptr::null_mut() {
+                                let slice = unsafe {
+                                    std::slice::from_raw_parts(
+                                        msg.response.data,
+                                        msg.response.size,
+                                    )
+                                };
+                                for s in slice {
+                                    temp.push(
+                                        test_msgs::action::NestedMessage::GetResult::Response::from_native(
+                                            s,
+                                        ),
+                                    );
+                                }
+                            }
+                            temp
+                        },
+                    }
+                }
+                fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                    self.try_copy_to_native(msg)
+                        .expect("failed to copy Rust message into native ROS storage");
+                }
+                fn try_copy_to_native(
+                    &self,
+                    #[allow(unused)]
+                    msg: &mut Self::CStruct,
+                ) -> crate::Result<()> {
+                    self.info.try_copy_to_native(&mut msg.info)?;
+                    if self.request.len() > 1usize {
+                        return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                    }
+                    unsafe {
+                        let length = self.request.len();
+                        if length > msg.request.capacity {
+                            let mut replacement = std::mem::zeroed();
+                            if !test_msgs__action__NestedMessage_GetResult_Request__Sequence__init(
+                                &mut replacement,
+                                length,
+                            ) {
+                                return Err(Error::RCL_RET_BAD_ALLOC);
+                            }
+                            test_msgs__action__NestedMessage_GetResult_Request__Sequence__fini(
+                                &mut msg.request,
+                            );
+                            msg.request = replacement;
+                        }
+                        msg.request.size = length;
+                        if length != 0 {
+                            let slice = std::slice::from_raw_parts_mut(
+                                msg.request.data,
+                                length,
+                            );
+                            for (t, s) in slice.iter_mut().zip(&self.request) {
+                                s.try_copy_to_native(t)?;
+                            }
+                        }
+                    }
+                    if self.response.len() > 1usize {
+                        return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                    }
+                    unsafe {
+                        let length = self.response.len();
+                        if length > msg.response.capacity {
+                            let mut replacement = std::mem::zeroed();
+                            if !test_msgs__action__NestedMessage_GetResult_Response__Sequence__init(
+                                &mut replacement,
+                                length,
+                            ) {
+                                return Err(Error::RCL_RET_BAD_ALLOC);
+                            }
+                            test_msgs__action__NestedMessage_GetResult_Response__Sequence__fini(
+                                &mut msg.response,
+                            );
+                            msg.response = replacement;
+                        }
+                        msg.response.size = length;
+                        if length != 0 {
+                            let slice = std::slice::from_raw_parts_mut(
+                                msg.response.data,
+                                length,
+                            );
+                            for (t, s) in slice.iter_mut().zip(&self.response) {
+                                s.try_copy_to_native(t)?;
+                            }
+                        }
+                    }
+                    Ok(())
+                }
+            }
+            impl Default for Event {
+                fn default() -> Self {
+                    let msg_native = WrappedNativeMsg::<Event>::new();
+                    Event::from_native(&msg_native)
                 }
             }
         }
@@ -2059,9 +1747,18 @@ pub mod action {
                     ),
                 }
             }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                self.goal_id.copy_to_native(&mut msg.goal_id);
-                self.feedback.copy_to_native(&mut msg.feedback);
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                self.goal_id.try_copy_to_native(&mut msg.goal_id)?;
+                self.feedback.try_copy_to_native(&mut msg.feedback)?;
+                Ok(())
             }
         }
         impl Default for FeedbackMessage {
@@ -2203,280 +1900,72 @@ pub mod msg {
                 alignment_check: msg.alignment_check,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            assert_eq!(
-                self.bool_values.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "bool_values",
-                3usize,
-            );
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.bool_values.copy_from_slice(&self.bool_values[..3usize]);
-            assert_eq!(
-                self.byte_values.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "byte_values",
-                3usize,
-            );
             msg.byte_values.copy_from_slice(&self.byte_values[..3usize]);
-            assert_eq!(
-                self.char_values.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "char_values",
-                3usize,
-            );
             msg.char_values.copy_from_slice(&self.char_values[..3usize]);
-            assert_eq!(
-                self.float32_values.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "float32_values",
-                3usize,
-            );
             msg.float32_values.copy_from_slice(&self.float32_values[..3usize]);
-            assert_eq!(
-                self.float64_values.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "float64_values",
-                3usize,
-            );
             msg.float64_values.copy_from_slice(&self.float64_values[..3usize]);
-            assert_eq!(
-                self.int8_values.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "int8_values",
-                3usize,
-            );
             msg.int8_values.copy_from_slice(&self.int8_values[..3usize]);
-            assert_eq!(
-                self.uint8_values.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "uint8_values",
-                3usize,
-            );
             msg.uint8_values.copy_from_slice(&self.uint8_values[..3usize]);
-            assert_eq!(
-                self.int16_values.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "int16_values",
-                3usize,
-            );
             msg.int16_values.copy_from_slice(&self.int16_values[..3usize]);
-            assert_eq!(
-                self.uint16_values.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "uint16_values",
-                3usize,
-            );
             msg.uint16_values.copy_from_slice(&self.uint16_values[..3usize]);
-            assert_eq!(
-                self.int32_values.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "int32_values",
-                3usize,
-            );
             msg.int32_values.copy_from_slice(&self.int32_values[..3usize]);
-            assert_eq!(
-                self.uint32_values.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "uint32_values",
-                3usize,
-            );
             msg.uint32_values.copy_from_slice(&self.uint32_values[..3usize]);
-            assert_eq!(
-                self.int64_values.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "int64_values",
-                3usize,
-            );
             msg.int64_values.copy_from_slice(&self.int64_values[..3usize]);
-            assert_eq!(
-                self.uint64_values.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "uint64_values",
-                3usize,
-            );
             msg.uint64_values.copy_from_slice(&self.uint64_values[..3usize]);
-            assert_eq!(
-                self.string_values.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "string_values",
-                3usize,
-            );
             for (t, s) in msg.string_values.iter_mut().zip(&self.string_values) {
-                t.try_assign_bytes((&s).as_bytes());
+                check_rosidl_runtime_ret(t.try_assign_bytes(s.as_bytes()))?;
             }
-            assert_eq!(
-                self.basic_types_values.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "basic_types_values",
-                3usize,
-            );
             for (t, s) in msg.basic_types_values.iter_mut().zip(&self.basic_types_values)
             {
-                s.copy_to_native(t);
+                s.try_copy_to_native(t)?;
             }
-            assert_eq!(
-                self.constants_values.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "constants_values",
-                3usize,
-            );
             for (t, s) in msg.constants_values.iter_mut().zip(&self.constants_values) {
-                s.copy_to_native(t);
+                s.try_copy_to_native(t)?;
             }
-            assert_eq!(
-                self.defaults_values.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "defaults_values",
-                3usize,
-            );
             for (t, s) in msg.defaults_values.iter_mut().zip(&self.defaults_values) {
-                s.copy_to_native(t);
+                s.try_copy_to_native(t)?;
             }
-            assert_eq!(
-                self.bool_values_default.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "bool_values_default",
-                3usize,
-            );
             msg.bool_values_default.copy_from_slice(&self.bool_values_default[..3usize]);
-            assert_eq!(
-                self.byte_values_default.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "byte_values_default",
-                3usize,
-            );
             msg.byte_values_default.copy_from_slice(&self.byte_values_default[..3usize]);
-            assert_eq!(
-                self.char_values_default.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "char_values_default",
-                3usize,
-            );
             msg.char_values_default.copy_from_slice(&self.char_values_default[..3usize]);
-            assert_eq!(
-                self.float32_values_default.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "float32_values_default",
-                3usize,
-            );
             msg.float32_values_default
                 .copy_from_slice(&self.float32_values_default[..3usize]);
-            assert_eq!(
-                self.float64_values_default.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "float64_values_default",
-                3usize,
-            );
             msg.float64_values_default
                 .copy_from_slice(&self.float64_values_default[..3usize]);
-            assert_eq!(
-                self.int8_values_default.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "int8_values_default",
-                3usize,
-            );
             msg.int8_values_default.copy_from_slice(&self.int8_values_default[..3usize]);
-            assert_eq!(
-                self.uint8_values_default.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "uint8_values_default",
-                3usize,
-            );
             msg.uint8_values_default
                 .copy_from_slice(&self.uint8_values_default[..3usize]);
-            assert_eq!(
-                self.int16_values_default.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "int16_values_default",
-                3usize,
-            );
             msg.int16_values_default
                 .copy_from_slice(&self.int16_values_default[..3usize]);
-            assert_eq!(
-                self.uint16_values_default.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "uint16_values_default",
-                3usize,
-            );
             msg.uint16_values_default
                 .copy_from_slice(&self.uint16_values_default[..3usize]);
-            assert_eq!(
-                self.int32_values_default.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "int32_values_default",
-                3usize,
-            );
             msg.int32_values_default
                 .copy_from_slice(&self.int32_values_default[..3usize]);
-            assert_eq!(
-                self.uint32_values_default.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "uint32_values_default",
-                3usize,
-            );
             msg.uint32_values_default
                 .copy_from_slice(&self.uint32_values_default[..3usize]);
-            assert_eq!(
-                self.int64_values_default.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "int64_values_default",
-                3usize,
-            );
             msg.int64_values_default
                 .copy_from_slice(&self.int64_values_default[..3usize]);
-            assert_eq!(
-                self.uint64_values_default.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "uint64_values_default",
-                3usize,
-            );
             msg.uint64_values_default
                 .copy_from_slice(&self.uint64_values_default[..3usize]);
-            assert_eq!(
-                self.string_values_default.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "string_values_default",
-                3usize,
-            );
             for (t, s) in msg
                 .string_values_default
                 .iter_mut()
                 .zip(&self.string_values_default)
             {
-                t.try_assign_bytes((&s).as_bytes());
+                check_rosidl_runtime_ret(t.try_assign_bytes(s.as_bytes()))?;
             }
             msg.alignment_check = self.alignment_check;
+            Ok(())
         }
     }
     impl Default for Arrays {
@@ -2536,7 +2025,15 @@ pub mod msg {
                 uint64_value: msg.uint64_value,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.bool_value = self.bool_value;
             msg.byte_value = self.byte_value;
             msg.char_value = self.char_value;
@@ -2550,6 +2047,7 @@ pub mod msg {
             msg.uint32_value = self.uint32_value;
             msg.int64_value = self.int64_value;
             msg.uint64_value = self.uint64_value;
+            Ok(())
         }
     }
     impl Default for BasicTypes {
@@ -2627,40 +2125,46 @@ pub mod msg {
                 uint64_values: msg.uint64_values.to_vec(),
                 basic_types_values: {
                     let mut temp = Vec::with_capacity(msg.basic_types_values.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.basic_types_values.data,
-                            msg.basic_types_values.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(test_msgs::msg::BasicTypes::from_native(s));
+                    if msg.basic_types_values.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.basic_types_values.data,
+                                msg.basic_types_values.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(test_msgs::msg::BasicTypes::from_native(s));
+                        }
                     }
                     temp
                 },
                 constants_values: {
                     let mut temp = Vec::with_capacity(msg.constants_values.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.constants_values.data,
-                            msg.constants_values.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(test_msgs::msg::Constants::from_native(s));
+                    if msg.constants_values.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.constants_values.data,
+                                msg.constants_values.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(test_msgs::msg::Constants::from_native(s));
+                        }
                     }
                     temp
                 },
                 defaults_values: {
                     let mut temp = Vec::with_capacity(msg.defaults_values.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.defaults_values.data,
-                            msg.defaults_values.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(test_msgs::msg::Defaults::from_native(s));
+                    if msg.defaults_values.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.defaults_values.data,
+                                msg.defaults_values.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(test_msgs::msg::Defaults::from_native(s));
+                        }
                     }
                     temp
                 },
@@ -2680,232 +2184,234 @@ pub mod msg {
                 alignment_check: msg.alignment_check,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            assert!(
-                self.bool_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "bool_values",
-                3usize,
-            );
-            msg.bool_values.update(&self.bool_values);
-            assert!(
-                self.byte_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "byte_values",
-                3usize,
-            );
-            msg.byte_values.update(&self.byte_values);
-            assert!(
-                self.char_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "char_values",
-                3usize,
-            );
-            msg.char_values.update(&self.char_values);
-            assert!(
-                self.float32_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "float32_values",
-                3usize,
-            );
-            msg.float32_values.update(&self.float32_values);
-            assert!(
-                self.float64_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "float64_values",
-                3usize,
-            );
-            msg.float64_values.update(&self.float64_values);
-            assert!(
-                self.int8_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "int8_values",
-                3usize,
-            );
-            msg.int8_values.update(&self.int8_values);
-            assert!(
-                self.uint8_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "uint8_values",
-                3usize,
-            );
-            msg.uint8_values.update(&self.uint8_values);
-            assert!(
-                self.int16_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "int16_values",
-                3usize,
-            );
-            msg.int16_values.update(&self.int16_values);
-            assert!(
-                self.uint16_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "uint16_values",
-                3usize,
-            );
-            msg.uint16_values.update(&self.uint16_values);
-            assert!(
-                self.int32_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "int32_values",
-                3usize,
-            );
-            msg.int32_values.update(&self.int32_values);
-            assert!(
-                self.uint32_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "uint32_values",
-                3usize,
-            );
-            msg.uint32_values.update(&self.uint32_values);
-            assert!(
-                self.int64_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "int64_values",
-                3usize,
-            );
-            msg.int64_values.update(&self.int64_values);
-            assert!(
-                self.uint64_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "uint64_values",
-                3usize,
-            );
-            msg.uint64_values.update(&self.uint64_values);
-            unsafe {
-                test_msgs__msg__BasicTypes__Sequence__fini(&mut msg.basic_types_values);
-                test_msgs__msg__BasicTypes__Sequence__init(
-                    &mut msg.basic_types_values,
-                    self.basic_types_values.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.basic_types_values.data,
-                    msg.basic_types_values.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.basic_types_values) {
-                    s.copy_to_native(t);
-                }
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            if self.bool_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.bool_values.try_update(&self.bool_values))?;
+            if self.byte_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.byte_values.try_update(&self.byte_values))?;
+            if self.char_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.char_values.try_update(&self.char_values))?;
+            if self.float32_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.float32_values.try_update(&self.float32_values),
+            )?;
+            if self.float64_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.float64_values.try_update(&self.float64_values),
+            )?;
+            if self.int8_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.int8_values.try_update(&self.int8_values))?;
+            if self.uint8_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.uint8_values.try_update(&self.uint8_values))?;
+            if self.int16_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.int16_values.try_update(&self.int16_values))?;
+            if self.uint16_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.uint16_values.try_update(&self.uint16_values))?;
+            if self.int32_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.int32_values.try_update(&self.int32_values))?;
+            if self.uint32_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.uint32_values.try_update(&self.uint32_values))?;
+            if self.int64_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.int64_values.try_update(&self.int64_values))?;
+            if self.uint64_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.uint64_values.try_update(&self.uint64_values))?;
+            if self.basic_types_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
             }
             unsafe {
-                test_msgs__msg__Constants__Sequence__fini(&mut msg.constants_values);
-                test_msgs__msg__Constants__Sequence__init(
-                    &mut msg.constants_values,
-                    self.constants_values.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.constants_values.data,
-                    msg.constants_values.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.constants_values) {
-                    s.copy_to_native(t);
+                let length = self.basic_types_values.len();
+                if length > msg.basic_types_values.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !test_msgs__msg__BasicTypes__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    test_msgs__msg__BasicTypes__Sequence__fini(
+                        &mut msg.basic_types_values,
+                    );
+                    msg.basic_types_values = replacement;
                 }
+                msg.basic_types_values.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.basic_types_values.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.basic_types_values) {
+                        s.try_copy_to_native(t)?;
+                    }
+                }
+            }
+            if self.constants_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
             }
             unsafe {
-                test_msgs__msg__Defaults__Sequence__fini(&mut msg.defaults_values);
-                test_msgs__msg__Defaults__Sequence__init(
-                    &mut msg.defaults_values,
-                    self.defaults_values.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.defaults_values.data,
-                    msg.defaults_values.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.defaults_values) {
-                    s.copy_to_native(t);
+                let length = self.constants_values.len();
+                if length > msg.constants_values.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !test_msgs__msg__Constants__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    test_msgs__msg__Constants__Sequence__fini(&mut msg.constants_values);
+                    msg.constants_values = replacement;
+                }
+                msg.constants_values.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.constants_values.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.constants_values) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
-            assert!(
-                self.bool_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "bool_values_default",
-                3usize,
-            );
-            msg.bool_values_default.update(&self.bool_values_default);
-            assert!(
-                self.byte_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "byte_values_default",
-                3usize,
-            );
-            msg.byte_values_default.update(&self.byte_values_default);
-            assert!(
-                self.char_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "char_values_default",
-                3usize,
-            );
-            msg.char_values_default.update(&self.char_values_default);
-            assert!(
-                self.float32_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "float32_values_default",
-                3usize,
-            );
-            msg.float32_values_default.update(&self.float32_values_default);
-            assert!(
-                self.float64_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "float64_values_default",
-                3usize,
-            );
-            msg.float64_values_default.update(&self.float64_values_default);
-            assert!(
-                self.int8_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "int8_values_default",
-                3usize,
-            );
-            msg.int8_values_default.update(&self.int8_values_default);
-            assert!(
-                self.uint8_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "uint8_values_default",
-                3usize,
-            );
-            msg.uint8_values_default.update(&self.uint8_values_default);
-            assert!(
-                self.int16_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "int16_values_default",
-                3usize,
-            );
-            msg.int16_values_default.update(&self.int16_values_default);
-            assert!(
-                self.uint16_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "uint16_values_default",
-                3usize,
-            );
-            msg.uint16_values_default.update(&self.uint16_values_default);
-            assert!(
-                self.int32_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "int32_values_default",
-                3usize,
-            );
-            msg.int32_values_default.update(&self.int32_values_default);
-            assert!(
-                self.uint32_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "uint32_values_default",
-                3usize,
-            );
-            msg.uint32_values_default.update(&self.uint32_values_default);
-            assert!(
-                self.int64_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "int64_values_default",
-                3usize,
-            );
-            msg.int64_values_default.update(&self.int64_values_default);
-            assert!(
-                self.uint64_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "uint64_values_default",
-                3usize,
-            );
-            msg.uint64_values_default.update(&self.uint64_values_default);
+            if self.defaults_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            unsafe {
+                let length = self.defaults_values.len();
+                if length > msg.defaults_values.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !test_msgs__msg__Defaults__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    test_msgs__msg__Defaults__Sequence__fini(&mut msg.defaults_values);
+                    msg.defaults_values = replacement;
+                }
+                msg.defaults_values.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.defaults_values.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.defaults_values) {
+                        s.try_copy_to_native(t)?;
+                    }
+                }
+            }
+            if self.bool_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.bool_values_default.try_update(&self.bool_values_default),
+            )?;
+            if self.byte_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.byte_values_default.try_update(&self.byte_values_default),
+            )?;
+            if self.char_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.char_values_default.try_update(&self.char_values_default),
+            )?;
+            if self.float32_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.float32_values_default.try_update(&self.float32_values_default),
+            )?;
+            if self.float64_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.float64_values_default.try_update(&self.float64_values_default),
+            )?;
+            if self.int8_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.int8_values_default.try_update(&self.int8_values_default),
+            )?;
+            if self.uint8_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.uint8_values_default.try_update(&self.uint8_values_default),
+            )?;
+            if self.int16_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.int16_values_default.try_update(&self.int16_values_default),
+            )?;
+            if self.uint16_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.uint16_values_default.try_update(&self.uint16_values_default),
+            )?;
+            if self.int32_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.int32_values_default.try_update(&self.int32_values_default),
+            )?;
+            if self.uint32_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.uint32_values_default.try_update(&self.uint32_values_default),
+            )?;
+            if self.int64_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.int64_values_default.try_update(&self.int64_values_default),
+            )?;
+            if self.uint64_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.uint64_values_default.try_update(&self.uint64_values_default),
+            )?;
             msg.alignment_check = self.alignment_check;
+            Ok(())
         }
     }
     impl Default for BoundedPlainSequences {
@@ -2985,40 +2491,46 @@ pub mod msg {
                 string_values: msg.string_values.to_bytes_vec::<crate::RosString>(),
                 basic_types_values: {
                     let mut temp = Vec::with_capacity(msg.basic_types_values.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.basic_types_values.data,
-                            msg.basic_types_values.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(test_msgs::msg::BasicTypes::from_native(s));
+                    if msg.basic_types_values.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.basic_types_values.data,
+                                msg.basic_types_values.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(test_msgs::msg::BasicTypes::from_native(s));
+                        }
                     }
                     temp
                 },
                 constants_values: {
                     let mut temp = Vec::with_capacity(msg.constants_values.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.constants_values.data,
-                            msg.constants_values.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(test_msgs::msg::Constants::from_native(s));
+                    if msg.constants_values.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.constants_values.data,
+                                msg.constants_values.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(test_msgs::msg::Constants::from_native(s));
+                        }
                     }
                     temp
                 },
                 defaults_values: {
                     let mut temp = Vec::with_capacity(msg.defaults_values.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.defaults_values.data,
-                            msg.defaults_values.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(test_msgs::msg::Defaults::from_native(s));
+                    if msg.defaults_values.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.defaults_values.data,
+                                msg.defaults_values.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(test_msgs::msg::Defaults::from_native(s));
+                        }
                     }
                     temp
                 },
@@ -3041,246 +2553,246 @@ pub mod msg {
                 alignment_check: msg.alignment_check,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            assert!(
-                self.bool_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "bool_values",
-                3usize,
-            );
-            msg.bool_values.update(&self.bool_values);
-            assert!(
-                self.byte_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "byte_values",
-                3usize,
-            );
-            msg.byte_values.update(&self.byte_values);
-            assert!(
-                self.char_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "char_values",
-                3usize,
-            );
-            msg.char_values.update(&self.char_values);
-            assert!(
-                self.float32_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "float32_values",
-                3usize,
-            );
-            msg.float32_values.update(&self.float32_values);
-            assert!(
-                self.float64_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "float64_values",
-                3usize,
-            );
-            msg.float64_values.update(&self.float64_values);
-            assert!(
-                self.int8_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "int8_values",
-                3usize,
-            );
-            msg.int8_values.update(&self.int8_values);
-            assert!(
-                self.uint8_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "uint8_values",
-                3usize,
-            );
-            msg.uint8_values.update(&self.uint8_values);
-            assert!(
-                self.int16_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "int16_values",
-                3usize,
-            );
-            msg.int16_values.update(&self.int16_values);
-            assert!(
-                self.uint16_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "uint16_values",
-                3usize,
-            );
-            msg.uint16_values.update(&self.uint16_values);
-            assert!(
-                self.int32_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "int32_values",
-                3usize,
-            );
-            msg.int32_values.update(&self.int32_values);
-            assert!(
-                self.uint32_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "uint32_values",
-                3usize,
-            );
-            msg.uint32_values.update(&self.uint32_values);
-            assert!(
-                self.int64_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "int64_values",
-                3usize,
-            );
-            msg.int64_values.update(&self.int64_values);
-            assert!(
-                self.uint64_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "uint64_values",
-                3usize,
-            );
-            msg.uint64_values.update(&self.uint64_values);
-            assert!(
-                self.string_values.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "string_values",
-                3usize,
-            );
-            msg.string_values.try_update_bytes(&self.string_values);
-            unsafe {
-                test_msgs__msg__BasicTypes__Sequence__fini(&mut msg.basic_types_values);
-                test_msgs__msg__BasicTypes__Sequence__init(
-                    &mut msg.basic_types_values,
-                    self.basic_types_values.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.basic_types_values.data,
-                    msg.basic_types_values.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.basic_types_values) {
-                    s.copy_to_native(t);
-                }
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            if self.bool_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.bool_values.try_update(&self.bool_values))?;
+            if self.byte_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.byte_values.try_update(&self.byte_values))?;
+            if self.char_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.char_values.try_update(&self.char_values))?;
+            if self.float32_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.float32_values.try_update(&self.float32_values),
+            )?;
+            if self.float64_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.float64_values.try_update(&self.float64_values),
+            )?;
+            if self.int8_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.int8_values.try_update(&self.int8_values))?;
+            if self.uint8_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.uint8_values.try_update(&self.uint8_values))?;
+            if self.int16_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.int16_values.try_update(&self.int16_values))?;
+            if self.uint16_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.uint16_values.try_update(&self.uint16_values))?;
+            if self.int32_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.int32_values.try_update(&self.int32_values))?;
+            if self.uint32_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.uint32_values.try_update(&self.uint32_values))?;
+            if self.int64_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.int64_values.try_update(&self.int64_values))?;
+            if self.uint64_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.uint64_values.try_update(&self.uint64_values))?;
+            if self.string_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.string_values.try_update_bytes(&self.string_values),
+            )?;
+            if self.basic_types_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
             }
             unsafe {
-                test_msgs__msg__Constants__Sequence__fini(&mut msg.constants_values);
-                test_msgs__msg__Constants__Sequence__init(
-                    &mut msg.constants_values,
-                    self.constants_values.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.constants_values.data,
-                    msg.constants_values.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.constants_values) {
-                    s.copy_to_native(t);
+                let length = self.basic_types_values.len();
+                if length > msg.basic_types_values.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !test_msgs__msg__BasicTypes__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    test_msgs__msg__BasicTypes__Sequence__fini(
+                        &mut msg.basic_types_values,
+                    );
+                    msg.basic_types_values = replacement;
                 }
+                msg.basic_types_values.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.basic_types_values.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.basic_types_values) {
+                        s.try_copy_to_native(t)?;
+                    }
+                }
+            }
+            if self.constants_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
             }
             unsafe {
-                test_msgs__msg__Defaults__Sequence__fini(&mut msg.defaults_values);
-                test_msgs__msg__Defaults__Sequence__init(
-                    &mut msg.defaults_values,
-                    self.defaults_values.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.defaults_values.data,
-                    msg.defaults_values.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.defaults_values) {
-                    s.copy_to_native(t);
+                let length = self.constants_values.len();
+                if length > msg.constants_values.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !test_msgs__msg__Constants__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    test_msgs__msg__Constants__Sequence__fini(&mut msg.constants_values);
+                    msg.constants_values = replacement;
+                }
+                msg.constants_values.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.constants_values.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.constants_values) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
-            assert!(
-                self.bool_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "bool_values_default",
-                3usize,
-            );
-            msg.bool_values_default.update(&self.bool_values_default);
-            assert!(
-                self.byte_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "byte_values_default",
-                3usize,
-            );
-            msg.byte_values_default.update(&self.byte_values_default);
-            assert!(
-                self.char_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "char_values_default",
-                3usize,
-            );
-            msg.char_values_default.update(&self.char_values_default);
-            assert!(
-                self.float32_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "float32_values_default",
-                3usize,
-            );
-            msg.float32_values_default.update(&self.float32_values_default);
-            assert!(
-                self.float64_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "float64_values_default",
-                3usize,
-            );
-            msg.float64_values_default.update(&self.float64_values_default);
-            assert!(
-                self.int8_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "int8_values_default",
-                3usize,
-            );
-            msg.int8_values_default.update(&self.int8_values_default);
-            assert!(
-                self.uint8_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "uint8_values_default",
-                3usize,
-            );
-            msg.uint8_values_default.update(&self.uint8_values_default);
-            assert!(
-                self.int16_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "int16_values_default",
-                3usize,
-            );
-            msg.int16_values_default.update(&self.int16_values_default);
-            assert!(
-                self.uint16_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "uint16_values_default",
-                3usize,
-            );
-            msg.uint16_values_default.update(&self.uint16_values_default);
-            assert!(
-                self.int32_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "int32_values_default",
-                3usize,
-            );
-            msg.int32_values_default.update(&self.int32_values_default);
-            assert!(
-                self.uint32_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "uint32_values_default",
-                3usize,
-            );
-            msg.uint32_values_default.update(&self.uint32_values_default);
-            assert!(
-                self.int64_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "int64_values_default",
-                3usize,
-            );
-            msg.int64_values_default.update(&self.int64_values_default);
-            assert!(
-                self.uint64_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "uint64_values_default",
-                3usize,
-            );
-            msg.uint64_values_default.update(&self.uint64_values_default);
-            assert!(
-                self.string_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "string_values_default",
-                3usize,
-            );
-            msg.string_values_default.try_update_bytes(&self.string_values_default);
+            if self.defaults_values.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            unsafe {
+                let length = self.defaults_values.len();
+                if length > msg.defaults_values.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !test_msgs__msg__Defaults__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    test_msgs__msg__Defaults__Sequence__fini(&mut msg.defaults_values);
+                    msg.defaults_values = replacement;
+                }
+                msg.defaults_values.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.defaults_values.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.defaults_values) {
+                        s.try_copy_to_native(t)?;
+                    }
+                }
+            }
+            if self.bool_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.bool_values_default.try_update(&self.bool_values_default),
+            )?;
+            if self.byte_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.byte_values_default.try_update(&self.byte_values_default),
+            )?;
+            if self.char_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.char_values_default.try_update(&self.char_values_default),
+            )?;
+            if self.float32_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.float32_values_default.try_update(&self.float32_values_default),
+            )?;
+            if self.float64_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.float64_values_default.try_update(&self.float64_values_default),
+            )?;
+            if self.int8_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.int8_values_default.try_update(&self.int8_values_default),
+            )?;
+            if self.uint8_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.uint8_values_default.try_update(&self.uint8_values_default),
+            )?;
+            if self.int16_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.int16_values_default.try_update(&self.int16_values_default),
+            )?;
+            if self.uint16_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.uint16_values_default.try_update(&self.uint16_values_default),
+            )?;
+            if self.int32_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.int32_values_default.try_update(&self.int32_values_default),
+            )?;
+            if self.uint32_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.uint32_values_default.try_update(&self.uint32_values_default),
+            )?;
+            if self.int64_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.int64_values_default.try_update(&self.int64_values_default),
+            )?;
+            if self.uint64_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.uint64_values_default.try_update(&self.uint64_values_default),
+            )?;
+            if self.string_values_default.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg.string_values_default.try_update_bytes(&self.string_values_default),
+            )?;
             msg.alignment_check = self.alignment_check;
+            Ok(())
         }
     }
     impl Default for BoundedSequences {
@@ -3320,9 +2832,18 @@ pub mod msg {
                 time_value: builtin_interfaces::msg::Time::from_native(&msg.time_value),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.duration_value.copy_to_native(&mut msg.duration_value);
-            self.time_value.copy_to_native(&mut msg.time_value);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.duration_value.try_copy_to_native(&mut msg.duration_value)?;
+            self.time_value.try_copy_to_native(&mut msg.time_value)?;
+            Ok(())
         }
     }
     impl Default for Builtins {
@@ -3354,7 +2875,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Constants {
             Constants {}
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {}
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            Ok(())
+        }
     }
     impl Default for Constants {
         fn default() -> Self {
@@ -3365,18 +2896,18 @@ pub mod msg {
     #[allow(non_upper_case_globals)]
     impl Constants {
         pub const BOOL_CONST: bool = test_msgs__msg__Constants__BOOL_CONST;
-        pub const BYTE_CONST: _bindgen_ty_147 = test_msgs__msg__Constants__BYTE_CONST;
-        pub const CHAR_CONST: _bindgen_ty_148 = test_msgs__msg__Constants__CHAR_CONST;
+        pub const BYTE_CONST: _bindgen_ty_349 = test_msgs__msg__Constants__BYTE_CONST;
+        pub const CHAR_CONST: _bindgen_ty_350 = test_msgs__msg__Constants__CHAR_CONST;
         pub const FLOAT32_CONST: f32 = test_msgs__msg__Constants__FLOAT32_CONST;
         pub const FLOAT64_CONST: f64 = test_msgs__msg__Constants__FLOAT64_CONST;
-        pub const INT16_CONST: _bindgen_ty_151 = test_msgs__msg__Constants__INT16_CONST;
-        pub const INT32_CONST: _bindgen_ty_153 = test_msgs__msg__Constants__INT32_CONST;
-        pub const INT64_CONST: _bindgen_ty_155 = test_msgs__msg__Constants__INT64_CONST;
-        pub const INT8_CONST: _bindgen_ty_149 = test_msgs__msg__Constants__INT8_CONST;
-        pub const UINT16_CONST: _bindgen_ty_152 = test_msgs__msg__Constants__UINT16_CONST;
-        pub const UINT32_CONST: _bindgen_ty_154 = test_msgs__msg__Constants__UINT32_CONST;
-        pub const UINT64_CONST: _bindgen_ty_156 = test_msgs__msg__Constants__UINT64_CONST;
-        pub const UINT8_CONST: _bindgen_ty_150 = test_msgs__msg__Constants__UINT8_CONST;
+        pub const INT16_CONST: _bindgen_ty_353 = test_msgs__msg__Constants__INT16_CONST;
+        pub const INT32_CONST: _bindgen_ty_355 = test_msgs__msg__Constants__INT32_CONST;
+        pub const INT64_CONST: _bindgen_ty_357 = test_msgs__msg__Constants__INT64_CONST;
+        pub const INT8_CONST: _bindgen_ty_351 = test_msgs__msg__Constants__INT8_CONST;
+        pub const UINT16_CONST: _bindgen_ty_354 = test_msgs__msg__Constants__UINT16_CONST;
+        pub const UINT32_CONST: _bindgen_ty_356 = test_msgs__msg__Constants__UINT32_CONST;
+        pub const UINT64_CONST: _bindgen_ty_358 = test_msgs__msg__Constants__UINT64_CONST;
+        pub const UINT8_CONST: _bindgen_ty_352 = test_msgs__msg__Constants__UINT8_CONST;
     }
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
@@ -3429,7 +2960,15 @@ pub mod msg {
                 uint64_value: msg.uint64_value,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.bool_value = self.bool_value;
             msg.byte_value = self.byte_value;
             msg.char_value = self.char_value;
@@ -3443,6 +2982,7 @@ pub mod msg {
             msg.uint32_value = self.uint32_value;
             msg.int64_value = self.int64_value;
             msg.uint64_value = self.uint64_value;
+            Ok(())
         }
     }
     impl Default for Defaults {
@@ -3473,7 +3013,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Empty {
             Empty {}
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {}
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            Ok(())
+        }
     }
     impl Default for Empty {
         fn default() -> Self {
@@ -3535,14 +3085,16 @@ pub mod msg {
                     let mut temp = Vec::with_capacity(
                         msg.bounded_sequence_of_arrays.size,
                     );
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.bounded_sequence_of_arrays.data,
-                            msg.bounded_sequence_of_arrays.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(test_msgs::msg::Arrays::from_native(s));
+                    if msg.bounded_sequence_of_arrays.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.bounded_sequence_of_arrays.data,
+                                msg.bounded_sequence_of_arrays.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(test_msgs::msg::Arrays::from_native(s));
+                        }
                     }
                     temp
                 },
@@ -3550,14 +3102,18 @@ pub mod msg {
                     let mut temp = Vec::with_capacity(
                         msg.bounded_sequence_of_bounded_sequences.size,
                     );
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.bounded_sequence_of_bounded_sequences.data,
-                            msg.bounded_sequence_of_bounded_sequences.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(test_msgs::msg::BoundedSequences::from_native(s));
+                    if msg.bounded_sequence_of_bounded_sequences.data
+                        != std::ptr::null_mut()
+                    {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.bounded_sequence_of_bounded_sequences.data,
+                                msg.bounded_sequence_of_bounded_sequences.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(test_msgs::msg::BoundedSequences::from_native(s));
+                        }
                     }
                     temp
                 },
@@ -3565,14 +3121,20 @@ pub mod msg {
                     let mut temp = Vec::with_capacity(
                         msg.bounded_sequence_of_unbounded_sequences.size,
                     );
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.bounded_sequence_of_unbounded_sequences.data,
-                            msg.bounded_sequence_of_unbounded_sequences.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(test_msgs::msg::UnboundedSequences::from_native(s));
+                    if msg.bounded_sequence_of_unbounded_sequences.data
+                        != std::ptr::null_mut()
+                    {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.bounded_sequence_of_unbounded_sequences.data,
+                                msg.bounded_sequence_of_unbounded_sequences.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(
+                                test_msgs::msg::UnboundedSequences::from_native(s),
+                            );
+                        }
                     }
                     temp
                 },
@@ -3580,14 +3142,16 @@ pub mod msg {
                     let mut temp = Vec::with_capacity(
                         msg.unbounded_sequence_of_arrays.size,
                     );
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.unbounded_sequence_of_arrays.data,
-                            msg.unbounded_sequence_of_arrays.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(test_msgs::msg::Arrays::from_native(s));
+                    if msg.unbounded_sequence_of_arrays.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.unbounded_sequence_of_arrays.data,
+                                msg.unbounded_sequence_of_arrays.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(test_msgs::msg::Arrays::from_native(s));
+                        }
                     }
                     temp
                 },
@@ -3595,14 +3159,18 @@ pub mod msg {
                     let mut temp = Vec::with_capacity(
                         msg.unbounded_sequence_of_bounded_sequences.size,
                     );
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.unbounded_sequence_of_bounded_sequences.data,
-                            msg.unbounded_sequence_of_bounded_sequences.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(test_msgs::msg::BoundedSequences::from_native(s));
+                    if msg.unbounded_sequence_of_bounded_sequences.data
+                        != std::ptr::null_mut()
+                    {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.unbounded_sequence_of_bounded_sequences.data,
+                                msg.unbounded_sequence_of_bounded_sequences.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(test_msgs::msg::BoundedSequences::from_native(s));
+                        }
                     }
                     temp
                 },
@@ -3610,166 +3178,233 @@ pub mod msg {
                     let mut temp = Vec::with_capacity(
                         msg.unbounded_sequence_of_unbounded_sequences.size,
                     );
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.unbounded_sequence_of_unbounded_sequences.data,
-                            msg.unbounded_sequence_of_unbounded_sequences.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(test_msgs::msg::UnboundedSequences::from_native(s));
+                    if msg.unbounded_sequence_of_unbounded_sequences.data
+                        != std::ptr::null_mut()
+                    {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.unbounded_sequence_of_unbounded_sequences.data,
+                                msg.unbounded_sequence_of_unbounded_sequences.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(
+                                test_msgs::msg::UnboundedSequences::from_native(s),
+                            );
+                        }
                     }
                     temp
                 },
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            assert_eq!(
-                self.array_of_arrays.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "array_of_arrays",
-                3usize,
-            );
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             for (t, s) in msg.array_of_arrays.iter_mut().zip(&self.array_of_arrays) {
-                s.copy_to_native(t);
+                s.try_copy_to_native(t)?;
             }
-            assert_eq!(
-                self.array_of_bounded_sequences.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "array_of_bounded_sequences",
-                3usize,
-            );
             for (t, s) in msg
                 .array_of_bounded_sequences
                 .iter_mut()
                 .zip(&self.array_of_bounded_sequences)
             {
-                s.copy_to_native(t);
+                s.try_copy_to_native(t)?;
             }
-            assert_eq!(
-                self.array_of_unbounded_sequences.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "array_of_unbounded_sequences",
-                3usize,
-            );
             for (t, s) in msg
                 .array_of_unbounded_sequences
                 .iter_mut()
                 .zip(&self.array_of_unbounded_sequences)
             {
-                s.copy_to_native(t);
+                s.try_copy_to_native(t)?;
+            }
+            if self.bounded_sequence_of_arrays.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
             }
             unsafe {
-                test_msgs__msg__Arrays__Sequence__fini(
-                    &mut msg.bounded_sequence_of_arrays,
-                );
-                test_msgs__msg__Arrays__Sequence__init(
-                    &mut msg.bounded_sequence_of_arrays,
-                    self.bounded_sequence_of_arrays.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.bounded_sequence_of_arrays.data,
-                    msg.bounded_sequence_of_arrays.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.bounded_sequence_of_arrays) {
-                    s.copy_to_native(t);
+                let length = self.bounded_sequence_of_arrays.len();
+                if length > msg.bounded_sequence_of_arrays.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !test_msgs__msg__Arrays__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    test_msgs__msg__Arrays__Sequence__fini(
+                        &mut msg.bounded_sequence_of_arrays,
+                    );
+                    msg.bounded_sequence_of_arrays = replacement;
+                }
+                msg.bounded_sequence_of_arrays.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.bounded_sequence_of_arrays.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.bounded_sequence_of_arrays)
+                    {
+                        s.try_copy_to_native(t)?;
+                    }
+                }
+            }
+            if self.bounded_sequence_of_bounded_sequences.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            unsafe {
+                let length = self.bounded_sequence_of_bounded_sequences.len();
+                if length > msg.bounded_sequence_of_bounded_sequences.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !test_msgs__msg__BoundedSequences__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    test_msgs__msg__BoundedSequences__Sequence__fini(
+                        &mut msg.bounded_sequence_of_bounded_sequences,
+                    );
+                    msg.bounded_sequence_of_bounded_sequences = replacement;
+                }
+                msg.bounded_sequence_of_bounded_sequences.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.bounded_sequence_of_bounded_sequences.data,
+                        length,
+                    );
+                    for (t, s) in slice
+                        .iter_mut()
+                        .zip(&self.bounded_sequence_of_bounded_sequences)
+                    {
+                        s.try_copy_to_native(t)?;
+                    }
+                }
+            }
+            if self.bounded_sequence_of_unbounded_sequences.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            unsafe {
+                let length = self.bounded_sequence_of_unbounded_sequences.len();
+                if length > msg.bounded_sequence_of_unbounded_sequences.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !test_msgs__msg__UnboundedSequences__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    test_msgs__msg__UnboundedSequences__Sequence__fini(
+                        &mut msg.bounded_sequence_of_unbounded_sequences,
+                    );
+                    msg.bounded_sequence_of_unbounded_sequences = replacement;
+                }
+                msg.bounded_sequence_of_unbounded_sequences.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.bounded_sequence_of_unbounded_sequences.data,
+                        length,
+                    );
+                    for (t, s) in slice
+                        .iter_mut()
+                        .zip(&self.bounded_sequence_of_unbounded_sequences)
+                    {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
             unsafe {
-                test_msgs__msg__BoundedSequences__Sequence__fini(
-                    &mut msg.bounded_sequence_of_bounded_sequences,
-                );
-                test_msgs__msg__BoundedSequences__Sequence__init(
-                    &mut msg.bounded_sequence_of_bounded_sequences,
-                    self.bounded_sequence_of_bounded_sequences.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.bounded_sequence_of_bounded_sequences.data,
-                    msg.bounded_sequence_of_bounded_sequences.size,
-                );
-                for (t, s) in slice
-                    .iter_mut()
-                    .zip(&self.bounded_sequence_of_bounded_sequences)
-                {
-                    s.copy_to_native(t);
+                let length = self.unbounded_sequence_of_arrays.len();
+                if length > msg.unbounded_sequence_of_arrays.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !test_msgs__msg__Arrays__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    test_msgs__msg__Arrays__Sequence__fini(
+                        &mut msg.unbounded_sequence_of_arrays,
+                    );
+                    msg.unbounded_sequence_of_arrays = replacement;
+                }
+                msg.unbounded_sequence_of_arrays.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.unbounded_sequence_of_arrays.data,
+                        length,
+                    );
+                    for (t, s) in slice
+                        .iter_mut()
+                        .zip(&self.unbounded_sequence_of_arrays)
+                    {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
             unsafe {
-                test_msgs__msg__UnboundedSequences__Sequence__fini(
-                    &mut msg.bounded_sequence_of_unbounded_sequences,
-                );
-                test_msgs__msg__UnboundedSequences__Sequence__init(
-                    &mut msg.bounded_sequence_of_unbounded_sequences,
-                    self.bounded_sequence_of_unbounded_sequences.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.bounded_sequence_of_unbounded_sequences.data,
-                    msg.bounded_sequence_of_unbounded_sequences.size,
-                );
-                for (t, s) in slice
-                    .iter_mut()
-                    .zip(&self.bounded_sequence_of_unbounded_sequences)
-                {
-                    s.copy_to_native(t);
+                let length = self.unbounded_sequence_of_bounded_sequences.len();
+                if length > msg.unbounded_sequence_of_bounded_sequences.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !test_msgs__msg__BoundedSequences__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    test_msgs__msg__BoundedSequences__Sequence__fini(
+                        &mut msg.unbounded_sequence_of_bounded_sequences,
+                    );
+                    msg.unbounded_sequence_of_bounded_sequences = replacement;
+                }
+                msg.unbounded_sequence_of_bounded_sequences.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.unbounded_sequence_of_bounded_sequences.data,
+                        length,
+                    );
+                    for (t, s) in slice
+                        .iter_mut()
+                        .zip(&self.unbounded_sequence_of_bounded_sequences)
+                    {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
             unsafe {
-                test_msgs__msg__Arrays__Sequence__fini(
-                    &mut msg.unbounded_sequence_of_arrays,
-                );
-                test_msgs__msg__Arrays__Sequence__init(
-                    &mut msg.unbounded_sequence_of_arrays,
-                    self.unbounded_sequence_of_arrays.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.unbounded_sequence_of_arrays.data,
-                    msg.unbounded_sequence_of_arrays.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.unbounded_sequence_of_arrays) {
-                    s.copy_to_native(t);
+                let length = self.unbounded_sequence_of_unbounded_sequences.len();
+                if length > msg.unbounded_sequence_of_unbounded_sequences.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !test_msgs__msg__UnboundedSequences__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    test_msgs__msg__UnboundedSequences__Sequence__fini(
+                        &mut msg.unbounded_sequence_of_unbounded_sequences,
+                    );
+                    msg.unbounded_sequence_of_unbounded_sequences = replacement;
+                }
+                msg.unbounded_sequence_of_unbounded_sequences.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.unbounded_sequence_of_unbounded_sequences.data,
+                        length,
+                    );
+                    for (t, s) in slice
+                        .iter_mut()
+                        .zip(&self.unbounded_sequence_of_unbounded_sequences)
+                    {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
-            unsafe {
-                test_msgs__msg__BoundedSequences__Sequence__fini(
-                    &mut msg.unbounded_sequence_of_bounded_sequences,
-                );
-                test_msgs__msg__BoundedSequences__Sequence__init(
-                    &mut msg.unbounded_sequence_of_bounded_sequences,
-                    self.unbounded_sequence_of_bounded_sequences.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.unbounded_sequence_of_bounded_sequences.data,
-                    msg.unbounded_sequence_of_bounded_sequences.size,
-                );
-                for (t, s) in slice
-                    .iter_mut()
-                    .zip(&self.unbounded_sequence_of_bounded_sequences)
-                {
-                    s.copy_to_native(t);
-                }
-            }
-            unsafe {
-                test_msgs__msg__UnboundedSequences__Sequence__fini(
-                    &mut msg.unbounded_sequence_of_unbounded_sequences,
-                );
-                test_msgs__msg__UnboundedSequences__Sequence__init(
-                    &mut msg.unbounded_sequence_of_unbounded_sequences,
-                    self.unbounded_sequence_of_unbounded_sequences.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.unbounded_sequence_of_unbounded_sequences.data,
-                    msg.unbounded_sequence_of_unbounded_sequences.size,
-                );
-                for (t, s) in slice
-                    .iter_mut()
-                    .zip(&self.unbounded_sequence_of_unbounded_sequences)
-                {
-                    s.copy_to_native(t);
-                }
-            }
+            Ok(())
         }
     }
     impl Default for MultiNested {
@@ -3806,8 +3441,17 @@ pub mod msg {
                 ),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.basic_types_value.copy_to_native(&mut msg.basic_types_value);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.basic_types_value.try_copy_to_native(&mut msg.basic_types_value)?;
+            Ok(())
         }
     }
     impl Default for Nested {
@@ -3887,30 +3531,74 @@ pub mod msg {
                 ),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.string_value.try_assign_bytes((&self.string_value).as_bytes());
-            msg.string_value_default1
-                .try_assign_bytes((&self.string_value_default1).as_bytes());
-            msg.string_value_default2
-                .try_assign_bytes((&self.string_value_default2).as_bytes());
-            msg.string_value_default3
-                .try_assign_bytes((&self.string_value_default3).as_bytes());
-            msg.string_value_default4
-                .try_assign_bytes((&self.string_value_default4).as_bytes());
-            msg.string_value_default5
-                .try_assign_bytes((&self.string_value_default5).as_bytes());
-            msg.bounded_string_value
-                .try_assign_bytes((&self.bounded_string_value).as_bytes());
-            msg.bounded_string_value_default1
-                .try_assign_bytes((&self.bounded_string_value_default1).as_bytes());
-            msg.bounded_string_value_default2
-                .try_assign_bytes((&self.bounded_string_value_default2).as_bytes());
-            msg.bounded_string_value_default3
-                .try_assign_bytes((&self.bounded_string_value_default3).as_bytes());
-            msg.bounded_string_value_default4
-                .try_assign_bytes((&self.bounded_string_value_default4).as_bytes());
-            msg.bounded_string_value_default5
-                .try_assign_bytes((&self.bounded_string_value_default5).as_bytes());
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            check_rosidl_runtime_ret(
+                msg.string_value.try_assign_bytes(self.string_value.as_bytes()),
+            )?;
+            check_rosidl_runtime_ret(
+                msg
+                    .string_value_default1
+                    .try_assign_bytes(self.string_value_default1.as_bytes()),
+            )?;
+            check_rosidl_runtime_ret(
+                msg
+                    .string_value_default2
+                    .try_assign_bytes(self.string_value_default2.as_bytes()),
+            )?;
+            check_rosidl_runtime_ret(
+                msg
+                    .string_value_default3
+                    .try_assign_bytes(self.string_value_default3.as_bytes()),
+            )?;
+            check_rosidl_runtime_ret(
+                msg
+                    .string_value_default4
+                    .try_assign_bytes(self.string_value_default4.as_bytes()),
+            )?;
+            check_rosidl_runtime_ret(
+                msg
+                    .string_value_default5
+                    .try_assign_bytes(self.string_value_default5.as_bytes()),
+            )?;
+            check_rosidl_runtime_ret(
+                msg
+                    .bounded_string_value
+                    .try_assign_bytes(self.bounded_string_value.as_bytes()),
+            )?;
+            check_rosidl_runtime_ret(
+                msg
+                    .bounded_string_value_default1
+                    .try_assign_bytes(self.bounded_string_value_default1.as_bytes()),
+            )?;
+            check_rosidl_runtime_ret(
+                msg
+                    .bounded_string_value_default2
+                    .try_assign_bytes(self.bounded_string_value_default2.as_bytes()),
+            )?;
+            check_rosidl_runtime_ret(
+                msg
+                    .bounded_string_value_default3
+                    .try_assign_bytes(self.bounded_string_value_default3.as_bytes()),
+            )?;
+            check_rosidl_runtime_ret(
+                msg
+                    .bounded_string_value_default4
+                    .try_assign_bytes(self.bounded_string_value_default4.as_bytes()),
+            )?;
+            check_rosidl_runtime_ret(
+                msg
+                    .bounded_string_value_default5
+                    .try_assign_bytes(self.bounded_string_value_default5.as_bytes()),
+            )?;
+            Ok(())
         }
     }
     impl Default for Strings {
@@ -3921,7 +3609,7 @@ pub mod msg {
     }
     #[allow(non_upper_case_globals)]
     impl Strings {
-        pub const STRING_CONST: &[u8; 13usize] = test_msgs__msg__Strings__STRING_CONST;
+        pub const STRING_CONST: &'static [u8; 13] = test_msgs__msg__Strings__STRING_CONST;
     }
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
@@ -3994,40 +3682,46 @@ pub mod msg {
                 string_values: msg.string_values.to_bytes_vec::<crate::RosString>(),
                 basic_types_values: {
                     let mut temp = Vec::with_capacity(msg.basic_types_values.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.basic_types_values.data,
-                            msg.basic_types_values.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(test_msgs::msg::BasicTypes::from_native(s));
+                    if msg.basic_types_values.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.basic_types_values.data,
+                                msg.basic_types_values.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(test_msgs::msg::BasicTypes::from_native(s));
+                        }
                     }
                     temp
                 },
                 constants_values: {
                     let mut temp = Vec::with_capacity(msg.constants_values.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.constants_values.data,
-                            msg.constants_values.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(test_msgs::msg::Constants::from_native(s));
+                    if msg.constants_values.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.constants_values.data,
+                                msg.constants_values.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(test_msgs::msg::Constants::from_native(s));
+                        }
                     }
                     temp
                 },
                 defaults_values: {
                     let mut temp = Vec::with_capacity(msg.defaults_values.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.defaults_values.data,
-                            msg.defaults_values.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(test_msgs::msg::Defaults::from_native(s));
+                    if msg.defaults_values.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.defaults_values.data,
+                                msg.defaults_values.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(test_msgs::msg::Defaults::from_native(s));
+                        }
                     }
                     temp
                 },
@@ -4050,78 +3744,153 @@ pub mod msg {
                 alignment_check: msg.alignment_check,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.bool_values.update(&self.bool_values);
-            msg.byte_values.update(&self.byte_values);
-            msg.char_values.update(&self.char_values);
-            msg.float32_values.update(&self.float32_values);
-            msg.float64_values.update(&self.float64_values);
-            msg.int8_values.update(&self.int8_values);
-            msg.uint8_values.update(&self.uint8_values);
-            msg.int16_values.update(&self.int16_values);
-            msg.uint16_values.update(&self.uint16_values);
-            msg.int32_values.update(&self.int32_values);
-            msg.uint32_values.update(&self.uint32_values);
-            msg.int64_values.update(&self.int64_values);
-            msg.uint64_values.update(&self.uint64_values);
-            msg.string_values.try_update_bytes(&self.string_values);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            check_rosidl_runtime_ret(msg.bool_values.try_update(&self.bool_values))?;
+            check_rosidl_runtime_ret(msg.byte_values.try_update(&self.byte_values))?;
+            check_rosidl_runtime_ret(msg.char_values.try_update(&self.char_values))?;
+            check_rosidl_runtime_ret(
+                msg.float32_values.try_update(&self.float32_values),
+            )?;
+            check_rosidl_runtime_ret(
+                msg.float64_values.try_update(&self.float64_values),
+            )?;
+            check_rosidl_runtime_ret(msg.int8_values.try_update(&self.int8_values))?;
+            check_rosidl_runtime_ret(msg.uint8_values.try_update(&self.uint8_values))?;
+            check_rosidl_runtime_ret(msg.int16_values.try_update(&self.int16_values))?;
+            check_rosidl_runtime_ret(msg.uint16_values.try_update(&self.uint16_values))?;
+            check_rosidl_runtime_ret(msg.int32_values.try_update(&self.int32_values))?;
+            check_rosidl_runtime_ret(msg.uint32_values.try_update(&self.uint32_values))?;
+            check_rosidl_runtime_ret(msg.int64_values.try_update(&self.int64_values))?;
+            check_rosidl_runtime_ret(msg.uint64_values.try_update(&self.uint64_values))?;
+            check_rosidl_runtime_ret(
+                msg.string_values.try_update_bytes(&self.string_values),
+            )?;
             unsafe {
-                test_msgs__msg__BasicTypes__Sequence__fini(&mut msg.basic_types_values);
-                test_msgs__msg__BasicTypes__Sequence__init(
-                    &mut msg.basic_types_values,
-                    self.basic_types_values.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.basic_types_values.data,
-                    msg.basic_types_values.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.basic_types_values) {
-                    s.copy_to_native(t);
+                let length = self.basic_types_values.len();
+                if length > msg.basic_types_values.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !test_msgs__msg__BasicTypes__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    test_msgs__msg__BasicTypes__Sequence__fini(
+                        &mut msg.basic_types_values,
+                    );
+                    msg.basic_types_values = replacement;
+                }
+                msg.basic_types_values.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.basic_types_values.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.basic_types_values) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
             unsafe {
-                test_msgs__msg__Constants__Sequence__fini(&mut msg.constants_values);
-                test_msgs__msg__Constants__Sequence__init(
-                    &mut msg.constants_values,
-                    self.constants_values.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.constants_values.data,
-                    msg.constants_values.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.constants_values) {
-                    s.copy_to_native(t);
+                let length = self.constants_values.len();
+                if length > msg.constants_values.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !test_msgs__msg__Constants__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    test_msgs__msg__Constants__Sequence__fini(&mut msg.constants_values);
+                    msg.constants_values = replacement;
+                }
+                msg.constants_values.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.constants_values.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.constants_values) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
             unsafe {
-                test_msgs__msg__Defaults__Sequence__fini(&mut msg.defaults_values);
-                test_msgs__msg__Defaults__Sequence__init(
-                    &mut msg.defaults_values,
-                    self.defaults_values.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.defaults_values.data,
-                    msg.defaults_values.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.defaults_values) {
-                    s.copy_to_native(t);
+                let length = self.defaults_values.len();
+                if length > msg.defaults_values.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !test_msgs__msg__Defaults__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    test_msgs__msg__Defaults__Sequence__fini(&mut msg.defaults_values);
+                    msg.defaults_values = replacement;
+                }
+                msg.defaults_values.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.defaults_values.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.defaults_values) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
-            msg.bool_values_default.update(&self.bool_values_default);
-            msg.byte_values_default.update(&self.byte_values_default);
-            msg.char_values_default.update(&self.char_values_default);
-            msg.float32_values_default.update(&self.float32_values_default);
-            msg.float64_values_default.update(&self.float64_values_default);
-            msg.int8_values_default.update(&self.int8_values_default);
-            msg.uint8_values_default.update(&self.uint8_values_default);
-            msg.int16_values_default.update(&self.int16_values_default);
-            msg.uint16_values_default.update(&self.uint16_values_default);
-            msg.int32_values_default.update(&self.int32_values_default);
-            msg.uint32_values_default.update(&self.uint32_values_default);
-            msg.int64_values_default.update(&self.int64_values_default);
-            msg.uint64_values_default.update(&self.uint64_values_default);
-            msg.string_values_default.try_update_bytes(&self.string_values_default);
+            check_rosidl_runtime_ret(
+                msg.bool_values_default.try_update(&self.bool_values_default),
+            )?;
+            check_rosidl_runtime_ret(
+                msg.byte_values_default.try_update(&self.byte_values_default),
+            )?;
+            check_rosidl_runtime_ret(
+                msg.char_values_default.try_update(&self.char_values_default),
+            )?;
+            check_rosidl_runtime_ret(
+                msg.float32_values_default.try_update(&self.float32_values_default),
+            )?;
+            check_rosidl_runtime_ret(
+                msg.float64_values_default.try_update(&self.float64_values_default),
+            )?;
+            check_rosidl_runtime_ret(
+                msg.int8_values_default.try_update(&self.int8_values_default),
+            )?;
+            check_rosidl_runtime_ret(
+                msg.uint8_values_default.try_update(&self.uint8_values_default),
+            )?;
+            check_rosidl_runtime_ret(
+                msg.int16_values_default.try_update(&self.int16_values_default),
+            )?;
+            check_rosidl_runtime_ret(
+                msg.uint16_values_default.try_update(&self.uint16_values_default),
+            )?;
+            check_rosidl_runtime_ret(
+                msg.int32_values_default.try_update(&self.int32_values_default),
+            )?;
+            check_rosidl_runtime_ret(
+                msg.uint32_values_default.try_update(&self.uint32_values_default),
+            )?;
+            check_rosidl_runtime_ret(
+                msg.int64_values_default.try_update(&self.int64_values_default),
+            )?;
+            check_rosidl_runtime_ret(
+                msg.uint64_values_default.try_update(&self.uint64_values_default),
+            )?;
+            check_rosidl_runtime_ret(
+                msg.string_values_default.try_update_bytes(&self.string_values_default),
+            )?;
             msg.alignment_check = self.alignment_check;
+            Ok(())
         }
     }
     impl Default for UnboundedSequences {
@@ -4182,40 +3951,1220 @@ pub mod msg {
                     .to_units_vec::<crate::RosWString>(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.wstring_value.try_assign_units((&self.wstring_value).as_units());
-            msg.wstring_value_default1
-                .try_assign_units((&self.wstring_value_default1).as_units());
-            msg.wstring_value_default2
-                .try_assign_units((&self.wstring_value_default2).as_units());
-            msg.wstring_value_default3
-                .try_assign_units((&self.wstring_value_default3).as_units());
-            assert_eq!(
-                self.array_of_wstrings.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "array_of_wstrings",
-                3usize,
-            );
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            check_rosidl_runtime_ret(
+                msg.wstring_value.try_assign_units(self.wstring_value.as_units()),
+            )?;
+            check_rosidl_runtime_ret(
+                msg
+                    .wstring_value_default1
+                    .try_assign_units(self.wstring_value_default1.as_units()),
+            )?;
+            check_rosidl_runtime_ret(
+                msg
+                    .wstring_value_default2
+                    .try_assign_units(self.wstring_value_default2.as_units()),
+            )?;
+            check_rosidl_runtime_ret(
+                msg
+                    .wstring_value_default3
+                    .try_assign_units(self.wstring_value_default3.as_units()),
+            )?;
             for (t, s) in msg.array_of_wstrings.iter_mut().zip(&self.array_of_wstrings) {
-                t.try_assign_units((&s).as_units());
+                check_rosidl_runtime_ret(t.try_assign_units(s.as_units()))?;
             }
-            assert!(
-                self.bounded_sequence_of_wstrings.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "bounded_sequence_of_wstrings",
-                3usize,
-            );
-            msg.bounded_sequence_of_wstrings
-                .try_update_units(&self.bounded_sequence_of_wstrings);
-            msg.unbounded_sequence_of_wstrings
-                .try_update_units(&self.unbounded_sequence_of_wstrings);
+            if self.bounded_sequence_of_wstrings.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(
+                msg
+                    .bounded_sequence_of_wstrings
+                    .try_update_units(&self.bounded_sequence_of_wstrings),
+            )?;
+            check_rosidl_runtime_ret(
+                msg
+                    .unbounded_sequence_of_wstrings
+                    .try_update_units(&self.unbounded_sequence_of_wstrings),
+            )?;
+            Ok(())
         }
     }
     impl Default for WStrings {
         fn default() -> Self {
             let msg_native = WrappedNativeMsg::<WStrings>::new();
             WStrings::from_native(&msg_native)
+        }
+    }
+}
+pub mod srv {
+    #[allow(non_snake_case)]
+    pub mod Arrays {
+        use super::super::super::*;
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        pub struct Service();
+        unsafe impl WrappedServiceTypeSupport for Service {
+            type Request = Request;
+            type Response = Response;
+            #[cfg(
+                any(
+                    r2r__ros__distro__iron,
+                    r2r__ros__distro__jazzy,
+                    r2r__ros__distro__kilted,
+                    r2r__ros__distro__lyrical,
+                    r2r__ros__distro__rolling
+                )
+            )]
+            type Event = Event;
+            fn get_ts() -> &'static rosidl_service_type_support_t {
+                unsafe {
+                    &*rosidl_typesupport_c__get_service_type_support_handle__test_msgs__srv__Arrays()
+                }
+            }
+        }
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        #[serde(default)]
+        pub struct Request {
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub bool_values: [bool; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub byte_values: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub char_values: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub float32_values: [f32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub float64_values: [f64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int8_values: [i8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint8_values: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int16_values: [i16; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint16_values: [u16; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int32_values: [i32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint32_values: [u32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int64_values: [i64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint64_values: [u64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub string_values: [crate::RosString; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub basic_types_values: [test_msgs::msg::BasicTypes; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub constants_values: [test_msgs::msg::Constants; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub defaults_values: [test_msgs::msg::Defaults; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub bool_values_default: [bool; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub byte_values_default: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub char_values_default: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub float32_values_default: [f32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub float64_values_default: [f64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int8_values_default: [i8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint8_values_default: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int16_values_default: [i16; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint16_values_default: [u16; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int32_values_default: [i32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint32_values_default: [u32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int64_values_default: [i64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint64_values_default: [u64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub string_values_default: [crate::RosString; 3usize],
+        }
+        unsafe impl WrappedTypesupport for Request {
+            type CStruct = test_msgs__srv__Arrays_Request;
+            fn get_ts() -> &'static rosidl_message_type_support_t {
+                unsafe {
+                    &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__srv__Arrays_Request()
+                }
+            }
+            fn create_msg() -> *mut test_msgs__srv__Arrays_Request {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { test_msgs__srv__Arrays_Request__create() }
+                #[cfg(feature = "doc-only")] test_msgs__srv__Arrays_Request__create()
+            }
+            fn destroy_msg(msg: *mut test_msgs__srv__Arrays_Request) -> () {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { test_msgs__srv__Arrays_Request__destroy(msg) };
+                #[cfg(feature = "doc-only")] test_msgs__srv__Arrays_Request__destroy(msg)
+            }
+            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Request {
+                Request {
+                    bool_values: msg.bool_values,
+                    byte_values: msg.byte_values,
+                    char_values: msg.char_values,
+                    float32_values: msg.float32_values,
+                    float64_values: msg.float64_values,
+                    int8_values: msg.int8_values,
+                    uint8_values: msg.uint8_values,
+                    int16_values: msg.int16_values,
+                    uint16_values: msg.uint16_values,
+                    int32_values: msg.int32_values,
+                    uint32_values: msg.uint32_values,
+                    int64_values: msg.int64_values,
+                    uint64_values: msg.uint64_values,
+                    string_values: std::array::from_fn(|index| crate::RosString::from(
+                        msg.string_values[index].as_bytes(),
+                    )),
+                    basic_types_values: std::array::from_fn(|index| test_msgs::msg::BasicTypes::from_native(
+                        &msg.basic_types_values[index],
+                    )),
+                    constants_values: std::array::from_fn(|index| test_msgs::msg::Constants::from_native(
+                        &msg.constants_values[index],
+                    )),
+                    defaults_values: std::array::from_fn(|index| test_msgs::msg::Defaults::from_native(
+                        &msg.defaults_values[index],
+                    )),
+                    bool_values_default: msg.bool_values_default,
+                    byte_values_default: msg.byte_values_default,
+                    char_values_default: msg.char_values_default,
+                    float32_values_default: msg.float32_values_default,
+                    float64_values_default: msg.float64_values_default,
+                    int8_values_default: msg.int8_values_default,
+                    uint8_values_default: msg.uint8_values_default,
+                    int16_values_default: msg.int16_values_default,
+                    uint16_values_default: msg.uint16_values_default,
+                    int32_values_default: msg.int32_values_default,
+                    uint32_values_default: msg.uint32_values_default,
+                    int64_values_default: msg.int64_values_default,
+                    uint64_values_default: msg.uint64_values_default,
+                    string_values_default: std::array::from_fn(|index| crate::RosString::from(
+                        msg.string_values_default[index].as_bytes(),
+                    )),
+                }
+            }
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                msg.bool_values.copy_from_slice(&self.bool_values[..3usize]);
+                msg.byte_values.copy_from_slice(&self.byte_values[..3usize]);
+                msg.char_values.copy_from_slice(&self.char_values[..3usize]);
+                msg.float32_values.copy_from_slice(&self.float32_values[..3usize]);
+                msg.float64_values.copy_from_slice(&self.float64_values[..3usize]);
+                msg.int8_values.copy_from_slice(&self.int8_values[..3usize]);
+                msg.uint8_values.copy_from_slice(&self.uint8_values[..3usize]);
+                msg.int16_values.copy_from_slice(&self.int16_values[..3usize]);
+                msg.uint16_values.copy_from_slice(&self.uint16_values[..3usize]);
+                msg.int32_values.copy_from_slice(&self.int32_values[..3usize]);
+                msg.uint32_values.copy_from_slice(&self.uint32_values[..3usize]);
+                msg.int64_values.copy_from_slice(&self.int64_values[..3usize]);
+                msg.uint64_values.copy_from_slice(&self.uint64_values[..3usize]);
+                for (t, s) in msg.string_values.iter_mut().zip(&self.string_values) {
+                    check_rosidl_runtime_ret(t.try_assign_bytes(s.as_bytes()))?;
+                }
+                for (t, s) in msg
+                    .basic_types_values
+                    .iter_mut()
+                    .zip(&self.basic_types_values)
+                {
+                    s.try_copy_to_native(t)?;
+                }
+                for (t, s) in msg.constants_values.iter_mut().zip(&self.constants_values)
+                {
+                    s.try_copy_to_native(t)?;
+                }
+                for (t, s) in msg.defaults_values.iter_mut().zip(&self.defaults_values) {
+                    s.try_copy_to_native(t)?;
+                }
+                msg.bool_values_default
+                    .copy_from_slice(&self.bool_values_default[..3usize]);
+                msg.byte_values_default
+                    .copy_from_slice(&self.byte_values_default[..3usize]);
+                msg.char_values_default
+                    .copy_from_slice(&self.char_values_default[..3usize]);
+                msg.float32_values_default
+                    .copy_from_slice(&self.float32_values_default[..3usize]);
+                msg.float64_values_default
+                    .copy_from_slice(&self.float64_values_default[..3usize]);
+                msg.int8_values_default
+                    .copy_from_slice(&self.int8_values_default[..3usize]);
+                msg.uint8_values_default
+                    .copy_from_slice(&self.uint8_values_default[..3usize]);
+                msg.int16_values_default
+                    .copy_from_slice(&self.int16_values_default[..3usize]);
+                msg.uint16_values_default
+                    .copy_from_slice(&self.uint16_values_default[..3usize]);
+                msg.int32_values_default
+                    .copy_from_slice(&self.int32_values_default[..3usize]);
+                msg.uint32_values_default
+                    .copy_from_slice(&self.uint32_values_default[..3usize]);
+                msg.int64_values_default
+                    .copy_from_slice(&self.int64_values_default[..3usize]);
+                msg.uint64_values_default
+                    .copy_from_slice(&self.uint64_values_default[..3usize]);
+                for (t, s) in msg
+                    .string_values_default
+                    .iter_mut()
+                    .zip(&self.string_values_default)
+                {
+                    check_rosidl_runtime_ret(t.try_assign_bytes(s.as_bytes()))?;
+                }
+                Ok(())
+            }
+        }
+        impl Default for Request {
+            fn default() -> Self {
+                let msg_native = WrappedNativeMsg::<Request>::new();
+                Request::from_native(&msg_native)
+            }
+        }
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        #[serde(default)]
+        pub struct Response {
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub bool_values: [bool; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub byte_values: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub char_values: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub float32_values: [f32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub float64_values: [f64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int8_values: [i8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint8_values: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int16_values: [i16; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint16_values: [u16; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int32_values: [i32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint32_values: [u32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int64_values: [i64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint64_values: [u64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub string_values: [crate::RosString; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub basic_types_values: [test_msgs::msg::BasicTypes; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub constants_values: [test_msgs::msg::Constants; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub defaults_values: [test_msgs::msg::Defaults; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub bool_values_default: [bool; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub byte_values_default: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub char_values_default: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub float32_values_default: [f32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub float64_values_default: [f64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int8_values_default: [i8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint8_values_default: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int16_values_default: [i16; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint16_values_default: [u16; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int32_values_default: [i32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint32_values_default: [u32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int64_values_default: [i64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint64_values_default: [u64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub string_values_default: [crate::RosString; 3usize],
+        }
+        unsafe impl WrappedTypesupport for Response {
+            type CStruct = test_msgs__srv__Arrays_Response;
+            fn get_ts() -> &'static rosidl_message_type_support_t {
+                unsafe {
+                    &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__srv__Arrays_Response()
+                }
+            }
+            fn create_msg() -> *mut test_msgs__srv__Arrays_Response {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { test_msgs__srv__Arrays_Response__create() }
+                #[cfg(feature = "doc-only")] test_msgs__srv__Arrays_Response__create()
+            }
+            fn destroy_msg(msg: *mut test_msgs__srv__Arrays_Response) -> () {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { test_msgs__srv__Arrays_Response__destroy(msg) };
+                #[cfg(feature = "doc-only")]
+                test_msgs__srv__Arrays_Response__destroy(msg)
+            }
+            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Response {
+                Response {
+                    bool_values: msg.bool_values,
+                    byte_values: msg.byte_values,
+                    char_values: msg.char_values,
+                    float32_values: msg.float32_values,
+                    float64_values: msg.float64_values,
+                    int8_values: msg.int8_values,
+                    uint8_values: msg.uint8_values,
+                    int16_values: msg.int16_values,
+                    uint16_values: msg.uint16_values,
+                    int32_values: msg.int32_values,
+                    uint32_values: msg.uint32_values,
+                    int64_values: msg.int64_values,
+                    uint64_values: msg.uint64_values,
+                    string_values: std::array::from_fn(|index| crate::RosString::from(
+                        msg.string_values[index].as_bytes(),
+                    )),
+                    basic_types_values: std::array::from_fn(|index| test_msgs::msg::BasicTypes::from_native(
+                        &msg.basic_types_values[index],
+                    )),
+                    constants_values: std::array::from_fn(|index| test_msgs::msg::Constants::from_native(
+                        &msg.constants_values[index],
+                    )),
+                    defaults_values: std::array::from_fn(|index| test_msgs::msg::Defaults::from_native(
+                        &msg.defaults_values[index],
+                    )),
+                    bool_values_default: msg.bool_values_default,
+                    byte_values_default: msg.byte_values_default,
+                    char_values_default: msg.char_values_default,
+                    float32_values_default: msg.float32_values_default,
+                    float64_values_default: msg.float64_values_default,
+                    int8_values_default: msg.int8_values_default,
+                    uint8_values_default: msg.uint8_values_default,
+                    int16_values_default: msg.int16_values_default,
+                    uint16_values_default: msg.uint16_values_default,
+                    int32_values_default: msg.int32_values_default,
+                    uint32_values_default: msg.uint32_values_default,
+                    int64_values_default: msg.int64_values_default,
+                    uint64_values_default: msg.uint64_values_default,
+                    string_values_default: std::array::from_fn(|index| crate::RosString::from(
+                        msg.string_values_default[index].as_bytes(),
+                    )),
+                }
+            }
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                msg.bool_values.copy_from_slice(&self.bool_values[..3usize]);
+                msg.byte_values.copy_from_slice(&self.byte_values[..3usize]);
+                msg.char_values.copy_from_slice(&self.char_values[..3usize]);
+                msg.float32_values.copy_from_slice(&self.float32_values[..3usize]);
+                msg.float64_values.copy_from_slice(&self.float64_values[..3usize]);
+                msg.int8_values.copy_from_slice(&self.int8_values[..3usize]);
+                msg.uint8_values.copy_from_slice(&self.uint8_values[..3usize]);
+                msg.int16_values.copy_from_slice(&self.int16_values[..3usize]);
+                msg.uint16_values.copy_from_slice(&self.uint16_values[..3usize]);
+                msg.int32_values.copy_from_slice(&self.int32_values[..3usize]);
+                msg.uint32_values.copy_from_slice(&self.uint32_values[..3usize]);
+                msg.int64_values.copy_from_slice(&self.int64_values[..3usize]);
+                msg.uint64_values.copy_from_slice(&self.uint64_values[..3usize]);
+                for (t, s) in msg.string_values.iter_mut().zip(&self.string_values) {
+                    check_rosidl_runtime_ret(t.try_assign_bytes(s.as_bytes()))?;
+                }
+                for (t, s) in msg
+                    .basic_types_values
+                    .iter_mut()
+                    .zip(&self.basic_types_values)
+                {
+                    s.try_copy_to_native(t)?;
+                }
+                for (t, s) in msg.constants_values.iter_mut().zip(&self.constants_values)
+                {
+                    s.try_copy_to_native(t)?;
+                }
+                for (t, s) in msg.defaults_values.iter_mut().zip(&self.defaults_values) {
+                    s.try_copy_to_native(t)?;
+                }
+                msg.bool_values_default
+                    .copy_from_slice(&self.bool_values_default[..3usize]);
+                msg.byte_values_default
+                    .copy_from_slice(&self.byte_values_default[..3usize]);
+                msg.char_values_default
+                    .copy_from_slice(&self.char_values_default[..3usize]);
+                msg.float32_values_default
+                    .copy_from_slice(&self.float32_values_default[..3usize]);
+                msg.float64_values_default
+                    .copy_from_slice(&self.float64_values_default[..3usize]);
+                msg.int8_values_default
+                    .copy_from_slice(&self.int8_values_default[..3usize]);
+                msg.uint8_values_default
+                    .copy_from_slice(&self.uint8_values_default[..3usize]);
+                msg.int16_values_default
+                    .copy_from_slice(&self.int16_values_default[..3usize]);
+                msg.uint16_values_default
+                    .copy_from_slice(&self.uint16_values_default[..3usize]);
+                msg.int32_values_default
+                    .copy_from_slice(&self.int32_values_default[..3usize]);
+                msg.uint32_values_default
+                    .copy_from_slice(&self.uint32_values_default[..3usize]);
+                msg.int64_values_default
+                    .copy_from_slice(&self.int64_values_default[..3usize]);
+                msg.uint64_values_default
+                    .copy_from_slice(&self.uint64_values_default[..3usize]);
+                for (t, s) in msg
+                    .string_values_default
+                    .iter_mut()
+                    .zip(&self.string_values_default)
+                {
+                    check_rosidl_runtime_ret(t.try_assign_bytes(s.as_bytes()))?;
+                }
+                Ok(())
+            }
+        }
+        impl Default for Response {
+            fn default() -> Self {
+                let msg_native = WrappedNativeMsg::<Response>::new();
+                Response::from_native(&msg_native)
+            }
+        }
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        #[serde(default)]
+        pub struct Event {
+            pub info: service_msgs::msg::ServiceEventInfo,
+            pub request: Vec<test_msgs::srv::Arrays::Request>,
+            pub response: Vec<test_msgs::srv::Arrays::Response>,
+        }
+        unsafe impl WrappedTypesupport for Event {
+            type CStruct = test_msgs__srv__Arrays_Event;
+            fn get_ts() -> &'static rosidl_message_type_support_t {
+                unsafe {
+                    &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__srv__Arrays_Event()
+                }
+            }
+            fn create_msg() -> *mut test_msgs__srv__Arrays_Event {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { test_msgs__srv__Arrays_Event__create() }
+                #[cfg(feature = "doc-only")] test_msgs__srv__Arrays_Event__create()
+            }
+            fn destroy_msg(msg: *mut test_msgs__srv__Arrays_Event) -> () {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { test_msgs__srv__Arrays_Event__destroy(msg) };
+                #[cfg(feature = "doc-only")] test_msgs__srv__Arrays_Event__destroy(msg)
+            }
+            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Event {
+                Event {
+                    info: service_msgs::msg::ServiceEventInfo::from_native(&msg.info),
+                    request: {
+                        let mut temp = Vec::with_capacity(msg.request.size);
+                        if msg.request.data != std::ptr::null_mut() {
+                            let slice = unsafe {
+                                std::slice::from_raw_parts(
+                                    msg.request.data,
+                                    msg.request.size,
+                                )
+                            };
+                            for s in slice {
+                                temp.push(test_msgs::srv::Arrays::Request::from_native(s));
+                            }
+                        }
+                        temp
+                    },
+                    response: {
+                        let mut temp = Vec::with_capacity(msg.response.size);
+                        if msg.response.data != std::ptr::null_mut() {
+                            let slice = unsafe {
+                                std::slice::from_raw_parts(
+                                    msg.response.data,
+                                    msg.response.size,
+                                )
+                            };
+                            for s in slice {
+                                temp.push(test_msgs::srv::Arrays::Response::from_native(s));
+                            }
+                        }
+                        temp
+                    },
+                }
+            }
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                self.info.try_copy_to_native(&mut msg.info)?;
+                if self.request.len() > 1usize {
+                    return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                }
+                unsafe {
+                    let length = self.request.len();
+                    if length > msg.request.capacity {
+                        let mut replacement = std::mem::zeroed();
+                        if !test_msgs__srv__Arrays_Request__Sequence__init(
+                            &mut replacement,
+                            length,
+                        ) {
+                            return Err(Error::RCL_RET_BAD_ALLOC);
+                        }
+                        test_msgs__srv__Arrays_Request__Sequence__fini(&mut msg.request);
+                        msg.request = replacement;
+                    }
+                    msg.request.size = length;
+                    if length != 0 {
+                        let slice = std::slice::from_raw_parts_mut(
+                            msg.request.data,
+                            length,
+                        );
+                        for (t, s) in slice.iter_mut().zip(&self.request) {
+                            s.try_copy_to_native(t)?;
+                        }
+                    }
+                }
+                if self.response.len() > 1usize {
+                    return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                }
+                unsafe {
+                    let length = self.response.len();
+                    if length > msg.response.capacity {
+                        let mut replacement = std::mem::zeroed();
+                        if !test_msgs__srv__Arrays_Response__Sequence__init(
+                            &mut replacement,
+                            length,
+                        ) {
+                            return Err(Error::RCL_RET_BAD_ALLOC);
+                        }
+                        test_msgs__srv__Arrays_Response__Sequence__fini(
+                            &mut msg.response,
+                        );
+                        msg.response = replacement;
+                    }
+                    msg.response.size = length;
+                    if length != 0 {
+                        let slice = std::slice::from_raw_parts_mut(
+                            msg.response.data,
+                            length,
+                        );
+                        for (t, s) in slice.iter_mut().zip(&self.response) {
+                            s.try_copy_to_native(t)?;
+                        }
+                    }
+                }
+                Ok(())
+            }
+        }
+        impl Default for Event {
+            fn default() -> Self {
+                let msg_native = WrappedNativeMsg::<Event>::new();
+                Event::from_native(&msg_native)
+            }
+        }
+    }
+    #[allow(non_snake_case)]
+    pub mod BasicTypes {
+        use super::super::super::*;
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        pub struct Service();
+        unsafe impl WrappedServiceTypeSupport for Service {
+            type Request = Request;
+            type Response = Response;
+            #[cfg(
+                any(
+                    r2r__ros__distro__iron,
+                    r2r__ros__distro__jazzy,
+                    r2r__ros__distro__kilted,
+                    r2r__ros__distro__lyrical,
+                    r2r__ros__distro__rolling
+                )
+            )]
+            type Event = Event;
+            fn get_ts() -> &'static rosidl_service_type_support_t {
+                unsafe {
+                    &*rosidl_typesupport_c__get_service_type_support_handle__test_msgs__srv__BasicTypes()
+                }
+            }
+        }
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        #[serde(default)]
+        pub struct Request {
+            pub bool_value: bool,
+            pub byte_value: u8,
+            pub char_value: u8,
+            pub float32_value: f32,
+            pub float64_value: f64,
+            pub int8_value: i8,
+            pub uint8_value: u8,
+            pub int16_value: i16,
+            pub uint16_value: u16,
+            pub int32_value: i32,
+            pub uint32_value: u32,
+            pub int64_value: i64,
+            pub uint64_value: u64,
+            pub string_value: crate::RosString,
+        }
+        unsafe impl WrappedTypesupport for Request {
+            type CStruct = test_msgs__srv__BasicTypes_Request;
+            fn get_ts() -> &'static rosidl_message_type_support_t {
+                unsafe {
+                    &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__srv__BasicTypes_Request()
+                }
+            }
+            fn create_msg() -> *mut test_msgs__srv__BasicTypes_Request {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { test_msgs__srv__BasicTypes_Request__create() }
+                #[cfg(feature = "doc-only")] test_msgs__srv__BasicTypes_Request__create()
+            }
+            fn destroy_msg(msg: *mut test_msgs__srv__BasicTypes_Request) -> () {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { test_msgs__srv__BasicTypes_Request__destroy(msg) };
+                #[cfg(feature = "doc-only")]
+                test_msgs__srv__BasicTypes_Request__destroy(msg)
+            }
+            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Request {
+                Request {
+                    bool_value: msg.bool_value,
+                    byte_value: msg.byte_value,
+                    char_value: msg.char_value,
+                    float32_value: msg.float32_value,
+                    float64_value: msg.float64_value,
+                    int8_value: msg.int8_value,
+                    uint8_value: msg.uint8_value,
+                    int16_value: msg.int16_value,
+                    uint16_value: msg.uint16_value,
+                    int32_value: msg.int32_value,
+                    uint32_value: msg.uint32_value,
+                    int64_value: msg.int64_value,
+                    uint64_value: msg.uint64_value,
+                    string_value: crate::RosString::from(msg.string_value.as_bytes()),
+                }
+            }
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                msg.bool_value = self.bool_value;
+                msg.byte_value = self.byte_value;
+                msg.char_value = self.char_value;
+                msg.float32_value = self.float32_value;
+                msg.float64_value = self.float64_value;
+                msg.int8_value = self.int8_value;
+                msg.uint8_value = self.uint8_value;
+                msg.int16_value = self.int16_value;
+                msg.uint16_value = self.uint16_value;
+                msg.int32_value = self.int32_value;
+                msg.uint32_value = self.uint32_value;
+                msg.int64_value = self.int64_value;
+                msg.uint64_value = self.uint64_value;
+                check_rosidl_runtime_ret(
+                    msg.string_value.try_assign_bytes(self.string_value.as_bytes()),
+                )?;
+                Ok(())
+            }
+        }
+        impl Default for Request {
+            fn default() -> Self {
+                let msg_native = WrappedNativeMsg::<Request>::new();
+                Request::from_native(&msg_native)
+            }
+        }
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        #[serde(default)]
+        pub struct Response {
+            pub bool_value: bool,
+            pub byte_value: u8,
+            pub char_value: u8,
+            pub float32_value: f32,
+            pub float64_value: f64,
+            pub int8_value: i8,
+            pub uint8_value: u8,
+            pub int16_value: i16,
+            pub uint16_value: u16,
+            pub int32_value: i32,
+            pub uint32_value: u32,
+            pub int64_value: i64,
+            pub uint64_value: u64,
+            pub string_value: crate::RosString,
+        }
+        unsafe impl WrappedTypesupport for Response {
+            type CStruct = test_msgs__srv__BasicTypes_Response;
+            fn get_ts() -> &'static rosidl_message_type_support_t {
+                unsafe {
+                    &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__srv__BasicTypes_Response()
+                }
+            }
+            fn create_msg() -> *mut test_msgs__srv__BasicTypes_Response {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { test_msgs__srv__BasicTypes_Response__create() }
+                #[cfg(feature = "doc-only")]
+                test_msgs__srv__BasicTypes_Response__create()
+            }
+            fn destroy_msg(msg: *mut test_msgs__srv__BasicTypes_Response) -> () {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { test_msgs__srv__BasicTypes_Response__destroy(msg) };
+                #[cfg(feature = "doc-only")]
+                test_msgs__srv__BasicTypes_Response__destroy(msg)
+            }
+            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Response {
+                Response {
+                    bool_value: msg.bool_value,
+                    byte_value: msg.byte_value,
+                    char_value: msg.char_value,
+                    float32_value: msg.float32_value,
+                    float64_value: msg.float64_value,
+                    int8_value: msg.int8_value,
+                    uint8_value: msg.uint8_value,
+                    int16_value: msg.int16_value,
+                    uint16_value: msg.uint16_value,
+                    int32_value: msg.int32_value,
+                    uint32_value: msg.uint32_value,
+                    int64_value: msg.int64_value,
+                    uint64_value: msg.uint64_value,
+                    string_value: crate::RosString::from(msg.string_value.as_bytes()),
+                }
+            }
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                msg.bool_value = self.bool_value;
+                msg.byte_value = self.byte_value;
+                msg.char_value = self.char_value;
+                msg.float32_value = self.float32_value;
+                msg.float64_value = self.float64_value;
+                msg.int8_value = self.int8_value;
+                msg.uint8_value = self.uint8_value;
+                msg.int16_value = self.int16_value;
+                msg.uint16_value = self.uint16_value;
+                msg.int32_value = self.int32_value;
+                msg.uint32_value = self.uint32_value;
+                msg.int64_value = self.int64_value;
+                msg.uint64_value = self.uint64_value;
+                check_rosidl_runtime_ret(
+                    msg.string_value.try_assign_bytes(self.string_value.as_bytes()),
+                )?;
+                Ok(())
+            }
+        }
+        impl Default for Response {
+            fn default() -> Self {
+                let msg_native = WrappedNativeMsg::<Response>::new();
+                Response::from_native(&msg_native)
+            }
+        }
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        #[serde(default)]
+        pub struct Event {
+            pub info: service_msgs::msg::ServiceEventInfo,
+            pub request: Vec<test_msgs::srv::BasicTypes::Request>,
+            pub response: Vec<test_msgs::srv::BasicTypes::Response>,
+        }
+        unsafe impl WrappedTypesupport for Event {
+            type CStruct = test_msgs__srv__BasicTypes_Event;
+            fn get_ts() -> &'static rosidl_message_type_support_t {
+                unsafe {
+                    &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__srv__BasicTypes_Event()
+                }
+            }
+            fn create_msg() -> *mut test_msgs__srv__BasicTypes_Event {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { test_msgs__srv__BasicTypes_Event__create() }
+                #[cfg(feature = "doc-only")] test_msgs__srv__BasicTypes_Event__create()
+            }
+            fn destroy_msg(msg: *mut test_msgs__srv__BasicTypes_Event) -> () {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { test_msgs__srv__BasicTypes_Event__destroy(msg) };
+                #[cfg(feature = "doc-only")]
+                test_msgs__srv__BasicTypes_Event__destroy(msg)
+            }
+            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Event {
+                Event {
+                    info: service_msgs::msg::ServiceEventInfo::from_native(&msg.info),
+                    request: {
+                        let mut temp = Vec::with_capacity(msg.request.size);
+                        if msg.request.data != std::ptr::null_mut() {
+                            let slice = unsafe {
+                                std::slice::from_raw_parts(
+                                    msg.request.data,
+                                    msg.request.size,
+                                )
+                            };
+                            for s in slice {
+                                temp.push(
+                                    test_msgs::srv::BasicTypes::Request::from_native(s),
+                                );
+                            }
+                        }
+                        temp
+                    },
+                    response: {
+                        let mut temp = Vec::with_capacity(msg.response.size);
+                        if msg.response.data != std::ptr::null_mut() {
+                            let slice = unsafe {
+                                std::slice::from_raw_parts(
+                                    msg.response.data,
+                                    msg.response.size,
+                                )
+                            };
+                            for s in slice {
+                                temp.push(
+                                    test_msgs::srv::BasicTypes::Response::from_native(s),
+                                );
+                            }
+                        }
+                        temp
+                    },
+                }
+            }
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                self.info.try_copy_to_native(&mut msg.info)?;
+                if self.request.len() > 1usize {
+                    return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                }
+                unsafe {
+                    let length = self.request.len();
+                    if length > msg.request.capacity {
+                        let mut replacement = std::mem::zeroed();
+                        if !test_msgs__srv__BasicTypes_Request__Sequence__init(
+                            &mut replacement,
+                            length,
+                        ) {
+                            return Err(Error::RCL_RET_BAD_ALLOC);
+                        }
+                        test_msgs__srv__BasicTypes_Request__Sequence__fini(
+                            &mut msg.request,
+                        );
+                        msg.request = replacement;
+                    }
+                    msg.request.size = length;
+                    if length != 0 {
+                        let slice = std::slice::from_raw_parts_mut(
+                            msg.request.data,
+                            length,
+                        );
+                        for (t, s) in slice.iter_mut().zip(&self.request) {
+                            s.try_copy_to_native(t)?;
+                        }
+                    }
+                }
+                if self.response.len() > 1usize {
+                    return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                }
+                unsafe {
+                    let length = self.response.len();
+                    if length > msg.response.capacity {
+                        let mut replacement = std::mem::zeroed();
+                        if !test_msgs__srv__BasicTypes_Response__Sequence__init(
+                            &mut replacement,
+                            length,
+                        ) {
+                            return Err(Error::RCL_RET_BAD_ALLOC);
+                        }
+                        test_msgs__srv__BasicTypes_Response__Sequence__fini(
+                            &mut msg.response,
+                        );
+                        msg.response = replacement;
+                    }
+                    msg.response.size = length;
+                    if length != 0 {
+                        let slice = std::slice::from_raw_parts_mut(
+                            msg.response.data,
+                            length,
+                        );
+                        for (t, s) in slice.iter_mut().zip(&self.response) {
+                            s.try_copy_to_native(t)?;
+                        }
+                    }
+                }
+                Ok(())
+            }
+        }
+        impl Default for Event {
+            fn default() -> Self {
+                let msg_native = WrappedNativeMsg::<Event>::new();
+                Event::from_native(&msg_native)
+            }
+        }
+    }
+    #[allow(non_snake_case)]
+    pub mod Empty {
+        use super::super::super::*;
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        pub struct Service();
+        unsafe impl WrappedServiceTypeSupport for Service {
+            type Request = Request;
+            type Response = Response;
+            #[cfg(
+                any(
+                    r2r__ros__distro__iron,
+                    r2r__ros__distro__jazzy,
+                    r2r__ros__distro__kilted,
+                    r2r__ros__distro__lyrical,
+                    r2r__ros__distro__rolling
+                )
+            )]
+            type Event = Event;
+            fn get_ts() -> &'static rosidl_service_type_support_t {
+                unsafe {
+                    &*rosidl_typesupport_c__get_service_type_support_handle__test_msgs__srv__Empty()
+                }
+            }
+        }
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        #[serde(default)]
+        pub struct Request {}
+        unsafe impl WrappedTypesupport for Request {
+            type CStruct = test_msgs__srv__Empty_Request;
+            fn get_ts() -> &'static rosidl_message_type_support_t {
+                unsafe {
+                    &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__srv__Empty_Request()
+                }
+            }
+            fn create_msg() -> *mut test_msgs__srv__Empty_Request {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { test_msgs__srv__Empty_Request__create() }
+                #[cfg(feature = "doc-only")] test_msgs__srv__Empty_Request__create()
+            }
+            fn destroy_msg(msg: *mut test_msgs__srv__Empty_Request) -> () {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { test_msgs__srv__Empty_Request__destroy(msg) };
+                #[cfg(feature = "doc-only")] test_msgs__srv__Empty_Request__destroy(msg)
+            }
+            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Request {
+                Request {}
+            }
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                Ok(())
+            }
+        }
+        impl Default for Request {
+            fn default() -> Self {
+                let msg_native = WrappedNativeMsg::<Request>::new();
+                Request::from_native(&msg_native)
+            }
+        }
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        #[serde(default)]
+        pub struct Response {}
+        unsafe impl WrappedTypesupport for Response {
+            type CStruct = test_msgs__srv__Empty_Response;
+            fn get_ts() -> &'static rosidl_message_type_support_t {
+                unsafe {
+                    &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__srv__Empty_Response()
+                }
+            }
+            fn create_msg() -> *mut test_msgs__srv__Empty_Response {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { test_msgs__srv__Empty_Response__create() }
+                #[cfg(feature = "doc-only")] test_msgs__srv__Empty_Response__create()
+            }
+            fn destroy_msg(msg: *mut test_msgs__srv__Empty_Response) -> () {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { test_msgs__srv__Empty_Response__destroy(msg) };
+                #[cfg(feature = "doc-only")] test_msgs__srv__Empty_Response__destroy(msg)
+            }
+            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Response {
+                Response {}
+            }
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                Ok(())
+            }
+        }
+        impl Default for Response {
+            fn default() -> Self {
+                let msg_native = WrappedNativeMsg::<Response>::new();
+                Response::from_native(&msg_native)
+            }
+        }
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        #[serde(default)]
+        pub struct Event {
+            pub info: service_msgs::msg::ServiceEventInfo,
+            pub request: Vec<test_msgs::srv::Empty::Request>,
+            pub response: Vec<test_msgs::srv::Empty::Response>,
+        }
+        unsafe impl WrappedTypesupport for Event {
+            type CStruct = test_msgs__srv__Empty_Event;
+            fn get_ts() -> &'static rosidl_message_type_support_t {
+                unsafe {
+                    &*rosidl_typesupport_c__get_message_type_support_handle__test_msgs__srv__Empty_Event()
+                }
+            }
+            fn create_msg() -> *mut test_msgs__srv__Empty_Event {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { test_msgs__srv__Empty_Event__create() }
+                #[cfg(feature = "doc-only")] test_msgs__srv__Empty_Event__create()
+            }
+            fn destroy_msg(msg: *mut test_msgs__srv__Empty_Event) -> () {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { test_msgs__srv__Empty_Event__destroy(msg) };
+                #[cfg(feature = "doc-only")] test_msgs__srv__Empty_Event__destroy(msg)
+            }
+            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Event {
+                Event {
+                    info: service_msgs::msg::ServiceEventInfo::from_native(&msg.info),
+                    request: {
+                        let mut temp = Vec::with_capacity(msg.request.size);
+                        if msg.request.data != std::ptr::null_mut() {
+                            let slice = unsafe {
+                                std::slice::from_raw_parts(
+                                    msg.request.data,
+                                    msg.request.size,
+                                )
+                            };
+                            for s in slice {
+                                temp.push(test_msgs::srv::Empty::Request::from_native(s));
+                            }
+                        }
+                        temp
+                    },
+                    response: {
+                        let mut temp = Vec::with_capacity(msg.response.size);
+                        if msg.response.data != std::ptr::null_mut() {
+                            let slice = unsafe {
+                                std::slice::from_raw_parts(
+                                    msg.response.data,
+                                    msg.response.size,
+                                )
+                            };
+                            for s in slice {
+                                temp.push(test_msgs::srv::Empty::Response::from_native(s));
+                            }
+                        }
+                        temp
+                    },
+                }
+            }
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                self.info.try_copy_to_native(&mut msg.info)?;
+                if self.request.len() > 1usize {
+                    return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                }
+                unsafe {
+                    let length = self.request.len();
+                    if length > msg.request.capacity {
+                        let mut replacement = std::mem::zeroed();
+                        if !test_msgs__srv__Empty_Request__Sequence__init(
+                            &mut replacement,
+                            length,
+                        ) {
+                            return Err(Error::RCL_RET_BAD_ALLOC);
+                        }
+                        test_msgs__srv__Empty_Request__Sequence__fini(&mut msg.request);
+                        msg.request = replacement;
+                    }
+                    msg.request.size = length;
+                    if length != 0 {
+                        let slice = std::slice::from_raw_parts_mut(
+                            msg.request.data,
+                            length,
+                        );
+                        for (t, s) in slice.iter_mut().zip(&self.request) {
+                            s.try_copy_to_native(t)?;
+                        }
+                    }
+                }
+                if self.response.len() > 1usize {
+                    return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                }
+                unsafe {
+                    let length = self.response.len();
+                    if length > msg.response.capacity {
+                        let mut replacement = std::mem::zeroed();
+                        if !test_msgs__srv__Empty_Response__Sequence__init(
+                            &mut replacement,
+                            length,
+                        ) {
+                            return Err(Error::RCL_RET_BAD_ALLOC);
+                        }
+                        test_msgs__srv__Empty_Response__Sequence__fini(
+                            &mut msg.response,
+                        );
+                        msg.response = replacement;
+                    }
+                    msg.response.size = length;
+                    if length != 0 {
+                        let slice = std::slice::from_raw_parts_mut(
+                            msg.response.data,
+                            length,
+                        );
+                        for (t, s) in slice.iter_mut().zip(&self.response) {
+                            s.try_copy_to_native(t)?;
+                        }
+                    }
+                }
+                Ok(())
+            }
+        }
+        impl Default for Event {
+            fn default() -> Self {
+                let msg_native = WrappedNativeMsg::<Event>::new();
+                Event::from_native(&msg_native)
+            }
         }
     }
 }

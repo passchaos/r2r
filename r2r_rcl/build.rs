@@ -15,7 +15,8 @@ fn run_bindgen() {
     let out_dir: PathBuf = env::var_os("OUT_DIR").unwrap().into();
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let target_file = out_dir.join("rcl_bindings.rs");
-    let saved_file = manifest_dir.join("bindings").join("rcl_bindings.rs");
+    let saved_file = r2r_common::bindings_directory(manifest_dir, env!("CARGO_PKG_NAME"))
+        .join("rcl_bindings.rs");
     if cfg!(feature = "doc-only") {
         println!("cargo:rerun-if-changed={}", saved_file.display());
     }

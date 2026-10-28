@@ -13,6 +13,18 @@ impl UntypedServiceSupport {
             UntypedServiceSupport::new::<diagnostic_msgs::srv::SelfTest::Service>()
         }
         #[allow(non_snake_case)]
+        fn new_untyped_service_support_example_interfaces_srv_AddTwoInts() -> UntypedServiceSupport {
+            UntypedServiceSupport::new::<example_interfaces::srv::AddTwoInts::Service>()
+        }
+        #[allow(non_snake_case)]
+        fn new_untyped_service_support_example_interfaces_srv_SetBool() -> UntypedServiceSupport {
+            UntypedServiceSupport::new::<example_interfaces::srv::SetBool::Service>()
+        }
+        #[allow(non_snake_case)]
+        fn new_untyped_service_support_example_interfaces_srv_Trigger() -> UntypedServiceSupport {
+            UntypedServiceSupport::new::<example_interfaces::srv::Trigger::Service>()
+        }
+        #[allow(non_snake_case)]
         fn new_untyped_service_support_lifecycle_msgs_srv_ChangeState() -> UntypedServiceSupport {
             UntypedServiceSupport::new::<lifecycle_msgs::srv::ChangeState::Service>()
         }
@@ -31,6 +43,30 @@ impl UntypedServiceSupport {
         #[allow(non_snake_case)]
         fn new_untyped_service_support_lifecycle_msgs_srv_GetState() -> UntypedServiceSupport {
             UntypedServiceSupport::new::<lifecycle_msgs::srv::GetState::Service>()
+        }
+        #[allow(non_snake_case)]
+        fn new_untyped_service_support_map_msgs_srv_GetMapROI() -> UntypedServiceSupport {
+            UntypedServiceSupport::new::<map_msgs::srv::GetMapROI::Service>()
+        }
+        #[allow(non_snake_case)]
+        fn new_untyped_service_support_map_msgs_srv_GetPointMap() -> UntypedServiceSupport {
+            UntypedServiceSupport::new::<map_msgs::srv::GetPointMap::Service>()
+        }
+        #[allow(non_snake_case)]
+        fn new_untyped_service_support_map_msgs_srv_GetPointMapROI() -> UntypedServiceSupport {
+            UntypedServiceSupport::new::<map_msgs::srv::GetPointMapROI::Service>()
+        }
+        #[allow(non_snake_case)]
+        fn new_untyped_service_support_map_msgs_srv_ProjectedMapsInfo() -> UntypedServiceSupport {
+            UntypedServiceSupport::new::<map_msgs::srv::ProjectedMapsInfo::Service>()
+        }
+        #[allow(non_snake_case)]
+        fn new_untyped_service_support_map_msgs_srv_SaveMap() -> UntypedServiceSupport {
+            UntypedServiceSupport::new::<map_msgs::srv::SaveMap::Service>()
+        }
+        #[allow(non_snake_case)]
+        fn new_untyped_service_support_map_msgs_srv_SetMapProjections() -> UntypedServiceSupport {
+            UntypedServiceSupport::new::<map_msgs::srv::SetMapProjections::Service>()
         }
         #[allow(non_snake_case)]
         fn new_untyped_service_support_nav_msgs_srv_GetMap() -> UntypedServiceSupport {
@@ -55,6 +91,10 @@ impl UntypedServiceSupport {
             >()
         }
         #[allow(non_snake_case)]
+        fn new_untyped_service_support_rcl_interfaces_srv_GetLoggerLevels() -> UntypedServiceSupport {
+            UntypedServiceSupport::new::<rcl_interfaces::srv::GetLoggerLevels::Service>()
+        }
+        #[allow(non_snake_case)]
         fn new_untyped_service_support_rcl_interfaces_srv_GetParameterTypes() -> UntypedServiceSupport {
             UntypedServiceSupport::new::<
                 rcl_interfaces::srv::GetParameterTypes::Service,
@@ -69,6 +109,10 @@ impl UntypedServiceSupport {
             UntypedServiceSupport::new::<rcl_interfaces::srv::ListParameters::Service>()
         }
         #[allow(non_snake_case)]
+        fn new_untyped_service_support_rcl_interfaces_srv_SetLoggerLevels() -> UntypedServiceSupport {
+            UntypedServiceSupport::new::<rcl_interfaces::srv::SetLoggerLevels::Service>()
+        }
+        #[allow(non_snake_case)]
         fn new_untyped_service_support_rcl_interfaces_srv_SetParameters() -> UntypedServiceSupport {
             UntypedServiceSupport::new::<rcl_interfaces::srv::SetParameters::Service>()
         }
@@ -81,6 +125,18 @@ impl UntypedServiceSupport {
         #[allow(non_snake_case)]
         fn new_untyped_service_support_sensor_msgs_srv_SetCameraInfo() -> UntypedServiceSupport {
             UntypedServiceSupport::new::<sensor_msgs::srv::SetCameraInfo::Service>()
+        }
+        #[allow(non_snake_case)]
+        fn new_untyped_service_support_std_srvs_srv_Empty() -> UntypedServiceSupport {
+            UntypedServiceSupport::new::<std_srvs::srv::Empty::Service>()
+        }
+        #[allow(non_snake_case)]
+        fn new_untyped_service_support_std_srvs_srv_SetBool() -> UntypedServiceSupport {
+            UntypedServiceSupport::new::<std_srvs::srv::SetBool::Service>()
+        }
+        #[allow(non_snake_case)]
+        fn new_untyped_service_support_std_srvs_srv_Trigger() -> UntypedServiceSupport {
+            UntypedServiceSupport::new::<std_srvs::srv::Trigger::Service>()
         }
         #[allow(non_snake_case)]
         fn new_untyped_service_support_test_msgs_srv_Arrays() -> UntypedServiceSupport {
@@ -111,6 +167,12 @@ impl UntypedServiceSupport {
             new_untyped_service_support_diagnostic_msgs_srv_AddDiagnostics,
             "diagnostic_msgs/srv/SelfTest" =>
             new_untyped_service_support_diagnostic_msgs_srv_SelfTest,
+            "example_interfaces/srv/AddTwoInts" =>
+            new_untyped_service_support_example_interfaces_srv_AddTwoInts,
+            "example_interfaces/srv/SetBool" =>
+            new_untyped_service_support_example_interfaces_srv_SetBool,
+            "example_interfaces/srv/Trigger" =>
+            new_untyped_service_support_example_interfaces_srv_Trigger,
             "lifecycle_msgs/srv/ChangeState" =>
             new_untyped_service_support_lifecycle_msgs_srv_ChangeState,
             "lifecycle_msgs/srv/GetAvailableStates" =>
@@ -119,24 +181,42 @@ impl UntypedServiceSupport {
             new_untyped_service_support_lifecycle_msgs_srv_GetAvailableTransitions,
             "lifecycle_msgs/srv/GetState" =>
             new_untyped_service_support_lifecycle_msgs_srv_GetState,
+            "map_msgs/srv/GetMapROI" =>
+            new_untyped_service_support_map_msgs_srv_GetMapROI,
+            "map_msgs/srv/GetPointMap" =>
+            new_untyped_service_support_map_msgs_srv_GetPointMap,
+            "map_msgs/srv/GetPointMapROI" =>
+            new_untyped_service_support_map_msgs_srv_GetPointMapROI,
+            "map_msgs/srv/ProjectedMapsInfo" =>
+            new_untyped_service_support_map_msgs_srv_ProjectedMapsInfo,
+            "map_msgs/srv/SaveMap" => new_untyped_service_support_map_msgs_srv_SaveMap,
+            "map_msgs/srv/SetMapProjections" =>
+            new_untyped_service_support_map_msgs_srv_SetMapProjections,
             "nav_msgs/srv/GetMap" => new_untyped_service_support_nav_msgs_srv_GetMap,
             "nav_msgs/srv/GetPlan" => new_untyped_service_support_nav_msgs_srv_GetPlan,
             "nav_msgs/srv/LoadMap" => new_untyped_service_support_nav_msgs_srv_LoadMap,
             "nav_msgs/srv/SetMap" => new_untyped_service_support_nav_msgs_srv_SetMap,
             "rcl_interfaces/srv/DescribeParameters" =>
             new_untyped_service_support_rcl_interfaces_srv_DescribeParameters,
+            "rcl_interfaces/srv/GetLoggerLevels" =>
+            new_untyped_service_support_rcl_interfaces_srv_GetLoggerLevels,
             "rcl_interfaces/srv/GetParameterTypes" =>
             new_untyped_service_support_rcl_interfaces_srv_GetParameterTypes,
             "rcl_interfaces/srv/GetParameters" =>
             new_untyped_service_support_rcl_interfaces_srv_GetParameters,
             "rcl_interfaces/srv/ListParameters" =>
             new_untyped_service_support_rcl_interfaces_srv_ListParameters,
+            "rcl_interfaces/srv/SetLoggerLevels" =>
+            new_untyped_service_support_rcl_interfaces_srv_SetLoggerLevels,
             "rcl_interfaces/srv/SetParameters" =>
             new_untyped_service_support_rcl_interfaces_srv_SetParameters,
             "rcl_interfaces/srv/SetParametersAtomically" =>
             new_untyped_service_support_rcl_interfaces_srv_SetParametersAtomically,
             "sensor_msgs/srv/SetCameraInfo" =>
             new_untyped_service_support_sensor_msgs_srv_SetCameraInfo,
+            "std_srvs/srv/Empty" => new_untyped_service_support_std_srvs_srv_Empty,
+            "std_srvs/srv/SetBool" => new_untyped_service_support_std_srvs_srv_SetBool,
+            "std_srvs/srv/Trigger" => new_untyped_service_support_std_srvs_srv_Trigger,
             "test_msgs/srv/Arrays" => new_untyped_service_support_test_msgs_srv_Arrays,
             "test_msgs/srv/BasicTypes" =>
             new_untyped_service_support_test_msgs_srv_BasicTypes, "test_msgs/srv/Empty"

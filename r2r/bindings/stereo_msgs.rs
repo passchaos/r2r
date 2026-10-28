@@ -43,15 +43,24 @@ pub mod msg {
                 delta_d: msg.delta_d,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            self.image.copy_to_native(&mut msg.image);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            self.image.try_copy_to_native(&mut msg.image)?;
             msg.f = self.f;
             msg.t = self.t;
-            self.valid_window.copy_to_native(&mut msg.valid_window);
+            self.valid_window.try_copy_to_native(&mut msg.valid_window)?;
             msg.min_disparity = self.min_disparity;
             msg.max_disparity = self.max_disparity;
             msg.delta_d = self.delta_d;
+            Ok(())
         }
     }
     impl Default for DisparityImage {

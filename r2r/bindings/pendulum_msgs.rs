@@ -27,8 +27,17 @@ pub mod msg {
                 position: msg.position,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.position = self.position;
+            Ok(())
         }
     }
     impl Default for JointCommand {
@@ -68,10 +77,19 @@ pub mod msg {
                 effort: msg.effort,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.position = self.position;
             msg.velocity = self.velocity;
             msg.effort = self.effort;
+            Ok(())
         }
     }
     impl Default for JointState {
@@ -123,16 +141,25 @@ pub mod msg {
                 major_pagefaults: msg.major_pagefaults,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.stamp.copy_to_native(&mut msg.stamp);
-            self.command.copy_to_native(&mut msg.command);
-            self.state.copy_to_native(&mut msg.state);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.stamp.try_copy_to_native(&mut msg.stamp)?;
+            self.command.try_copy_to_native(&mut msg.command)?;
+            self.state.try_copy_to_native(&mut msg.state)?;
             msg.cur_latency = self.cur_latency;
             msg.mean_latency = self.mean_latency;
             msg.min_latency = self.min_latency;
             msg.max_latency = self.max_latency;
             msg.minor_pagefaults = self.minor_pagefaults;
             msg.major_pagefaults = self.major_pagefaults;
+            Ok(())
         }
     }
     impl Default for RttestResults {

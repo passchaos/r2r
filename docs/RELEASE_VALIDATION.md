@@ -153,3 +153,35 @@ formatting and the doc-only workspace compilation gate. The existing
 `lifecycle_node` example now names its transition function-pointer type so it
 passes the same Clippy gate without suppressing the complexity lint.
 
+## Documentation snapshot and optional native metadata (2026-10-28)
+
+The [documentation gate](DOCUMENTATION_BUILDS.md) now compiles all workspace
+targets and verifies ten API pages and fourteen methods in Ubuntu 24.04 with
+no `/opt/ros` installation. Its explicit Jazzy snapshot contains 23 packages,
+saved interface availability, lifecycle and service/action events. Four
+snapshot transaction cases verify preparation failure, partial-install rollback,
+complete replacement and retention of previously documented packages. All 36
+binding files have identical SHA-256 after independent regeneration.
+
+Native Kilted validation exposed an unrelated unsafe metadata assumption:
+Fast DDS does not fill response writer-GUID bytes. [Native metadata oracles](NATIVE_SERVICE_METADATA.md)
+with three initial byte patterns verify that omission on Jazzy/Humble/Kilted and
+full response-identity writes under Jazzy/CycloneDDS. Service metadata storage
+now starts initialized; action clients read only their mandatory sequence field.
+The typed/untyped integration case compares returned identities with a direct
+RCL exchange through the same client instead of assuming a nonzero identity.
+
+Final native debug/release Jazzy suites pass 495 library cases under both RMWs,
+with two manual benchmarks ignored. The full Jazzy workspace suite also passes.
+Native Humble and Kilted library suites pass 486 and 499 cases respectively,
+with two ignored in each; their full-target workspace Clippy gates pass.
+Jazzy full-target Clippy, formatting, two metadata counterexamples, 146 action
+cases and 55 service cases pass. Humble's now-version-specific `MaybeUninit`
+import remains available only where its native client-GID query needs it.
+
+[The corrected service comparison](benchmarks/native-metadata-service-2026-10-28/README.md)
+retains fixed CPUs 24/25, two windows, all four Rust/C++ endpoint combinations,
+80 records and 400000 raw RTT samples. It compares the corrected application
+with C++; the implementation that read uninitialized metadata is not used as
+a performance baseline.
+

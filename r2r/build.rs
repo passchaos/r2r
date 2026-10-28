@@ -15,11 +15,13 @@ use std::{
 #[cfg(feature = "doc-only")]
 mod filenames {
     pub const LIST_FILENAME: &str = "files.txt";
+    pub const CFG_FILENAME: &str = "_r2r_generated_cfg.txt";
 }
 
 #[cfg(not(feature = "doc-only"))]
 mod filenames {
     pub const LIST_FILENAME: &str = "files.txt";
+    pub const CFG_FILENAME: &str = "_r2r_generated_cfg.txt";
     pub const MSGS_FILENAME: &str = "_r2r_generated_msgs.rs";
     pub const UNTYPED_FILENAME: &str = "_r2r_generated_untyped_helper.rs";
     pub const UNTYPED_SERVICE_FILENAME: &str = "_r2r_generated_service_helper.rs";
@@ -29,6 +31,7 @@ mod filenames {
         UNTYPED_FILENAME,
         UNTYPED_SERVICE_FILENAME,
         UNTYPED_ACTION_FILENAME,
+        CFG_FILENAME,
     ];
 }
 
@@ -56,13 +59,20 @@ fn main() {
     #[cfg(any(feature = "doc-only", feature = "save-bindgen"))]
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     #[cfg(any(feature = "doc-only", feature = "save-bindgen"))]
-    let save_dir = manifest_dir.join("bindings");
+    let save_dir = r2r_common::bindings_directory(manifest_dir, env!("CARGO_PKG_NAME"));
 
     #[cfg(feature = "doc-only")]
     {
         println!("cargo:rerun-if-changed={}", save_dir.display());
         // If "doc-only" feature is present, copy from $crate/bindings/* to OUT_DIR
         copy_files(&save_dir, &out_dir);
+        for message_cfg in fs::read_to_string(save_dir.join(CFG_FILENAME))
+            .unwrap()
+            .lines()
+        {
+            println!("cargo:rustc-check-cfg=cfg({message_cfg})");
+            println!("cargo:rustc-cfg={message_cfg}");
+        }
     }
 
     #[cfg(not(feature = "doc-only"))]
@@ -91,6 +101,17 @@ fn generate_bindings(bindgen_dir: &Path) {
     let msg_list = r2r_common::get_wanted_messages();
     let msgs = r2r_common::as_map(&msg_list);
 
+    // Persist the same interface availability used by native generation.
+    // Documentation must not hide clock/action APIs just because ROS is absent.
+    let mut message_cfgs: Vec<_> = msg_list
+        .iter()
+        .map(|msg| format!("r2r__{}__{}__{}", msg.module, msg.prefix, msg.name))
+        .collect();
+    message_cfgs.sort_unstable();
+    message_cfgs.dedup();
+    write_to_file(bindgen_dir.join(CFG_FILENAME).as_path(), message_cfgs.join("\n") + "\n")
+        .unwrap();
+
     {
         let modules = {
             let mut modules: Vec<_> = msgs
@@ -116,12 +137,13 @@ fn generate_bindings(bindgen_dir: &Path) {
         write_to_file(&msgs_file, pretty_tokenstream(modules)).unwrap();
     }
 
-    let mod_files: Vec<_> = msgs
+    let mut mod_files: Vec<_> = msgs
         .par_iter()
         .map(|(module, prefixes)| {
-            let snipplets: Vec<_> = prefixes
+            let mut snipplets: Vec<_> = prefixes
                 .into_par_iter()
                 .map(|(prefix, msgs)| {
+                    let prefix_name = *prefix;
                     let prefix_content = match *prefix {
                         "msg" => {
                             let msg_snipplets = msgs.iter().map(|msg| {
@@ -241,11 +263,12 @@ fn generate_bindings(bindgen_dir: &Path) {
                         }
                     };
 
-                    unsafe { force_send(mod_content) }
+                    (prefix_name, unsafe { force_send(mod_content) })
                 })
                 .collect();
 
-            let snipplets = snipplets.into_iter().map(|snipplet| snipplet.unwrap());
+            snipplets.sort_unstable_by_key(|(prefix, _)| *prefix);
+            let snipplets = snipplets.into_iter().map(|(_, snipplet)| snipplet.unwrap());
             let mod_content = quote! { #(#snipplets)* };
             let file_name = format!("{}.rs", module);
             let mod_file = bindgen_dir.join(&file_name);
@@ -254,6 +277,7 @@ fn generate_bindings(bindgen_dir: &Path) {
             file_name
         })
         .collect();
+    mod_files.sort_unstable();
 
     // Write helper files
     {

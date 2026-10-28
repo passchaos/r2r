@@ -26,58 +26,94 @@ pub mod msg {
             Mesh {
                 triangles: {
                     let mut temp = Vec::with_capacity(msg.triangles.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.triangles.data,
-                            msg.triangles.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(shape_msgs::msg::MeshTriangle::from_native(s));
+                    if msg.triangles.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.triangles.data,
+                                msg.triangles.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(shape_msgs::msg::MeshTriangle::from_native(s));
+                        }
                     }
                     temp
                 },
                 vertices: {
                     let mut temp = Vec::with_capacity(msg.vertices.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(msg.vertices.data, msg.vertices.size)
-                    };
-                    for s in slice {
-                        temp.push(geometry_msgs::msg::Point::from_native(s));
+                    if msg.vertices.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.vertices.data,
+                                msg.vertices.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(geometry_msgs::msg::Point::from_native(s));
+                        }
                     }
                     temp
                 },
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             unsafe {
-                shape_msgs__msg__MeshTriangle__Sequence__fini(&mut msg.triangles);
-                shape_msgs__msg__MeshTriangle__Sequence__init(
-                    &mut msg.triangles,
-                    self.triangles.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.triangles.data,
-                    msg.triangles.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.triangles) {
-                    s.copy_to_native(t);
+                let length = self.triangles.len();
+                if length > msg.triangles.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !shape_msgs__msg__MeshTriangle__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    shape_msgs__msg__MeshTriangle__Sequence__fini(&mut msg.triangles);
+                    msg.triangles = replacement;
+                }
+                msg.triangles.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.triangles.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.triangles) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
             unsafe {
-                geometry_msgs__msg__Point__Sequence__fini(&mut msg.vertices);
-                geometry_msgs__msg__Point__Sequence__init(
-                    &mut msg.vertices,
-                    self.vertices.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.vertices.data,
-                    msg.vertices.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.vertices) {
-                    s.copy_to_native(t);
+                let length = self.vertices.len();
+                if length > msg.vertices.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !geometry_msgs__msg__Point__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    geometry_msgs__msg__Point__Sequence__fini(&mut msg.vertices);
+                    msg.vertices = replacement;
+                }
+                msg.vertices.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.vertices.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.vertices) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
+            Ok(())
         }
     }
     impl Default for Mesh {
@@ -114,15 +150,17 @@ pub mod msg {
                 vertex_indices: msg.vertex_indices,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            assert_eq!(
-                self.vertex_indices.len(),
-                3usize,
-                "Field {} is fixed size of {}!",
-                "vertex_indices",
-                3usize,
-            );
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.vertex_indices.copy_from_slice(&self.vertex_indices[..3usize]);
+            Ok(())
         }
     }
     impl Default for MeshTriangle {
@@ -156,15 +194,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Plane {
             Plane { coef: msg.coef }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            assert_eq!(
-                self.coef.len(),
-                4usize,
-                "Field {} is fixed size of {}!",
-                "coef",
-                4usize,
-            );
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.coef.copy_from_slice(&self.coef[..4usize]);
+            Ok(())
         }
     }
     impl Default for Plane {
@@ -205,16 +245,22 @@ pub mod msg {
                 polygon: geometry_msgs::msg::Polygon::from_native(&msg.polygon),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.type_ = self.type_;
-            assert!(
-                self.dimensions.len() <= 3usize,
-                "Field {} is upper bounded by {}!",
-                "dimensions",
-                3usize,
-            );
-            msg.dimensions.update(&self.dimensions);
-            self.polygon.copy_to_native(&mut msg.polygon);
+            if self.dimensions.len() > 3usize {
+                return Err(Error::RCL_RET_INVALID_ARGUMENT);
+            }
+            check_rosidl_runtime_ret(msg.dimensions.try_update(&self.dimensions))?;
+            self.polygon.try_copy_to_native(&mut msg.polygon)?;
+            Ok(())
         }
     }
     impl Default for SolidPrimitive {
@@ -225,19 +271,19 @@ pub mod msg {
     }
     #[allow(non_upper_case_globals)]
     impl SolidPrimitive {
-        pub const BOX: _bindgen_ty_126 = shape_msgs__msg__SolidPrimitive__BOX;
-        pub const BOX_X: _bindgen_ty_131 = shape_msgs__msg__SolidPrimitive__BOX_X;
-        pub const BOX_Y: _bindgen_ty_132 = shape_msgs__msg__SolidPrimitive__BOX_Y;
-        pub const BOX_Z: _bindgen_ty_133 = shape_msgs__msg__SolidPrimitive__BOX_Z;
-        pub const CONE: _bindgen_ty_129 = shape_msgs__msg__SolidPrimitive__CONE;
-        pub const CONE_HEIGHT: _bindgen_ty_137 = shape_msgs__msg__SolidPrimitive__CONE_HEIGHT;
-        pub const CONE_RADIUS: _bindgen_ty_138 = shape_msgs__msg__SolidPrimitive__CONE_RADIUS;
-        pub const CYLINDER: _bindgen_ty_128 = shape_msgs__msg__SolidPrimitive__CYLINDER;
-        pub const CYLINDER_HEIGHT: _bindgen_ty_135 = shape_msgs__msg__SolidPrimitive__CYLINDER_HEIGHT;
-        pub const CYLINDER_RADIUS: _bindgen_ty_136 = shape_msgs__msg__SolidPrimitive__CYLINDER_RADIUS;
-        pub const PRISM: _bindgen_ty_130 = shape_msgs__msg__SolidPrimitive__PRISM;
-        pub const PRISM_HEIGHT: _bindgen_ty_139 = shape_msgs__msg__SolidPrimitive__PRISM_HEIGHT;
-        pub const SPHERE: _bindgen_ty_127 = shape_msgs__msg__SolidPrimitive__SPHERE;
-        pub const SPHERE_RADIUS: _bindgen_ty_134 = shape_msgs__msg__SolidPrimitive__SPHERE_RADIUS;
+        pub const BOX: _bindgen_ty_314 = shape_msgs__msg__SolidPrimitive__BOX;
+        pub const BOX_X: _bindgen_ty_319 = shape_msgs__msg__SolidPrimitive__BOX_X;
+        pub const BOX_Y: _bindgen_ty_320 = shape_msgs__msg__SolidPrimitive__BOX_Y;
+        pub const BOX_Z: _bindgen_ty_321 = shape_msgs__msg__SolidPrimitive__BOX_Z;
+        pub const CONE: _bindgen_ty_317 = shape_msgs__msg__SolidPrimitive__CONE;
+        pub const CONE_HEIGHT: _bindgen_ty_325 = shape_msgs__msg__SolidPrimitive__CONE_HEIGHT;
+        pub const CONE_RADIUS: _bindgen_ty_326 = shape_msgs__msg__SolidPrimitive__CONE_RADIUS;
+        pub const CYLINDER: _bindgen_ty_316 = shape_msgs__msg__SolidPrimitive__CYLINDER;
+        pub const CYLINDER_HEIGHT: _bindgen_ty_323 = shape_msgs__msg__SolidPrimitive__CYLINDER_HEIGHT;
+        pub const CYLINDER_RADIUS: _bindgen_ty_324 = shape_msgs__msg__SolidPrimitive__CYLINDER_RADIUS;
+        pub const PRISM: _bindgen_ty_318 = shape_msgs__msg__SolidPrimitive__PRISM;
+        pub const PRISM_HEIGHT: _bindgen_ty_327 = shape_msgs__msg__SolidPrimitive__PRISM_HEIGHT;
+        pub const SPHERE: _bindgen_ty_315 = shape_msgs__msg__SolidPrimitive__SPHERE;
+        pub const SPHERE_RADIUS: _bindgen_ty_322 = shape_msgs__msg__SolidPrimitive__SPHERE_RADIUS;
     }
 }

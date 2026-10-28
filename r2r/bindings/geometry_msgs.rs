@@ -29,9 +29,18 @@ pub mod msg {
                 angular: geometry_msgs::msg::Vector3::from_native(&msg.angular),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.linear.copy_to_native(&mut msg.linear);
-            self.angular.copy_to_native(&mut msg.angular);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.linear.try_copy_to_native(&mut msg.linear)?;
+            self.angular.try_copy_to_native(&mut msg.angular)?;
+            Ok(())
         }
     }
     impl Default for Accel {
@@ -69,9 +78,18 @@ pub mod msg {
                 accel: geometry_msgs::msg::Accel::from_native(&msg.accel),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            self.accel.copy_to_native(&mut msg.accel);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            self.accel.try_copy_to_native(&mut msg.accel)?;
+            Ok(())
         }
     }
     impl Default for AccelStamped {
@@ -112,16 +130,18 @@ pub mod msg {
                 covariance: msg.covariance,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.accel.copy_to_native(&mut msg.accel);
-            assert_eq!(
-                self.covariance.len(),
-                36usize,
-                "Field {} is fixed size of {}!",
-                "covariance",
-                36usize,
-            );
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.accel.try_copy_to_native(&mut msg.accel)?;
             msg.covariance.copy_from_slice(&self.covariance[..36usize]);
+            Ok(())
         }
     }
     impl Default for AccelWithCovariance {
@@ -164,9 +184,18 @@ pub mod msg {
                 accel: geometry_msgs::msg::AccelWithCovariance::from_native(&msg.accel),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            self.accel.copy_to_native(&mut msg.accel);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            self.accel.try_copy_to_native(&mut msg.accel)?;
+            Ok(())
         }
     }
     impl Default for AccelWithCovarianceStamped {
@@ -216,15 +245,24 @@ pub mod msg {
                 izz: msg.izz,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.m = self.m;
-            self.com.copy_to_native(&mut msg.com);
+            self.com.try_copy_to_native(&mut msg.com)?;
             msg.ixx = self.ixx;
             msg.ixy = self.ixy;
             msg.ixz = self.ixz;
             msg.iyy = self.iyy;
             msg.iyz = self.iyz;
             msg.izz = self.izz;
+            Ok(())
         }
     }
     impl Default for Inertia {
@@ -262,9 +300,18 @@ pub mod msg {
                 inertia: geometry_msgs::msg::Inertia::from_native(&msg.inertia),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            self.inertia.copy_to_native(&mut msg.inertia);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            self.inertia.try_copy_to_native(&mut msg.inertia)?;
+            Ok(())
         }
     }
     impl Default for InertiaStamped {
@@ -304,10 +351,19 @@ pub mod msg {
                 z: msg.z,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.x = self.x;
             msg.y = self.y;
             msg.z = self.z;
+            Ok(())
         }
     }
     impl Default for Point {
@@ -347,10 +403,19 @@ pub mod msg {
                 z: msg.z,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.x = self.x;
             msg.y = self.y;
             msg.z = self.z;
+            Ok(())
         }
     }
     impl Default for Point32 {
@@ -388,9 +453,18 @@ pub mod msg {
                 point: geometry_msgs::msg::Point::from_native(&msg.point),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            self.point.copy_to_native(&mut msg.point);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            self.point.try_copy_to_native(&mut msg.point)?;
+            Ok(())
         }
     }
     impl Default for PointStamped {
@@ -425,37 +499,156 @@ pub mod msg {
             Polygon {
                 points: {
                     let mut temp = Vec::with_capacity(msg.points.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(msg.points.data, msg.points.size)
-                    };
-                    for s in slice {
-                        temp.push(geometry_msgs::msg::Point32::from_native(s));
+                    if msg.points.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(msg.points.data, msg.points.size)
+                        };
+                        for s in slice {
+                            temp.push(geometry_msgs::msg::Point32::from_native(s));
+                        }
                     }
                     temp
                 },
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             unsafe {
-                geometry_msgs__msg__Point32__Sequence__fini(&mut msg.points);
-                geometry_msgs__msg__Point32__Sequence__init(
-                    &mut msg.points,
-                    self.points.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.points.data,
-                    msg.points.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.points) {
-                    s.copy_to_native(t);
+                let length = self.points.len();
+                if length > msg.points.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !geometry_msgs__msg__Point32__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    geometry_msgs__msg__Point32__Sequence__fini(&mut msg.points);
+                    msg.points = replacement;
+                }
+                msg.points.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(msg.points.data, length);
+                    for (t, s) in slice.iter_mut().zip(&self.points) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
+            Ok(())
         }
     }
     impl Default for Polygon {
         fn default() -> Self {
             let msg_native = WrappedNativeMsg::<Polygon>::new();
             Polygon::from_native(&msg_native)
+        }
+    }
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+    #[serde(default)]
+    pub struct PolygonInstance {
+        pub polygon: geometry_msgs::msg::Polygon,
+        pub id: i64,
+    }
+    unsafe impl WrappedTypesupport for PolygonInstance {
+        type CStruct = geometry_msgs__msg__PolygonInstance;
+        fn get_ts() -> &'static rosidl_message_type_support_t {
+            unsafe {
+                &*rosidl_typesupport_c__get_message_type_support_handle__geometry_msgs__msg__PolygonInstance()
+            }
+        }
+        fn create_msg() -> *mut geometry_msgs__msg__PolygonInstance {
+            #[cfg(not(feature = "doc-only"))]
+            unsafe { geometry_msgs__msg__PolygonInstance__create() }
+            #[cfg(feature = "doc-only")] geometry_msgs__msg__PolygonInstance__create()
+        }
+        fn destroy_msg(msg: *mut geometry_msgs__msg__PolygonInstance) -> () {
+            #[cfg(not(feature = "doc-only"))]
+            unsafe { geometry_msgs__msg__PolygonInstance__destroy(msg) };
+            #[cfg(feature = "doc-only")]
+            geometry_msgs__msg__PolygonInstance__destroy(msg)
+        }
+        fn from_native(#[allow(unused)] msg: &Self::CStruct) -> PolygonInstance {
+            PolygonInstance {
+                polygon: geometry_msgs::msg::Polygon::from_native(&msg.polygon),
+                id: msg.id,
+            }
+        }
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.polygon.try_copy_to_native(&mut msg.polygon)?;
+            msg.id = self.id;
+            Ok(())
+        }
+    }
+    impl Default for PolygonInstance {
+        fn default() -> Self {
+            let msg_native = WrappedNativeMsg::<PolygonInstance>::new();
+            PolygonInstance::from_native(&msg_native)
+        }
+    }
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+    #[serde(default)]
+    pub struct PolygonInstanceStamped {
+        pub header: std_msgs::msg::Header,
+        pub polygon: geometry_msgs::msg::PolygonInstance,
+    }
+    unsafe impl WrappedTypesupport for PolygonInstanceStamped {
+        type CStruct = geometry_msgs__msg__PolygonInstanceStamped;
+        fn get_ts() -> &'static rosidl_message_type_support_t {
+            unsafe {
+                &*rosidl_typesupport_c__get_message_type_support_handle__geometry_msgs__msg__PolygonInstanceStamped()
+            }
+        }
+        fn create_msg() -> *mut geometry_msgs__msg__PolygonInstanceStamped {
+            #[cfg(not(feature = "doc-only"))]
+            unsafe { geometry_msgs__msg__PolygonInstanceStamped__create() }
+            #[cfg(feature = "doc-only")]
+            geometry_msgs__msg__PolygonInstanceStamped__create()
+        }
+        fn destroy_msg(msg: *mut geometry_msgs__msg__PolygonInstanceStamped) -> () {
+            #[cfg(not(feature = "doc-only"))]
+            unsafe { geometry_msgs__msg__PolygonInstanceStamped__destroy(msg) };
+            #[cfg(feature = "doc-only")]
+            geometry_msgs__msg__PolygonInstanceStamped__destroy(msg)
+        }
+        fn from_native(#[allow(unused)] msg: &Self::CStruct) -> PolygonInstanceStamped {
+            PolygonInstanceStamped {
+                header: std_msgs::msg::Header::from_native(&msg.header),
+                polygon: geometry_msgs::msg::PolygonInstance::from_native(&msg.polygon),
+            }
+        }
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            self.polygon.try_copy_to_native(&mut msg.polygon)?;
+            Ok(())
+        }
+    }
+    impl Default for PolygonInstanceStamped {
+        fn default() -> Self {
+            let msg_native = WrappedNativeMsg::<PolygonInstanceStamped>::new();
+            PolygonInstanceStamped::from_native(&msg_native)
         }
     }
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -487,9 +680,18 @@ pub mod msg {
                 polygon: geometry_msgs::msg::Polygon::from_native(&msg.polygon),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            self.polygon.copy_to_native(&mut msg.polygon);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            self.polygon.try_copy_to_native(&mut msg.polygon)?;
+            Ok(())
         }
     }
     impl Default for PolygonStamped {
@@ -529,9 +731,18 @@ pub mod msg {
                 ),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.position.copy_to_native(&mut msg.position);
-            self.orientation.copy_to_native(&mut msg.orientation);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.position.try_copy_to_native(&mut msg.position)?;
+            self.orientation.try_copy_to_native(&mut msg.orientation)?;
+            Ok(())
         }
     }
     impl Default for Pose {
@@ -571,10 +782,19 @@ pub mod msg {
                 theta: msg.theta,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.x = self.x;
             msg.y = self.y;
             msg.theta = self.theta;
+            Ok(())
         }
     }
     impl Default for Pose2D {
@@ -611,32 +831,50 @@ pub mod msg {
                 header: std_msgs::msg::Header::from_native(&msg.header),
                 poses: {
                     let mut temp = Vec::with_capacity(msg.poses.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(msg.poses.data, msg.poses.size)
-                    };
-                    for s in slice {
-                        temp.push(geometry_msgs::msg::Pose::from_native(s));
+                    if msg.poses.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(msg.poses.data, msg.poses.size)
+                        };
+                        for s in slice {
+                            temp.push(geometry_msgs::msg::Pose::from_native(s));
+                        }
                     }
                     temp
                 },
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
             unsafe {
-                geometry_msgs__msg__Pose__Sequence__fini(&mut msg.poses);
-                geometry_msgs__msg__Pose__Sequence__init(
-                    &mut msg.poses,
-                    self.poses.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.poses.data,
-                    msg.poses.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.poses) {
-                    s.copy_to_native(t);
+                let length = self.poses.len();
+                if length > msg.poses.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !geometry_msgs__msg__Pose__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    geometry_msgs__msg__Pose__Sequence__fini(&mut msg.poses);
+                    msg.poses = replacement;
+                }
+                msg.poses.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(msg.poses.data, length);
+                    for (t, s) in slice.iter_mut().zip(&self.poses) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
+            Ok(())
         }
     }
     impl Default for PoseArray {
@@ -674,9 +912,18 @@ pub mod msg {
                 pose: geometry_msgs::msg::Pose::from_native(&msg.pose),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            self.pose.copy_to_native(&mut msg.pose);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            self.pose.try_copy_to_native(&mut msg.pose)?;
+            Ok(())
         }
     }
     impl Default for PoseStamped {
@@ -716,16 +963,18 @@ pub mod msg {
                 covariance: msg.covariance,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.pose.copy_to_native(&mut msg.pose);
-            assert_eq!(
-                self.covariance.len(),
-                36usize,
-                "Field {} is fixed size of {}!",
-                "covariance",
-                36usize,
-            );
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.pose.try_copy_to_native(&mut msg.pose)?;
             msg.covariance.copy_from_slice(&self.covariance[..36usize]);
+            Ok(())
         }
     }
     impl Default for PoseWithCovariance {
@@ -768,9 +1017,18 @@ pub mod msg {
                 pose: geometry_msgs::msg::PoseWithCovariance::from_native(&msg.pose),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            self.pose.copy_to_native(&mut msg.pose);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            self.pose.try_copy_to_native(&mut msg.pose)?;
+            Ok(())
         }
     }
     impl Default for PoseWithCovarianceStamped {
@@ -812,11 +1070,20 @@ pub mod msg {
                 w: msg.w,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.x = self.x;
             msg.y = self.y;
             msg.z = self.z;
             msg.w = self.w;
+            Ok(())
         }
     }
     impl Default for Quaternion {
@@ -855,9 +1122,18 @@ pub mod msg {
                 quaternion: geometry_msgs::msg::Quaternion::from_native(&msg.quaternion),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            self.quaternion.copy_to_native(&mut msg.quaternion);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            self.quaternion.try_copy_to_native(&mut msg.quaternion)?;
+            Ok(())
         }
     }
     impl Default for QuaternionStamped {
@@ -895,9 +1171,18 @@ pub mod msg {
                 rotation: geometry_msgs::msg::Quaternion::from_native(&msg.rotation),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.translation.copy_to_native(&mut msg.translation);
-            self.rotation.copy_to_native(&mut msg.rotation);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.translation.try_copy_to_native(&mut msg.translation)?;
+            self.rotation.try_copy_to_native(&mut msg.rotation)?;
+            Ok(())
         }
     }
     impl Default for Transform {
@@ -938,10 +1223,21 @@ pub mod msg {
                 transform: geometry_msgs::msg::Transform::from_native(&msg.transform),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            msg.child_frame_id.try_assign_bytes((&self.child_frame_id).as_bytes());
-            self.transform.copy_to_native(&mut msg.transform);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            check_rosidl_runtime_ret(
+                msg.child_frame_id.try_assign_bytes(self.child_frame_id.as_bytes()),
+            )?;
+            self.transform.try_copy_to_native(&mut msg.transform)?;
+            Ok(())
         }
     }
     impl Default for TransformStamped {
@@ -979,9 +1275,18 @@ pub mod msg {
                 angular: geometry_msgs::msg::Vector3::from_native(&msg.angular),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.linear.copy_to_native(&mut msg.linear);
-            self.angular.copy_to_native(&mut msg.angular);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.linear.try_copy_to_native(&mut msg.linear)?;
+            self.angular.try_copy_to_native(&mut msg.angular)?;
+            Ok(())
         }
     }
     impl Default for Twist {
@@ -1019,9 +1324,18 @@ pub mod msg {
                 twist: geometry_msgs::msg::Twist::from_native(&msg.twist),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            self.twist.copy_to_native(&mut msg.twist);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            self.twist.try_copy_to_native(&mut msg.twist)?;
+            Ok(())
         }
     }
     impl Default for TwistStamped {
@@ -1062,16 +1376,18 @@ pub mod msg {
                 covariance: msg.covariance,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.twist.copy_to_native(&mut msg.twist);
-            assert_eq!(
-                self.covariance.len(),
-                36usize,
-                "Field {} is fixed size of {}!",
-                "covariance",
-                36usize,
-            );
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.twist.try_copy_to_native(&mut msg.twist)?;
             msg.covariance.copy_from_slice(&self.covariance[..36usize]);
+            Ok(())
         }
     }
     impl Default for TwistWithCovariance {
@@ -1114,9 +1430,18 @@ pub mod msg {
                 twist: geometry_msgs::msg::TwistWithCovariance::from_native(&msg.twist),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            self.twist.copy_to_native(&mut msg.twist);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            self.twist.try_copy_to_native(&mut msg.twist)?;
+            Ok(())
         }
     }
     impl Default for TwistWithCovarianceStamped {
@@ -1156,10 +1481,19 @@ pub mod msg {
                 z: msg.z,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.x = self.x;
             msg.y = self.y;
             msg.z = self.z;
+            Ok(())
         }
     }
     impl Default for Vector3 {
@@ -1197,15 +1531,160 @@ pub mod msg {
                 vector: geometry_msgs::msg::Vector3::from_native(&msg.vector),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            self.vector.copy_to_native(&mut msg.vector);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            self.vector.try_copy_to_native(&mut msg.vector)?;
+            Ok(())
         }
     }
     impl Default for Vector3Stamped {
         fn default() -> Self {
             let msg_native = WrappedNativeMsg::<Vector3Stamped>::new();
             Vector3Stamped::from_native(&msg_native)
+        }
+    }
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+    #[serde(default)]
+    pub struct VelocityStamped {
+        pub header: std_msgs::msg::Header,
+        pub body_frame_id: crate::RosString,
+        pub reference_frame_id: crate::RosString,
+        pub velocity: geometry_msgs::msg::Twist,
+    }
+    unsafe impl WrappedTypesupport for VelocityStamped {
+        type CStruct = geometry_msgs__msg__VelocityStamped;
+        fn get_ts() -> &'static rosidl_message_type_support_t {
+            unsafe {
+                &*rosidl_typesupport_c__get_message_type_support_handle__geometry_msgs__msg__VelocityStamped()
+            }
+        }
+        fn create_msg() -> *mut geometry_msgs__msg__VelocityStamped {
+            #[cfg(not(feature = "doc-only"))]
+            unsafe { geometry_msgs__msg__VelocityStamped__create() }
+            #[cfg(feature = "doc-only")] geometry_msgs__msg__VelocityStamped__create()
+        }
+        fn destroy_msg(msg: *mut geometry_msgs__msg__VelocityStamped) -> () {
+            #[cfg(not(feature = "doc-only"))]
+            unsafe { geometry_msgs__msg__VelocityStamped__destroy(msg) };
+            #[cfg(feature = "doc-only")]
+            geometry_msgs__msg__VelocityStamped__destroy(msg)
+        }
+        fn from_native(#[allow(unused)] msg: &Self::CStruct) -> VelocityStamped {
+            VelocityStamped {
+                header: std_msgs::msg::Header::from_native(&msg.header),
+                body_frame_id: crate::RosString::from(msg.body_frame_id.as_bytes()),
+                reference_frame_id: crate::RosString::from(
+                    msg.reference_frame_id.as_bytes(),
+                ),
+                velocity: geometry_msgs::msg::Twist::from_native(&msg.velocity),
+            }
+        }
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            check_rosidl_runtime_ret(
+                msg.body_frame_id.try_assign_bytes(self.body_frame_id.as_bytes()),
+            )?;
+            check_rosidl_runtime_ret(
+                msg
+                    .reference_frame_id
+                    .try_assign_bytes(self.reference_frame_id.as_bytes()),
+            )?;
+            self.velocity.try_copy_to_native(&mut msg.velocity)?;
+            Ok(())
+        }
+    }
+    impl Default for VelocityStamped {
+        fn default() -> Self {
+            let msg_native = WrappedNativeMsg::<VelocityStamped>::new();
+            VelocityStamped::from_native(&msg_native)
+        }
+    }
+    #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+    #[serde(default)]
+    pub struct VelocityWithCovarianceStamped {
+        pub header: std_msgs::msg::Header,
+        pub body_frame_id: crate::RosString,
+        pub reference_frame_id: crate::RosString,
+        pub velocity: geometry_msgs::msg::TwistWithCovariance,
+    }
+    unsafe impl WrappedTypesupport for VelocityWithCovarianceStamped {
+        type CStruct = geometry_msgs__msg__VelocityWithCovarianceStamped;
+        fn get_ts() -> &'static rosidl_message_type_support_t {
+            unsafe {
+                &*rosidl_typesupport_c__get_message_type_support_handle__geometry_msgs__msg__VelocityWithCovarianceStamped()
+            }
+        }
+        fn create_msg() -> *mut geometry_msgs__msg__VelocityWithCovarianceStamped {
+            #[cfg(not(feature = "doc-only"))]
+            unsafe { geometry_msgs__msg__VelocityWithCovarianceStamped__create() }
+            #[cfg(feature = "doc-only")]
+            geometry_msgs__msg__VelocityWithCovarianceStamped__create()
+        }
+        fn destroy_msg(
+            msg: *mut geometry_msgs__msg__VelocityWithCovarianceStamped,
+        ) -> () {
+            #[cfg(not(feature = "doc-only"))]
+            unsafe { geometry_msgs__msg__VelocityWithCovarianceStamped__destroy(msg) };
+            #[cfg(feature = "doc-only")]
+            geometry_msgs__msg__VelocityWithCovarianceStamped__destroy(msg)
+        }
+        fn from_native(
+            #[allow(unused)]
+            msg: &Self::CStruct,
+        ) -> VelocityWithCovarianceStamped {
+            VelocityWithCovarianceStamped {
+                header: std_msgs::msg::Header::from_native(&msg.header),
+                body_frame_id: crate::RosString::from(msg.body_frame_id.as_bytes()),
+                reference_frame_id: crate::RosString::from(
+                    msg.reference_frame_id.as_bytes(),
+                ),
+                velocity: geometry_msgs::msg::TwistWithCovariance::from_native(
+                    &msg.velocity,
+                ),
+            }
+        }
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            check_rosidl_runtime_ret(
+                msg.body_frame_id.try_assign_bytes(self.body_frame_id.as_bytes()),
+            )?;
+            check_rosidl_runtime_ret(
+                msg
+                    .reference_frame_id
+                    .try_assign_bytes(self.reference_frame_id.as_bytes()),
+            )?;
+            self.velocity.try_copy_to_native(&mut msg.velocity)?;
+            Ok(())
+        }
+    }
+    impl Default for VelocityWithCovarianceStamped {
+        fn default() -> Self {
+            let msg_native = WrappedNativeMsg::<VelocityWithCovarianceStamped>::new();
+            VelocityWithCovarianceStamped::from_native(&msg_native)
         }
     }
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1237,9 +1716,18 @@ pub mod msg {
                 torque: geometry_msgs::msg::Vector3::from_native(&msg.torque),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.force.copy_to_native(&mut msg.force);
-            self.torque.copy_to_native(&mut msg.torque);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.force.try_copy_to_native(&mut msg.force)?;
+            self.torque.try_copy_to_native(&mut msg.torque)?;
+            Ok(())
         }
     }
     impl Default for Wrench {
@@ -1277,9 +1765,18 @@ pub mod msg {
                 wrench: geometry_msgs::msg::Wrench::from_native(&msg.wrench),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            self.wrench.copy_to_native(&mut msg.wrench);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            self.wrench.try_copy_to_native(&mut msg.wrench)?;
+            Ok(())
         }
     }
     impl Default for WrenchStamped {

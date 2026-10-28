@@ -24,8 +24,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Bool {
             Bool { data: msg.data }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.data = self.data;
+            Ok(())
         }
     }
     impl Default for Bool {
@@ -58,8 +67,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Byte {
             Byte { data: msg.data }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.data = self.data;
+            Ok(())
         }
     }
     impl Default for Byte {
@@ -97,9 +115,18 @@ pub mod msg {
                 data: msg.data.to_vec(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.layout.copy_to_native(&mut msg.layout);
-            msg.data.update(&self.data);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.layout.try_copy_to_native(&mut msg.layout)?;
+            check_rosidl_runtime_ret(msg.data.try_update(&self.data))?;
+            Ok(())
         }
     }
     impl Default for ByteMultiArray {
@@ -132,8 +159,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Char {
             Char { data: msg.data }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.data = self.data;
+            Ok(())
         }
     }
     impl Default for Char {
@@ -175,11 +211,20 @@ pub mod msg {
                 a: msg.a,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.r = self.r;
             msg.g = self.g;
             msg.b = self.b;
             msg.a = self.a;
+            Ok(())
         }
     }
     impl Default for ColorRGBA {
@@ -210,7 +255,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Empty {
             Empty {}
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {}
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            Ok(())
+        }
     }
     impl Default for Empty {
         fn default() -> Self {
@@ -242,8 +297,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Float32 {
             Float32 { data: msg.data }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.data = self.data;
+            Ok(())
         }
     }
     impl Default for Float32 {
@@ -281,9 +345,18 @@ pub mod msg {
                 data: msg.data.to_vec(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.layout.copy_to_native(&mut msg.layout);
-            msg.data.update(&self.data);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.layout.try_copy_to_native(&mut msg.layout)?;
+            check_rosidl_runtime_ret(msg.data.try_update(&self.data))?;
+            Ok(())
         }
     }
     impl Default for Float32MultiArray {
@@ -316,8 +389,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Float64 {
             Float64 { data: msg.data }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.data = self.data;
+            Ok(())
         }
     }
     impl Default for Float64 {
@@ -355,9 +437,18 @@ pub mod msg {
                 data: msg.data.to_vec(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.layout.copy_to_native(&mut msg.layout);
-            msg.data.update(&self.data);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.layout.try_copy_to_native(&mut msg.layout)?;
+            check_rosidl_runtime_ret(msg.data.try_update(&self.data))?;
+            Ok(())
         }
     }
     impl Default for Float64MultiArray {
@@ -394,9 +485,20 @@ pub mod msg {
                 frame_id: crate::RosString::from(msg.frame_id.as_bytes()),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.stamp.copy_to_native(&mut msg.stamp);
-            msg.frame_id.try_assign_bytes((&self.frame_id).as_bytes());
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.stamp.try_copy_to_native(&mut msg.stamp)?;
+            check_rosidl_runtime_ret(
+                msg.frame_id.try_assign_bytes(self.frame_id.as_bytes()),
+            )?;
+            Ok(())
         }
     }
     impl Default for Header {
@@ -429,8 +531,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Int16 {
             Int16 { data: msg.data }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.data = self.data;
+            Ok(())
         }
     }
     impl Default for Int16 {
@@ -468,9 +579,18 @@ pub mod msg {
                 data: msg.data.to_vec(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.layout.copy_to_native(&mut msg.layout);
-            msg.data.update(&self.data);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.layout.try_copy_to_native(&mut msg.layout)?;
+            check_rosidl_runtime_ret(msg.data.try_update(&self.data))?;
+            Ok(())
         }
     }
     impl Default for Int16MultiArray {
@@ -503,8 +623,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Int32 {
             Int32 { data: msg.data }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.data = self.data;
+            Ok(())
         }
     }
     impl Default for Int32 {
@@ -542,9 +671,18 @@ pub mod msg {
                 data: msg.data.to_vec(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.layout.copy_to_native(&mut msg.layout);
-            msg.data.update(&self.data);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.layout.try_copy_to_native(&mut msg.layout)?;
+            check_rosidl_runtime_ret(msg.data.try_update(&self.data))?;
+            Ok(())
         }
     }
     impl Default for Int32MultiArray {
@@ -577,8 +715,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Int64 {
             Int64 { data: msg.data }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.data = self.data;
+            Ok(())
         }
     }
     impl Default for Int64 {
@@ -616,9 +763,18 @@ pub mod msg {
                 data: msg.data.to_vec(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.layout.copy_to_native(&mut msg.layout);
-            msg.data.update(&self.data);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.layout.try_copy_to_native(&mut msg.layout)?;
+            check_rosidl_runtime_ret(msg.data.try_update(&self.data))?;
+            Ok(())
         }
     }
     impl Default for Int64MultiArray {
@@ -651,8 +807,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Int8 {
             Int8 { data: msg.data }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.data = self.data;
+            Ok(())
         }
     }
     impl Default for Int8 {
@@ -690,9 +855,18 @@ pub mod msg {
                 data: msg.data.to_vec(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.layout.copy_to_native(&mut msg.layout);
-            msg.data.update(&self.data);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.layout.try_copy_to_native(&mut msg.layout)?;
+            check_rosidl_runtime_ret(msg.data.try_update(&self.data))?;
+            Ok(())
         }
     }
     impl Default for Int8MultiArray {
@@ -732,10 +906,19 @@ pub mod msg {
                 stride: msg.stride,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.label.try_assign_bytes((&self.label).as_bytes());
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            check_rosidl_runtime_ret(msg.label.try_assign_bytes(self.label.as_bytes()))?;
             msg.size = self.size;
             msg.stride = self.stride;
+            Ok(())
         }
     }
     impl Default for MultiArrayDimension {
@@ -771,30 +954,53 @@ pub mod msg {
             MultiArrayLayout {
                 dim: {
                     let mut temp = Vec::with_capacity(msg.dim.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(msg.dim.data, msg.dim.size)
-                    };
-                    for s in slice {
-                        temp.push(std_msgs::msg::MultiArrayDimension::from_native(s));
+                    if msg.dim.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(msg.dim.data, msg.dim.size)
+                        };
+                        for s in slice {
+                            temp.push(
+                                std_msgs::msg::MultiArrayDimension::from_native(s),
+                            );
+                        }
                     }
                     temp
                 },
                 data_offset: msg.data_offset,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             unsafe {
-                std_msgs__msg__MultiArrayDimension__Sequence__fini(&mut msg.dim);
-                std_msgs__msg__MultiArrayDimension__Sequence__init(
-                    &mut msg.dim,
-                    self.dim.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(msg.dim.data, msg.dim.size);
-                for (t, s) in slice.iter_mut().zip(&self.dim) {
-                    s.copy_to_native(t);
+                let length = self.dim.len();
+                if length > msg.dim.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !std_msgs__msg__MultiArrayDimension__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    std_msgs__msg__MultiArrayDimension__Sequence__fini(&mut msg.dim);
+                    msg.dim = replacement;
+                }
+                msg.dim.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(msg.dim.data, length);
+                    for (t, s) in slice.iter_mut().zip(&self.dim) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
             msg.data_offset = self.data_offset;
+            Ok(())
         }
     }
     impl Default for MultiArrayLayout {
@@ -829,8 +1035,17 @@ pub mod msg {
                 data: crate::RosString::from(msg.data.as_bytes()),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.data.try_assign_bytes((&self.data).as_bytes());
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            check_rosidl_runtime_ret(msg.data.try_assign_bytes(self.data.as_bytes()))?;
+            Ok(())
         }
     }
     impl Default for String {
@@ -863,8 +1078,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> UInt16 {
             UInt16 { data: msg.data }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.data = self.data;
+            Ok(())
         }
     }
     impl Default for UInt16 {
@@ -902,9 +1126,18 @@ pub mod msg {
                 data: msg.data.to_vec(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.layout.copy_to_native(&mut msg.layout);
-            msg.data.update(&self.data);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.layout.try_copy_to_native(&mut msg.layout)?;
+            check_rosidl_runtime_ret(msg.data.try_update(&self.data))?;
+            Ok(())
         }
     }
     impl Default for UInt16MultiArray {
@@ -937,8 +1170,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> UInt32 {
             UInt32 { data: msg.data }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.data = self.data;
+            Ok(())
         }
     }
     impl Default for UInt32 {
@@ -976,9 +1218,18 @@ pub mod msg {
                 data: msg.data.to_vec(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.layout.copy_to_native(&mut msg.layout);
-            msg.data.update(&self.data);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.layout.try_copy_to_native(&mut msg.layout)?;
+            check_rosidl_runtime_ret(msg.data.try_update(&self.data))?;
+            Ok(())
         }
     }
     impl Default for UInt32MultiArray {
@@ -1011,8 +1262,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> UInt64 {
             UInt64 { data: msg.data }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.data = self.data;
+            Ok(())
         }
     }
     impl Default for UInt64 {
@@ -1050,9 +1310,18 @@ pub mod msg {
                 data: msg.data.to_vec(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.layout.copy_to_native(&mut msg.layout);
-            msg.data.update(&self.data);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.layout.try_copy_to_native(&mut msg.layout)?;
+            check_rosidl_runtime_ret(msg.data.try_update(&self.data))?;
+            Ok(())
         }
     }
     impl Default for UInt64MultiArray {
@@ -1085,8 +1354,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> UInt8 {
             UInt8 { data: msg.data }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.data = self.data;
+            Ok(())
         }
     }
     impl Default for UInt8 {
@@ -1124,9 +1402,18 @@ pub mod msg {
                 data: msg.data.to_vec(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.layout.copy_to_native(&mut msg.layout);
-            msg.data.update(&self.data);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.layout.try_copy_to_native(&mut msg.layout)?;
+            check_rosidl_runtime_ret(msg.data.try_update(&self.data))?;
+            Ok(())
         }
     }
     impl Default for UInt8MultiArray {

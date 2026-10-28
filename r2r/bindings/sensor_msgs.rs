@@ -57,8 +57,16 @@ pub mod msg {
                 serial_number: crate::RosString::from(msg.serial_number.as_bytes()),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
             msg.voltage = self.voltage;
             msg.temperature = self.temperature;
             msg.current = self.current;
@@ -70,10 +78,17 @@ pub mod msg {
             msg.power_supply_health = self.power_supply_health;
             msg.power_supply_technology = self.power_supply_technology;
             msg.present = self.present;
-            msg.cell_voltage.update(&self.cell_voltage);
-            msg.cell_temperature.update(&self.cell_temperature);
-            msg.location.try_assign_bytes((&self.location).as_bytes());
-            msg.serial_number.try_assign_bytes((&self.serial_number).as_bytes());
+            check_rosidl_runtime_ret(msg.cell_voltage.try_update(&self.cell_voltage))?;
+            check_rosidl_runtime_ret(
+                msg.cell_temperature.try_update(&self.cell_temperature),
+            )?;
+            check_rosidl_runtime_ret(
+                msg.location.try_assign_bytes(self.location.as_bytes()),
+            )?;
+            check_rosidl_runtime_ret(
+                msg.serial_number.try_assign_bytes(self.serial_number.as_bytes()),
+            )?;
+            Ok(())
         }
     }
     impl Default for BatteryState {
@@ -84,27 +99,29 @@ pub mod msg {
     }
     #[allow(non_upper_case_globals)]
     impl BatteryState {
-        pub const POWER_SUPPLY_HEALTH_COLD: _bindgen_ty_91 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_HEALTH_COLD;
-        pub const POWER_SUPPLY_HEALTH_DEAD: _bindgen_ty_88 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_HEALTH_DEAD;
-        pub const POWER_SUPPLY_HEALTH_GOOD: _bindgen_ty_86 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_HEALTH_GOOD;
-        pub const POWER_SUPPLY_HEALTH_OVERHEAT: _bindgen_ty_87 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_HEALTH_OVERHEAT;
-        pub const POWER_SUPPLY_HEALTH_OVERVOLTAGE: _bindgen_ty_89 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_HEALTH_OVERVOLTAGE;
-        pub const POWER_SUPPLY_HEALTH_SAFETY_TIMER_EXPIRE: _bindgen_ty_93 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_HEALTH_SAFETY_TIMER_EXPIRE;
-        pub const POWER_SUPPLY_HEALTH_UNKNOWN: _bindgen_ty_85 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_HEALTH_UNKNOWN;
-        pub const POWER_SUPPLY_HEALTH_UNSPEC_FAILURE: _bindgen_ty_90 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_HEALTH_UNSPEC_FAILURE;
-        pub const POWER_SUPPLY_HEALTH_WATCHDOG_TIMER_EXPIRE: _bindgen_ty_92 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_HEALTH_WATCHDOG_TIMER_EXPIRE;
-        pub const POWER_SUPPLY_STATUS_CHARGING: _bindgen_ty_81 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_STATUS_CHARGING;
-        pub const POWER_SUPPLY_STATUS_DISCHARGING: _bindgen_ty_82 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_STATUS_DISCHARGING;
-        pub const POWER_SUPPLY_STATUS_FULL: _bindgen_ty_84 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_STATUS_FULL;
-        pub const POWER_SUPPLY_STATUS_NOT_CHARGING: _bindgen_ty_83 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_STATUS_NOT_CHARGING;
-        pub const POWER_SUPPLY_STATUS_UNKNOWN: _bindgen_ty_80 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_STATUS_UNKNOWN;
-        pub const POWER_SUPPLY_TECHNOLOGY_LIFE: _bindgen_ty_98 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_TECHNOLOGY_LIFE;
-        pub const POWER_SUPPLY_TECHNOLOGY_LIMN: _bindgen_ty_100 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_TECHNOLOGY_LIMN;
-        pub const POWER_SUPPLY_TECHNOLOGY_LION: _bindgen_ty_96 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_TECHNOLOGY_LION;
-        pub const POWER_SUPPLY_TECHNOLOGY_LIPO: _bindgen_ty_97 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_TECHNOLOGY_LIPO;
-        pub const POWER_SUPPLY_TECHNOLOGY_NICD: _bindgen_ty_99 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_TECHNOLOGY_NICD;
-        pub const POWER_SUPPLY_TECHNOLOGY_NIMH: _bindgen_ty_95 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_TECHNOLOGY_NIMH;
-        pub const POWER_SUPPLY_TECHNOLOGY_UNKNOWN: _bindgen_ty_94 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_TECHNOLOGY_UNKNOWN;
+        pub const POWER_SUPPLY_HEALTH_COLD: _bindgen_ty_281 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_HEALTH_COLD;
+        pub const POWER_SUPPLY_HEALTH_DEAD: _bindgen_ty_278 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_HEALTH_DEAD;
+        pub const POWER_SUPPLY_HEALTH_GOOD: _bindgen_ty_276 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_HEALTH_GOOD;
+        pub const POWER_SUPPLY_HEALTH_OVERHEAT: _bindgen_ty_277 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_HEALTH_OVERHEAT;
+        pub const POWER_SUPPLY_HEALTH_OVERVOLTAGE: _bindgen_ty_279 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_HEALTH_OVERVOLTAGE;
+        pub const POWER_SUPPLY_HEALTH_SAFETY_TIMER_EXPIRE: _bindgen_ty_283 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_HEALTH_SAFETY_TIMER_EXPIRE;
+        pub const POWER_SUPPLY_HEALTH_UNKNOWN: _bindgen_ty_275 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_HEALTH_UNKNOWN;
+        pub const POWER_SUPPLY_HEALTH_UNSPEC_FAILURE: _bindgen_ty_280 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_HEALTH_UNSPEC_FAILURE;
+        pub const POWER_SUPPLY_HEALTH_WATCHDOG_TIMER_EXPIRE: _bindgen_ty_282 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_HEALTH_WATCHDOG_TIMER_EXPIRE;
+        pub const POWER_SUPPLY_STATUS_CHARGING: _bindgen_ty_271 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_STATUS_CHARGING;
+        pub const POWER_SUPPLY_STATUS_DISCHARGING: _bindgen_ty_272 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_STATUS_DISCHARGING;
+        pub const POWER_SUPPLY_STATUS_FULL: _bindgen_ty_274 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_STATUS_FULL;
+        pub const POWER_SUPPLY_STATUS_NOT_CHARGING: _bindgen_ty_273 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_STATUS_NOT_CHARGING;
+        pub const POWER_SUPPLY_STATUS_UNKNOWN: _bindgen_ty_270 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_STATUS_UNKNOWN;
+        pub const POWER_SUPPLY_TECHNOLOGY_LIFE: _bindgen_ty_288 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_TECHNOLOGY_LIFE;
+        pub const POWER_SUPPLY_TECHNOLOGY_LIMN: _bindgen_ty_290 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_TECHNOLOGY_LIMN;
+        pub const POWER_SUPPLY_TECHNOLOGY_LION: _bindgen_ty_286 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_TECHNOLOGY_LION;
+        pub const POWER_SUPPLY_TECHNOLOGY_LIPO: _bindgen_ty_287 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_TECHNOLOGY_LIPO;
+        pub const POWER_SUPPLY_TECHNOLOGY_NICD: _bindgen_ty_289 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_TECHNOLOGY_NICD;
+        pub const POWER_SUPPLY_TECHNOLOGY_NIMH: _bindgen_ty_285 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_TECHNOLOGY_NIMH;
+        pub const POWER_SUPPLY_TECHNOLOGY_TERNARY: _bindgen_ty_291 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_TECHNOLOGY_TERNARY;
+        pub const POWER_SUPPLY_TECHNOLOGY_UNKNOWN: _bindgen_ty_284 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_TECHNOLOGY_UNKNOWN;
+        pub const POWER_SUPPLY_TECHNOLOGY_VRLA: _bindgen_ty_292 = sensor_msgs__msg__BatteryState__POWER_SUPPLY_TECHNOLOGY_VRLA;
     }
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
@@ -158,39 +175,29 @@ pub mod msg {
                 roi: sensor_msgs::msg::RegionOfInterest::from_native(&msg.roi),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
             msg.height = self.height;
             msg.width = self.width;
-            msg.distortion_model.try_assign_bytes((&self.distortion_model).as_bytes());
-            msg.d.update(&self.d);
-            assert_eq!(
-                self.k.len(),
-                9usize,
-                "Field {} is fixed size of {}!",
-                "k",
-                9usize,
-            );
+            check_rosidl_runtime_ret(
+                msg.distortion_model.try_assign_bytes(self.distortion_model.as_bytes()),
+            )?;
+            check_rosidl_runtime_ret(msg.d.try_update(&self.d))?;
             msg.k.copy_from_slice(&self.k[..9usize]);
-            assert_eq!(
-                self.r.len(),
-                9usize,
-                "Field {} is fixed size of {}!",
-                "r",
-                9usize,
-            );
             msg.r.copy_from_slice(&self.r[..9usize]);
-            assert_eq!(
-                self.p.len(),
-                12usize,
-                "Field {} is fixed size of {}!",
-                "p",
-                12usize,
-            );
             msg.p.copy_from_slice(&self.p[..12usize]);
             msg.binning_x = self.binning_x;
             msg.binning_y = self.binning_y;
-            self.roi.copy_to_native(&mut msg.roi);
+            self.roi.try_copy_to_native(&mut msg.roi)?;
+            Ok(())
         }
     }
     impl Default for CameraInfo {
@@ -228,9 +235,18 @@ pub mod msg {
                 values: msg.values.to_vec(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.name.try_assign_bytes((&self.name).as_bytes());
-            msg.values.update(&self.values);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            check_rosidl_runtime_ret(msg.name.try_assign_bytes(self.name.as_bytes()))?;
+            check_rosidl_runtime_ret(msg.values.try_update(&self.values))?;
+            Ok(())
         }
     }
     impl Default for ChannelFloat32 {
@@ -270,10 +286,21 @@ pub mod msg {
                 data: msg.data.to_vec(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            msg.format.try_assign_bytes((&self.format).as_bytes());
-            msg.data.update(&self.data);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            check_rosidl_runtime_ret(
+                msg.format.try_assign_bytes(self.format.as_bytes()),
+            )?;
+            check_rosidl_runtime_ret(msg.data.try_update(&self.data))?;
+            Ok(())
         }
     }
     impl Default for CompressedImage {
@@ -313,10 +340,19 @@ pub mod msg {
                 variance: msg.variance,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
             msg.fluid_pressure = self.fluid_pressure;
             msg.variance = self.variance;
+            Ok(())
         }
     }
     impl Default for FluidPressure {
@@ -356,10 +392,19 @@ pub mod msg {
                 variance: msg.variance,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
             msg.illuminance = self.illuminance;
             msg.variance = self.variance;
+            Ok(())
         }
     }
     impl Default for Illuminance {
@@ -407,14 +452,25 @@ pub mod msg {
                 data: msg.data.to_vec(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
             msg.height = self.height;
             msg.width = self.width;
-            msg.encoding.try_assign_bytes((&self.encoding).as_bytes());
+            check_rosidl_runtime_ret(
+                msg.encoding.try_assign_bytes(self.encoding.as_bytes()),
+            )?;
             msg.is_bigendian = self.is_bigendian;
             msg.step = self.step;
-            msg.data.update(&self.data);
+            check_rosidl_runtime_ret(msg.data.try_update(&self.data))?;
+            Ok(())
         }
     }
     impl Default for Image {
@@ -470,38 +526,26 @@ pub mod msg {
                 linear_acceleration_covariance: msg.linear_acceleration_covariance,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            self.orientation.copy_to_native(&mut msg.orientation);
-            assert_eq!(
-                self.orientation_covariance.len(),
-                9usize,
-                "Field {} is fixed size of {}!",
-                "orientation_covariance",
-                9usize,
-            );
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            self.orientation.try_copy_to_native(&mut msg.orientation)?;
             msg.orientation_covariance
                 .copy_from_slice(&self.orientation_covariance[..9usize]);
-            self.angular_velocity.copy_to_native(&mut msg.angular_velocity);
-            assert_eq!(
-                self.angular_velocity_covariance.len(),
-                9usize,
-                "Field {} is fixed size of {}!",
-                "angular_velocity_covariance",
-                9usize,
-            );
+            self.angular_velocity.try_copy_to_native(&mut msg.angular_velocity)?;
             msg.angular_velocity_covariance
                 .copy_from_slice(&self.angular_velocity_covariance[..9usize]);
-            self.linear_acceleration.copy_to_native(&mut msg.linear_acceleration);
-            assert_eq!(
-                self.linear_acceleration_covariance.len(),
-                9usize,
-                "Field {} is fixed size of {}!",
-                "linear_acceleration_covariance",
-                9usize,
-            );
+            self.linear_acceleration.try_copy_to_native(&mut msg.linear_acceleration)?;
             msg.linear_acceleration_covariance
                 .copy_from_slice(&self.linear_acceleration_covariance[..9usize]);
+            Ok(())
         }
     }
     impl Default for Imu {
@@ -545,12 +589,21 @@ pub mod msg {
                 effort: msg.effort.to_vec(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            msg.name.try_update_bytes(&self.name);
-            msg.position.update(&self.position);
-            msg.velocity.update(&self.velocity);
-            msg.effort.update(&self.effort);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            check_rosidl_runtime_ret(msg.name.try_update_bytes(&self.name))?;
+            check_rosidl_runtime_ret(msg.position.try_update(&self.position))?;
+            check_rosidl_runtime_ret(msg.velocity.try_update(&self.velocity))?;
+            check_rosidl_runtime_ret(msg.effort.try_update(&self.effort))?;
+            Ok(())
         }
     }
     impl Default for JointState {
@@ -589,10 +642,19 @@ pub mod msg {
                 buttons: msg.buttons.to_vec(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            msg.axes.update(&self.axes);
-            msg.buttons.update(&self.buttons);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            check_rosidl_runtime_ret(msg.axes.try_update(&self.axes))?;
+            check_rosidl_runtime_ret(msg.buttons.try_update(&self.buttons))?;
+            Ok(())
         }
     }
     impl Default for Joy {
@@ -633,10 +695,19 @@ pub mod msg {
                 intensity: msg.intensity,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.type_ = self.type_;
             msg.id = self.id;
             msg.intensity = self.intensity;
+            Ok(())
         }
     }
     impl Default for JoyFeedback {
@@ -647,9 +718,9 @@ pub mod msg {
     }
     #[allow(non_upper_case_globals)]
     impl JoyFeedback {
-        pub const TYPE_BUZZER: _bindgen_ty_103 = sensor_msgs__msg__JoyFeedback__TYPE_BUZZER;
-        pub const TYPE_LED: _bindgen_ty_101 = sensor_msgs__msg__JoyFeedback__TYPE_LED;
-        pub const TYPE_RUMBLE: _bindgen_ty_102 = sensor_msgs__msg__JoyFeedback__TYPE_RUMBLE;
+        pub const TYPE_BUZZER: _bindgen_ty_295 = sensor_msgs__msg__JoyFeedback__TYPE_BUZZER;
+        pub const TYPE_LED: _bindgen_ty_293 = sensor_msgs__msg__JoyFeedback__TYPE_LED;
+        pub const TYPE_RUMBLE: _bindgen_ty_294 = sensor_msgs__msg__JoyFeedback__TYPE_RUMBLE;
     }
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
@@ -677,31 +748,49 @@ pub mod msg {
             JoyFeedbackArray {
                 array: {
                     let mut temp = Vec::with_capacity(msg.array.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(msg.array.data, msg.array.size)
-                    };
-                    for s in slice {
-                        temp.push(sensor_msgs::msg::JoyFeedback::from_native(s));
+                    if msg.array.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(msg.array.data, msg.array.size)
+                        };
+                        for s in slice {
+                            temp.push(sensor_msgs::msg::JoyFeedback::from_native(s));
+                        }
                     }
                     temp
                 },
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             unsafe {
-                sensor_msgs__msg__JoyFeedback__Sequence__fini(&mut msg.array);
-                sensor_msgs__msg__JoyFeedback__Sequence__init(
-                    &mut msg.array,
-                    self.array.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.array.data,
-                    msg.array.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.array) {
-                    s.copy_to_native(t);
+                let length = self.array.len();
+                if length > msg.array.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !sensor_msgs__msg__JoyFeedback__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    sensor_msgs__msg__JoyFeedback__Sequence__fini(&mut msg.array);
+                    msg.array = replacement;
+                }
+                msg.array.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(msg.array.data, length);
+                    for (t, s) in slice.iter_mut().zip(&self.array) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
+            Ok(())
         }
     }
     impl Default for JoyFeedbackArray {
@@ -737,8 +826,17 @@ pub mod msg {
                 echoes: msg.echoes.to_vec(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.echoes.update(&self.echoes);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            check_rosidl_runtime_ret(msg.echoes.try_update(&self.echoes))?;
+            Ok(())
         }
     }
     impl Default for LaserEcho {
@@ -792,8 +890,16 @@ pub mod msg {
                 intensities: msg.intensities.to_vec(),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
             msg.angle_min = self.angle_min;
             msg.angle_max = self.angle_max;
             msg.angle_increment = self.angle_increment;
@@ -801,8 +907,9 @@ pub mod msg {
             msg.scan_time = self.scan_time;
             msg.range_min = self.range_min;
             msg.range_max = self.range_max;
-            msg.ranges.update(&self.ranges);
-            msg.intensities.update(&self.intensities);
+            check_rosidl_runtime_ret(msg.ranges.try_update(&self.ranges))?;
+            check_rosidl_runtime_ret(msg.intensities.try_update(&self.intensities))?;
+            Ok(())
         }
     }
     impl Default for LaserScan {
@@ -845,18 +952,20 @@ pub mod msg {
                 magnetic_field_covariance: msg.magnetic_field_covariance,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            self.magnetic_field.copy_to_native(&mut msg.magnetic_field);
-            assert_eq!(
-                self.magnetic_field_covariance.len(),
-                9usize,
-                "Field {} is fixed size of {}!",
-                "magnetic_field_covariance",
-                9usize,
-            );
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            self.magnetic_field.try_copy_to_native(&mut msg.magnetic_field)?;
             msg.magnetic_field_covariance
                 .copy_from_slice(&self.magnetic_field_covariance[..9usize]);
+            Ok(())
         }
     }
     impl Default for MagneticField {
@@ -898,84 +1007,125 @@ pub mod msg {
                 joint_names: msg.joint_names.to_bytes_vec::<crate::RosString>(),
                 transforms: {
                     let mut temp = Vec::with_capacity(msg.transforms.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.transforms.data,
-                            msg.transforms.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(geometry_msgs::msg::Transform::from_native(s));
+                    if msg.transforms.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.transforms.data,
+                                msg.transforms.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(geometry_msgs::msg::Transform::from_native(s));
+                        }
                     }
                     temp
                 },
                 twist: {
                     let mut temp = Vec::with_capacity(msg.twist.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(msg.twist.data, msg.twist.size)
-                    };
-                    for s in slice {
-                        temp.push(geometry_msgs::msg::Twist::from_native(s));
+                    if msg.twist.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(msg.twist.data, msg.twist.size)
+                        };
+                        for s in slice {
+                            temp.push(geometry_msgs::msg::Twist::from_native(s));
+                        }
                     }
                     temp
                 },
                 wrench: {
                     let mut temp = Vec::with_capacity(msg.wrench.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(msg.wrench.data, msg.wrench.size)
-                    };
-                    for s in slice {
-                        temp.push(geometry_msgs::msg::Wrench::from_native(s));
+                    if msg.wrench.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(msg.wrench.data, msg.wrench.size)
+                        };
+                        for s in slice {
+                            temp.push(geometry_msgs::msg::Wrench::from_native(s));
+                        }
                     }
                     temp
                 },
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            msg.joint_names.try_update_bytes(&self.joint_names);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            check_rosidl_runtime_ret(
+                msg.joint_names.try_update_bytes(&self.joint_names),
+            )?;
             unsafe {
-                geometry_msgs__msg__Transform__Sequence__fini(&mut msg.transforms);
-                geometry_msgs__msg__Transform__Sequence__init(
-                    &mut msg.transforms,
-                    self.transforms.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.transforms.data,
-                    msg.transforms.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.transforms) {
-                    s.copy_to_native(t);
+                let length = self.transforms.len();
+                if length > msg.transforms.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !geometry_msgs__msg__Transform__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    geometry_msgs__msg__Transform__Sequence__fini(&mut msg.transforms);
+                    msg.transforms = replacement;
+                }
+                msg.transforms.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.transforms.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.transforms) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
             unsafe {
-                geometry_msgs__msg__Twist__Sequence__fini(&mut msg.twist);
-                geometry_msgs__msg__Twist__Sequence__init(
-                    &mut msg.twist,
-                    self.twist.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.twist.data,
-                    msg.twist.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.twist) {
-                    s.copy_to_native(t);
+                let length = self.twist.len();
+                if length > msg.twist.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !geometry_msgs__msg__Twist__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    geometry_msgs__msg__Twist__Sequence__fini(&mut msg.twist);
+                    msg.twist = replacement;
+                }
+                msg.twist.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(msg.twist.data, length);
+                    for (t, s) in slice.iter_mut().zip(&self.twist) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
             unsafe {
-                geometry_msgs__msg__Wrench__Sequence__fini(&mut msg.wrench);
-                geometry_msgs__msg__Wrench__Sequence__init(
-                    &mut msg.wrench,
-                    self.wrench.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.wrench.data,
-                    msg.wrench.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.wrench) {
-                    s.copy_to_native(t);
+                let length = self.wrench.len();
+                if length > msg.wrench.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !geometry_msgs__msg__Wrench__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    geometry_msgs__msg__Wrench__Sequence__fini(&mut msg.wrench);
+                    msg.wrench = replacement;
+                }
+                msg.wrench.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(msg.wrench.data, length);
+                    for (t, s) in slice.iter_mut().zip(&self.wrench) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
+            Ok(())
         }
     }
     impl Default for MultiDOFJointState {
@@ -1028,31 +1178,43 @@ pub mod msg {
                 range_max: msg.range_max,
                 ranges: {
                     let mut temp = Vec::with_capacity(msg.ranges.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(msg.ranges.data, msg.ranges.size)
-                    };
-                    for s in slice {
-                        temp.push(sensor_msgs::msg::LaserEcho::from_native(s));
+                    if msg.ranges.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(msg.ranges.data, msg.ranges.size)
+                        };
+                        for s in slice {
+                            temp.push(sensor_msgs::msg::LaserEcho::from_native(s));
+                        }
                     }
                     temp
                 },
                 intensities: {
                     let mut temp = Vec::with_capacity(msg.intensities.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(
-                            msg.intensities.data,
-                            msg.intensities.size,
-                        )
-                    };
-                    for s in slice {
-                        temp.push(sensor_msgs::msg::LaserEcho::from_native(s));
+                    if msg.intensities.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.intensities.data,
+                                msg.intensities.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(sensor_msgs::msg::LaserEcho::from_native(s));
+                        }
                     }
                     temp
                 },
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
             msg.angle_min = self.angle_min;
             msg.angle_max = self.angle_max;
             msg.angle_increment = self.angle_increment;
@@ -1061,33 +1223,51 @@ pub mod msg {
             msg.range_min = self.range_min;
             msg.range_max = self.range_max;
             unsafe {
-                sensor_msgs__msg__LaserEcho__Sequence__fini(&mut msg.ranges);
-                sensor_msgs__msg__LaserEcho__Sequence__init(
-                    &mut msg.ranges,
-                    self.ranges.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.ranges.data,
-                    msg.ranges.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.ranges) {
-                    s.copy_to_native(t);
+                let length = self.ranges.len();
+                if length > msg.ranges.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !sensor_msgs__msg__LaserEcho__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    sensor_msgs__msg__LaserEcho__Sequence__fini(&mut msg.ranges);
+                    msg.ranges = replacement;
+                }
+                msg.ranges.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(msg.ranges.data, length);
+                    for (t, s) in slice.iter_mut().zip(&self.ranges) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
             unsafe {
-                sensor_msgs__msg__LaserEcho__Sequence__fini(&mut msg.intensities);
-                sensor_msgs__msg__LaserEcho__Sequence__init(
-                    &mut msg.intensities,
-                    self.intensities.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.intensities.data,
-                    msg.intensities.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.intensities) {
-                    s.copy_to_native(t);
+                let length = self.intensities.len();
+                if length > msg.intensities.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !sensor_msgs__msg__LaserEcho__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    sensor_msgs__msg__LaserEcho__Sequence__fini(&mut msg.intensities);
+                    msg.intensities = replacement;
+                }
+                msg.intensities.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.intensities.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.intensities) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
+            Ok(())
         }
     }
     impl Default for MultiEchoLaserScan {
@@ -1136,21 +1316,23 @@ pub mod msg {
                 position_covariance_type: msg.position_covariance_type,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            self.status.copy_to_native(&mut msg.status);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            self.status.try_copy_to_native(&mut msg.status)?;
             msg.latitude = self.latitude;
             msg.longitude = self.longitude;
             msg.altitude = self.altitude;
-            assert_eq!(
-                self.position_covariance.len(),
-                9usize,
-                "Field {} is fixed size of {}!",
-                "position_covariance",
-                9usize,
-            );
             msg.position_covariance.copy_from_slice(&self.position_covariance[..9usize]);
             msg.position_covariance_type = self.position_covariance_type;
+            Ok(())
         }
     }
     impl Default for NavSatFix {
@@ -1161,10 +1343,10 @@ pub mod msg {
     }
     #[allow(non_upper_case_globals)]
     impl NavSatFix {
-        pub const COVARIANCE_TYPE_APPROXIMATED: _bindgen_ty_105 = sensor_msgs__msg__NavSatFix__COVARIANCE_TYPE_APPROXIMATED;
-        pub const COVARIANCE_TYPE_DIAGONAL_KNOWN: _bindgen_ty_106 = sensor_msgs__msg__NavSatFix__COVARIANCE_TYPE_DIAGONAL_KNOWN;
-        pub const COVARIANCE_TYPE_KNOWN: _bindgen_ty_107 = sensor_msgs__msg__NavSatFix__COVARIANCE_TYPE_KNOWN;
-        pub const COVARIANCE_TYPE_UNKNOWN: _bindgen_ty_104 = sensor_msgs__msg__NavSatFix__COVARIANCE_TYPE_UNKNOWN;
+        pub const COVARIANCE_TYPE_APPROXIMATED: _bindgen_ty_297 = sensor_msgs__msg__NavSatFix__COVARIANCE_TYPE_APPROXIMATED;
+        pub const COVARIANCE_TYPE_DIAGONAL_KNOWN: _bindgen_ty_298 = sensor_msgs__msg__NavSatFix__COVARIANCE_TYPE_DIAGONAL_KNOWN;
+        pub const COVARIANCE_TYPE_KNOWN: _bindgen_ty_299 = sensor_msgs__msg__NavSatFix__COVARIANCE_TYPE_KNOWN;
+        pub const COVARIANCE_TYPE_UNKNOWN: _bindgen_ty_296 = sensor_msgs__msg__NavSatFix__COVARIANCE_TYPE_UNKNOWN;
     }
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
@@ -1195,9 +1377,18 @@ pub mod msg {
                 service: msg.service,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.status = self.status;
             msg.service = self.service;
+            Ok(())
         }
     }
     impl Default for NavSatStatus {
@@ -1208,14 +1399,16 @@ pub mod msg {
     }
     #[allow(non_upper_case_globals)]
     impl NavSatStatus {
-        pub const SERVICE_COMPASS: _bindgen_ty_114 = sensor_msgs__msg__NavSatStatus__SERVICE_COMPASS;
-        pub const SERVICE_GALILEO: _bindgen_ty_115 = sensor_msgs__msg__NavSatStatus__SERVICE_GALILEO;
-        pub const SERVICE_GLONASS: _bindgen_ty_113 = sensor_msgs__msg__NavSatStatus__SERVICE_GLONASS;
-        pub const SERVICE_GPS: _bindgen_ty_112 = sensor_msgs__msg__NavSatStatus__SERVICE_GPS;
-        pub const STATUS_FIX: _bindgen_ty_109 = sensor_msgs__msg__NavSatStatus__STATUS_FIX;
-        pub const STATUS_GBAS_FIX: _bindgen_ty_111 = sensor_msgs__msg__NavSatStatus__STATUS_GBAS_FIX;
-        pub const STATUS_NO_FIX: _bindgen_ty_108 = sensor_msgs__msg__NavSatStatus__STATUS_NO_FIX;
-        pub const STATUS_SBAS_FIX: _bindgen_ty_110 = sensor_msgs__msg__NavSatStatus__STATUS_SBAS_FIX;
+        pub const SERVICE_COMPASS: _bindgen_ty_308 = sensor_msgs__msg__NavSatStatus__SERVICE_COMPASS;
+        pub const SERVICE_GALILEO: _bindgen_ty_309 = sensor_msgs__msg__NavSatStatus__SERVICE_GALILEO;
+        pub const SERVICE_GLONASS: _bindgen_ty_307 = sensor_msgs__msg__NavSatStatus__SERVICE_GLONASS;
+        pub const SERVICE_GPS: _bindgen_ty_306 = sensor_msgs__msg__NavSatStatus__SERVICE_GPS;
+        pub const SERVICE_UNKNOWN: _bindgen_ty_305 = sensor_msgs__msg__NavSatStatus__SERVICE_UNKNOWN;
+        pub const STATUS_FIX: _bindgen_ty_302 = sensor_msgs__msg__NavSatStatus__STATUS_FIX;
+        pub const STATUS_GBAS_FIX: _bindgen_ty_304 = sensor_msgs__msg__NavSatStatus__STATUS_GBAS_FIX;
+        pub const STATUS_NO_FIX: _bindgen_ty_301 = sensor_msgs__msg__NavSatStatus__STATUS_NO_FIX;
+        pub const STATUS_SBAS_FIX: _bindgen_ty_303 = sensor_msgs__msg__NavSatStatus__STATUS_SBAS_FIX;
+        pub const STATUS_UNKNOWN: _bindgen_ty_300 = sensor_msgs__msg__NavSatStatus__STATUS_UNKNOWN;
     }
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
@@ -1246,56 +1439,89 @@ pub mod msg {
                 header: std_msgs::msg::Header::from_native(&msg.header),
                 points: {
                     let mut temp = Vec::with_capacity(msg.points.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(msg.points.data, msg.points.size)
-                    };
-                    for s in slice {
-                        temp.push(geometry_msgs::msg::Point32::from_native(s));
+                    if msg.points.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(msg.points.data, msg.points.size)
+                        };
+                        for s in slice {
+                            temp.push(geometry_msgs::msg::Point32::from_native(s));
+                        }
                     }
                     temp
                 },
                 channels: {
                     let mut temp = Vec::with_capacity(msg.channels.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(msg.channels.data, msg.channels.size)
-                    };
-                    for s in slice {
-                        temp.push(sensor_msgs::msg::ChannelFloat32::from_native(s));
+                    if msg.channels.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(
+                                msg.channels.data,
+                                msg.channels.size,
+                            )
+                        };
+                        for s in slice {
+                            temp.push(sensor_msgs::msg::ChannelFloat32::from_native(s));
+                        }
                     }
                     temp
                 },
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
             unsafe {
-                geometry_msgs__msg__Point32__Sequence__fini(&mut msg.points);
-                geometry_msgs__msg__Point32__Sequence__init(
-                    &mut msg.points,
-                    self.points.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.points.data,
-                    msg.points.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.points) {
-                    s.copy_to_native(t);
+                let length = self.points.len();
+                if length > msg.points.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !geometry_msgs__msg__Point32__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    geometry_msgs__msg__Point32__Sequence__fini(&mut msg.points);
+                    msg.points = replacement;
+                }
+                msg.points.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(msg.points.data, length);
+                    for (t, s) in slice.iter_mut().zip(&self.points) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
             unsafe {
-                sensor_msgs__msg__ChannelFloat32__Sequence__fini(&mut msg.channels);
-                sensor_msgs__msg__ChannelFloat32__Sequence__init(
-                    &mut msg.channels,
-                    self.channels.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.channels.data,
-                    msg.channels.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.channels) {
-                    s.copy_to_native(t);
+                let length = self.channels.len();
+                if length > msg.channels.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !sensor_msgs__msg__ChannelFloat32__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    sensor_msgs__msg__ChannelFloat32__Sequence__fini(&mut msg.channels);
+                    msg.channels = replacement;
+                }
+                msg.channels.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(
+                        msg.channels.data,
+                        length,
+                    );
+                    for (t, s) in slice.iter_mut().zip(&self.channels) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
+            Ok(())
         }
     }
     impl Default for PointCloud {
@@ -1341,11 +1567,13 @@ pub mod msg {
                 width: msg.width,
                 fields: {
                     let mut temp = Vec::with_capacity(msg.fields.size);
-                    let slice = unsafe {
-                        std::slice::from_raw_parts(msg.fields.data, msg.fields.size)
-                    };
-                    for s in slice {
-                        temp.push(sensor_msgs::msg::PointField::from_native(s));
+                    if msg.fields.data != std::ptr::null_mut() {
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(msg.fields.data, msg.fields.size)
+                        };
+                        for s in slice {
+                            temp.push(sensor_msgs::msg::PointField::from_native(s));
+                        }
                     }
                     temp
                 },
@@ -1356,29 +1584,45 @@ pub mod msg {
                 is_dense: msg.is_dense,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
             msg.height = self.height;
             msg.width = self.width;
             unsafe {
-                sensor_msgs__msg__PointField__Sequence__fini(&mut msg.fields);
-                sensor_msgs__msg__PointField__Sequence__init(
-                    &mut msg.fields,
-                    self.fields.len(),
-                );
-                let slice = std::slice::from_raw_parts_mut(
-                    msg.fields.data,
-                    msg.fields.size,
-                );
-                for (t, s) in slice.iter_mut().zip(&self.fields) {
-                    s.copy_to_native(t);
+                let length = self.fields.len();
+                if length > msg.fields.capacity {
+                    let mut replacement = std::mem::zeroed();
+                    if !sensor_msgs__msg__PointField__Sequence__init(
+                        &mut replacement,
+                        length,
+                    ) {
+                        return Err(Error::RCL_RET_BAD_ALLOC);
+                    }
+                    sensor_msgs__msg__PointField__Sequence__fini(&mut msg.fields);
+                    msg.fields = replacement;
+                }
+                msg.fields.size = length;
+                if length != 0 {
+                    let slice = std::slice::from_raw_parts_mut(msg.fields.data, length);
+                    for (t, s) in slice.iter_mut().zip(&self.fields) {
+                        s.try_copy_to_native(t)?;
+                    }
                 }
             }
             msg.is_bigendian = self.is_bigendian;
             msg.point_step = self.point_step;
             msg.row_step = self.row_step;
-            msg.data.update(&self.data);
+            check_rosidl_runtime_ret(msg.data.try_update(&self.data))?;
             msg.is_dense = self.is_dense;
+            Ok(())
         }
     }
     impl Default for PointCloud2 {
@@ -1420,11 +1664,20 @@ pub mod msg {
                 count: msg.count,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.name.try_assign_bytes((&self.name).as_bytes());
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            check_rosidl_runtime_ret(msg.name.try_assign_bytes(self.name.as_bytes()))?;
             msg.offset = self.offset;
             msg.datatype = self.datatype;
             msg.count = self.count;
+            Ok(())
         }
     }
     impl Default for PointField {
@@ -1435,14 +1688,14 @@ pub mod msg {
     }
     #[allow(non_upper_case_globals)]
     impl PointField {
-        pub const FLOAT32: _bindgen_ty_122 = sensor_msgs__msg__PointField__FLOAT32;
-        pub const FLOAT64: _bindgen_ty_123 = sensor_msgs__msg__PointField__FLOAT64;
-        pub const INT16: _bindgen_ty_118 = sensor_msgs__msg__PointField__INT16;
-        pub const INT32: _bindgen_ty_120 = sensor_msgs__msg__PointField__INT32;
-        pub const INT8: _bindgen_ty_116 = sensor_msgs__msg__PointField__INT8;
-        pub const UINT16: _bindgen_ty_119 = sensor_msgs__msg__PointField__UINT16;
-        pub const UINT32: _bindgen_ty_121 = sensor_msgs__msg__PointField__UINT32;
-        pub const UINT8: _bindgen_ty_117 = sensor_msgs__msg__PointField__UINT8;
+        pub const FLOAT32: _bindgen_ty_184 = sensor_msgs__msg__PointField__FLOAT32;
+        pub const FLOAT64: _bindgen_ty_185 = sensor_msgs__msg__PointField__FLOAT64;
+        pub const INT16: _bindgen_ty_180 = sensor_msgs__msg__PointField__INT16;
+        pub const INT32: _bindgen_ty_182 = sensor_msgs__msg__PointField__INT32;
+        pub const INT8: _bindgen_ty_178 = sensor_msgs__msg__PointField__INT8;
+        pub const UINT16: _bindgen_ty_181 = sensor_msgs__msg__PointField__UINT16;
+        pub const UINT32: _bindgen_ty_183 = sensor_msgs__msg__PointField__UINT32;
+        pub const UINT8: _bindgen_ty_179 = sensor_msgs__msg__PointField__UINT8;
     }
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
@@ -1453,6 +1706,7 @@ pub mod msg {
         pub min_range: f32,
         pub max_range: f32,
         pub range: f32,
+        pub variance: f32,
     }
     unsafe impl WrappedTypesupport for Range {
         type CStruct = sensor_msgs__msg__Range;
@@ -1479,15 +1733,26 @@ pub mod msg {
                 min_range: msg.min_range,
                 max_range: msg.max_range,
                 range: msg.range,
+                variance: msg.variance,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
             msg.radiation_type = self.radiation_type;
             msg.field_of_view = self.field_of_view;
             msg.min_range = self.min_range;
             msg.max_range = self.max_range;
             msg.range = self.range;
+            msg.variance = self.variance;
+            Ok(())
         }
     }
     impl Default for Range {
@@ -1498,8 +1763,8 @@ pub mod msg {
     }
     #[allow(non_upper_case_globals)]
     impl Range {
-        pub const INFRARED: _bindgen_ty_125 = sensor_msgs__msg__Range__INFRARED;
-        pub const ULTRASOUND: _bindgen_ty_124 = sensor_msgs__msg__Range__ULTRASOUND;
+        pub const INFRARED: _bindgen_ty_311 = sensor_msgs__msg__Range__INFRARED;
+        pub const ULTRASOUND: _bindgen_ty_310 = sensor_msgs__msg__Range__ULTRASOUND;
     }
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
@@ -1536,12 +1801,21 @@ pub mod msg {
                 do_rectify: msg.do_rectify,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.x_offset = self.x_offset;
             msg.y_offset = self.y_offset;
             msg.height = self.height;
             msg.width = self.width;
             msg.do_rectify = self.do_rectify;
+            Ok(())
         }
     }
     impl Default for RegionOfInterest {
@@ -1581,10 +1855,19 @@ pub mod msg {
                 variance: msg.variance,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
             msg.relative_humidity = self.relative_humidity;
             msg.variance = self.variance;
+            Ok(())
         }
     }
     impl Default for RelativeHumidity {
@@ -1624,10 +1907,19 @@ pub mod msg {
                 variance: msg.variance,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
             msg.temperature = self.temperature;
             msg.variance = self.variance;
+            Ok(())
         }
     }
     impl Default for Temperature {
@@ -1667,10 +1959,21 @@ pub mod msg {
                 source: crate::RosString::from(msg.source.as_bytes()),
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            self.header.copy_to_native(&mut msg.header);
-            self.time_ref.copy_to_native(&mut msg.time_ref);
-            msg.source.try_assign_bytes((&self.source).as_bytes());
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
+            self.header.try_copy_to_native(&mut msg.header)?;
+            self.time_ref.try_copy_to_native(&mut msg.time_ref)?;
+            check_rosidl_runtime_ret(
+                msg.source.try_assign_bytes(self.source.as_bytes()),
+            )?;
+            Ok(())
         }
     }
     impl Default for TimeReference {
@@ -1689,6 +1992,16 @@ pub mod srv {
         unsafe impl WrappedServiceTypeSupport for Service {
             type Request = Request;
             type Response = Response;
+            #[cfg(
+                any(
+                    r2r__ros__distro__iron,
+                    r2r__ros__distro__jazzy,
+                    r2r__ros__distro__kilted,
+                    r2r__ros__distro__lyrical,
+                    r2r__ros__distro__rolling
+                )
+            )]
+            type Event = Event;
             fn get_ts() -> &'static rosidl_service_type_support_t {
                 unsafe {
                     &*rosidl_typesupport_c__get_service_type_support_handle__sensor_msgs__srv__SetCameraInfo()
@@ -1726,8 +2039,17 @@ pub mod srv {
                     ),
                 }
             }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                self.camera_info.copy_to_native(&mut msg.camera_info);
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                self.camera_info.try_copy_to_native(&mut msg.camera_info)?;
+                Ok(())
             }
         }
         impl Default for Request {
@@ -1767,15 +2089,168 @@ pub mod srv {
                     status_message: crate::RosString::from(msg.status_message.as_bytes()),
                 }
             }
-            fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
                 msg.success = self.success;
-                msg.status_message.try_assign_bytes((&self.status_message).as_bytes());
+                check_rosidl_runtime_ret(
+                    msg.status_message.try_assign_bytes(self.status_message.as_bytes()),
+                )?;
+                Ok(())
             }
         }
         impl Default for Response {
             fn default() -> Self {
                 let msg_native = WrappedNativeMsg::<Response>::new();
                 Response::from_native(&msg_native)
+            }
+        }
+        #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+        #[serde(default)]
+        pub struct Event {
+            pub info: service_msgs::msg::ServiceEventInfo,
+            pub request: Vec<sensor_msgs::srv::SetCameraInfo::Request>,
+            pub response: Vec<sensor_msgs::srv::SetCameraInfo::Response>,
+        }
+        unsafe impl WrappedTypesupport for Event {
+            type CStruct = sensor_msgs__srv__SetCameraInfo_Event;
+            fn get_ts() -> &'static rosidl_message_type_support_t {
+                unsafe {
+                    &*rosidl_typesupport_c__get_message_type_support_handle__sensor_msgs__srv__SetCameraInfo_Event()
+                }
+            }
+            fn create_msg() -> *mut sensor_msgs__srv__SetCameraInfo_Event {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { sensor_msgs__srv__SetCameraInfo_Event__create() }
+                #[cfg(feature = "doc-only")]
+                sensor_msgs__srv__SetCameraInfo_Event__create()
+            }
+            fn destroy_msg(msg: *mut sensor_msgs__srv__SetCameraInfo_Event) -> () {
+                #[cfg(not(feature = "doc-only"))]
+                unsafe { sensor_msgs__srv__SetCameraInfo_Event__destroy(msg) };
+                #[cfg(feature = "doc-only")]
+                sensor_msgs__srv__SetCameraInfo_Event__destroy(msg)
+            }
+            fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Event {
+                Event {
+                    info: service_msgs::msg::ServiceEventInfo::from_native(&msg.info),
+                    request: {
+                        let mut temp = Vec::with_capacity(msg.request.size);
+                        if msg.request.data != std::ptr::null_mut() {
+                            let slice = unsafe {
+                                std::slice::from_raw_parts(
+                                    msg.request.data,
+                                    msg.request.size,
+                                )
+                            };
+                            for s in slice {
+                                temp.push(
+                                    sensor_msgs::srv::SetCameraInfo::Request::from_native(s),
+                                );
+                            }
+                        }
+                        temp
+                    },
+                    response: {
+                        let mut temp = Vec::with_capacity(msg.response.size);
+                        if msg.response.data != std::ptr::null_mut() {
+                            let slice = unsafe {
+                                std::slice::from_raw_parts(
+                                    msg.response.data,
+                                    msg.response.size,
+                                )
+                            };
+                            for s in slice {
+                                temp.push(
+                                    sensor_msgs::srv::SetCameraInfo::Response::from_native(s),
+                                );
+                            }
+                        }
+                        temp
+                    },
+                }
+            }
+            fn copy_to_native(&self, msg: &mut Self::CStruct) {
+                self.try_copy_to_native(msg)
+                    .expect("failed to copy Rust message into native ROS storage");
+            }
+            fn try_copy_to_native(
+                &self,
+                #[allow(unused)]
+                msg: &mut Self::CStruct,
+            ) -> crate::Result<()> {
+                self.info.try_copy_to_native(&mut msg.info)?;
+                if self.request.len() > 1usize {
+                    return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                }
+                unsafe {
+                    let length = self.request.len();
+                    if length > msg.request.capacity {
+                        let mut replacement = std::mem::zeroed();
+                        if !sensor_msgs__srv__SetCameraInfo_Request__Sequence__init(
+                            &mut replacement,
+                            length,
+                        ) {
+                            return Err(Error::RCL_RET_BAD_ALLOC);
+                        }
+                        sensor_msgs__srv__SetCameraInfo_Request__Sequence__fini(
+                            &mut msg.request,
+                        );
+                        msg.request = replacement;
+                    }
+                    msg.request.size = length;
+                    if length != 0 {
+                        let slice = std::slice::from_raw_parts_mut(
+                            msg.request.data,
+                            length,
+                        );
+                        for (t, s) in slice.iter_mut().zip(&self.request) {
+                            s.try_copy_to_native(t)?;
+                        }
+                    }
+                }
+                if self.response.len() > 1usize {
+                    return Err(Error::RCL_RET_INVALID_ARGUMENT);
+                }
+                unsafe {
+                    let length = self.response.len();
+                    if length > msg.response.capacity {
+                        let mut replacement = std::mem::zeroed();
+                        if !sensor_msgs__srv__SetCameraInfo_Response__Sequence__init(
+                            &mut replacement,
+                            length,
+                        ) {
+                            return Err(Error::RCL_RET_BAD_ALLOC);
+                        }
+                        sensor_msgs__srv__SetCameraInfo_Response__Sequence__fini(
+                            &mut msg.response,
+                        );
+                        msg.response = replacement;
+                    }
+                    msg.response.size = length;
+                    if length != 0 {
+                        let slice = std::slice::from_raw_parts_mut(
+                            msg.response.data,
+                            length,
+                        );
+                        for (t, s) in slice.iter_mut().zip(&self.response) {
+                            s.try_copy_to_native(t)?;
+                        }
+                    }
+                }
+                Ok(())
+            }
+        }
+        impl Default for Event {
+            fn default() -> Self {
+                let msg_native = WrappedNativeMsg::<Event>::new();
+                Event::from_native(&msg_native)
             }
         }
     }

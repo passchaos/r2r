@@ -38,7 +38,7 @@ fn run_bindgen(msg_list: &[RosMsg]) {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let bindgen_dir = out_dir.join("generated");
-    let save_dir = manifest_dir.join("bindings");
+    let save_dir = r2r_common::bindings_directory(manifest_dir, env!("CARGO_PKG_NAME"));
 
     if cfg!(feature = "doc-only") {
         println!("cargo:rerun-if-changed={}", save_dir.display());

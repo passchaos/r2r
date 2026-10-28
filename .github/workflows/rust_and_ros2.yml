@@ -15,7 +15,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - run: docker build . --file ./tests/Dockerfile_no_ros --tag r2r_no_ros
-    - run: docker run r2r_no_ros cargo build --features doc-only
+    - name: Verify all targets and public API documentation without ROS
+      run: docker run r2r_no_ros python3 tests/check_documentation.py
 
   quality_jazzy:
     runs-on: ubuntu-latest

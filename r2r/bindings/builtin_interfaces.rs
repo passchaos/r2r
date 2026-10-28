@@ -29,9 +29,18 @@ pub mod msg {
                 nanosec: msg.nanosec,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.sec = self.sec;
             msg.nanosec = self.nanosec;
+            Ok(())
         }
     }
     impl Default for Duration {
@@ -69,9 +78,18 @@ pub mod msg {
                 nanosec: msg.nanosec,
             }
         }
-        fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
+        fn copy_to_native(&self, msg: &mut Self::CStruct) {
+            self.try_copy_to_native(msg)
+                .expect("failed to copy Rust message into native ROS storage");
+        }
+        fn try_copy_to_native(
+            &self,
+            #[allow(unused)]
+            msg: &mut Self::CStruct,
+        ) -> crate::Result<()> {
             msg.sec = self.sec;
             msg.nanosec = self.nanosec;
+            Ok(())
         }
     }
     impl Default for Time {
