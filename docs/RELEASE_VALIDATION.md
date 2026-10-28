@@ -462,3 +462,61 @@ generator checks, and verifies 13 public API artifacts and 28 methods. Iron,
 Lyrical and Rolling retain supported CI entries without new local runtime
 evidence for this slice.
 
+## Ready action-server scheduling (2026-10-29)
+
+[Action-server scheduling](ACTION_SERVER_SCHEDULING.md) replaces the node's
+pending-server set with ready UUID notifications in its existing action-server
+notification allocation. Small queues deduplicate without a HashSet; large
+queues use an optional boxed index. Each preparation handles at most sixteen
+servers and requests continuation for remaining work. Identity wakers follow
+the current node binding; the existing native guard caches a weak observer
+waker shared by foreground, direct shared waits and background execution.
+
+The native twenty-server counterexample records eighty maintenance calls over
+four unrelated spins on the baseline and zero on the candidate. Readiness of
+only the final server causes exactly one maintenance call. A background case
+handles thirty-two ordinary service requests with zero blocked-server polls,
+queues readiness while unbound, transfers the node and verifies exact selective
+maintenance plus every cancellation response and terminal result. Foreground
+and direct shared wait tests make decisions from another thread without other
+ROS traffic. The injected baseline foreground test fails with
+`Err(RCL_RET_TIMEOUT)`; the final candidate passes. Queue boundaries cover
+0/1/16/17/40/128 identities, coalescing, cleanup, weak ownership and wake after
+unlock. The cached observer test checks reuse, inactive guards and destruction.
+
+[Saved independent A/B evidence](benchmarks/server-scheduling-2026-10-29/README.md)
+retains initial, final and same-binary control reports, individual samples,
+source/binary manifests and validation logs. Preparation-stage p50 with
+thirty-two parked servers falls from 4027/4018 ns to 316/315 ns under
+CycloneDDS/Fast DDS; both zero-server controls and all original 5% gates pass.
+This optimized library-test stage includes TLS instrumentation and excludes
+native waiting, dispatch and application throughput.
+
+The initial ordinary CycloneDDS action cancellation p99 ratio was 1.085293 and
+failed the unchanged 1.05 limit. Its complete source patch and reports remain
+archived. Removing redundant waker clones and avoiding the small-queue HashSet
+produces a final candidate whose two complete ordinary action matrices pass:
+140 records and 140000 individual RTT samples. A same-baseline-binary
+CycloneDDS cancellation control passes the symmetric 5% calibration, within
+that scenario only. Mixed endpoint controls are retained; none has a final p99
+increase above 5% relative to its matching baseline pair. These results do not
+establish universally calibrated tail improvements or C++ leadership.
+
+The complete debug workspace suite passes, including 564 library cases with
+three manual benchmarks ignored. Complete optimized Jazzy library suites pass
+the same 564 cases under both RMWs. Formatting and all-target workspace Clippy
+with warnings denied pass. Source inventories for both measured candidates
+match the delivered Rust source byte for byte.
+
+Native Humble and Kilted each pass the three scheduling tests (one manual
+benchmark ignored), the background scheduling/transfer case, cached observer
+case, all 47 action-server module cases, four native cancellation boundaries
+and 19 future-execution cases. Both run the complete optimized forty-goal
+`action_cancel_group` application and all-target workspace Clippy. The no-ROS
+Ubuntu container compiles all workspace targets, passes six snapshot and two
+generator cases, and verifies 13 API artifacts and 28 documented methods.
+Iron, Lyrical and Rolling retain supported CI entries without new local runtime
+evidence. Native wait-set construction/dispatch scaling, complete mixed-load
+benchmarks, allocation/resource accounting and representative C++ comparisons
+remain additional requirements toward the long-term goal.
+

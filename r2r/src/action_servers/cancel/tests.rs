@@ -19,18 +19,21 @@ fn request(decisions: Vec<oneshot::Receiver<(uuid::Uuid, bool)>>) -> ActiveCance
 
 #[test]
 fn cached_owner_wake_follows_current_binding_and_does_not_retain_queue() {
-    let owner = Arc::new(Mutex::new(crate::notifications::NotificationQueue::default()));
+    let owner = Arc::new(Mutex::new(ActionServerNotifications::default()));
     let weak = Arc::downgrade(&owner);
-    let cached = current_owner_waker(weak.clone());
+    let id = uuid::Uuid::nil();
+    let cached = current_owner_waker(weak.clone(), id);
     assert_eq!(Arc::strong_count(&owner), 1);
     let first = Arc::new(Count(AtomicUsize::new(0)));
     let second = Arc::new(Count(AtomicUsize::new(0)));
     owner.lock().set_wake(Some(Waker::from(first.clone())));
     cached.wake_by_ref();
     assert_eq!(first.0.load(Ordering::Relaxed), 1);
+    assert_eq!(owner.lock().take_ready().0, [id]);
     owner.lock().set_wake(None);
     cached.wake_by_ref();
     assert_eq!(first.0.load(Ordering::Relaxed), 1);
+    assert_eq!(owner.lock().take_ready().0, [id]);
     owner.lock().set_wake(Some(Waker::from(second.clone())));
     cached.wake_by_ref();
     assert_eq!(first.0.load(Ordering::Relaxed), 1);

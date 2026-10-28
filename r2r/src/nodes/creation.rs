@@ -167,10 +167,11 @@ impl Node {
                 action_servers: Vec::new(),
                 action_server_indexes: HashMap::new(),
                 dropped_action_servers: Arc::new(Mutex::new(
-                    crate::notifications::NotificationQueue::default(),
+                    crate::action_servers::ActionServerNotifications::default(),
                 )),
                 pending_action_server_removals: HashSet::new(),
-                action_servers_with_pending_cancels: HashSet::new(),
+                #[cfg(test)]
+                action_server_poll_probe: None,
                 action_wait_set_capacities: WaitSetCapacities::default(),
                 timers: Vec::new(),
                 managed_timers: None,

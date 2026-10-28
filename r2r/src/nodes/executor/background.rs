@@ -31,31 +31,6 @@ pub enum ExecutorTaskError {
 
 type TaskResult<T> = std::result::Result<T, ExecutorTaskError>;
 
-struct ObserverWake(std::sync::Weak<FutureGuard>);
-
-impl std::task::Wake for ObserverWake {
-    fn wake(self: std::sync::Arc<Self>) {
-        self.wake_by_ref();
-    }
-
-    fn wake_by_ref(self: &std::sync::Arc<Self>) {
-        let Some(guard) = self.0.upgrade() else {
-            return;
-        };
-        if guard.active.load(std::sync::atomic::Ordering::Acquire) {
-            #[cfg(test)]
-            guard
-                .triggers
-                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            let result = unsafe { r2r_rcl::rcl_trigger_guard_condition(guard.handle()) };
-            if result != r2r_rcl::RCL_RET_OK as i32 {
-                unsafe { r2r_rcl::rcutils_reset_error() };
-                log::warn!("could not wake background executor observer: {result}");
-            }
-        }
-    }
-}
-
 fn complete(
     executor: Executor, sender: oneshot::Sender<TaskResult<Executor>>,
     outcome: thread::Result<Result<()>>,
@@ -171,9 +146,7 @@ impl Executor {
                 guard
             }
         };
-        let wake = std::task::Waker::from(std::sync::Arc::new(ObserverWake(
-            std::sync::Arc::downgrade(&guard),
-        )));
+        let wake = guard.observer_waker();
         for entry in &mut self.nodes {
             entry.node.set_background_wake(Some(wake.clone()));
         }

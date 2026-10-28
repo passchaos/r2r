@@ -40,8 +40,14 @@ sixteen-candidate passes and stopping self-notifications when all goals are bloc
 indexed request/goal queues for large cancellation work and follows current
 executor bindings for both large and ordinary cancel streams. The complete
 forty-goal `cancel_all()` application checks partial acceptance and every result.
-Native middleware feedback ingress/fanout, cross-server scheduling, allocation
-accounting and larger mixed workloads remain open. The archived broader
+The node now [schedules cancellation maintenance by ready server identity](ACTION_SERVER_SCHEDULING.md),
+with deduplicated notifications and at most sixteen servers examined per pass.
+Blocked servers are not revisited for unrelated traffic; decisions from other
+threads wake existing foreground/shared/background guards and survive transfer.
+[Independent preparation-stage and ordinary action A/B](benchmarks/server-scheduling-2026-10-29/README.md)
+pass the original 5% gates under both Jazzy RMWs, with the initial failed
+candidate retained. Native middleware feedback ingress/fanout, native wait-set
+scaling, allocation accounting and larger mixed workloads remain open. The archived broader
 prototype is not used to establish these implementations; qualified tail
 precision remains a separate requirement.
 

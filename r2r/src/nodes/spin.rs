@@ -31,7 +31,7 @@ pub(super) struct WaitEntities<'a> {
     service_indexes: &'a mut HashMap<uuid::Uuid, usize>,
     action_clients: &'a Vec<Arc<Mutex<dyn ActionClient_>>>,
     action_servers: &'a Vec<Arc<Mutex<dyn ActionServer_>>>,
-    action_servers_with_pending_cancels: &'a mut HashSet<uuid::Uuid>,
+    action_server_notifications: &'a Arc<Mutex<crate::action_servers::ActionServerNotifications>>,
     graph_change_waiters: &'a mut AvailabilityWaiters,
     future_wake_state: &'a Option<Arc<future_executor::FutureWake>>,
 }
@@ -52,7 +52,7 @@ impl Node {
                 service_indexes: &mut self.service_indexes,
                 action_clients: &self.action_clients,
                 action_servers: &self.action_servers,
-                action_servers_with_pending_cancels: &mut self.action_servers_with_pending_cancels,
+                action_server_notifications: &self.dropped_action_servers,
                 graph_change_waiters: &mut self.graph_change_waiters,
                 future_wake_state: &self.future_wake_state,
             },

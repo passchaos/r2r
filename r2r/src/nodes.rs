@@ -82,6 +82,8 @@ use wait_set::{
 
 #[cfg(all(test, r2r__example_interfaces__action__Fibonacci))]
 mod action_cancel_tests;
+#[cfg(test)]
+mod action_server_scheduling_tests;
 
 /// A ROS Node.
 ///
@@ -132,9 +134,10 @@ pub struct Node {
     // action servers
     action_servers: Vec<Arc<Mutex<dyn ActionServer_>>>,
     action_server_indexes: HashMap<uuid::Uuid, usize>,
-    dropped_action_servers: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
+    dropped_action_servers: Arc<Mutex<crate::action_servers::ActionServerNotifications>>,
     pending_action_server_removals: HashSet<uuid::Uuid>,
-    action_servers_with_pending_cancels: HashSet<uuid::Uuid>,
+    #[cfg(test)]
+    action_server_poll_probe: Option<Arc<std::sync::atomic::AtomicUsize>>,
     action_wait_set_capacities: WaitSetCapacities,
     // timers,
     timers: Vec<Timer_>,
@@ -193,7 +196,7 @@ impl Node {
         if let Some(moved) = self.action_servers.get(index) {
             self.action_server_indexes.insert(moved.lock().id(), index);
         }
-        self.action_servers_with_pending_cancels.remove(&id);
+        self.dropped_action_servers.lock().remove(id);
         self.action_wait_set_capacities.subtract(capacities);
         Ok(true)
     }
@@ -212,10 +215,7 @@ impl Node {
             self.action_server_indexes.insert(moved.lock().id(), index);
         }
         self.pending_action_server_removals.remove(&id);
-        self.action_servers_with_pending_cancels.remove(&id);
-        self.dropped_action_servers
-            .lock()
-            .retain(|queued| *queued != id);
+        self.dropped_action_servers.lock().remove(id);
         server.lock().destroy(self.node_handle.as_mut());
         self.action_wait_set_capacities.subtract(capacities);
         Ok(true)
@@ -6266,9 +6266,9 @@ mod tests {
         server_node
             .try_spin_once(Duration::from_millis(100))
             .unwrap();
-        assert!(server_node
-            .action_servers_with_pending_cancels
-            .contains(&server_id));
+        assert!(server_node.action_servers[server_node.action_server_indexes[&server_id]]
+            .lock()
+            .has_pending_cancel_work());
 
         let mut cancel_stream = cancel_stream.unwrap();
         for _ in 0..3 {
@@ -6280,9 +6280,9 @@ mod tests {
                 .reject();
         }
         server_node.try_spin_once(Duration::ZERO).unwrap();
-        assert!(!server_node
-            .action_servers_with_pending_cancels
-            .contains(&server_id));
+        assert!(!server_node.action_servers[server_node.action_server_indexes[&server_id]]
+            .lock()
+            .has_pending_cancel_work());
         drop(cancels);
         drop(server_goal);
     }
@@ -6856,10 +6856,13 @@ mod tests {
         node.try_spin_once(Duration::ZERO).unwrap();
         assert_eq!(take_action_server_maintenance_poll_count(), 0);
 
-        node.action_servers_with_pending_cancels.insert(active.id);
+        crate::action_servers::notifications::enqueue_ready(
+            &node.dropped_action_servers,
+            active.id,
+        );
         node.try_spin_once(Duration::ZERO).unwrap();
         assert_eq!(take_action_server_maintenance_poll_count(), 1);
-        assert!(node.action_servers_with_pending_cancels.is_empty());
+        assert!(!node.dropped_action_servers.lock().has_ready());
 
         node.try_spin_once(Duration::ZERO).unwrap();
         assert_eq!(take_action_server_maintenance_poll_count(), 0);
@@ -8913,9 +8916,7 @@ mod tests {
         assert_eq!(node.action_server_indexes.len(), 2);
         assert!(!node.action_server_indexes.contains_key(&removed_id));
         assert!(node.pending_action_server_removals.is_empty());
-        assert!(!node
-            .action_servers_with_pending_cancels
-            .contains(&removed_id));
+        assert!(!node.dropped_action_servers.lock().is_ready(removed_id));
         assert!(node.dropped_action_servers.lock().is_empty());
         assert_eq!(node.action_wait_set_capacities, expected_capacities);
         assert_eq!(first.action_name(&node).unwrap(), "/destroy_action_server_first");

@@ -60,6 +60,11 @@ impl Executor {
             return Err(Error::RCL_RET_NOT_INIT);
         }
         self.wait_set.clear()?;
+        if let Some(guard) = &self.future_wake_guard {
+            node.dropped_action_servers
+                .lock()
+                .set_wake(Some(guard.observer_waker()));
+        }
         let id = ExecutorNodeId(uuid::Uuid::new_v4());
         self.indexes.insert(id, self.nodes.len());
         self.nodes.push(ExecutorNode {
@@ -257,9 +262,27 @@ impl FutureDriver for Executor {
         if let Some(control) = &self.control {
             control.attach_guard(&guard);
         }
+        let wake = guard.observer_waker();
+        for entry in &self.nodes {
+            entry
+                .node
+                .dropped_action_servers
+                .lock()
+                .set_wake(Some(wake.clone()));
+        }
         self.future_wake_guard = Some(guard);
     }
     fn set_future_wake(&mut self, wake: Arc<FutureWake>) {
+        if let Some(guard) = &self.future_wake_guard {
+            let native_wake = guard.observer_waker();
+            for entry in &self.nodes {
+                entry
+                    .node
+                    .dropped_action_servers
+                    .lock()
+                    .set_wake(Some(native_wake.clone()));
+            }
+        }
         self.future_wake_state = Some(wake);
     }
     fn spin_future_events(&mut self, timeout: Duration) -> Result<()> {

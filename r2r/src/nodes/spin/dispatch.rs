@@ -243,9 +243,10 @@ impl WaitEntities<'_> {
                     ActionServer_::has_pending_cancel_delivery,
                 );
                 if s.lock().has_pending_cancel_work() {
-                    self.action_servers_with_pending_cancels.insert(server_id);
-                } else {
-                    self.action_servers_with_pending_cancels.remove(&server_id);
+                    crate::action_servers::notifications::enqueue_ready(
+                        self.action_server_notifications,
+                        server_id,
+                    );
                 }
                 cancel_result?;
             }

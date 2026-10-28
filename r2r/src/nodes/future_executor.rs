@@ -6,7 +6,7 @@ use std::{
     future::Future,
     sync::{
         atomic::{AtomicBool, AtomicI32, AtomicU8, Ordering},
-        Arc, Weak,
+        Arc, OnceLock, Weak,
     },
     task::{Context as TaskContext, Poll, Wake, Waker},
     time::{Duration, Instant},
@@ -47,6 +47,7 @@ impl FutureExecutionOptions {
 pub(super) struct FutureGuard {
     handle: Box<UnsafeCell<rcl_guard_condition_t>>,
     pub(super) active: AtomicBool,
+    observer_wake: OnceLock<Waker>,
     _context: Context,
     #[cfg(test)]
     pub(super) waiting: AtomicBool,
@@ -57,6 +58,31 @@ pub(super) struct FutureGuard {
     #[cfg(test)]
     pub(super) triggers: std::sync::atomic::AtomicUsize,
 }
+struct ObserverWake(std::sync::Weak<FutureGuard>);
+
+impl std::task::Wake for ObserverWake {
+    fn wake(self: std::sync::Arc<Self>) {
+        self.wake_by_ref();
+    }
+
+    fn wake_by_ref(self: &std::sync::Arc<Self>) {
+        let Some(guard) = self.0.upgrade() else {
+            return;
+        };
+        if guard.active.load(std::sync::atomic::Ordering::Acquire) {
+            #[cfg(test)]
+            guard
+                .triggers
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let result = unsafe { r2r_rcl::rcl_trigger_guard_condition(guard.handle()) };
+            if result != r2r_rcl::RCL_RET_OK as i32 {
+                unsafe { r2r_rcl::rcutils_reset_error() };
+                log::warn!("could not wake native executor observer: {result}");
+            }
+        }
+    }
+}
+
 // RCL permits concurrent trigger calls and triggering while rcl_wait is blocked. The stable
 // handle is initialized before sharing; Arc ownership excludes fini until every trigger ends.
 // Only the owning Node adds it to a wait set, excluding concurrent waits with shared contents.
@@ -82,6 +108,7 @@ impl FutureGuard {
         let guard = Arc::new(Self {
             handle,
             active: AtomicBool::new(false),
+            observer_wake: OnceLock::new(),
             _context: context.clone(),
             #[cfg(test)]
             waiting: AtomicBool::new(false),
@@ -100,6 +127,11 @@ impl FutureGuard {
                 .register_shutdown_wake(Arc::downgrade(&wake));
         }
         Ok(guard)
+    }
+    pub(super) fn observer_waker(self: &Arc<Self>) -> Waker {
+        self.observer_wake
+            .get_or_init(|| Waker::from(Arc::new(ObserverWake(Arc::downgrade(self)))))
+            .clone()
     }
     pub(super) fn handle(&self) -> *mut rcl_guard_condition_t {
         self.handle.get()
@@ -234,6 +266,11 @@ impl FutureDriver for Node {
         self.future_wake_guard = Some(guard);
     }
     fn set_future_wake(&mut self, wake: Arc<FutureWake>) {
+        if let Some(guard) = &self.future_wake_guard {
+            self.dropped_action_servers
+                .lock()
+                .set_wake(Some(guard.observer_waker()));
+        }
         self.future_wake_state = Some(wake);
     }
     fn spin_future_events(&mut self, timeout: Duration) -> Result<()> {

@@ -32,10 +32,12 @@ pub(crate) type ActionServerCompletion = Box<dyn FnOnce() -> Result<()>>;
 
 const MAX_ACTION_SERVER_REQUESTS_PER_SPIN: usize = 16;
 mod cancel;
+pub(crate) mod notifications;
 pub use cancel::ActiveCancelRequest;
 #[cfg(test)]
 use cancel::{poll_bounded_queue, poll_cancel_decisions, poll_cancel_decisions_with_wake};
 use cancel::{ActiveCancelQueue, CancelSenders};
+pub(crate) use notifications::ActionServerNotifications;
 
 pub(crate) enum ActionServerTakeResult {
     Idle,
@@ -233,6 +235,9 @@ pub trait ActionServer_ {
     fn finish_cancel_delivery(&mut self, pending: PendingCancelRequest);
     fn has_pending_cancel_delivery(&self) -> bool;
     fn has_pending_cancel_work(&self) -> bool;
+    fn schedule_cancel_maintenance(&self) -> Option<std::task::Waker> {
+        None
+    }
     #[cfg(test)]
     fn has_runnable_cancel_work(&self) -> bool {
         false
@@ -338,7 +343,7 @@ where
 {
     receiver: mpsc::Receiver<ActionServerGoalRequest<T>>,
     pub(crate) id: uuid::Uuid,
-    dropped_action_servers: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
+    dropped_action_servers: Arc<Mutex<ActionServerNotifications>>,
 }
 
 impl<T> ActionServer<T>
@@ -347,7 +352,7 @@ where
 {
     pub(crate) fn new(
         receiver: mpsc::Receiver<ActionServerGoalRequest<T>>, id: uuid::Uuid,
-        dropped_action_servers: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
+        dropped_action_servers: Arc<Mutex<ActionServerNotifications>>,
     ) -> Self {
         Self {
             receiver,
@@ -379,7 +384,7 @@ where
 {
     fn drop(&mut self) {
         self.receiver.close();
-        crate::notifications::enqueue(&self.dropped_action_servers, self.id);
+        notifications::enqueue_drop(&self.dropped_action_servers, self.id);
     }
 }
 
@@ -875,6 +880,23 @@ fn cancel_request_delivery_with_wake(
     })
 }
 
+fn finish_cancel_delivery_with_notification(
+    server: &Arc<Mutex<dyn ActionServer_>>, pending: PendingCancelRequest,
+) -> Result<()> {
+    let register_decisions = !pending.has_deliveries();
+    let wake = {
+        let mut server = server.lock();
+        server.finish_cancel_delivery(pending);
+        register_decisions
+            .then(|| server.schedule_cancel_maintenance())
+            .flatten()
+    };
+    if let Some(wake) = wake {
+        wake.wake();
+    }
+    Ok(())
+}
+
 fn cancel_request_conversion_completion<N>(
     server: Arc<Mutex<dyn ActionServer_>>, native: N,
     convert: impl FnOnce(N) -> Result<PendingCancelRequest> + 'static,
@@ -1010,6 +1032,16 @@ impl<T: 'static> WrappedActionServer<T>
 where
     T: WrappedActionTypeSupport,
 {
+    fn ensure_maintenance_waker(&mut self) {
+        if !self.active_cancel_requests.has_wake() {
+            self.active_cancel_requests
+                .set_wake(Some(cancel::current_owner_waker(
+                    self.maintenance_wake_owner.clone(),
+                    self.id,
+                )));
+        }
+    }
+
     fn finish_cancel_delivery(&mut self, mut pending: PendingCancelRequest) {
         if let Some(bulk) = &mut pending.bulk_deliveries {
             bulk.retire_missing_restorations(&self.cancel_senders);
@@ -1038,6 +1070,7 @@ where
         let Some(mut pending) = self.pending_cancel_request.take() else {
             return (None, false);
         };
+        self.ensure_maintenance_waker();
         if pending.bulk_deliveries.is_none()
             && pending.deliveries.len() > MAX_ACTION_SERVER_REQUESTS_PER_SPIN
         {
@@ -1054,8 +1087,7 @@ where
             }
             return (
                 Some(cancel::delivery::deliver(detached, pending, move |pending| {
-                    server.lock().finish_cancel_delivery(pending);
-                    Ok(())
+                    finish_cancel_delivery_with_notification(&server, pending)
                 })),
                 // A completion can create the next decision stage. Give the
                 // same-thread driver one followup; blocked entries have left
@@ -1073,10 +1105,7 @@ where
             Some(cancel_request_delivery_with_wake(
                 detached,
                 pending,
-                move |pending| {
-                    server.lock().finish_cancel_delivery(pending);
-                    Ok(())
-                },
+                move |pending| finish_cancel_delivery_with_notification(&server, pending),
                 wake,
             )),
             false,
@@ -1177,15 +1206,15 @@ where
     T: WrappedActionTypeSupport,
 {
     fn set_maintenance_wake(&mut self, wake: Option<std::task::Waker>) {
-        // Existing node-owned wake storage follows node transfer. Cached
-        // decision/readiness wakers retain only a weak reference to that owner.
-        let wake = if let Some(owner) = self.maintenance_wake_owner.upgrade() {
-            owner.lock().set_wake(wake.clone());
-            wake.map(|_| cancel::current_owner_waker(self.maintenance_wake_owner.clone()))
-        } else {
-            wake
-        };
-        self.active_cancel_requests.set_wake(wake);
+        if let Some(owner) = self.maintenance_wake_owner.upgrade() {
+            owner.lock().set_wake(wake);
+        }
+        // Identity wakers remain valid while the native binding changes.
+    }
+    fn schedule_cancel_maintenance(&self) -> Option<std::task::Waker> {
+        let owner = self.maintenance_wake_owner.upgrade()?;
+        let wake = owner.lock().queue_ready(self.id);
+        wake
     }
     fn id(&self) -> uuid::Uuid {
         self.id
@@ -1351,6 +1380,7 @@ where
         &mut self, server: Arc<Mutex<dyn ActionServer_>>,
         completions: &mut Vec<ActionServerCompletion>,
     ) -> Result<bool> {
+        self.ensure_maintenance_waker();
         let (delivery, delivery_continuation) =
             self.take_pending_cancel_delivery_with_progress(server.clone());
         let delivery_owned = delivery.is_some();
@@ -1516,14 +1546,6 @@ where
             return Err(Error::from_rcl_error(ret));
         }
 
-        let wake =
-            if cancel_response.0.msg.goals_canceling.size > MAX_ACTION_SERVER_REQUESTS_PER_SPIN {
-                // Decisions may arrive while delivery is still blocked. Keep their
-                // pre-registered wake bound to the current executor across transfer.
-                Some(self.active_cancel_requests.delivery_wake())
-            } else {
-                self.active_cancel_requests.wake()
-            };
         Ok(ActionServerDeliveryAction::Deliver(cancel_request_conversion_completion(
             server,
             cancel_response,
@@ -1535,12 +1557,8 @@ where
                     .iter()
                     .map(|goal_info| {
                         let uuid = uuid_msg_to_uuid(&goal_info.goal_id)?;
-                        let (response_sender, mut response_receiver) =
+                        let (response_sender, response_receiver) =
                             oneshot::channel::<(uuid::Uuid, bool)>();
-                        if let Some(wake) = &wake {
-                            let mut context = Context::from_waker(wake);
-                            let _ = Pin::new(&mut response_receiver).poll(&mut context);
-                        }
                         Ok((
                             PendingCancelDelivery {
                                 uuid,
@@ -2157,8 +2175,7 @@ mod tests {
     #[test]
     fn dropping_action_server_stream_queues_its_id() {
         let id = uuid::Uuid::from_u128(1);
-        let dropped_action_servers =
-            Arc::new(Mutex::new(crate::notifications::NotificationQueue::default()));
+        let dropped_action_servers = Arc::new(Mutex::new(ActionServerNotifications::default()));
         let (sender, receiver) = mpsc::channel::<ActionServerGoalRequest<Fibonacci::Action>>(1);
         let stream = ActionServer::new(receiver, id, Arc::clone(&dropped_action_servers));
 

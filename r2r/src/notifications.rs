@@ -34,6 +34,14 @@ impl<T> NotificationQueue<T> {
         self.wake.clone()
     }
 
+    pub(crate) fn has_wake(&self) -> bool {
+        self.wake.is_some()
+    }
+
+    pub(crate) fn parts(&mut self) -> (&mut VecDeque<T>, Option<&Waker>) {
+        (&mut self.entries, self.wake.as_ref())
+    }
+
     pub(crate) fn push_and_take_wake(&mut self, value: T) -> Option<Waker> {
         let was_empty = self.entries.is_empty();
         self.entries.push_back(value);

@@ -8,6 +8,29 @@ use std::{
 
 mod pubsub;
 
+#[test]
+fn cached_observer_waker_reuses_registration_without_retaining_guard_or_context() {
+    let context = Context::create().unwrap();
+    let weak_context = Arc::downgrade(&context.context_handle);
+    let guard = FutureGuard::new(&context).unwrap();
+    let weak_guard = Arc::downgrade(&guard);
+    let first = guard.observer_waker();
+    let second = guard.observer_waker();
+    assert!(first.will_wake(&second));
+    first.wake_by_ref();
+    assert_eq!(guard.triggers.load(Ordering::Relaxed), 0);
+    guard.active.store(true, Ordering::Release);
+    first.wake_by_ref();
+    assert_eq!(guard.triggers.load(Ordering::Relaxed), 1);
+    guard.active.store(false, Ordering::Release);
+    drop(context);
+    drop(guard);
+    assert!(weak_guard.upgrade().is_none());
+    assert!(weak_context.upgrade().is_none());
+    first.wake_by_ref();
+    second.wake();
+}
+
 fn node(name: &str) -> Node {
     Node::create(Context::create().unwrap(), name, "").unwrap()
 }

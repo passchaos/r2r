@@ -111,38 +111,33 @@ impl Node {
             }
         }
 
-        // Only action servers with an in-flight cancel delivery or decision need maintenance
-        // before waiting. Keep them registered until every response has been sent.
-        let action_servers_with_pending_cancels = self
-            .action_servers_with_pending_cancels
-            .iter()
-            .copied()
-            .collect::<Vec<_>>();
-        let mut local_action_progress = false;
-        for id in action_servers_with_pending_cancels {
+        let (ready_servers, server_continuation, server_wake) = {
+            let mut notifications = self.dropped_action_servers.lock();
+            self.pending_action_server_removals
+                .extend(notifications.drain(..));
+            notifications.take_ready()
+        };
+        if let Some(wake) = server_wake {
+            wake.wake();
+        }
+        let mut local_action_progress = server_continuation;
+        for id in ready_servers {
             let Some(index) = self.action_server_indexes.get(&id).copied() else {
-                self.action_servers_with_pending_cancels.remove(&id);
                 continue;
             };
             let action_server = &self.action_servers[index];
             record_action_server_maintenance_poll();
-            let maintenance_result =
-                complete_action_server_operation(action_server, |server, completions| {
-                    local_action_progress |=
-                        server.poll_cancel_maintenance(Arc::clone(action_server), completions)?;
-                    Ok(())
-                });
-            if !action_server.lock().has_pending_cancel_work() {
-                self.action_servers_with_pending_cancels.remove(&id);
+            #[cfg(test)]
+            if let Some(probe) = &self.action_server_poll_probe {
+                probe.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             }
-            maintenance_result?;
+            complete_action_server_operation(action_server, |server, completions| {
+                local_action_progress |=
+                    server.poll_cancel_maintenance(Arc::clone(action_server), completions)?;
+                Ok(())
+            })?;
         }
 
-        {
-            let mut dropped = self.dropped_action_servers.lock();
-            self.pending_action_server_removals
-                .extend(dropped.drain(..));
-        }
         let pending_action_server_removals =
             std::mem::take(&mut self.pending_action_server_removals);
         for id in pending_action_server_removals {

@@ -5,6 +5,7 @@ mod cleanup;
 mod feedback;
 mod observers;
 mod server_cancel;
+mod server_scheduling;
 mod workflows;
 use std::{sync::mpsc, time::Duration};
 

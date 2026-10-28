@@ -14,10 +14,10 @@ type DecisionResult = std::result::Result<(uuid::Uuid, bool), oneshot::Canceled>
 type DecisionReceiver = oneshot::Receiver<(uuid::Uuid, bool)>;
 pub(crate) type CancelSenders =
     HashMap<uuid::Uuid, Arc<Mutex<Option<mpsc::Sender<ActionServerCancelRequest>>>>>;
-pub(crate) type WakeOwner = Weak<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>;
+pub(crate) type WakeOwner = Weak<Mutex<ActionServerNotifications>>;
 
-pub(super) fn current_owner_waker(owner: WakeOwner) -> Waker {
-    struct CurrentOwnerWake(WakeOwner);
+pub(super) fn current_owner_waker(owner: WakeOwner, id: uuid::Uuid) -> Waker {
+    struct CurrentOwnerWake(WakeOwner, uuid::Uuid);
     impl Wake for CurrentOwnerWake {
         fn wake(self: Arc<Self>) {
             self.wake_by_ref();
@@ -26,13 +26,13 @@ pub(super) fn current_owner_waker(owner: WakeOwner) -> Waker {
             let Some(owner) = self.0.upgrade() else {
                 return;
             };
-            let wake = owner.lock().wake();
+            let wake = owner.lock().queue_ready(self.1);
             if let Some(wake) = wake {
                 wake.wake();
             }
         }
     }
-    Waker::from(Arc::new(CurrentOwnerWake(owner)))
+    Waker::from(Arc::new(CurrentOwnerWake(owner, id)))
 }
 
 pub struct ActiveCancelRequest {
@@ -380,6 +380,10 @@ impl ActiveCancelQueue {
         self.small.wake()
     }
 
+    pub(super) fn has_wake(&self) -> bool {
+        self.small.has_wake()
+    }
+
     fn ensure_bulk(&mut self) -> &mut BulkQueue {
         if self.bulk.is_none() {
             let mut bulk = BulkQueue::new(self.small.wake());
@@ -416,10 +420,10 @@ impl ActiveCancelQueue {
         if let Some(bulk) = &mut self.bulk {
             bulk.take_ready()
         } else {
-            let wake = self.small.wake();
+            let (entries, wake) = self.small.parts();
             (
-                poll_bounded_queue(&mut self.small, |request| {
-                    poll_cancel_decisions_with_wake(request, wake.as_ref())
+                poll_bounded_queue(entries, |request| {
+                    poll_cancel_decisions_with_wake(request, wake)
                 }),
                 false,
             )

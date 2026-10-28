@@ -262,9 +262,9 @@ fn completed_local_cancel_decisions_return_before_native_wait_timeout() {
             server.try_spin_once(Duration::ZERO).unwrap();
             client_node.try_spin_once(Duration::ZERO).unwrap();
         }
-        assert!(server
-            .action_servers_with_pending_cancels
-            .contains(&requests.id));
+        assert!(server.action_servers[server.action_server_indexes[&requests.id]]
+            .lock()
+            .has_pending_cancel_work());
         if accept {
             cancel_request.accept();
         } else {
