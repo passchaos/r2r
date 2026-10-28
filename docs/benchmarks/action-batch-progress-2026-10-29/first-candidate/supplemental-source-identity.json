@@ -1,0 +1,16 @@
+{
+  "runtime_sources": {
+    "r2r/src/action_clients.rs": "b058853cfec80558cbd6927c220214e784f2e10ef31afa0eb521fb63c24db74f",
+    "r2r/src/action_clients_untyped.rs": "11e371c42c89558f058a54468639e32271a19a4809c54463ee23458f03e08e55",
+    "r2r/src/action_servers.rs": "f063202c48e5fbb283b2e141c94b84154d6d69fbbe3adbf17f6add71fc535f7b",
+    "r2r/src/action_servers/cancel_progress.rs": "b364b7f690453f9e9558a5ec13fb6b4bc2136bbb115eab5de96eca1f89f37a52",
+    "r2r/src/notifications.rs": "fe0da7224631d6acbbaca3283fabdc866668f56b15adeb8d7a49ac6bf7843558",
+    "r2r/src/nodes/spin/prepare.rs": "0d79454f9c2182fdadf909db7e945d9539b9ca4c0a61caafa954f3896a72f626"
+  },
+  "binary_sha256": {
+    "r2r-candidate": "1850e38158781ac213e1ccca95625138abb679981e69ff7f3e343b667551a93d",
+    "r2r-baseline": "6fcc456ebe6180b78eec022f3322991d22e3c9e15c8cf519a290b3a87c60541d",
+    "rclcpp-comparison": "547677f0aa734ed161bc087407a044ba9f5a972ea93a902dbca3f3e6c3ead30f"
+  },
+  "note": "Supplemental source inventory for the new cancel_progress module; raw reports retain their original build manifests."
+}

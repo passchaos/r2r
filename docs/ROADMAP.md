@@ -30,6 +30,13 @@ This audit is based on the source tree and local checks through 2026-10-28. It i
 
 ## Execution order
 
+The [action batch-progress prototype](benchmarks/action-batch-progress-2026-10-29/README.md)
+was not promoted after the final Fast DDS success/cancellation p99 gate failed.
+Production still needs reliable continuation beyond bounded action cleanup,
+feedback and cancel-decision batches. Native forty-goal counterexamples and a
+finite readiness-scan prototype are archived; preserving bounded work, avoiding
+self-wake loops and qualifying tail precision are prerequisites for promotion.
+
 1. Finish the service-event distribution and external endpoint matrix after the local Jazzy vertical slice: correct bindings, event publication controls, native endpoint integration, and an executable example.
 2. Validate the Humble-and-newer distribution boundaries and update saved documentation bindings, with independent gates for each version-dependent API.
 3. Build representative Rust/C++ application pairs and a reproducible performance matrix. Use these workloads to select allocation, copying, wakeup and scaling optimizations.

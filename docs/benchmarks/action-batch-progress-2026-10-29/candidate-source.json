@@ -1,0 +1,19 @@
+{
+  "base_ref": "df69693e931ee7970dd1a289e44921697ea0f9b1",
+  "patch_sha256": "9b0c49e77aa9177c8253fa48ad5b9d2726eef7b4b96429b2afebbc4514ef489e",
+  "sources": {
+    "r2r/src/action_clients.rs": "b058853cfec80558cbd6927c220214e784f2e10ef31afa0eb521fb63c24db74f",
+    "r2r/src/action_clients_untyped.rs": "11e371c42c89558f058a54468639e32271a19a4809c54463ee23458f03e08e55",
+    "r2r/src/action_servers.rs": "f063202c48e5fbb283b2e141c94b84154d6d69fbbe3adbf17f6add71fc535f7b",
+    "r2r/src/nodes/action_cancel_tests.rs": "113e6565d1f6beb2a93a74e5ce23fb767d0c70fa47745271eebbad9acba7b592",
+    "r2r/src/nodes/executor/background/tests.rs": "ffc773de0e6972c99aa36be72c9d2c74c6abe5438d3ad3299e984a2f9884ddbe",
+    "r2r/src/nodes/spin/prepare.rs": "0d79454f9c2182fdadf909db7e945d9539b9ca4c0a61caafa954f3896a72f626",
+    "r2r/src/notifications.rs": "fe0da7224631d6acbbaca3283fabdc866668f56b15adeb8d7a49ac6bf7843558",
+    "tools/bench_ros/build.py": "4f8e75474ef3957f8cfed8e49c34edb55508f2f9a583c176dfaa601979d3b0ec",
+    "r2r/examples/action_cancel_many.rs": "e50dc73b30590573b32932e38f337d9ad6a6b81f2ec291ec015c4b309a96ef13",
+    "r2r/src/action_clients/maintenance_tests.rs": "e94638222ff3dc8d40ccfb3da938e725a579ff57992f6fd55928f98e0439fe93",
+    "r2r/src/action_servers/cancel_progress.rs": "2011a35a631d469334092ed1d654c7fd4e41b1273778e1c9ff4e7584258afa36",
+    "r2r/src/nodes/executor/background/tests/batch_progress.rs": "28fc76d56396734b920165c38a329c64b849ff9c564d4718a51a7d7b12b0d85a"
+  },
+  "promoted": false
+}

@@ -303,3 +303,20 @@ original 5% latency/throughput/CPU gates: 216 application records and 6480000 RT
 samples. It verifies the default path's performance boundary, not a cleanup
 throughput improvement. Background tail precision and wider scaling remain open.
 
+## Unpromoted action batch-progress prototype (2026-10-29)
+
+The [archived experiment](benchmarks/action-batch-progress-2026-10-29/README.md)
+reproduced a missing continuation after sixteen of forty canceled-result entries.
+Its native typed/untyped 40-goal cancellation/decision/result oracles and bounded
+blocked-feedback/decision scans passed, including same-thread and background
+execution. It did not pass final performance acceptance: Fast DDS success and
+cancellation p99 were 8.98% and 5.93% above the safe `df69693` baseline. The
+final CycloneDDS comparison passed the unchanged 5% limit.
+
+Both final reports retain all protocol checks, 140 total records and 140000 RTT
+samples. Earlier long-cohort/short-cohort failures and same-binary calibration
+are preserved. A short-cohort A/A pass did not predict the following A/B tail
+stability. The full source patch, test logs and source identities are archived;
+the prototype was removed from production. These open liveness/performance
+requirements are not recorded as achieved.
+
