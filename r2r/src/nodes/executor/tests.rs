@@ -2,6 +2,7 @@ use super::*;
 use futures::{FutureExt, StreamExt};
 use std::{cell::Cell, rc::Rc, sync::atomic::Ordering, thread, time::Instant};
 
+mod cancellation;
 mod workflows;
 
 fn node(context: &Context, name: &str) -> Node {
@@ -16,7 +17,7 @@ fn node(context: &Context, name: &str) -> Node {
 
 fn guard(executor: &mut Executor) -> Arc<FutureGuard> {
     let guard = FutureGuard::new(&executor.context).unwrap();
-    executor.future_wake_guard = Some(guard.clone());
+    executor.cache_future_guard(guard.clone());
     guard
 }
 

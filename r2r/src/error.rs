@@ -104,6 +104,8 @@ pub enum Error {
     RCL_ACTION_RET_NOT_TERMINATED_YET,
 
     // Our own errors
+    #[error("Executor operation cancelled; reset cancellation before reusing it")]
+    ExecutorCancelled,
     #[error("Clock type is not RosTime")]
     ClockTypeNotRosTime,
     #[error("No typesupport built for the message type: {}", msgtype)]

@@ -23,10 +23,12 @@ def percentile(samples, percent):
     return values[math.ceil((len(values)-1)*percent/100)]
 
 
-def validate(result, language, nodes, window, iterations, warmup, rmw):
-    driver = {"rust":"shared_wait", "cpp":"single_threaded_executor", "baseline":"node_wait" if nodes==1 else "nonblocking_round_robin"}[language]
+def validate(result, language, nodes, window, iterations, warmup, rmw, baseline_shared=False, control_enabled=False):
+    driver = {"rust":"shared_wait", "cpp":"single_threaded_executor", "baseline":"shared_wait" if baseline_shared else "node_wait" if nodes==1 else "nonblocking_round_robin"}[language]
     if (result["implementation"],result["driver"],result["nodes"],result["window"],result["iterations"],result["warmup"],result["rmw"]) != ("rclcpp" if language=="cpp" else "r2r",driver,nodes,window,iterations,warmup,rmw):
         raise RuntimeError("executor identity or driver mismatch")
+    if result.get("control_enabled",False) is not (control_enabled and language=="rust"):
+        raise RuntimeError("executor cancellation control mode mismatch")
     total = iterations+warmup
     if result["received"] != total or result["checksum"] != total*(total-1)//2:
         raise RuntimeError("executor request count/checksum mismatch")
@@ -72,7 +74,7 @@ def verify(path, require_performance_pass=False):
         if key in keys: raise RuntimeError("duplicate executor record")
         keys.add(key)
         record["samples_ns"]=trace["samples_ns"]
-        validate(record,record["language"],record["nodes"],record["window"],metadata["iterations"],metadata["warmup"],metadata["rmw"])
+        validate(record,record["language"],record["nodes"],record["window"],metadata["iterations"],metadata["warmup"],metadata["rmw"],metadata.get("baseline_shared",False),metadata.get("control_enabled",False))
         if record["cpu_per_request_ns"] != record["cpu_ns"]/metadata["iterations"]:
             raise RuntimeError("executor CPU calculation mismatch")
     expected={(nodes,window,language,repetition) for nodes in metadata["nodes"] for window in metadata["windows"] for language in ["baseline","rust","cpp"] for repetition in range(metadata["repetitions"])}
@@ -119,13 +121,15 @@ def run(args):
               "platform":platform.platform(),
               "cpu_model":next(line.split(':',1)[1].strip() for line in Path('/proc/cpuinfo').read_text().splitlines() if line.startswith('model name')),
               "nodes":nodes,"windows":windows,"iterations":args.iterations,"warmup":args.warmup,"repetitions":args.repetitions,
+              "baseline_shared":args.baseline_shared,
+              "control_enabled":args.control_enabled,
               "git_head":subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip(),
               "working_tree_dirty":bool(subprocess.check_output(["git","status","--porcelain"],text=True).strip()),
               "binary_sha256":{name:hashlib.sha256(path.read_bytes()).hexdigest() for name,path in binaries.items()},
               "rustc":subprocess.check_output(["rustc","--version"],text=True).strip(),
               "cxx":subprocess.check_output(["c++","--version"],text=True).splitlines()[0],
               "qos":"ServicesQoS reliable volatile KeepLast(max(16,window)); intra-process disabled",
-              "scheduling":"one application thread and all RMW threads on the same fixed CPU; native shared wait versus historical nonblocking multi-node round robin and rclcpp SingleThreadedExecutor",
+              "scheduling":"one application thread and all RMW threads on the same fixed CPU; candidate shared native wait versus " + ("baseline shared native wait" if args.baseline_shared else "historical native single-node wait/nonblocking multi-node round robin") + " and rclcpp SingleThreadedExecutor",
               "rtt_boundary":"before async request through response retrieval, before sum validation; queueing inside the window included",
               "throughput_boundary":"complete measured requests including validation; excludes setup/discovery/warmup/teardown",
               "cpu_boundary":"process CPU clock across all threads inside the measured window, per completed request",
@@ -139,10 +143,13 @@ def run(args):
             for repetition in range(args.repetitions):
                 for language in (["baseline","rust","cpp"] if repetition%2==0 else ["cpp","rust","baseline"]):
                     command=["taskset","-c",str(args.cpu),str(binaries[language]),str(count),str(window),str(args.iterations),str(args.warmup),"/executor_bench_"+uuid.uuid4().hex]
-                    result=subprocess.run(command,env=env,text=True,capture_output=True,timeout=120)
+                    run_env=env.copy()
+                    if args.control_enabled and language=="rust": run_env["R2R_BENCH_CONTROL_ENABLED"]="1"
+                    else: run_env.pop("R2R_BENCH_CONTROL_ENABLED",None)
+                    result=subprocess.run(command,env=run_env,text=True,capture_output=True,timeout=120)
                     if result.returncode: raise RuntimeError(f"{language} executor failed: {result.stderr}")
                     record=json.loads(result.stdout)
-                    validate(record,language,count,window,args.iterations,args.warmup,args.rmw)
+                    validate(record,language,count,window,args.iterations,args.warmup,args.rmw,args.baseline_shared,args.control_enabled)
                     traces.append({"record":len(records),"samples_ns":record.pop("samples_ns")})
                     record.update(language=language,repetition=repetition,cpu_per_request_ns=record["cpu_ns"]/args.iterations)
                     records.append(record)
@@ -179,6 +186,8 @@ def main():
     runner.add_argument('--domain-id',type=int,default=210)
     runner.add_argument('--rmw',default='rmw_cyclonedds_cpp')
     runner.add_argument('--max-regression',type=float)
+    runner.add_argument('--baseline-shared',action='store_true',help='baseline library already provides the shared native executor')
+    runner.add_argument('--control-enabled',action='store_true',help='candidate explicitly creates and retains its cancellation handle before measurement')
     runner.add_argument('--build-manifest',type=Path)
     runner.add_argument('--output',type=Path,required=True)
     checker=commands.add_parser('verify')

@@ -2,6 +2,8 @@ use super::{
     future_executor::{self, FutureDriver, FutureGuard, FutureWake},
     spin, *,
 };
+mod control;
+pub use control::ExecutorHandle;
 
 /// Identifies a node owned by an [`Executor`]. IDs remain stable across other node removals.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -20,6 +22,7 @@ struct ExecutorNode {
 /// idle nodes add no sequential timeout or periodic polling. Rust futures stay on the calling
 /// thread and may be non-Send. Independently driven runtimes remain responsible for their I/O.
 pub struct Executor {
+    control: Option<Arc<control::ExecutorControl>>,
     nodes: Vec<ExecutorNode>,
     indexes: HashMap<ExecutorNodeId, usize>,
     wait_set: WaitSet,
@@ -35,6 +38,7 @@ unsafe impl Send for Executor {}
 impl Executor {
     pub fn new(context: Context) -> Self {
         Self {
+            control: None,
             nodes: Vec::new(),
             indexes: HashMap::new(),
             wait_set: WaitSet::new(),
@@ -90,10 +94,55 @@ impl Executor {
         self.nodes.is_empty()
     }
 
+    /// Returns a weak cancellation handle for independently running work.
+    pub fn handle(&mut self) -> ExecutorHandle {
+        let control = self
+            .control
+            .get_or_insert_with(|| Arc::new(control::ExecutorControl::new()));
+        if let Some(guard) = &self.future_wake_guard {
+            control.attach_guard(guard);
+        }
+        ExecutorHandle::new(control)
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.control
+            .as_ref()
+            .is_some_and(|control| control.is_cancelled())
+    }
+
+    /// Clears a cancellation request between runs, retaining native wake/storage caches.
+    pub fn reset_cancel(&mut self) {
+        if let Some(control) = &self.control {
+            control.reset();
+        }
+    }
+
+    fn check_cancellation(&self) -> Result<()> {
+        match &self.control {
+            Some(control) => control.check(),
+            None => Ok(()),
+        }
+    }
+
+    /// Drives ROS events until cancellation or context shutdown. Normal stopping returns Ok.
+    pub fn spin(&mut self) -> Result<()> {
+        while self.context.is_valid() {
+            match self.spin_once(Duration::from_nanos(i64::MAX as u64)) {
+                Ok(()) => {}
+                Err(Error::ExecutorCancelled) => return Ok(()),
+                Err(Error::RCL_RET_NOT_INIT) if !self.context.is_valid() => return Ok(()),
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(())
+    }
+
     /// Waits once for all nodes and dispatches ready ROS work.
     /// Pending reliable ACK queries retain their bounded native-query cadence.
     pub fn spin_once(&mut self, timeout: Duration) -> Result<()> {
         duration_to_rcl_nanos(timeout)?;
+        self.check_cancellation()?;
         if !self.context.is_valid() {
             return Err(Error::RCL_RET_NOT_INIT);
         }
@@ -101,7 +150,7 @@ impl Executor {
             Some(guard) => guard.clone(),
             None => {
                 let guard = FutureGuard::new(&self.context)?;
-                self.future_wake_guard = Some(guard.clone());
+                self.cache_future_guard(guard.clone());
                 guard
             }
         };
@@ -140,6 +189,7 @@ impl Executor {
             entities.add_actions(&mut self.wait_set.handle)?;
         }
         let timeout_nanos = duration_to_rcl_nanos(wait)?;
+        self.check_cancellation()?;
         #[cfg(test)]
         guard.before_wait(timeout_nanos);
         let ret = unsafe { rcl_wait(&mut self.wait_set.handle, timeout_nanos) };
@@ -151,12 +201,16 @@ impl Executor {
         if !self.context.is_valid() {
             return Err(Error::RCL_RET_NOT_INIT);
         }
+        self.check_cancellation()?;
         if ret == RCL_RET_TIMEOUT as i32 {
             return Ok(());
         }
         check_rcl_ret(ret)?;
         let mut error = None;
         for entry in &mut self.nodes {
+            if let Some(control) = &self.control {
+                control.check()?;
+            }
             let (_, mut entities) = entry.node.wait_entities();
             if let Err(failure) = entities.dispatch(&self.wait_set.handle, entry.offsets) {
                 error.get_or_insert(failure);
@@ -197,6 +251,9 @@ impl FutureDriver for Executor {
         self.future_wake_guard.clone()
     }
     fn cache_future_guard(&mut self, guard: Arc<FutureGuard>) {
+        if let Some(control) = &self.control {
+            control.attach_guard(&guard);
+        }
         self.future_wake_guard = Some(guard);
     }
     fn set_future_wake(&mut self, wake: Arc<FutureWake>) {
@@ -204,6 +261,9 @@ impl FutureDriver for Executor {
     }
     fn spin_future_events(&mut self, timeout: Duration) -> Result<()> {
         self.spin_once(timeout)
+    }
+    fn check_future_state(&self) -> Result<()> {
+        self.check_cancellation()
     }
 }
 

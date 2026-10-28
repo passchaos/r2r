@@ -27,6 +27,9 @@ fn drive<T>(nodes: Vec<Node>, future: impl Future<Output = r2r::Result<T>>) -> r
         for node in nodes {
             executor.add_node(node)?;
         }
+        #[cfg(r2r_bench_executor_control)]
+        let _control =
+            (std::env::var_os("R2R_BENCH_CONTROL_ENABLED").is_some()).then(|| executor.handle());
         executor.spin_until_future_complete_with_options(
             future,
             Duration::from_secs(30),
@@ -177,9 +180,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let rmw = unsafe { std::ffi::CStr::from_ptr(r2r_rcl::rmw_get_implementation_identifier()) }
         .to_str()?;
+    let control_enabled =
+        cfg!(r2r_bench_executor_control) && std::env::var_os("R2R_BENCH_CONTROL_ENABLED").is_some();
     println!(
         "{}",
-        serde_json::json!({"implementation":"r2r","driver":driver,"rmw":rmw,"nodes":node_count,"window":window,
+        serde_json::json!({"implementation":"r2r","driver":driver,"rmw":rmw,"control_enabled":control_enabled,"nodes":node_count,"window":window,
         "iterations":iterations,"warmup":warmup,"received":received,"checksum":checksum,
         "elapsed_ns":elapsed,"cpu_ns":cpu,"requests_per_second":iterations as f64/(elapsed as f64*1e-9),
         "rtt_ns_p50":percentile(50),"rtt_ns_p95":percentile(95),"rtt_ns_p99":percentile(99),

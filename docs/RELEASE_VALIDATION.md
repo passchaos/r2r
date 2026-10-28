@@ -39,7 +39,7 @@ Filtered tests must execute nonzero relevant cases. The new typed/untyped action
 both reverse indexes to be empty after out-of-order response/request cleanup. Existing entity
 tests cover registration, targeted destruction, swap-removal, index rebuilding and automatic
 cleanup. Parameter tests verify repeated operations after guard destruction and provider-backed
-reads. Full optimized Jazzy library validation now passes 438 tests, with two manual benchmarks ignored.
+reads. Full optimized Jazzy library validation now passes 445 tests, with two manual benchmarks ignored.
 Humble and Kilted each pass nine optimized index cases and the parameter-transaction gate.
 
 The [future-execution pub/sub boundary](FUTURE_EXECUTION.md) adds eight cases for graph-driven

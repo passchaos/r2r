@@ -47,6 +47,46 @@ without creating native storage; pending zero-timeout work reports `RCL_RET_TIME
 Completion, timeout and unwinding disarm the Rust waker. Old wakers have weak native references
 and do not retain the executor/context or complete later work.
 
+## Cancellation and reuse
+
+`executor.handle()` creates a cloneable, thread-safe `ExecutorHandle`. The executor allocates
+the shared cancellation state only when a handle is requested. Handles hold weak references:
+they do not keep the executor, its nodes or its context alive. `handle.cancel()` returns
+`Ok(true)` when the executor still exists and `Ok(false)` after it has been dropped.
+
+Cancellation is persistent until the owner calls `reset_cancel()` between runs. It interrupts
+an active native wait through the existing cached guard condition, without shutting down the
+context, adding a polling thread or creating another native timer/guard. Repeated requests
+coalesce to one native wake until reset. `spin_once` and pending future execution report
+`Error::ExecutorCancelled`; continuous `spin()` returns `Ok(())` on cancellation or normal
+context shutdown. It drives ROS events, while application futures still need a caller or an
+independently running Rust executor.
+
+```rust
+let control = executor.handle();
+let worker = std::thread::spawn(move || {
+    executor.spin()?;
+    Ok::<_, r2r::Error>(executor)
+});
+// Drive the application's streams and futures while the worker handles ROS events.
+control.cancel()?;
+let mut executor = worker.join().expect("ROS worker panicked")?;
+executor.reset_cancel();
+// The same nodes, context and native storage can now drive another operation.
+```
+
+A request made before execution prevents even a ready future's first poll and does not create
+native wait storage. A future that completes during a poll can win a simultaneous cancellation
+request after the check immediately before that poll. Reset and new requests should be
+coordinated by the application; a native wake already in flight can be spurious after reset,
+and pending work remains reusable. Native triggers temporarily retain the guard storage while
+calling RCL, so a concurrent executor drop cannot invalidate it.
+
+The [runnable control example](../r2r/examples/executor_control.rs) drives ROS on a background
+thread and composes service and subscription streams with `futures::executor::block_on`. It
+validates 8192 payload values and 32 requests, cancels and joins the worker, then resets and
+reuses the same nodes for another sum request.
+
 ## Waiting and dispatch
 
 The node implementation separates pre-wait maintenance, native entity registration and ready
@@ -74,6 +114,9 @@ cadence and shutdown. [Complete workflows](../r2r/src/nodes/executor/tests/workf
 ordinary entity offsets with decoys on other nodes and action success/cancellation after
 ordinary entities on a later node. Native wait return codes and requested wait deadlines
 establish interruption without relying only on elapsed-time thresholds.
+The [cancellation tests](../r2r/src/nodes/executor/tests/cancellation.rs) cover requests before
+the first spin/during initial polling, native wait interruption, concurrent wake coalescing,
+node/guard reuse, expired weak handles and repeated cancellation after reset.
 
 ```sh
 env -u CYCLONEDDS_URI cargo test -p r2r --lib nodes::executor -- --test-threads=1
@@ -81,6 +124,7 @@ env -u CYCLONEDDS_URI RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
   cargo test -p r2r --lib nodes::executor -- --test-threads=1
 env -u CYCLONEDDS_URI cargo test -p r2r --lib future_executor -- --test-threads=1
 env -u CYCLONEDDS_URI cargo run -p r2r --example multi_node_pipeline
+env -u CYCLONEDDS_URI cargo run -p r2r --example executor_control
 ```
 
 The service-application performance harness compares historical Rust nonblocking multi-node

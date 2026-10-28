@@ -27,6 +27,9 @@ def rust_binary(source, target, destination, env, workload="codec"):
         flags = build_env.get("RUSTFLAGS", "") + " --check-cfg=cfg(r2r_bench_shared_executor)"
         if (source / "r2r/src/nodes/executor.rs").exists():
             flags += " --cfg r2r_bench_shared_executor"
+        flags += " --check-cfg=cfg(r2r_bench_executor_control)"
+        if (source / "r2r/src/nodes/executor/control.rs").exists():
+            flags += " --cfg r2r_bench_executor_control"
         build_env["RUSTFLAGS"] = flags.strip()
     if workload == "native_views":
         flags = build_env.get("RUSTFLAGS", "") + " --check-cfg=cfg(r2r_bench_native_views)"
@@ -79,7 +82,8 @@ def main():
     manifests["workload"] = args.workload
     if args.workload == "executor":
         manifests["executor_api_detection"] = "nodes/executor.rs present: shared native wait; absent: Node native wait for one node and nonblocking round-robin for multiple nodes"
-        manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_shared_executor); --cfg r2r_bench_shared_executor only where the shared executor API exists"
+        manifests["executor_control_detection"] = "nodes/executor/control.rs present: cancellation handle available; R2R_BENCH_CONTROL_ENABLED creates and retains a handle before measurement"
+        manifests["benchmark_cfg"] = "--check-cfg declares r2r_bench_shared_executor and r2r_bench_executor_control; --cfg enables each only where its API exists"
     if args.workload == "native_views":
         manifests["receive_api_detection"] = "native_views.rs present: subscribe_view and publish_view echo; absent: normal typed receive/publish fallback"
         manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_native_views); --cfg r2r_bench_native_views only where the view API exists"

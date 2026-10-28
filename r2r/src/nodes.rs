@@ -45,7 +45,7 @@ use crate::{
 mod executor;
 mod future_executor;
 mod spin;
-pub use executor::{Executor, ExecutorNodeId};
+pub use executor::{Executor, ExecutorHandle, ExecutorNodeId};
 pub use future_executor::FutureExecutionOptions;
 
 #[cfg(all(test, r2r__example_interfaces__action__Fibonacci))]

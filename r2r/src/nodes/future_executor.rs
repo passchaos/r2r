@@ -213,6 +213,9 @@ impl Node {
 }
 
 pub(super) trait FutureDriver {
+    fn check_future_state(&self) -> Result<()> {
+        Ok(())
+    }
     fn future_context(&self) -> &Context;
     fn cached_future_guard(&self) -> Option<Arc<FutureGuard>>;
     fn cache_future_guard(&mut self, guard: Arc<FutureGuard>);
@@ -248,6 +251,7 @@ pub(super) fn drive_future<T>(
     {
         return Err(Error::RCL_RET_INVALID_ARGUMENT);
     }
+    driver.check_future_state()?;
     futures::pin_mut!(future);
     let started = Instant::now();
     // Preserve the allocation-free already-ready path and zero-timeout behavior.
@@ -255,6 +259,7 @@ pub(super) fn drive_future<T>(
     if let Poll::Ready(result) = future.as_mut().poll(&mut initial) {
         return result;
     }
+    driver.check_future_state()?;
     if timeout.saturating_sub(started.elapsed()).is_zero() {
         return Err(Error::RCL_RET_TIMEOUT);
     }
@@ -277,6 +282,7 @@ pub(super) fn drive_future<T>(
     let waker = Waker::from(Arc::clone(&run.wake));
     let mut context = TaskContext::from_waker(&waker);
     loop {
+        driver.check_future_state()?;
         run.wake
             .flags
             .fetch_and(!(NOTIFIED | WAITING), Ordering::AcqRel);

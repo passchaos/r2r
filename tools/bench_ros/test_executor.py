@@ -22,6 +22,19 @@ class ExecutorProtocolValidation(unittest.TestCase):
     def test_full_protocol_oracle_passes(self):
         self.check(self.record)
 
+    def test_shared_baseline_driver_must_be_declared(self):
+        validate(self.record,"baseline",1,1,2,1,"rmw_cyclonedds_cpp",baseline_shared=True)
+        with self.assertRaisesRegex(RuntimeError,"driver mismatch"):
+            validate(self.record,"baseline",1,1,2,1,"rmw_cyclonedds_cpp")
+
+    def test_enabled_cancellation_control_must_be_declared_and_executed(self):
+        record=dict(self.record,control_enabled=True)
+        validate(record,"rust",1,1,2,1,"rmw_cyclonedds_cpp",control_enabled=True)
+        with self.assertRaisesRegex(RuntimeError,"control mode mismatch"):
+            self.check(record)
+        with self.assertRaisesRegex(RuntimeError,"control mode mismatch"):
+            validate(self.record,"rust",1,1,2,1,"rmw_cyclonedds_cpp",control_enabled=True)
+
     def test_wrong_driver_counts_or_clock_windows_fail(self):
         for field,value in [("driver","nonblocking_round_robin"),("received",2),("checksum",4),
                             ("nodes",2),("window",16),("rmw","wrong"),("samples_ns",[0,20]),
