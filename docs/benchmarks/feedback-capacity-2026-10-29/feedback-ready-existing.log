@@ -1,0 +1,11 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running unittests src/lib.rs (target/debug/deps/r2r-73bce1fcd33da3d9)
+
+running 4 tests
+test action_clients::tests::pending_feedback_reports_backpressure_when_every_goal_is_blocked ... ok
+test action_clients::tests::pending_feedback_scans_are_bounded_and_deduplicated ... ok
+test action_clients::tests::pending_feedback_skips_a_blocked_goal_for_a_ready_goal ... ok
+test action_clients::tests::stale_pending_feedback_does_not_block_a_live_goal ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 540 filtered out; finished in 0.00s
+

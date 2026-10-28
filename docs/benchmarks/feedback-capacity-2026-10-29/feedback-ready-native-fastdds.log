@@ -1,0 +1,13 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running unittests src/lib.rs (target/debug/deps/r2r-73bce1fcd33da3d9)
+
+running 2 tests
+test nodes::executor::background::tests::feedback::typed_feedback_capacity_recovery_progresses_without_native_traffic ... [WARN] [1793215141.878831638] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215141.878850216] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::feedback::untyped_feedback_capacity_recovery_progresses_without_native_traffic ... [WARN] [1793215141.941032692] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215141.941074665] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 544 filtered out; finished in 0.11s
+

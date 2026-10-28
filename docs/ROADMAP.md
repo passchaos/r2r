@@ -14,7 +14,7 @@ Supported ROS 2 distributions start at **Humble**: Humble, Iron, Jazzy, Kilted, 
 
 ## Current evidence and gaps
 
-This audit is based on the source tree and local checks through 2026-10-28. It is not a claim of C++ parity or performance leadership.
+This audit is based on the source tree and local checks through 2026-10-29. It is not a claim of C++ parity or performance leadership.
 
 | Area | Existing foundation | Remaining work |
 | --- | --- | --- |
@@ -33,10 +33,12 @@ This audit is based on the source tree and local checks through 2026-10-28. It i
 The [action batch-progress prototype](benchmarks/action-batch-progress-2026-10-29/README.md)
 was not promoted after the final Fast DDS success/cancellation p99 gate failed.
 Production now [continues canceled-observer cleanup batches](ACTION_CANCELLATION_BACKLOG.md)
-using the bounded drain's progress flag. Feedback delivery and server
-cancel-decision batches still need reliable continuation. Native forty-goal counterexamples and a
-finite readiness-scan prototype are archived; preserving bounded work, avoiding
-self-wake loops and qualifying tail precision are prerequisites for promotion.
+using the bounded drain's progress flag. [Feedback capacity recovery](ACTION_FEEDBACK_PROGRESS.md)
+parks full senders and notifies runnable retries by goal, retaining bounded
+sixteen-candidate passes and stopping self-notifications when all goals are blocked.
+Native middleware feedback ingress/fanout and large server cancel delivery/decision
+batches remain open. The archived broader prototype is not used to establish
+these narrower fixes; qualified tail precision remains a separate requirement.
 
 1. Finish the service-event distribution and external endpoint matrix after the local Jazzy vertical slice: correct bindings, event publication controls, native endpoint integration, and an executable example.
 2. Validate the Humble-and-newer distribution boundaries and update saved documentation bindings, with independent gates for each version-dependent API.

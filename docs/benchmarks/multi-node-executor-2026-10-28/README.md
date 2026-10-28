@@ -24,6 +24,13 @@ waiting. rclcpp uses `SingleThreadedExecutor`, normal service callbacks and asyn
 callbacks that replenish the same request window. Rust uses service streams and response futures
 with `buffer_unordered(window)`. Framework scheduling and these public API costs remain measured.
 
+rclcpp's compared executor also shares a native wait across nodes. Removing
+per-node polling explains the large improvement over historical r2r; it does
+not by itself explain the smaller advantage over C++. That comparison measures
+the complete execution and public API paths. It has no hotspot profile that
+attributes the difference to specific locks, allocations or callback dispatch,
+and does not compare other rclcpp executor configurations.
+
 Reliable volatile ServicesQoS, KeepLast(max(16, window)), default ISA targeting, disabled rosout,
 parameter services/events and intra-process communication are equal. RTT starts before the
 async request call and ends after response retrieval, before sum validation. Windowed RTT

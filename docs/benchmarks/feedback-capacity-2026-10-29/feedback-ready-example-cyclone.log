@@ -1,0 +1,6 @@
+   Compiling r2r v0.9.7 (/home/passchaos/Work/r2r/r2r)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 28.32s
+     Running `target/debug/examples/action_feedback_backpressure`
+[WARN] [1793215348.511662942] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215348.511702280] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+verified ordered feedback after a slow consumer and a successful terminal result

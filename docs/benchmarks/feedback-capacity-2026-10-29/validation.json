@@ -1,0 +1,61 @@
+{
+  "checks": [
+    {
+      "gate": "workspace-final",
+      "exit_code": 0,
+      "relevant_passed": 546,
+      "log": "feedback-ready-workspace-final.log",
+      "sha256": "edcfc2d47f553ffbce515d3dfaa04bef6bc60099eab1e746496242735f950c4d"
+    },
+    {
+      "gate": "release-cyclone-final",
+      "exit_code": 0,
+      "relevant_passed": 546,
+      "log": "feedback-ready-release-cyclone-final.log",
+      "sha256": "5949d5a49e9acdd43fbc27c3c5b56561dc32b01ccfd943bfcef48727618cfcde"
+    },
+    {
+      "gate": "release-fastdds-final",
+      "exit_code": 0,
+      "relevant_passed": 546,
+      "log": "feedback-ready-release-fastdds-final.log",
+      "sha256": "2e4115e76b32f5bc227f1eb1b557885825a842137dc0ba7485b3c7bc849b4890"
+    },
+    {
+      "gate": "humble-final",
+      "exit_code": 0,
+      "relevant_passed": 33,
+      "log": "feedback-ready-humble-final.log",
+      "sha256": "4e3756942b40c0fff380c55f13341f2b0fb77eda8513424cd23bfcb8ca6c1a57"
+    },
+    {
+      "gate": "kilted-final",
+      "exit_code": 0,
+      "relevant_passed": 33,
+      "log": "feedback-ready-kilted-final.log",
+      "sha256": "6dbc803a2edf2b47ad83f2607adbd7858889c7028fb6fd402ea3c8d5e8407d8f"
+    },
+    {
+      "gate": "no-ros-final",
+      "exit_code": 0,
+      "all_workspace_targets": "compiled",
+      "api_artifacts": 13,
+      "documented_methods": 28,
+      "log": "feedback-ready-no-ros-final.log",
+      "sha256": "5f8977d4439b11985e99c3aebc2999f221f66961e0af07b07d76f273241da951"
+    },
+    {
+      "gate": "clippy",
+      "exit_code": 0,
+      "log": "feedback-ready-clippy.log",
+      "sha256": "1c1f788dfa138b6fc5b279db525cc6a10b5f882471eec9782ab19d352b4b30bf"
+    },
+    {
+      "gate": "format",
+      "exit_code": 0,
+      "log": "feedback-ready-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "performance_gate_scope": "Rust/Rust versus baseline/baseline, maximum ratio 1.05; mixed-endpoint tails remain separate observations."
+}

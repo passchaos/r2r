@@ -1,0 +1,192 @@
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.014s
+
+OK
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded autocfg v1.5.1
+  Downloaded bitflags v2.13.2
+  Downloaded block-buffer v0.10.4
+  Downloaded anstyle v1.0.14
+  Downloaded futures-task v0.3.34
+  Downloaded byteorder v1.5.0
+  Downloaded anes v0.1.6
+  Downloaded futures-macro v0.3.34
+  Downloaded generic-array v0.14.7
+  Downloaded crypto-common v0.1.7
+  Downloaded ciborium-ll v0.2.2
+  Downloaded unicode-ident v1.0.26
+  Downloaded clap_lex v1.1.1
+  Downloaded walkdir v2.5.0
+  Downloaded is-terminal v0.4.17
+  Downloaded force-send-sync v1.2.0
+  Downloaded tokio-macros v2.7.2
+  Downloaded futures-core v0.3.34
+  Downloaded cast v0.3.0
+  Downloaded equivalent v1.0.2
+  Downloaded rand_chacha v0.3.1
+  Downloaded ciborium-io v0.2.2
+  Downloaded plotters-backend v0.3.7
+  Downloaded cpufeatures v0.2.17
+  Downloaded version_check v0.9.5
+  Downloaded phf_generator v0.11.3
+  Downloaded same-file v1.0.6
+  Downloaded futures-sink v0.3.34
+  Downloaded lazy_static v1.5.0
+  Downloaded rustc-hash v2.1.3
+  Downloaded itoa v1.0.18
+  Downloaded siphasher v1.0.3
+  Downloaded plotters-svg v0.3.7
+  Downloaded scopeguard v1.2.0
+  Downloaded futures-io v0.3.34
+  Downloaded phf_shared v0.11.3
+  Downloaded shlex v1.3.0
+  Downloaded smallvec v1.16.1
+  Downloaded ppv-lite86 v0.2.21
+  Downloaded criterion-plot v0.5.0
+  Downloaded either v1.18.0
+  Downloaded os_str_bytes v6.6.1
+  Downloaded rand_core v0.6.4
+  Downloaded quote v1.0.47
+  Downloaded thiserror-impl v1.0.69
+  Downloaded thiserror v1.0.69
+  Downloaded tinytemplate v1.2.1
+  Downloaded zmij v1.0.23
+  Downloaded paste v1.0.15
+  Downloaded lock_api v0.4.14
+  Downloaded glob v0.3.4
+  Downloaded cexpr v0.6.0
+  Downloaded slab v0.4.12
+  Downloaded cfg-if v1.0.5
+  Downloaded cdr v0.2.4
+  Downloaded uuid v1.26.1
+  Downloaded phf_macros v0.11.3
+  Downloaded crossbeam-deque v0.8.8
+  Downloaded pin-project-lite v0.2.17
+  Downloaded parking_lot_core v0.9.12
+  Downloaded num-traits v0.2.19
+  Downloaded socket2 v0.6.5
+  Downloaded getrandom v0.4.3
+  Downloaded widestring v1.2.1
+  Downloaded rayon-core v1.13.0
+  Downloaded serde v1.0.229
+  Downloaded typenum v1.20.1
+  Downloaded minimal-lexical v0.2.1
+  Downloaded mio v1.2.4
+  Downloaded itertools v0.10.5
+  Downloaded nom v7.1.3
+  Downloaded itertools v0.13.0
+  Downloaded serde_json v1.0.151
+  Downloaded hashbrown v0.17.1
+  Downloaded rayon v1.12.0
+  Downloaded zerocopy v0.8.57
+  Downloaded syn v2.0.119
+  Downloaded bindgen v0.72.1
+  Downloaded futures-util v0.3.34
+  Downloaded clap_builder v4.6.7
+  Downloaded regex v1.13.1
+  Downloaded syn v3.0.6
+  Downloaded plotters v0.3.7
+  Downloaded criterion v0.5.1
+  Downloaded aho-corasick v1.1.5
+  Downloaded regex-syntax v0.8.11
+  Downloaded indexmap v2.14.2
+  Downloaded memchr v2.8.3
+  Downloaded rand v0.8.8
+  Downloaded futures v0.3.34
+  Downloaded clap v4.6.7
+  Downloaded prettyplease v0.2.37
+  Downloaded bytes v1.12.1
+  Downloaded tokio v1.53.1
+  Downloaded serde_derive v1.0.229
+  Downloaded serde_core v1.0.229
+  Downloaded sha2 v0.10.9
+  Downloaded regex-automata v0.4.18
+  Downloaded proc-macro2 v1.0.107
+  Downloaded log v0.4.34
+  Downloaded half v2.7.1
+  Downloaded digest v0.10.7
+  Downloaded getrandom v0.2.17
+  Downloaded once_cell v1.21.4
+  Downloaded crossbeam-epoch v0.9.21
+  Downloaded clang-sys v1.9.1
+  Downloaded ciborium v0.2.2
+  Downloaded phf v0.11.3
+  Downloaded parking_lot v0.12.5
+  Downloaded futures-executor v0.3.34
+  Downloaded libc v0.2.189
+  Downloaded futures-channel v0.3.34
+  Downloaded crossbeam-utils v0.8.23
+  Downloaded libloading v0.8.9
+  Downloaded oorandom v11.1.5
+  Downloaded zerocopy-derive v0.8.57
+    Checking r2r v0.9.7 (/r2r/r2r)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 21.26s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running unittests src/lib.rs (target/doc-only-validation/debug/deps/r2r_common-02057f976617e2ed)
+
+running 6 tests
+test documentation::tests::documentation_snapshot_has_supported_service_event_semantics ... ok
+test tests::service_events_follow_ros_distro_support ... ok
+test tests::supported_distributions_start_at_humble ... ok
+test tests::test_parse_msgs ... ok
+test tests::test_as_map ... ok
+test tests::test_camel_to_snake_case ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running unittests src/lib.rs (target/doc-only-validation/debug/deps/r2r_msg_gen-6b9a851f0c30df4b)
+
+running 2 tests
+test message_path::tests::message_names_keep_only_generated_suffixes ... ok
+test message_path::tests::nested_message_paths_match_generated_modules ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+ Documenting r2r v0.9.7 (/r2r/r2r)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.73s
+   Generated /r2r/target/doc-only-validation/doc/r2r/index.html
+PASS public documentation: struct.LifecycleNode.html
+PASS public documentation: struct.LifecyclePublisher.html
+PASS public documentation: struct.LifecycleLoanedMessage.html
+PASS public documentation: struct.LifecycleTimer.html
+PASS public documentation: struct.TimeSource.html
+PASS public documentation: enum.ServiceIntrospectionState.html
+PASS public documentation: struct.MessageSerializer.html
+PASS public documentation: struct.Executor.html
+PASS public documentation: struct.ExecutorTask.html
+PASS public documentation: enum.ExecutorTaskError.html
+PASS public documentation: example_interfaces/srv/AddTwoInts/struct.Event.html
+PASS public documentation: example_interfaces/action/Fibonacci/SendGoal/struct.Event.html
+PASS public documentation: service_msgs/msg/struct.ServiceEventInfo.html
+PASS documented method: struct.LifecycleNode.html::create_publisher
+PASS documented method: struct.LifecycleNode.html::create_publisher_with_options
+PASS documented method: struct.LifecycleNode.html::configure
+PASS documented method: struct.LifecycleNode.html::activate
+PASS documented method: struct.LifecycleNode.html::create_timer
+PASS documented method: struct.LifecycleNode.html::create_timer_with_options
+PASS documented method: struct.LifecycleNode.html::create_wall_timer
+PASS documented method: struct.LifecycleNode.html::create_wall_timer_with_options
+PASS documented method: struct.LifecyclePublisher.html::publish
+PASS documented method: struct.LifecyclePublisher.html::publish_native
+PASS documented method: struct.LifecyclePublisher.html::borrow_loaned_message
+PASS documented method: struct.LifecyclePublisher.html::destroy
+PASS documented method: struct.LifecyclePublisher.html::wait_for_subscribers
+PASS documented method: struct.LifecycleLoanedMessage.html::publish
+PASS documented method: struct.Client.html::configure_introspection
+PASS documented method: struct.TimeSource.html::enable_sim_time
+PASS documented method: struct.TimeSource.html::disable_sim_time
+PASS documented method: struct.TimeSource.html::attach_ros_clock
+PASS documented method: struct.LifecycleTimer.html::tick
+PASS documented method: struct.LifecycleTimer.html::tick_with_info
+PASS documented method: struct.LifecycleTimer.html::cancel
+PASS documented method: struct.LifecycleTimer.html::reset
+PASS documented method: struct.LifecycleTimer.html::destroy
+PASS documented method: struct.Executor.html::spawn
+PASS documented method: struct.ExecutorTask.html::handle
+PASS documented method: struct.ExecutorTask.html::cancel
+PASS documented method: struct.ExecutorTask.html::is_finished
+PASS documented method: struct.ExecutorTask.html::stop
+13 public documentation artifacts verified without ROS

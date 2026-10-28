@@ -1,0 +1,24 @@
+    Blocking waiting for file lock on package cache
+   Compiling r2r v0.9.7 (/r2r/r2r)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 34.18s
+     Running unittests src/lib.rs (target/compat-humble/debug/deps/r2r-73bce1fcd33da3d9)
+
+running 4 tests
+test action_clients::feedback_tests::detached_sender_restoration_preserves_and_reschedules_reentrant_feedback ... ok
+test action_clients::feedback_tests::forty_blocked_goals_park_after_bounded_scans_and_only_ready_goal_retries ... ok
+test action_clients::feedback_tests::full_feedback_parks_until_capacity_recovery_then_notifies_native_retry ... ok
+test action_clients::feedback_tests::stale_capacity_wake_cannot_resurrect_closed_feedback_or_keep_owner_alive ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 533 filtered out; finished in 0.00s
+
+    Blocking waiting for file lock on package cache
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.18s
+     Running unittests src/lib.rs (target/compat-humble/debug/deps/r2r-73bce1fcd33da3d9)
+
+running 3 tests
+test nodes::action_cancel_tests::same_thread_feedback_capacity_recovery_delivers_without_another_ros_message ... ok
+test nodes::executor::background::tests::feedback::typed_feedback_capacity_recovery_progresses_without_native_traffic ... ok
+test nodes::executor::background::tests::feedback::untyped_feedback_capacity_recovery_progresses_without_native_traffic ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 534 filtered out; finished in 0.13s
+

@@ -1,0 +1,6 @@
+{
+  "file": "r2r/src/action_clients/feedback.rs",
+  "measured_source_sha256": "3f30858129fdc66700db98d83510311bbb148c748d634ff3de4f4eb4ebdebedd",
+  "final_source_sha256": "fdd715496fb44aa05ccd7dc32883cc8bdbef6e93046e71704ea4583cb976df5c",
+  "difference": "Only the appended cfg(test) readiness lock/coalescing test follows the measured source; the production source prefix is byte-identical."
+}

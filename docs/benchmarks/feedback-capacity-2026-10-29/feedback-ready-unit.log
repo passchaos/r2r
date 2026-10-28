@@ -1,0 +1,12 @@
+   Compiling r2r v0.9.7 (/home/passchaos/Work/r2r/r2r)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 27.16s
+     Running unittests src/lib.rs (target/debug/deps/r2r-73bce1fcd33da3d9)
+
+running 4 tests
+test action_clients::feedback_tests::detached_sender_restoration_preserves_and_reschedules_reentrant_feedback ... ok
+test action_clients::feedback_tests::forty_blocked_goals_park_after_bounded_scans_and_only_ready_goal_retries ... ok
+test action_clients::feedback_tests::full_feedback_parks_until_capacity_recovery_then_notifies_native_retry ... ok
+test action_clients::feedback_tests::stale_capacity_wake_cannot_resurrect_closed_feedback_or_keep_owner_alive ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 542 filtered out; finished in 0.72s
+

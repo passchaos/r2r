@@ -1,0 +1,22 @@
+   Compiling r2r v0.9.7 (/home/passchaos/Work/r2r/r2r)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 33.18s
+     Running unittests src/lib.rs (target/debug/deps/r2r-73bce1fcd33da3d9)
+
+running 1 test
+test action_clients::feedback_tests::full_feedback_parks_until_capacity_recovery_then_notifies_native_retry ... FAILED
+
+failures:
+
+---- action_clients::feedback_tests::full_feedback_parks_until_capacity_recovery_then_notifies_native_retry stdout ----
+
+thread 'action_clients::feedback_tests::full_feedback_parks_until_capacity_recovery_then_notifies_native_retry' panicked at r2r/src/action_clients/feedback_tests.rs:40:5:
+blocked feedback self-notified instead of waiting
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    action_clients::feedback_tests::full_feedback_parks_until_capacity_recovery_then_notifies_native_retry
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 540 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p r2r --lib`

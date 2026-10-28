@@ -788,8 +788,11 @@ impl WrappedActionClientUntyped {
         }
     }
 
-    fn pending_feedback_completion(&mut self) -> PendingFeedbackAction {
-        take_ready_pending_feedback(&self.pending_feedback_goals, &self.feedback_senders)
+    fn pending_feedback_completion(&mut self) -> (PendingFeedbackAction, bool) {
+        take_ready_pending_feedback_with_progress(
+            &self.pending_feedback_goals,
+            &self.feedback_senders,
+        )
     }
 
     fn finish_result_request_send(
@@ -969,7 +972,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
         &mut self, client: Arc<Mutex<dyn ActionClient_>>,
         completions: &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult> {
-        match self.pending_feedback_completion() {
+        match self.pending_feedback_completion().0 {
             PendingFeedbackAction::Deliver(completion) => {
                 completions.push(completion);
                 return Ok(ActionClientTakeResult::Taken);
@@ -1063,10 +1066,11 @@ impl ActionClient_ for WrappedActionClientUntyped {
 
     fn poll_maintenance(&mut self) -> (Vec<ActionClientCompletion>, bool) {
         let (mut completions, continuation) = self.prune_canceled_requests_with_progress();
-        if let PendingFeedbackAction::Deliver(completion) = self.pending_feedback_completion() {
+        let (feedback, feedback_continuation) = self.pending_feedback_completion();
+        if let PendingFeedbackAction::Deliver(completion) = feedback {
             completions.push(completion);
         }
-        (completions, continuation)
+        (completions, continuation || feedback_continuation)
     }
 
     fn has_pending_maintenance(&self) -> bool {

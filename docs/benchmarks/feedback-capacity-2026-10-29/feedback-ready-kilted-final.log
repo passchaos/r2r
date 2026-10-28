@@ -1,0 +1,47 @@
+   Compiling r2r v0.9.7 (/r2r/r2r)
+    Finished `release` profile [optimized] target(s) in 1m 02s
+     Running unittests src/lib.rs (target/compat-kilted/release/deps/r2r-7ab250a8ced0801f)
+
+running 33 tests
+test action_clients::cancellation::tests::detached_feedback_retry_is_not_unexamined_work ... ok
+test action_clients::feedback::readiness_notifications_unlock_queue_and_coalesce_per_registration ... ok
+test action_clients::feedback_tests::detached_sender_restoration_preserves_and_reschedules_reentrant_feedback ... ok
+test action_clients::feedback_tests::forty_blocked_goals_park_after_bounded_scans_and_only_ready_goal_retries ... ok
+test action_clients::feedback_tests::full_feedback_parks_until_capacity_recovery_then_notifies_native_retry ... ok
+test action_clients::feedback_tests::stale_capacity_wake_cannot_resurrect_closed_feedback_or_keep_owner_alive ... ok
+test action_clients::tests::action_feedback_batches_stop_at_idle_and_fairness_limit ... ok
+test action_clients::tests::canceled_feedback_cleanup_is_bounded_and_retries_in_flight_sends ... ok
+test action_clients::tests::canceled_terminal_result_closes_feedback_and_request_state ... ok
+test action_clients::tests::completed_feedback_stream_does_not_queue_cleanup ... ok
+test action_clients::tests::dropping_feedback_stream_queues_only_its_goal_for_cleanup ... ok
+test action_clients::tests::failed_feedback_delivery_enqueues_the_goal_once ... ok
+test action_clients::tests::feedback_completions_wake_after_releasing_the_client_lock ... ok
+test action_clients::tests::feedback_decode_completions_run_outside_the_client_lock ... ok
+test action_clients::tests::feedback_is_routed_only_to_the_indexed_goal ... ok
+test action_clients::tests::feedback_streams_close_after_releasing_the_client_lock ... ok
+test action_clients::tests::full_feedback_channel_preserves_the_pending_message ... ok
+test action_clients::tests::pending_feedback_reports_backpressure_when_every_goal_is_blocked ... ok
+test action_clients::tests::pending_feedback_scans_are_bounded_and_deduplicated ... ok
+test action_clients::tests::pending_feedback_skips_a_blocked_goal_for_a_ready_goal ... ok
+test action_clients::tests::pending_work_prunes_dropped_feedback_stream ... ok
+test action_clients::tests::stale_pending_feedback_does_not_block_a_live_goal ... ok
+test action_clients::tests::status_updates_preserve_feedback_observation_without_public_goal_tracking ... ok
+test action_clients_untyped::tests::feedback_is_routed_only_to_the_indexed_goal ... ok
+test action_clients_untyped::tests::pending_work_prunes_dropped_feedback_stream ... ok
+test action_clients_untyped::tests::untyped_status_updates_preserve_feedback_observation_without_public_goal_tracking ... ok
+test nodes::action_cancel_tests::same_thread_feedback_capacity_recovery_delivers_without_another_ros_message ... ok
+test nodes::executor::background::tests::feedback::typed_feedback_capacity_recovery_progresses_without_native_traffic ... ok
+test nodes::executor::background::tests::feedback::untyped_feedback_capacity_recovery_progresses_without_native_traffic ... ok
+test nodes::tests::action_client_drains_feedback_bursts_in_one_spin ... ok
+test nodes::tests::action_goals_can_skip_result_and_feedback_tracking ... ok
+test nodes::tests::feedback_only_action_goals_close_streams_at_terminal_status ... ok
+test nodes::tests::result_only_action_goals_complete_without_feedback_tracking ... ok
+
+test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 519 filtered out; finished in 0.26s
+
+   Compiling r2r v0.9.7 (/r2r/r2r)
+    Finished `release` profile [optimized] target(s) in 47.22s
+     Running `target/compat-kilted/release/examples/action_feedback_backpressure`
+verified ordered feedback after a slow consumer and a successful terminal result
+    Checking r2r v0.9.7 (/r2r/r2r)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 41.68s

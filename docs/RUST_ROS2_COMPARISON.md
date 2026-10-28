@@ -139,10 +139,12 @@ official ROS 2 Rust client, still chooses to link rcl after facing the same
 trade-off. Against all three goals the rewrite is neutral-to-negative:
 features accelerate through rcl (the lifecycle slice landed in a day on
 `rcl_lifecycle` and Zenoh/security are inherited), the measured performance
-advantage comes from replacing the rclcpp *execution model* with one shared
-native wait — already done — while a thin non-virtual rcl FFI boundary is
-nanoseconds and has never shown up as a hotspot, and the rcl dependency is
-free for the target users, who already have ROS installed.
+advantage is measured on the complete native execution and public API paths
+above the same rcl/RMW transport. One shared wait removes historical r2r
+per-node polling; rclcpp also shares a native wait, so that change alone does
+not explain the Rust/C++ difference. The current comparison has no hotspot
+profile establishing rcl FFI as a bottleneck. The rcl dependency is already
+present for target users who have ROS installed.
 
 Reconsider only if one of these becomes real: a strategic rcl-free
 deployment requirement (statically linked production images with no ROS

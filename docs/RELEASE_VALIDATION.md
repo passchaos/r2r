@@ -359,3 +359,51 @@ This is a promoted fix for canceled-observer cleanup only. Pending feedback
 delivery and large server cancel delivery/decision batches remain open and the
 earlier broad prototype remains unpromoted.
 
+## Action feedback capacity recovery (2026-10-29)
+
+[Feedback progress](ACTION_FEEDBACK_PROGRESS.md) replaces noop sender wakes and
+blocked-goal rotation with goal-specific capacity notifications. Full senders
+leave the runnable queue; consuming a sample queues one retry and notifies
+native maintenance after releasing the queue lock. Remaining runnable work
+continues through the existing maintenance progress bit in bounded
+sixteen-candidate passes. Forty blocked goals eventually produce no further
+self-notifications. The normal successful-send path creates no readiness object.
+
+Eight new cases cover capacity recovery, forty-goal bounded parking and exact
+ready UUID selection, detached sender restoration, stale weak registration
+ownership, unlock-before-notify and repeated wake coalescing, typed/untyped
+native delivery, and same-thread progress. The background cases run four
+full/ready cycles, verify eight ordered samples without extra ROS input, and
+check that the native guard's trigger count stays stable while blocked. The
+complete current-thread Tokio example verifies slow-consumer feedback,
+successful result and explicit executor stop under both Jazzy RMWs.
+
+Jazzy's complete debug workspace suite passes, including 546 library cases with
+two manual benchmarks ignored. Full optimized library suites execute the same
+546 cases under CycloneDDS and Fast DDS. Formatting and all-target workspace
+Clippy with warnings denied pass.
+
+Native Humble and Kilted each execute 33 optimized feedback cases, including
+all eight new cases, and run the complete optimized slow-consumer example.
+Their all-target workspace Clippy gates pass. The no-ROS Ubuntu container
+compiles all workspace targets, passes the binding snapshot/generator checks,
+and verifies 13 API artifacts and 28 documented methods. Iron, Lyrical and
+Rolling retain their supported CI entries without new local runtime evidence.
+
+[The ordinary action A/B](benchmarks/feedback-capacity-2026-10-29/README.md)
+compares safe `2c2ff89` with independent optimized candidate binaries on CPUs
+24/25, identical inputs and both Jazzy RMWs. Both reports pass the unchanged
+5% Rust/Rust versus baseline/baseline p50/p95/p99/inverse-throughput gates and all protocol checks: 140 records
+and 140000 raw RTT samples. One additional lock/coalescing test was appended
+after build; the saved identity record verifies that production source is
+byte-identical to the measured prefix. Prior action same-binary tail drift
+still limits claims of calibrated improvements. The report also retains an
+unresolved 14.0% CycloneDDS C++/Rust cancellation p99 increase in a mixed-endpoint
+control; the preselected same-language gate does not cover that comparison.
+
+This closes feedback capacity notification and bounded retry progress. Native
+feedback ingress/fanout, larger payloads and large server cancel delivery or
+decision batches remain separate requirements. The broader rejected prototype
+remains unpromoted, and passing this ordinary-path gate does not establish
+multigoal throughput leadership over C++.
+

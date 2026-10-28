@@ -1,0 +1,1341 @@
+   Compiling r2r v0.9.7 (/home/passchaos/Work/r2r/r2r)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 32s
+     Running unittests src/lib.rs (target/debug/deps/r2r-73bce1fcd33da3d9)
+
+running 548 tests
+test action_clients::cancellation::tests::detached_feedback_retry_is_not_unexamined_work ... ok
+test action_clients::cancellation::tests::result_and_cancel_cleanup_preserve_live_requests_and_process_stale_tokens ... ok
+test action_clients::cancellation::tests::unfinished_batches_rearm_after_unlock_and_stop_at_the_last_entry ... ok
+test action_clients::feedback::readiness_notifications_unlock_queue_and_coalesce_per_registration ... ok
+test action_clients::feedback_tests::detached_sender_restoration_preserves_and_reschedules_reentrant_feedback ... ok
+test action_clients::feedback_tests::forty_blocked_goals_park_after_bounded_scans_and_only_ready_goal_retries ... ok
+test action_clients::feedback_tests::full_feedback_parks_until_capacity_recovery_then_notifies_native_retry ... ok
+test action_clients::feedback_tests::stale_capacity_wake_cannot_resurrect_closed_feedback_or_keep_owner_alive ... ok
+test action_clients::status::tests::benchmark_native_status_decode ... ignored, manual status-stage benchmark; use --release --ignored --nocapture
+test action_clients::status::tests::native_status_decode_matches_full_rust_oracle_for_all_states ... ok
+test action_clients::status::tests::native_status_decode_rejects_invalid_sequence_bounds_before_access ... ok
+test action_clients::tests::action_completion_errors_do_not_skip_later_completions ... ok
+test action_clients::tests::action_completions_run_after_a_failed_locked_operation ... ok
+test action_clients::tests::action_completions_wake_after_releasing_the_client_lock ... ok
+test action_clients::tests::action_feedback_batches_stop_at_idle_and_fairness_limit ... ok
+test action_clients::tests::action_payloads_are_prepared_before_locking_the_native_handle ... ok
+test action_clients::tests::action_response_batches_stop_at_idle_and_fairness_limit ... ok
+test action_clients::tests::action_response_indexes_support_out_of_order_lookup ... ok
+test action_clients::tests::action_responses_are_converted_after_releasing_the_client_lock ... ok
+test action_clients::tests::action_reverse_indexes_are_cleared_when_responses_and_requests_finish ... [WARN] [1793215695.905714953] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.905745924] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test action_clients::tests::availability_registration_keeps_all_waiters_while_scheduling_once ... ok
+test action_clients::tests::batch_cancel_response_decodes_all_goal_ids_strictly ... ok
+test action_clients::tests::canceled_cancel_cleanup_is_bounded_and_ignores_stale_sequences ... ok
+test action_clients::tests::canceled_feedback_cleanup_is_bounded_and_retries_in_flight_sends ... ok
+test action_clients::tests::canceled_result_cleanup_is_bounded ... ok
+test action_clients::tests::canceled_terminal_result_closes_feedback_and_request_state ... ok
+test action_clients::tests::classifies_action_client_take_results ... ok
+test action_clients::tests::closed_cancel_channel_reports_action_client_invalid ... ok
+test action_clients::tests::completed_cancel_future_does_not_queue_cleanup ... ok
+test action_clients::tests::completed_feedback_stream_does_not_queue_cleanup ... ok
+test action_clients::tests::completed_result_future_does_not_queue_cleanup ... ok
+test action_clients::tests::dropping_cancel_future_queues_only_its_sequence_for_cleanup ... ok
+test action_clients::tests::dropping_feedback_stream_queues_only_its_goal_for_cleanup ... ok
+test action_clients::tests::dropping_pending_goal_registration_removes_closed_response ... ok
+test action_clients::tests::dropping_result_future_queues_only_its_goal_for_cleanup ... ok
+test action_clients::tests::dropping_unpolled_acceptance_future_cleans_delivered_goal ... ok
+test action_clients::tests::failed_feedback_delivery_enqueues_the_goal_once ... ok
+test action_clients::tests::failed_goal_completion_cleans_registration_after_relocking ... ok
+test action_clients::tests::failed_result_request_clears_only_the_affected_goal ... ok
+test action_clients::tests::feedback_completions_wake_after_releasing_the_client_lock ... ok
+test action_clients::tests::feedback_decode_completions_run_outside_the_client_lock ... ok
+test action_clients::tests::feedback_is_routed_only_to_the_indexed_goal ... ok
+test action_clients::tests::feedback_streams_close_after_releasing_the_client_lock ... ok
+test action_clients::tests::final_action_client_handle_drop_queues_its_identity_once ... ok
+test action_clients::tests::forgetting_goals_drops_observers_after_releasing_the_client_lock ... ok
+test action_clients::tests::forgetting_pending_goal_uses_and_preserves_bidirectional_indexes ... ok
+test action_clients::tests::full_feedback_channel_preserves_the_pending_message ... ok
+test action_clients::tests::goal_cancel_timeout_rejects_foreign_node_before_sending ... [WARN] [1793215695.913378992] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.913410725] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test action_clients::tests::maintenance_queues_notify_until_disabled ... ok
+test action_clients::tests::pending_feedback_reports_backpressure_when_every_goal_is_blocked ... ok
+test action_clients::tests::pending_feedback_scans_are_bounded_and_deduplicated ... ok
+test action_clients::tests::pending_feedback_skips_a_blocked_goal_for_a_ready_goal ... ok
+test action_clients::tests::pending_work_prunes_dropped_availability_waiter ... ok
+test action_clients::tests::pending_work_prunes_dropped_cancel_future ... ok
+test action_clients::tests::pending_work_prunes_dropped_feedback_stream ... ok
+test action_clients::tests::stale_pending_feedback_does_not_block_a_live_goal ... ok
+test action_clients::tests::stateful_action_responses_commit_before_waking ... ok
+test action_clients::tests::status_json_rejects_malformed_fixed_goal_ids_before_decoding ... ok
+test action_clients::tests::status_updates_preserve_feedback_observation_without_public_goal_tracking ... [WARN] [1793215695.917841186] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.917852847] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test action_clients::tests::tracked_goal_status_keeps_action_client_work_pending ... ok
+test action_clients_untyped::tests::dropping_pending_goal_registration_removes_closed_response ... ok
+test action_clients_untyped::tests::dropping_unpolled_acceptance_future_cleans_delivered_goal ... ok
+test action_clients_untyped::tests::failed_result_request_clears_only_the_affected_goal ... ok
+test action_clients_untyped::tests::feedback_is_routed_only_to_the_indexed_goal ... ok
+test action_clients_untyped::tests::forgetting_pending_goal_uses_and_preserves_bidirectional_indexes ... ok
+test action_clients_untyped::tests::pending_work_prunes_dropped_availability_waiter ... ok
+test action_clients_untyped::tests::pending_work_prunes_dropped_cancel_future ... ok
+test action_clients_untyped::tests::pending_work_prunes_dropped_feedback_stream ... ok
+test action_clients_untyped::tests::untyped_action_reverse_indexes_are_cleared_when_responses_and_requests_finish ... [WARN] [1793215695.923316037] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.923326996] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test action_clients_untyped::tests::untyped_goal_cancel_timeout_rejects_foreign_node_before_sending ... [WARN] [1793215695.927106161] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.927124323] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test action_clients_untyped::tests::untyped_status_updates_preserve_feedback_observation_without_public_goal_tracking ... [WARN] [1793215695.931932934] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.931942804] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test action_common::tests::action_goal_options_preserve_tracking_by_default ... ok
+test action_common::tests::action_options_override_only_requested_fields ... ok
+test action_common::tests::action_options_reject_oversized_channel_capacities ... ok
+test action_common::tests::action_server_options_reject_oversized_timeout ... ok
+test action_common::tests::only_completed_goal_statuses_are_terminal ... ok
+test action_common::tests::unknown_wire_status_maps_to_unknown ... ok
+test action_servers::tests::accepted_goal_can_defer_execution ... [WARN] [1793215695.936953380] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.936964040] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test action_servers::tests::action_server_completions_run_after_a_failed_locked_operation ... ok
+test action_servers::tests::action_server_delivery_batches_stop_at_backpressure_and_fairness_limit ... ok
+test action_servers::tests::action_server_expiration_batches_stop_at_idle_and_fairness_limit ... ok
+test action_servers::tests::action_server_request_batches_stop_at_idle_and_fairness_limit ... ok
+test action_servers::tests::action_server_requests_are_converted_after_releasing_the_server_lock ... ok
+test action_servers::tests::action_server_requests_wake_streams_after_releasing_the_server_lock ... ok
+test action_servers::tests::action_server_responses_are_converted_after_releasing_the_server_lock ... ok
+test action_servers::tests::action_server_results_are_prepared_before_locking_the_server ... ok
+test action_servers::tests::action_server_take_batches_stop_at_idle_and_fairness_limit ... ok
+test action_servers::tests::action_server_take_completions_run_after_releasing_the_server_lock ... ok
+test action_servers::tests::active_cancel_scans_are_bounded_and_rotate_pending_requests ... ok
+test action_servers::tests::blocked_cancel_delivery_rotates_behind_unscanned_goals ... ok
+test action_servers::tests::cancel_decision_scans_are_bounded_and_preserve_completed_results ... ok
+test action_servers::tests::cancel_decisions_are_polled_in_place_until_ready ... ok
+test action_servers::tests::cancel_requests_are_converted_after_releasing_the_server_lock ... ok
+test action_servers::tests::cancel_requests_wake_streams_after_releasing_the_server_lock ... ok
+test action_servers::tests::cancel_response_json_rejects_malformed_fixed_goal_ids ... ok
+test action_servers::tests::cancel_streams_close_after_releasing_the_server_lock ... ok
+test action_servers::tests::classifies_action_server_take_results ... ok
+test action_servers::tests::closed_goal_request_sender_is_not_ready_for_native_take ... ok
+test action_servers::tests::converts_action_timestamps_without_losing_negative_fraction ... ok
+test action_servers::tests::delayed_cancel_decision_notifies_its_native_maintenance_waker ... ok
+test action_servers::tests::dropping_action_server_stream_queues_its_id ... ok
+test action_servers::tests::dropping_last_server_goal_cancels_abandoned_goal ... [WARN] [1793215695.942842464] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.942854512] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test action_servers::tests::failed_action_server_request_conversion_restores_the_sender ... ok
+test action_servers::tests::failed_action_server_response_conversion_skips_send ... ok
+test action_servers::tests::failed_cancel_request_conversion_does_not_commit_pending_state ... ok
+test action_servers::tests::freeing_backpressured_cancel_stream_notifies_native_retry ... ok
+test action_servers::tests::full_cancel_channel_preserves_the_pending_request ... ok
+test action_servers::tests::full_goal_request_sender_reports_backpressure ... ok
+test action_servers::tests::owned_goal_handle_finalizes_its_internal_allocation ... ok
+test action_servers::tests::pending_cancel_delivery_scans_are_bounded ... ok
+test action_servers::tests::reports_action_status_publication_failures ... ok
+test action_servers::tests::retains_all_accepted_cancellations ... ok
+test action_servers::tests::stale_cancel_deliveries_are_removed_in_bounded_batches ... ok
+test action_servers::tests::terminal_goal_completion_attempts_every_post_transition_step ... ok
+test action_servers::tests::terminal_goal_completion_stops_after_failed_transition ... ok
+test availability::tests::already_canceled_waiter_is_not_registered ... ok
+test availability::tests::canceled_waiter_cleanup_is_bounded ... ok
+test availability::tests::canceled_waiters_are_removed_by_token_and_live_waiters_are_preserved ... ok
+test availability::tests::native_notification_follows_explicit_scheduling_and_observer_cancellation ... ok
+test availability::tests::poll_boundary_excludes_waiters_registered_during_poll ... ok
+test availability::tests::registration_reports_only_empty_to_nonempty_transitions ... ok
+test availability::tests::waiter_tokens_preserve_registration_order ... ok
+test clients::tests::availability_registration_keeps_all_waiters_while_scheduling_once ... ok
+test clients::tests::client_completions_wake_after_releasing_the_client_lock ... ok
+test clients::tests::client_payloads_are_prepared_before_locking_the_native_handle ... ok
+test clients::tests::client_response_batches_stop_at_idle_and_fairness_limit ... ok
+test clients::tests::client_response_metadata_is_delivered_only_when_requested ... ok
+test clients::tests::client_responses_are_converted_after_releasing_the_client_lock ... ok
+test clients::tests::completed_response_future_disarms_drop_cleanup ... ok
+test clients::tests::dropping_response_future_removes_only_its_pending_request ... ok
+test clients::tests::final_client_handle_drop_queues_its_identity_once ... ok
+test clients::tests::service_client_handles_are_cloneable ... ok
+test clients::tests::service_response_info_copies_native_metadata ... ok
+test clients::tests::stale_response_future_does_not_remove_a_reused_sequence ... ok
+test clients::tests::typed_client_pending_work_prunes_dropped_availability_waiter ... ok
+test clients::tests::untyped_client_pending_work_prunes_dropped_availability_waiter ... ok
+test clocks::tests::jump_callbacks_observe_thresholds_phases_and_removal ... ok
+test clocks::tests::jump_callbacks_reject_wrong_clock_types_and_oversized_thresholds ... ok
+test clocks::tests::panicking_jump_callback_does_not_cross_ffi_or_stop_other_callbacks ... ok
+test clocks::tests::rejects_builtin_times_outside_the_ros_range ... ok
+test clocks::tests::rejects_negative_ros_clock_values_instead_of_wrapping ... ok
+test clocks::tests::reports_clock_validity_and_rejects_override_queries_for_non_ros_clocks ... ok
+test context::tests::context_cloning_does_not_require_the_global_registry_lock ... [WARN] [1793215695.949287766] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.949299780] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test context::tests::test_context_drop ... [WARN] [1793215695.949419737] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.949425927] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[WARN] [1793215695.949463417] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.949473203] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test error::tests::maps_action_and_event_codes_across_distributions ... ok
+test error::tests::maps_incorrect_rmw_implementation_error ... ok
+test error::tests::maps_lifecycle_status_codes ... ok
+test error::tests::maps_missing_graph_node_error ... ok
+test error::tests::maps_newer_rcl_status_codes ... ok
+test error::tests::preserves_unknown_rcl_error_codes ... ok
+test lifecycle::node::node_tests::available_states_list_all_registered_states ... [WARN] [1793215695.949777724] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.949783885] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::node::node_tests::available_transitions_and_graph_match_current_and_full_maps ... [WARN] [1793215695.953971810] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.953983018] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::node::node_tests::configure_error_invokes_error_callback_and_recovers ... [WARN] [1793215695.959295131] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.959305702] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::node::node_tests::configure_failure_returns_to_unconfigured ... [WARN] [1793215695.964164457] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.964173259] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::node::node_tests::configure_service_runs_callback_and_reports_inactive ... [WARN] [1793215695.969188235] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.969200023] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::node::node_tests::direct_rust_transitions_run_full_happy_path ... [WARN] [1793215695.973140852] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.973151631] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[WARN] [1793215695.974901578] [rcl_lifecycle]: No transition matching 1 found for current state finalized
+ok
+test lifecycle::node::node_tests::fatal_error_finalizes_the_node ... [WARN] [1793215695.978082585] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.978091969] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::node::node_tests::get_state_reports_unconfigured_after_creation ... [WARN] [1793215695.983084935] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.983097695] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::node::node_tests::invalid_transition_is_rejected_without_moving_state ... [WARN] [1793215695.987028806] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.987045901] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[WARN] [1793215695.988836152] [rcl_lifecycle]: No transition matching 3 found for current state unconfigured
+ok
+test lifecycle::node::node_tests::label_based_change_takes_precedence_over_id ... [WARN] [1793215695.990912662] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.990920922] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::node::node_tests::lifecycle_services_work_through_unified_executor ... [WARN] [1793215695.995839993] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.995851567] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::node::node_tests::transition_events_are_published_for_each_state_change ... [WARN] [1793215695.999931116] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215695.999942340] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::publisher::tests::dropped_managed_publishers_are_pruned_on_transitions ... [WARN] [1793215699.025137853] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215699.025155510] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::publisher::tests::loaned_publication_checks_current_activation_and_returns_dropped_loans ... [WARN] [1793215699.030491549] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215699.030504712] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::publisher::tests::managed_native_publication_obeys_activation_and_preserves_storage ... [WARN] [1793215699.035491401] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215699.035503842] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::publisher::tests::managed_publisher_can_be_toggled_manually ... ok
+test lifecycle::publisher::tests::managed_publisher_destruction_is_immediate_and_preserves_foreign_endpoints ... [WARN] [1793215699.557840370] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215699.557857809] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::publisher::tests::managed_publisher_drops_messages_until_active_and_after_deactivate ... [WARN] [1793215699.562147336] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215699.562163377] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::publisher::tests::native_publication_handles_failure_recovery_and_active_creation ... [WARN] [1793215700.679003350] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.679018745] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::publisher::tests::publisher_options_factory_returns_a_managed_endpoint ... [WARN] [1793215700.684087659] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.684107178] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::publisher::tests::service_driven_activation_gates_publisher ... [WARN] [1793215700.688978692] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.688989064] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::state_machine::tests::available_transitions_follow_primary_states ... ok
+test lifecycle::state_machine::tests::cleanup_and_activate_failures_return_to_inactive ... ok
+test lifecycle::state_machine::tests::configure_failure_returns_to_unconfigured ... ok
+test lifecycle::state_machine::tests::deactivate_failure_returns_to_active ... ok
+test lifecycle::state_machine::tests::error_recovery_and_fatal_paths ... ok
+test lifecycle::state_machine::tests::full_happy_path_reaches_finalized ... [WARN] [1793215700.693175564] [rcl_lifecycle]: No transition matching 1 found for current state finalized
+[WARN] [1793215700.693206319] [rcl_lifecycle]: No transition matching configure found for current state finalized
+ok
+test lifecycle::state_machine::tests::graph_edges_match_standard_map ... ok
+test lifecycle::state_machine::tests::invalid_triggers_from_current_state_are_errors ... [WARN] [1793215700.693303644] [rcl_lifecycle]: No transition matching 3 found for current state unconfigured
+[WARN] [1793215700.693310982] [rcl_lifecycle]: No transition matching 200 found for current state unconfigured
+[WARN] [1793215700.693314361] [rcl_lifecycle]: No transition matching not_a_real_transition found for current state unconfigured
+ok
+test lifecycle::state_machine::tests::machines_can_be_created_and_finalized_repeatedly ... ok
+test lifecycle::state_machine::tests::shutdown_failure_still_finalizes_from_each_primary_state ... ok
+test lifecycle::state_machine::tests::standard_ids_match_lifecycle_msgs_constants ... ok
+test lifecycle::state_machine::tests::starts_unconfigured_and_reports_default_map ... ok
+test lifecycle::timer::tests::activation_and_between_spin_reactivation_discard_old_ticks_and_restart_period ... [WARN] [1793215700.693583812] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.693597137] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::timer::tests::activation_failures_and_error_recovery_leave_native_timer_paused ... [WARN] [1793215700.697363245] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.697373164] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::timer::tests::autostart_false_stays_paused_when_created_on_an_active_node ... [WARN] [1793215700.702218234] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.702228715] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::timer::tests::failed_deactivation_preserves_the_active_deadline ... [WARN] [1793215700.706027821] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.706037958] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::timer::tests::foreign_controls_and_invalid_options_preserve_timer_state ... [WARN] [1793215700.709765910] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.709782933] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::timer::tests::inactive_native_timer_does_not_call_when_ros_time_is_overdue ... [WARN] [1793215700.713555531] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.713572276] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::timer::tests::inactive_tick_observer_wakes_when_its_node_is_destroyed ... [WARN] [1793215700.717259105] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.717268997] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::timer::tests::managed_ros_timer_follows_native_clock_topic_while_paused_and_after_reset ... [WARN] [1793215700.720940146] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.720948247] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::timer::tests::manual_reset_discards_buffered_ticks_and_cancel_survives_node_activation ... [WARN] [1793215700.828619771] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.828725998] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::timer::tests::reactivation_after_backward_ros_time_jump_starts_at_the_new_clock_time ... [WARN] [1793215700.835905371] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.835917907] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::timer::tests::shared_executor_drives_service_transitions_and_managed_wall_ticks ... [WARN] [1793215700.840980307] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.840991099] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::timer::tests::tick_info_preserves_current_ros_clock_deadline_and_elapsed_time ... [WARN] [1793215700.871094721] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.871108208] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::timer::tests::timer_destruction_and_drop_preserve_other_native_timers ... [WARN] [1793215700.875095554] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.875105739] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test lifecycle::timer::tests::wall_timer_waits_for_activation_through_native_future_execution ... [WARN] [1793215700.878924512] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.878934765] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test msg_types::fixed_array::tests::large_and_empty_arrays_roundtrip_without_a_sequence_length_field ... ok
+test msg_types::fixed_array::tests::partially_initialized_elements_are_dropped_on_error_and_unwind ... ok
+test msg_types::fixed_array::tests::short_long_and_invalid_elements_fail_at_the_array_boundary ... ok
+test msg_types::native_sequences::native_sequences_reuse_initialized_capacity_across_empty_and_shrinking_updates ... ok
+test msg_types::native_sequences::nested_trajectory_sequences_preserve_hidden_initialized_elements ... ok
+test msg_types::native_sequences::parameter_string_arrays_preserve_embedded_nul_in_native_storage ... ok
+test msg_types::native_sequences::parameter_string_arrays_reuse_capacity_and_match_native_and_cdr_oracles ... ok
+test msg_types::serialized_buffer::tests::allocator_state_and_storage_survive_moving_the_buffer_to_another_thread ... ok
+test msg_types::serialized_buffer::tests::failed_growth_is_freed_once_by_rcutils_and_leaves_a_finalizable_buffer ... ok
+test msg_types::serialized_buffer::tests::poisoned_initial_storage_and_grown_tails_are_initialized_without_erasing_prefixes ... ok
+test msg_types::serialized_buffer::tests::zero_allocation_and_size_overflow_follow_the_native_allocator_contract ... ok
+test msg_types::service_events::action_service_events_reject_overfull_sequences ... ok
+test msg_types::service_events::action_service_events_roundtrip_nested_payloads ... ok
+test msg_types::service_events::service_event_rejects_overfull_request_and_response_sequences ... ok
+test msg_types::service_events::service_event_roundtrips_empty_and_populated_sequences ... ok
+test msg_types::tests::action_uuid_json_rejects_wrong_fixed_array_lengths ... ok
+test msg_types::tests::benchmark_untyped_action_goal_request_conversion ... ignored, manual microbenchmark; run with --release --ignored --nocapture
+test msg_types::tests::fixed_array_native_cdr_and_json_roundtrip ... ok
+test msg_types::tests::generated_strings_preserve_embedded_nul_bytes ... ok
+test msg_types::tests::native_message_copy_propagates_allocation_failure ... ok
+test msg_types::tests::rejects_inconsistent_serialized_message_buffers ... ok
+test msg_types::tests::ros_string_strict_conversion_rejects_invalid_utf8 ... ok
+test msg_types::tests::test_action_msgs ... ok
+test msg_types::tests::test_capped_sequence - should panic ... ok
+test msg_types::tests::test_copy_fields ... ok
+test msg_types::tests::test_deault ... ok
+test msg_types::tests::test_empty_msgs ... ok
+test msg_types::tests::test_float_sequence ... ok
+test msg_types::tests::test_from_loaned ... ok
+test msg_types::tests::test_generation_bool_use ... ok
+test msg_types::tests::test_generation_string_use ... ok
+test msg_types::tests::test_introspection_string ... ok
+test msg_types::tests::test_msg_constants ... ok
+test msg_types::tests::test_ros_str ... ok
+test msg_types::tests::test_serialization_dynamic_size ... ok
+test msg_types::tests::test_serialization_fixed_size ... ok
+test msg_types::tests::test_service_msgs ... ok
+test msg_types::tests::test_untyped_action_support ... ok
+test msg_types::tests::test_untyped_json ... ok
+test msg_types::tests::test_untyped_service_support ... ok
+test msg_types::tests::untyped_action_rejects_invalid_goal_json ... ok
+test native_metadata::tests::action_response_reads_only_the_initialized_sequence_field ... ok
+test native_metadata::tests::service_metadata_retains_zero_for_fields_the_middleware_does_not_write ... ok
+test nodes::action_cancel_tests::backpressured_cancel_delivery_preserves_requested_wait_timeout ... [WARN] [1793215700.932573453] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.932596505] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::action_cancel_tests::cancellation_backlog_does_not_sleep_over_remaining_same_thread_work ... [WARN] [1793215700.989627075] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215700.989646108] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::action_cancel_tests::completed_local_cancel_decisions_return_before_native_wait_timeout ... [WARN] [1793215701.001094549] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.001112910] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::action_cancel_tests::same_thread_feedback_capacity_recovery_delivers_without_another_ros_message ... [WARN] [1793215701.010720422] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.010731312] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::action_cancel_tests::unresolved_cancel_decision_preserves_requested_wait_timeout ... [WARN] [1793215701.016145540] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.016155758] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::cancellation::typed_canceled_observer_backlog_finishes_without_external_events ... [WARN] [1793215701.074240219] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.074257341] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::cancellation::untyped_canceled_observer_backlog_finishes_without_external_events ... [WARN] [1793215701.109458844] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.109473638] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::cancellation_before_guard_registration_is_persistent ... [WARN] [1793215701.138706321] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.138725252] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::cleanup::abandoned_action_observers_release_a_dropped_client_without_result_delivery ... [WARN] [1793215701.141510387] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.141521563] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::cleanup::abandoned_untyped_action_observers_release_a_dropped_client_without_result_delivery ... [WARN] [1793215701.167881032] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.167891588] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::cleanup::action_endpoint_drop_wakes_and_releases_both_client_types_and_server ... [WARN] [1793215701.196317261] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.196330231] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::cleanup::delayed_action_cancel_decision_wakes_native_dispatch_and_completes_result ... [WARN] [1793215701.223778139] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.223797281] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::cleanup::last_pending_response_cancellation_releases_already_dropped_clients ... [WARN] [1793215701.250239058] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.250251690] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::cleanup::public_entity_drop_wakes_and_releases_idle_native_endpoints ... [WARN] [1793215701.254517471] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.254531676] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::cleanup::transferred_node_cleanup_queues_detach_the_previous_executor_wake ... [WARN] [1793215701.280376762] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.280389569] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::dropping_pending_task_stops_worker_and_releases_native_endpoints ... [WARN] [1793215701.283875798] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.283886999] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::feedback::typed_feedback_capacity_recovery_progresses_without_native_traffic ... [WARN] [1793215701.287617682] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.287633189] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::feedback::untyped_feedback_capacity_recovery_progresses_without_native_traffic ... [WARN] [1793215701.338383152] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.338398038] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::native_failure_releases_executor_before_error_completion ... [WARN] [1793215701.390404800] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.390421945] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::observers::dropping_a_pre_spawn_observer_wakes_cleanup_without_a_poll_timer ... [WARN] [1793215701.394699015] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.394719827] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::observers::late_service_and_publisher_observers_progress_after_native_wait_has_started ... [WARN] [1793215701.399112943] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.399128214] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::observers::late_untyped_action_matching_and_ack_observers_share_the_native_wake ... [WARN] [1793215701.425017643] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.425029884] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::task_is_send_and_futures_executor_can_recover_owned_nodes ... [WARN] [1793215701.454463794] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.454478251] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::unused_completion_receiver_releases_returned_executor_on_drop ... [WARN] [1793215701.457492692] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.457504281] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::workflows::current_thread_runtime_drives_ros_services_and_timer_without_manual_spin ... [WARN] [1793215701.460765237] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.460776506] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::workflows::dropping_a_task_does_not_block_runtime_while_inline_callback_is_pending ... [WARN] [1793215701.469018485] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.469028623] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::workflows::inline_callback_panic_is_reported_after_native_cleanup ... [WARN] [1793215701.476168136] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.476177704] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::background::tests::workflows::tcp_reactor_and_ros_pubsub_services_progress_on_the_same_runtime_thread ... [WARN] [1793215701.480251548] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.480277202] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::tests::cancellation::a_pending_operation_can_be_cancelled_again_after_reset ... [WARN] [1793215701.485931289] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.485942448] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::tests::cancellation::cancellation_before_first_spin_is_sticky_and_does_not_allocate_a_guard ... [WARN] [1793215701.486278192] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.486288298] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::tests::cancellation::cancellation_during_initial_poll_is_checked_before_native_guard_creation ... [WARN] [1793215701.486443932] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.486453902] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::tests::cancellation::cancellation_interrupts_native_wait_without_context_shutdown_or_polling ... [WARN] [1793215701.486587818] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.486602625] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::tests::cancellation::continuous_spin_stops_and_reuses_the_same_nodes_and_native_guard ... [WARN] [1793215701.486828603] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.486838886] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::tests::cancellation::expired_handles_neither_keep_context_alive_nor_cancel_another_executor ... [WARN] [1793215701.494633429] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.494646847] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[WARN] [1793215701.494788467] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.494790858] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::tests::cancellation::repeated_concurrent_cancellation_requests_coalesce_to_one_native_trigger ... [WARN] [1793215701.494908287] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.494916140] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::tests::capacity_overflow_returns_an_error_before_native_resize ... ok
+test nodes::executor::tests::dropped_endpoints_resize_the_shared_wait_set_before_waiting ... [WARN] [1793215701.496267062] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.496276529] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::tests::empty_executor_waits_for_external_wakes_and_keeps_non_send_futures_local ... [WARN] [1793215701.499868999] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.499877936] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::tests::idle_nodes_do_not_add_sequential_waits_before_a_ready_timer ... [WARN] [1793215701.500077234] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.500083341] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::tests::node_ids_survive_swap_removal_and_returned_nodes_can_spin_independently ... [WARN] [1793215701.512879001] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.512890414] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::tests::pending_ack_queries_bound_the_shared_wait_without_extra_events ... [WARN] [1793215701.517487844] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.517497522] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::tests::ready_and_zero_deadline_futures_do_not_create_native_storage ... [WARN] [1793215701.530730196] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.530740865] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::tests::shutdown_interrupts_an_empty_executor_native_wait ... 
+running 1 test
+test nodes::executor::tests::shutdown_interrupts_an_empty_executor_native_wait ... [WARN] [1793215701.558097834] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.558117927] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s
+
+ok
+test nodes::executor::tests::timed_out_wakers_are_disarmed_and_do_not_retain_the_executor_guard ... [WARN] [1793215701.560491666] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.560501184] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::tests::workflows::action_entities_follow_all_ordinary_nodes_and_complete_success_and_cancel ... [WARN] [1793215701.580951885] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.580966166] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[WARN] [1793215701.589375812] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.589393345] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::executor::tests::workflows::subscriptions_timers_clients_and_services_use_disjoint_cross_node_spans ... [WARN] [1793215701.593857039] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.593867560] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::future_executor::tests::completed_wakers_disarm_and_do_not_retain_native_resources ... [WARN] [1793215701.602415642] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.602425271] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::future_executor::tests::concurrent_notifications_coalesce_into_one_native_trigger ... [WARN] [1793215701.605979594] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.605990146] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::future_executor::tests::external_future_wake_interrupts_native_wait_without_periodic_polling ... [WARN] [1793215701.609536861] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.609549635] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::future_executor::tests::options_and_periodic_poll_only_future_preserve_progress ... [WARN] [1793215701.614118494] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.614128257] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::future_executor::tests::panic_disarms_wakers_and_preserves_node_reuse ... [WARN] [1793215701.618961009] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.618976780] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::future_executor::tests::pubsub::cancelled_ack_observer_removes_the_periodic_query_requirement ... [WARN] [1793215701.622479024] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.622489733] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::future_executor::tests::pubsub::dropped_matching_observers_are_removed_before_the_next_wait ... [WARN] [1793215701.665929813] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.665944916] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::future_executor::tests::pubsub::matching_timeout_preserves_error_and_drops_registration ... [WARN] [1793215701.671036830] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.671049549] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::future_executor::tests::pubsub::non_notifying_ack_query_uses_bounded_wait_and_rechecks_completion ... [WARN] [1793215701.694227503] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.694239104] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::future_executor::tests::pubsub::publisher_matching_observes_graph_change_in_wake_driven_execution ... [WARN] [1793215701.708597470] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.708614035] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::future_executor::tests::pubsub::reliable_acknowledgements_complete_in_wake_driven_execution ... [WARN] [1793215701.712882381] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.712893099] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::future_executor::tests::pubsub::subscription_matching_observes_graph_change_in_wake_driven_execution ... [WARN] [1793215701.716513888] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.716523506] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::future_executor::tests::pubsub::untyped_publisher_matching_is_notification_driven ... [WARN] [1793215701.720183522] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.720194159] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::future_executor::tests::ready_zero_timeout_and_non_send_values_do_not_create_wake_storage ... [WARN] [1793215701.723808446] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.723817712] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::future_executor::tests::self_woken_future_cannot_starve_a_service_request ... [WARN] [1793215701.727164817] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.727181092] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::future_executor::tests::service_appearance_wakes_availability_without_periodic_polling ... [WARN] [1793215701.732002717] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.732012189] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::future_executor::tests::shutdown_interrupts_a_notification_driven_wait ... 
+running 1 test
+test nodes::future_executor::tests::shutdown_interrupts_a_notification_driven_wait ... [WARN] [1793215701.764624632] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.764649706] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.02s
+
+ok
+test nodes::future_executor::tests::wakes_during_poll_are_not_lost_and_still_drain_ros ... [WARN] [1793215701.782854269] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.782868096] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::absent_parameter_unset_is_not_reported_as_a_change ... ok
+test nodes::tests::action_availability_waiters_skip_idle_clients ... [WARN] [1793215701.786600866] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.786620259] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::action_cancel_batches_stop_at_zero_capacity_backpressure ... [WARN] [1793215701.791507721] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.791517956] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::action_client_drains_feedback_bursts_in_one_spin ... [WARN] [1793215701.829169528] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.829185460] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::action_client_drains_goal_response_bursts_in_one_spin ... [WARN] [1793215701.867198001] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.867213200] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::action_client_identities_follow_middle_removal ... [WARN] [1793215701.913978102] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.913993189] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::action_client_maintenance_skips_idle_clients ... [WARN] [1793215701.919719969] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.919747813] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::action_client_timeout_helpers_reject_foreign_nodes_before_sending ... [WARN] [1793215701.924015661] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.924031210] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::action_clients_cancel_goals_at_or_before_a_stamp ... [WARN] [1793215701.929185610] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.929195933] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::action_goals_can_skip_result_and_feedback_tracking ... [WARN] [1793215701.944601436] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.944618798] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::action_options_control_stream_buffering ... [WARN] [1793215701.952044465] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215701.952055162] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::action_requests_support_runtime_agnostic_timeouts ... [WARN] [1793215702.013615375] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.013635040] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::action_server_cancel_maintenance_skips_idle_servers ... [WARN] [1793215702.029175573] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.029187905] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::action_server_drains_cancel_request_bursts_in_one_spin ... [WARN] [1793215702.034492311] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.034503517] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::action_server_drains_goal_request_bursts_in_one_spin ... [WARN] [1793215702.071587643] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.071607460] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::action_server_drains_result_request_bursts_in_one_spin ... [WARN] [1793215702.110076409] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.110092689] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::adds_cached_action_wait_set_capacities ... ok
+test nodes::tests::atomic_parameter_updates_expose_only_the_last_duplicate_value ... [WARN] [1793215702.210275848] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.210292567] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::availability_waits_support_runtime_agnostic_timeouts ... [WARN] [1793215702.217069376] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.217080268] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::batch_parameter_declaration_applies_namespace_overrides_and_descriptors ... [WARN] [1793215702.278859615] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.278875760] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::batch_parameter_declaration_is_atomic_on_validation_failures ... [WARN] [1793215702.282640848] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.282658323] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::batch_parameter_declaration_rejects_duplicate_and_existing_names_atomically ... [WARN] [1793215702.286633019] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.286646916] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::client_drains_response_bursts_in_one_spin ... [WARN] [1793215702.290145200] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.290155115] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::client_gids_are_stable_and_unique ... [WARN] [1793215702.335409444] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.335423914] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::client_identities_follow_middle_removal ... [WARN] [1793215702.339240099] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.339251363] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::clients_can_check_availability_without_registering_waiters ... [WARN] [1793215702.344436969] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.344449986] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::completed_results_do_not_restore_dropped_action_goal_status ... [WARN] [1793215702.370165842] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.370177950] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::converts_rcl_durations_without_wrapping ... ok
+test nodes::tests::creates_action_endpoints_with_custom_options ... [WARN] [1793215702.376002201] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.376013388] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::deferred_overrides_initialize_only_derived_parameters ... [WARN] [1793215702.380763276] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.380774198] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::derived_and_runtime_parameters_can_be_updated_together ... [WARN] [1793215702.385883390] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.385893192] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::discovers_names_and_types_for_a_specific_node ... [WARN] [1793215702.390412069] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.390422292] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::discovers_node_names_namespaces_and_enclaves ... [WARN] [1793215702.394073438] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.394083182] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::dropped_action_clients_are_removed_after_pending_waits_finish ... [WARN] [1793215702.397586478] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.397601813] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::dropped_action_server_removal_updates_swapped_index ... [WARN] [1793215702.403188386] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.403197928] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::dropped_clients_are_removed_after_pending_work_is_gone ... [WARN] [1793215702.407682528] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.407692901] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::dropped_idle_action_server_is_removed_before_waiting ... [WARN] [1793215702.412943299] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.412953233] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::dropped_publishers_are_removed_after_pending_waits_finish ... [WARN] [1793215702.416699320] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.416709052] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::dropped_service_stream_is_removed_without_a_request ... [WARN] [1793215702.432037014] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.432047683] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::dropped_timer_is_removed_before_its_deadline ... [WARN] [1793215702.436733552] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.436740802] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::duplicate_parameter_updates_keep_first_order_and_last_value ... ok
+test nodes::tests::empty_node_spin_honors_timeout_without_an_rcl_error ... [WARN] [1793215702.441318810] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.441329910] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::endpoint_failure_precedes_derived_parameter_registration ... [WARN] [1793215702.449085951] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.449100583] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::endpoints_report_resolved_topic_and_service_names ... [WARN] [1793215702.454036270] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.454045674] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::explicit_action_client_destruction_is_immediate_and_updates_capacity ... [WARN] [1793215702.458819551] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.458829294] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::explicit_action_server_destruction_is_immediate_and_updates_capacity ... [WARN] [1793215702.465417000] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.465426812] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::explicit_client_destruction_is_immediate_and_completes_waiters ... [WARN] [1793215702.471425113] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.471435579] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::explicit_publisher_destruction_clears_waits_and_suppresses_stale_drop_notifications ... [WARN] [1793215702.476885847] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.476895285] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::explicit_service_destruction_is_immediate_and_targeted ... [WARN] [1793215702.481421406] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.481430891] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::explicit_subscription_destruction_is_immediate_and_targeted ... [WARN] [1793215702.485213366] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.485222544] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::explicit_timer_destruction_is_immediate_and_targeted ... [WARN] [1793215702.488911021] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.488932968] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::failed_parameter_client_creation_does_not_leave_partial_clients ... [WARN] [1793215702.492320550] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.492329642] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::failed_parameter_handler_endpoint_creation_rolls_back_and_can_be_retried ... [WARN] [1793215702.496950760] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.496961191] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::failed_parameter_handler_initialization_restores_parameter_state ... [WARN] [1793215702.501924441] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.501933835] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::failed_parameter_handler_validation_can_be_retried_before_creating_endpoints ... [WARN] [1793215702.505489747] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.505500252] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::feedback_only_action_goals_close_streams_at_terminal_status ... [WARN] [1793215702.509999861] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.510010125] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::formats_topic_type_hash_as_rep_2011_identifier ... ok
+test nodes::tests::graph::counts_topic_and_service_graph_entities ... [WARN] [1793215702.516444278] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.516454800] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::graph::discovers_service_names_and_their_types ... [WARN] [1793215702.521144684] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.521153848] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::graph::discovers_topic_names_and_their_types ... [WARN] [1793215702.524701639] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.524710908] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::graph::endpoint_info_queries_expand_relative_and_private_topic_names ... [WARN] [1793215702.528341602] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.528350379] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::graph_change_waits_are_broadcast_and_cancel_safe ... [WARN] [1793215702.533014427] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.533024227] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::incompatible_type_event_queries_initialize_when_supported ... [WARN] [1793215702.537585378] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.537597527] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::invalid_action_names_report_action_name_errors ... [WARN] [1793215702.542064958] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.542073534] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::list_parameters_service_uses_relative_prefix_depth ... [WARN] [1793215702.546510396] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.546524249] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::local_parameter_event_bursts_do_not_drop_events_at_the_old_capacity ... ok
+test nodes::tests::local_parameter_introspection_matches_services ... [WARN] [1793215702.553102745] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.553114453] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::local_parameter_undeclare_removes_only_dynamic_parameters ... [WARN] [1793215702.558215876] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.558225631] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::local_parameter_updates_share_service_validation_and_events ... [WARN] [1793215702.562318580] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.562327994] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::maps_topic_endpoint_roles_without_loss ... ok
+test nodes::tests::node_logger_helpers_control_the_resolved_logger ... [WARN] [1793215702.566497168] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.566506585] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::node_now_follows_its_managed_ros_clock ... [WARN] [1793215702.570549435] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.570562952] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::node_options_apply_local_name_and_namespace_remaps ... [WARN] [1793215702.575877569] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.575893749] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::node_options_apply_programmatic_parameter_overrides ... [WARN] [1793215702.580106833] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.580141359] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::node_options_control_global_parameter_arguments ... 
+running 1 test
+test nodes::tests::node_options_control_global_parameter_arguments ... [WARN] [1793215702.612259620] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.612282485] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.01s
+
+
+running 1 test
+test nodes::tests::node_options_control_global_parameter_arguments ... [WARN] [1793215702.648210740] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.648234126] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.01s
+
+
+running 1 test
+test nodes::tests::node_options_control_global_parameter_arguments ... [WARN] [1793215702.691995130] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.692024537] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.01s
+
+
+running 1 test
+test nodes::tests::node_options_control_global_parameter_arguments ... [WARN] [1793215702.741380686] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.741405435] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.01s
+
+
+running 1 test
+test nodes::tests::node_options_control_global_parameter_arguments ... [WARN] [1793215702.778362110] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.778384900] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.01s
+
+
+running 1 test
+test nodes::tests::node_options_control_global_parameter_arguments ... [WARN] [1793215702.815811856] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.815830754] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.01s
+
+
+running 1 test
+test nodes::tests::node_options_control_global_parameter_arguments ... [WARN] [1793215702.862944917] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.862975470] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.01s
+
+ok
+test nodes::tests::node_options_control_rosout_and_its_qos ... [WARN] [1793215702.870401606] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.870416522] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::node_options_reject_invalid_local_ros_arguments ... [WARN] [1793215702.880096474] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.880106819] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::oversized_action_timeouts_do_not_send_goals_or_register_waiters ... [WARN] [1793215702.880323187] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.880336299] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::oversized_service_timeouts_do_not_send_requests_or_register_waiters ... [WARN] [1793215702.894592432] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.894609257] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::oversized_wait_timeouts_do_not_register_waiters ... [WARN] [1793215702.909006537] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.909027219] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::parameter_callback_observes_recursive_mutation_error_without_deadlocking ... [WARN] [1793215702.912800228] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.912813592] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::parameter_callback_registry_removes_by_token_and_preserves_reverse_order ... ok
+test nodes::tests::parameter_declaration_options_can_ignore_overrides ... [WARN] [1793215702.916443596] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.916470681] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::parameter_declaration_validates_overrides_and_prevents_duplicates ... [WARN] [1793215702.921088703] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.921100839] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::parameter_files_apply_segment_wildcards_to_the_fully_qualified_node_name ... [WARN] [1793215702.924769938] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.924779382] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::parameter_handler_can_only_be_created_once ... [WARN] [1793215702.928637373] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.928690381] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::parameter_handler_options_can_disable_network_endpoints ... [WARN] [1793215702.935856691] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.935869314] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::parameter_handler_options_control_endpoint_qos_independently ... [WARN] [1793215702.939362008] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.939372808] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::parameter_mutation_accepts_native_rust_values ... [WARN] [1793215702.943333314] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.943344951] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::parameter_node_rules_match_ros_wildcard_segments ... ok
+test nodes::tests::parameter_override_snapshot_releases_the_context_lock ... [WARN] [1793215702.946814791] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.946826389] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::parameter_override_snapshot_survives_runtime_mutations ... [WARN] [1793215702.946982680] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.946991577] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::parameter_overrides_can_wait_for_explicit_declaration ... [WARN] [1793215702.950518186] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.950532541] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::parameter_prefix_depth_is_relative_to_the_prefix ... ok
+test nodes::tests::parameter_prefixes_are_deduplicated_in_first_seen_order ... ok
+test nodes::tests::parameter_read_snapshots_release_their_locks ... ok
+test nodes::tests::parameter_service_publishes_standard_parameter_events ... [WARN] [1793215702.954145511] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.954157402] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::parameter_service_switches_sim_time_at_runtime ... [WARN] [1793215702.990183482] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.990200501] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::parameter_services_expose_and_enforce_descriptors ... [WARN] [1793215702.995995329] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215702.996007839] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::parameter_transaction_guard_rejects_reentry_until_the_operation_finishes ... ok
+test nodes::tests::parameter_updates_reject_empty_names_after_pre_set_callbacks ... [WARN] [1793215703.001731202] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.001743188] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::parameter_validation_callbacks_are_ordered_scoped_and_shared_with_services ... [WARN] [1793215703.005303223] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.005330572] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::post_set_callbacks_observe_only_successful_committed_batches ... [WARN] [1793215703.009769375] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.009779519] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::pre_set_callbacks_transform_the_final_transaction_batch ... [WARN] [1793215703.013987778] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.013998889] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::primitive_derived_parameter_handler_returns_an_error_instead_of_panicking ... [WARN] [1793215703.018237792] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.018249322] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::provider_ownership_probe_propagates_read_failures_and_can_retry ... [WARN] [1793215703.023128566] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.023145775] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::publisher_and_subscription_support_unique_network_flow_options ... [WARN] [1793215703.029182631] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.029194565] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::publisher_can_only_be_destroyed_by_its_owning_node ... [WARN] [1793215703.043715558] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.043729242] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::publisher_gids_correlate_received_messages ... [WARN] [1793215703.047455089] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.047467255] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::publisher_indexes_follow_explicit_and_automatic_removal ... [WARN] [1793215703.060845376] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.060860893] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::publisher_loan_is_returned_or_reports_unsupported ... [WARN] [1793215703.064604064] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.064618406] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::publisher_timeout_helpers_reject_foreign_nodes_before_registering ... [WARN] [1793215703.068097911] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.068109891] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::publisher_waiters_activate_and_leave_the_sparse_poll_set ... [WARN] [1793215703.072101443] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.072139790] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::publishers_and_subscriptions_report_matching_changes ... [WARN] [1793215703.077418186] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.077464174] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::publishers_report_liveliness_lost ... [WARN] [1793215703.122079515] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.122094285] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::publishers_report_offered_deadline_misses ... [WARN] [1793215703.187672542] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.187718033] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::publishers_report_offered_incompatible_qos ... [WARN] [1793215703.222570291] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.222599483] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::publishers_report_resolved_topics_and_loan_support ... [WARN] [1793215703.235926289] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.235939158] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::publishers_support_manual_liveliness_assertions ... [WARN] [1793215703.239628001] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.239638508] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::publishers_wait_for_acknowledgements_without_blocking ... [WARN] [1793215703.244190941] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.244203196] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::publishers_wait_for_reliable_acknowledgements ... [WARN] [1793215703.268410812] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.268425831] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::reports_actual_client_qos ... [WARN] [1793215703.273182290] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.273193820] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::reports_actual_publisher_and_subscription_qos ... [WARN] [1793215703.276881419] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.276891091] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::reports_actual_service_qos ... [WARN] [1793215703.280444282] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.280454877] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::reports_domain_id_and_resolves_names ... [WARN] [1793215703.284095062] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.284105608] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::result_only_action_goals_complete_without_feedback_tracking ... [WARN] [1793215703.287599629] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.287612850] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::runtime_parameter_declarations_publish_local_and_ros_events ... [WARN] [1793215703.294107034] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.294117945] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::service_availability_waiters_poll_only_the_active_client ... [WARN] [1793215703.298382278] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.298399317] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::service_client_timeout_helpers_reject_foreign_nodes_before_sending ... [WARN] [1793215703.302017314] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.302041262] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::service_drains_request_bursts_in_one_spin ... [WARN] [1793215703.306867955] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.306878854] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::service_indexes_follow_removal_and_reordering ... [WARN] [1793215703.332463832] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.332479222] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::service_metadata::service_clients_can_return_response_metadata ... [WARN] [1793215703.337908862] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.337921587] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::service_options_control_request_stream_buffering ... [WARN] [1793215703.342801369] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.342812856] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::service_requests_support_runtime_agnostic_timeouts ... [WARN] [1793215703.356286591] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.356302073] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::sim_time_remains_statically_typed_when_set_before_handler_creation ... [WARN] [1793215703.362090961] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.362103971] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::spin_until_future_complete_handles_ready_timeout_and_ros_waits ... [WARN] [1793215703.367199972] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.367212195] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::strict_c_string_conversion_rejects_invalid_utf8 ... ok
+test nodes::tests::strict_parameter_mode_checks_names_added_by_pre_set_callbacks ... [WARN] [1793215703.371506875] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.371518328] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::strict_parameter_mode_rejects_undeclared_updates ... [WARN] [1793215703.375007975] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.375042794] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::strict_parameter_queries_propagate_provider_read_failures ... [WARN] [1793215703.378583776] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.378598186] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::strict_parameter_queries_read_live_provider_values ... [WARN] [1793215703.383976204] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.383986730] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::strict_parameter_queries_reject_undeclared_names ... [WARN] [1793215703.388962039] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.388972526] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::subscription_drains_bursts_in_one_spin ... [WARN] [1793215703.393559474] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.393576058] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::subscription_indexes_follow_removal_and_reordering ... [WARN] [1793215703.416905843] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.416933396] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::subscription_loan_is_received_or_reports_unsupported ... [WARN] [1793215703.420664355] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.420676310] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::subscription_match_queries_waits_and_cleanup_work ... [WARN] [1793215703.425355506] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.425365836] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::subscription_message_lost_status_is_nonblocking ... [WARN] [1793215703.440931798] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.440947289] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::subscription_options_can_ignore_local_publications ... [WARN] [1793215703.444583783] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.444601514] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::subscription_options_control_rust_side_buffering ... [WARN] [1793215703.508746165] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.508762444] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::subscription_waiters_poll_only_the_active_subscription ... [WARN] [1793215703.524491152] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.524503758] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::subscriptions_can_retain_rmw_message_info ... [WARN] [1793215703.528374128] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.528384783] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::subscriptions_report_liveliness_changes ... [WARN] [1793215703.541629856] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.541643056] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::subscriptions_report_requested_deadline_misses ... [WARN] [1793215703.545178844] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.545189816] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::subscriptions_report_requested_incompatible_qos ... [WARN] [1793215703.581202300] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.581217684] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::subscriptions_support_runtime_content_filters_when_available ... [WARN] [1793215703.595088636] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.595106674] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::timer_indexes_follow_removal_and_reordering ... [WARN] [1793215703.598854671] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.598866288] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::timer_options_control_startup_and_tick_buffering ... [WARN] [1793215703.603421553] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.603432602] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::timer_ticks_expose_native_call_timing_metadata ... [WARN] [1793215703.607038994] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.607049306] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::timers_support_pause_reset_and_period_changes ... [WARN] [1793215703.611865347] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.611874719] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::untyped_action_servers_interoperate_with_typed_and_untyped_clients ... [WARN] [1793215703.615257567] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.615266601] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::untyped_publishers_report_offered_incompatible_qos ... [WARN] [1793215703.620376914] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.620392554] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test nodes::tests::untyped_service_servers_interoperate_with_typed_clients ... [WARN] [1793215703.633325710] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.633337114] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test notifications::tests::notifications_follow_work_unlock_and_coalesce_until_drain ... ok
+test parameter_clients::tests::oversized_parameter_timeouts_do_not_send_requests ... [WARN] [1793215703.638092010] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.638102732] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test parameter_clients::tests::parameter_client_filters_events_by_resolved_node_and_parameter ... [WARN] [1793215703.643063008] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.643074561] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test parameter_clients::tests::parameter_client_interoperates_with_standard_services ... [WARN] [1793215703.658692555] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.658707615] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test parameter_clients::tests::parameter_client_is_cloneable ... ok
+test parameter_clients::tests::parameter_client_operations_support_timeouts ... [WARN] [1793215703.690878426] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.690894080] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test parameter_clients::tests::parameter_client_rejects_invalid_remote_names ... ok
+test parameter_clients::tests::parameter_client_rejects_mismatched_response_lengths ... [WARN] [1793215703.712875797] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.712890073] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test parameter_clients::tests::parameter_client_rejects_unknown_wire_types ... [WARN] [1793215703.718000620] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.718012672] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test parameter_clients::tests::parameter_client_timeout_helpers_reject_foreign_nodes_before_sending ... [WARN] [1793215703.722404937] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.722417189] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test parameter_clients::tests::parameter_event_identity_ignores_service_remaps ... 
+running 1 test
+test parameter_clients::tests::parameter_event_identity_ignores_service_remaps ... [WARN] [1793215703.754113652] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.754137715] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.01s
+
+ok
+test parameters::tests::array_parameters_roundtrip_and_reject_wrong_types ... ok
+test parameters::tests::atomic_parameter_update_rolls_back_prior_changes ... ok
+test parameters::tests::descriptor_enforces_read_only_and_static_typing ... ok
+test parameters::tests::floating_descriptor_uses_ros_compatible_step_tolerance ... ok
+test parameters::tests::integer_descriptor_accepts_endpoints_and_exact_steps ... ok
+test parameters::tests::leaf_parameter_registration_never_panics_without_metadata ... ok
+test parameters::tests::malformed_descriptors_are_rejected ... ok
+test parameters::tests::malformed_native_parameter_arrays_are_rejected ... ok
+test parameters::tests::native_rust_values_convert_to_parameter_values_without_loss ... ok
+test parameters::tests::reversed_descriptor_ranges_accept_only_endpoints ... ok
+test parameters::tests::unknown_wire_parameter_types_are_rejected ... ok
+test publishers::option_tests::maps_unique_network_flow_requirements ... ok
+test publishers::option_tests::native_network_endpoint_conversion_preserves_unspecified_address_and_port ... ok
+test publishers::option_tests::network_endpoint_addresses_distinguish_unspecified_and_invalid_values ... ok
+test publishers::option_tests::network_flow_endpoints_reject_invalid_native_addresses ... ok
+test publishers::option_tests::preserves_native_incompatible_type_counts ... ok
+test publishers::waiter_tests::checking_active_waiters_releases_the_waiter_lock ... ok
+test publishers::waiter_tests::completing_waiters_allows_reentrant_registration ... ok
+test publishers::waiter_tests::final_publisher_handle_drop_queues_its_identity_once ... ok
+test publishers::waiter_tests::poll_boundary_preserves_concurrent_registrations ... ok
+test publishers::waiter_tests::publisher_payloads_are_prepared_before_locking_the_native_handle ... ok
+test publishers::waiter_tests::publisher_wait_types_schedule_once_per_nonempty_queue ... ok
+test qos::tests::invalid_native_qos_duration_does_not_panic ... ok
+test qos::tests::reports_qos_compatibility_and_reason ... ok
+test serialization::tests::embedded_nul_string_wire_bytes_match_existing_rmw_codec_semantics ... ok
+test serialization::tests::failed_native_creation_is_propagated_without_serializing ... ok
+test serialization::tests::invalid_fixed_array_json_is_rejected_before_native_serialization ... ok
+test serialization::tests::serialization_reuses_capacity_and_matches_full_native_wire_oracle ... ok
+test serialization::tests::serializer_creates_one_native_container_and_releases_it_once ... ok
+test serialization::tests::serializer_moves_between_threads_and_separate_buffers_are_independent ... ok
+test service_introspection::tests::event_qos_limits_retained_history_for_late_subscribers ... [WARN] [1793215703.766173950] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.766187111] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test service_introspection::tests::service_introspection_rejects_foreign_nodes_and_destroyed_clients ... [WARN] [1793215703.972048974] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.972089600] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test service_introspection::tests::typed_service_introspection_transitions_and_simulated_timestamps ... [WARN] [1793215703.977005311] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215703.977017783] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test service_introspection::tests::untyped_service_introspection_publishes_typed_events ... [WARN] [1793215704.689865808] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215704.689888388] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test services::tests::cloned_service_request_can_respond_only_once ... ok
+test services::tests::closed_service_sender_is_removed_before_taking_a_request ... ok
+test services::tests::dropping_typed_service_stream_queues_its_id ... ok
+test services::tests::dropping_untyped_service_stream_queues_its_id ... ok
+test services::tests::failed_service_response_allows_a_clone_to_retry ... ok
+test services::tests::full_service_sender_reports_backpressure ... ok
+test services::tests::service_batch_limit_is_bounded_for_fairness ... ok
+test services::tests::service_payloads_are_prepared_before_locking_the_native_handle ... ok
+test services::tests::service_request_info_copies_native_identity ... ok
+test services::tests::service_requests_are_converted_after_releasing_the_service_lock ... ok
+test services::tests::service_requests_wake_streams_after_releasing_the_service_lock ... ok
+test services::tests::untyped_service_response_is_once_only_and_failures_are_retryable ... ok
+test strings::tests::bytes_are_preserved_and_utf8_conversion_is_explicit ... ok
+test strings::tests::generated_string_fields_preserve_raw_bytes_through_native_json_and_cdr ... ok
+test strings::tests::out_of_range_json_bytes_and_units_are_rejected ... ok
+test strings::tests::raw_parameter_values_roundtrip_and_text_consumers_reject_invalid_utf8 ... ok
+test strings::tests::valid_text_keeps_json_strings_and_zero_copy_owned_conversions ... ok
+test strings::tests::wide_units_preserve_invalid_surrogates_and_text_roundtrips ... ok
+test subscribers::tests::content_filter_options_reject_invalid_strings_and_parameter_counts ... ok
+test subscribers::tests::dropping_subscription_queues_only_its_id ... ok
+test subscribers::tests::loaned_subscription_message_returns_native_storage_once ... ok
+test subscribers::tests::message_info_preserves_fixed_publisher_gid_without_heap_storage ... ok
+test subscribers::tests::publisher_poll_tolerates_disappearing_match_state ... ok
+test subscribers::tests::ready_subscription_drains_a_bounded_batch ... ok
+test subscribers::tests::ready_subscription_stops_on_idle_backpressure_and_removal ... ok
+test subscribers::tests::subscription_batch_size_respects_backpressure_and_fairness_bounds ... ok
+test time_source::tests::attaching_clocks_is_idempotent_and_prunes_expired_entries ... ok
+test time_source::tests::detaching_a_clock_preserves_other_registrations ... ok
+test time_source::tests::failed_subscription_setup_does_not_activate_time_source ... ok
+test time_source::tests::latest_sim_time_request_wins_before_spin ... ok
+test time_source::tests::managed_clock_operations_do_not_hold_the_time_source_state_lock ... ok
+test time_source::tests::reactivation_cancels_pending_subscriber_removal ... ok
+test time_source::tests::subscriber_destruction_request_is_consumed_without_a_clock_message ... ok
+test time_source::tests::subscriber_post_take_state_is_panic_free_and_idempotent ... ok
+test utils::log_fields_with_nul_bytes_do_not_panic ... [INFO] [1793215705.403993667] [loggersuffix]: messagesuffix
+ok
+test utils::logger_levels_inherit_and_disabled_macros_do_not_evaluate_arguments ... ok
+test utils::test_log ... [INFO] [1793215705.404113185] [log_test]: info msg
+[WARN] [1793215705.404123455] [log_test]: warn msg
+[ERROR] [1793215705.404128514] [log_test]: error msg
+[FATAL] [1793215705.404141803] [log_test]: fatal msg
+ok
+
+test result: ok. 546 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 9.50s
+
+     Running tests/context_shutdown.rs (target/debug/deps/context_shutdown-82ee8a4e2402b6ce)
+
+running 7 tests
+test context_options_apply_arguments_and_domain_id ... [WARN] [1793215705.425107232] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215705.425125898] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test context_options_reject_arguments_with_nul_bytes ... ok
+test independently_created_context_handle_wakes_an_empty_node_spin ... [WARN] [1793215705.430024814] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215705.430049218] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test reports_spin_results_after_context_shutdown ... [WARN] [1793215705.453236398] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215705.453250397] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test shutdown_completes_background_task_and_rejects_new_spawn ... [WARN] [1793215705.457923964] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215705.457932774] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test shutdown_is_shared_idempotent_and_defers_finalization ... [WARN] [1793215705.480937336] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215705.480951788] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[WARN] [1793215705.484411745] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215705.484427544] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test shutdown_wakes_an_empty_node_spin ... [WARN] [1793215705.484605793] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215705.484625495] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/threads.rs (target/debug/deps/threads-b130917b31509eae)
+
+running 1 test
+test doesnt_crash ... [WARN] [1793215705.529630022] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215705.529652576] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[WARN] [1793215715.684219636] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215715.684254665] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[WARN] [1793215725.827354247] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215725.827381975] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+[WARN] [1793215735.986835113] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215735.986864651] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 40.61s
+
+     Running tests/tokio_test_raw.rs (target/debug/deps/tokio_test_raw-d3bd3126ba8249f0)
+
+running 2 tests
+test tokio_publish_raw_testing ... [WARN] [1793215746.161260972] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215746.161315154] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+test tokio_subscribe_raw_testing ... [WARN] [1793215747.376724435] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215747.376765010] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.13s
+
+     Running tests/tokio_testing.rs (target/debug/deps/tokio_testing-33fed3ca89499e07)
+
+running 1 test
+test tokio_testing ... [WARN] [1793215752.314340367] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215752.314358805] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+
+     Running unittests src/lib.rs (target/debug/deps/r2r_actions-8298e2e4f8b3d0e4)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/r2r_common-e5f42c2bfeddb4ef)
+
+running 6 tests
+test documentation::tests::documentation_snapshot_has_supported_service_event_semantics ... ok
+test tests::service_events_follow_ros_distro_support ... ok
+test tests::supported_distributions_start_at_humble ... ok
+test tests::test_as_map ... ok
+test tests::test_camel_to_snake_case ... ok
+test tests::test_parse_msgs ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/lib.rs (target/debug/deps/r2r_macros-d2ef79c1d1527e65)
+
+running 2 tests
+test tests::enum_reports_a_compile_error ... ok
+test tests::tuple_struct_reports_a_compile_error ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (target/debug/deps/r2r_msg_gen-66e59624fcb7627e)
+
+running 2 tests
+test message_path::tests::message_names_keep_only_generated_suffixes ... ok
+test message_path::tests::nested_message_paths_match_generated_modules ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/r2r_rcl-03ad2a6625bdd5df)
+
+running 27 tests
+test sequence_tests::failed_primitive_sequence_growth_preserves_existing_values ... ok
+test sequence_tests::rosidl_runtime_c__boolean_retains_capacity_and_roundtrips_updates ... ok
+test sequence_tests::rosidl_runtime_c__char_retains_capacity_and_roundtrips_updates ... ok
+test sequence_tests::rosidl_runtime_c__float32_retains_capacity_and_roundtrips_updates ... ok
+test sequence_tests::rosidl_runtime_c__float64_retains_capacity_and_roundtrips_updates ... ok
+test sequence_tests::rosidl_runtime_c__int16_retains_capacity_and_roundtrips_updates ... ok
+test sequence_tests::rosidl_runtime_c__int32_retains_capacity_and_roundtrips_updates ... ok
+test sequence_tests::rosidl_runtime_c__int64_retains_capacity_and_roundtrips_updates ... ok
+test sequence_tests::rosidl_runtime_c__int8_retains_capacity_and_roundtrips_updates ... ok
+test sequence_tests::rosidl_runtime_c__long_double_retains_capacity_and_roundtrips_updates ... ok
+test sequence_tests::rosidl_runtime_c__octet_retains_capacity_and_roundtrips_updates ... ok
+test sequence_tests::rosidl_runtime_c__uint16_retains_capacity_and_roundtrips_updates ... ok
+test sequence_tests::rosidl_runtime_c__uint32_retains_capacity_and_roundtrips_updates ... ok
+test sequence_tests::rosidl_runtime_c__uint64_retains_capacity_and_roundtrips_updates ... ok
+test sequence_tests::rosidl_runtime_c__uint8_retains_capacity_and_roundtrips_updates ... ok
+test sequence_tests::rosidl_runtime_c__wchar_retains_capacity_and_roundtrips_updates ... ok
+test strings::tests::failed_utf16_growth_preserves_the_previous_value ... ok
+test strings::tests::raw_string_sequences_preserve_non_utf8_bytes_and_reuse_storage ... ok
+test strings::tests::raw_wide_sequences_preserve_unpaired_surrogates_and_reuse_storage ... ok
+test strings::tests::rosidl_runtime_c__String_sequence_allocation_and_size_overflow_fail_without_losing_values ... ok
+test strings::tests::rosidl_runtime_c__String_sequence_reuses_outer_and_hidden_string_storage ... ok
+test strings::tests::rosidl_runtime_c__String_sequence_rolls_back_new_slots_after_initialization_failure ... ok
+test strings::tests::rosidl_runtime_c__U16String_sequence_allocation_and_size_overflow_fail_without_losing_values ... ok
+test strings::tests::rosidl_runtime_c__U16String_sequence_reuses_outer_and_hidden_string_storage ... ok
+test strings::tests::rosidl_runtime_c__U16String_sequence_rolls_back_new_slots_after_initialization_failure ... ok
+test strings::tests::string_capacity_fast_path_matches_native_assignn_oracle ... ok
+test strings::tests::utf16_direct_encoding_matches_native_assignn_and_retains_spare_capacity ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests r2r_actions
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests r2r_common
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests r2r_macros
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests r2r_msg_gen
+
+running 1 test
+test r2r_msg_gen/src/introspection.rs - introspection::MemberType::from_type_id (line 177) ... ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests r2r_rcl
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

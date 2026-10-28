@@ -1,0 +1,9 @@
+   Compiling r2r v0.9.7 (/home/passchaos/Work/r2r/r2r)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.96s
+     Running unittests src/lib.rs (target/debug/deps/r2r-73bce1fcd33da3d9)
+
+running 1 test
+test action_clients::feedback::readiness_notifications_unlock_queue_and_coalesce_per_registration ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 547 filtered out; finished in 0.00s
+

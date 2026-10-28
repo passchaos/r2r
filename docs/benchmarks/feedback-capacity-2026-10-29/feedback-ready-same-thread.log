@@ -1,0 +1,11 @@
+   Compiling r2r v0.9.7 (/home/passchaos/Work/r2r/r2r)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 34.88s
+     Running unittests src/lib.rs (target/debug/deps/r2r-73bce1fcd33da3d9)
+
+running 1 test
+test nodes::action_cancel_tests::same_thread_feedback_capacity_recovery_delivers_without_another_ros_message ... [WARN] [1793215258.782561427] [rcl]: ROS_LOCALHOST_ONLY is deprecated but still honored if it is enabled. Use ROS_AUTOMATIC_DISCOVERY_RANGE and ROS_STATIC_PEERS instead.
+[WARN] [1793215258.782592405] [rcl]: 'localhost_only' is enabled, 'automatic_discovery_range' and 'static_peers' will be ignored.
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 546 filtered out; finished in 0.01s
+

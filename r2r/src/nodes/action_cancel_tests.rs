@@ -2,6 +2,83 @@ use super::*;
 use crate::{example_interfaces::action::Fibonacci, GoalStatus};
 
 #[test]
+fn same_thread_feedback_capacity_recovery_delivers_without_another_ros_message() {
+    let context = Context::create().unwrap();
+    let mut node = Node::create(context, "same_thread_feedback_ready", "").unwrap();
+    let name = format!("/same_thread_feedback_{}", uuid::Uuid::new_v4().simple());
+    let mut requests = node
+        .create_action_server::<Fibonacci::Action>(&name)
+        .unwrap();
+    let client = node
+        .create_action_client_with_options::<Fibonacci::Action>(
+            &name,
+            ActionClientOptions::default().feedback_channel_capacity(0),
+        )
+        .unwrap();
+    let response = client
+        .send_goal_request(Fibonacci::Goal { order: 4 })
+        .unwrap();
+    let ((mut server_goal, _cancel), (_goal, result, mut feedback)) = node
+        .spin_until_future_complete_with_options(
+            async {
+                let accept = async {
+                    requests
+                        .next()
+                        .await
+                        .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?
+                        .accept_deferred()
+                };
+                futures::try_join!(accept, response)
+            },
+            Duration::from_secs(5),
+            FutureExecutionOptions::wake_driven(),
+        )
+        .unwrap();
+    server_goal.execute().unwrap();
+    server_goal
+        .publish_feedback(Fibonacci::Feedback { sequence: vec![1] })
+        .unwrap();
+    server_goal
+        .publish_feedback(Fibonacci::Feedback { sequence: vec![2] })
+        .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !node.action_clients[0].lock().has_pending_maintenance() {
+        assert!(Instant::now() < deadline);
+        node.try_spin_once(Duration::from_millis(1)).unwrap();
+    }
+    node.try_spin_once(Duration::ZERO).unwrap();
+    assert_eq!(feedback.next().now_or_never().unwrap().unwrap().sequence, [1]);
+    let message = node
+        .spin_until_future_complete_with_options(
+            async {
+                feedback
+                    .next()
+                    .await
+                    .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)
+            },
+            Duration::from_secs(1),
+            FutureExecutionOptions::wake_driven(),
+        )
+        .unwrap();
+    assert_eq!(message.sequence, [2]);
+    server_goal
+        .succeed(Fibonacci::Result {
+            sequence: vec![0, 1, 1],
+        })
+        .unwrap();
+    assert_eq!(
+        node.spin_until_future_complete_with_options(
+            result,
+            Duration::from_secs(5),
+            FutureExecutionOptions::wake_driven()
+        )
+        .unwrap()
+        .0,
+        GoalStatus::Succeeded
+    );
+}
+
+#[test]
 fn cancellation_backlog_does_not_sleep_over_remaining_same_thread_work() {
     let context = Context::create().unwrap();
     let mut node = Node::create(context, "same_thread_cancel_backlog", "").unwrap();
