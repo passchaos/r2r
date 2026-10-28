@@ -59,10 +59,13 @@ impl<T> Waiters<T> {
     /// Notify after scheduling the active entity queue. Existing observer
     /// cancellation wakes share this state, including observers predating spawn.
     pub(crate) fn notify_native(&self) {
-        let wake = self.canceled_waiters.lock().native_wake.clone();
+        let wake = self.native_wake();
         if let Some(wake) = wake {
             wake.wake_by_ref();
         }
+    }
+    pub(crate) fn native_wake(&self) -> Option<Waker> {
+        self.canceled_waiters.lock().native_wake.clone()
     }
     pub(crate) fn register(&mut self, mut sender: oneshot::Sender<T>) -> bool {
         let was_empty = self.senders.is_empty();

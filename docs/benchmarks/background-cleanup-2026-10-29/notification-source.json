@@ -1,0 +1,5 @@
+{
+  "path": "r2r/src/notifications.rs",
+  "sha256": "5047c5d5f82d40355544514d9697841a51b12bafe5eece7d7856ecfe466416b8",
+  "note": "runtime source used in candidate build; recorded separately from original build manifest"
+}

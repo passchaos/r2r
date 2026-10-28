@@ -1,5 +1,9 @@
 # Async runtime integration through an owned native executor task
 
+[Background cleanup](BACKGROUND_CLEANUP.md) describes automatic native endpoint
+release after public handles are dropped, final-operation cancellation and
+action-server decision/backpressure notifications.
+
 `Executor::spawn()` starts one native wait thread for all owned nodes and returns
 `ExecutorTask`. The task implements `Future<Output = Result<Executor, ExecutorTaskError>>`, so any
 Rust runtime can await completion. ROS subscriptions/services remain streams;

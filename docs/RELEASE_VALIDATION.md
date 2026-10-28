@@ -266,3 +266,40 @@ handoff costs, scheduling, allocation/resource evidence and reactor integration
 without a separate wait thread remain explicit work. The default fast path is
 preserved; the concrete improvement is safe async-runtime I/O composition.
 
+## Notification-driven background cleanup (2026-10-29)
+
+An idle native worker regression test first failed because public endpoint Drop
+only queued a cleanup identity. [Background cleanup](BACKGROUND_CLEANUP.md) now
+notifies the existing native guard after the first entry in each cleanup queue,
+with the queue lock released. The shared queue allocation retains an optional
+weak background wake; public endpoint/node queue pointers retain their layout.
+Batch notifications coalesce until drain, and extracted nodes unbind the old
+executor wake. No polling timer or new native guard is added.
+
+Outstanding client responses still defer endpoint removal. Canceling the final
+typed/untyped response now wakes its owner. Action maintenance retries a dropped
+client after result/feedback cancellation clears the last tracked operation.
+Action-server decision futures and full cancel-stream readiness use the same
+background native waker, retaining bounded scans and protocol semantics.
+
+Seven live-worker cases verify ordinary entity destruction, pending client
+responses, typed/untyped action endpoints and observers, delayed cancel decisions
+and node transfer. Native endpoint ownership is observed before stopping the
+task. Nearby notification cases check unlock-before-wake and burst coalescing;
+two action cases check decision and backpressure wakeup. The action-server
+module suite executes 38 cases. Humble/Kilted and both Jazzy RMWs cover the
+targeted native boundaries; optimized gates use assertions-disabled builds.
+
+Final debug workspace and optimized Jazzy library suites each execute 532
+library cases, with two manual benchmarks ignored. Both native Humble/Kilted
+optimized cleanup, notification and action-server gates pass, as do their
+full-target Clippy checks. The ROS-free all-target/documentation gate remains
+green with the same 13 API artifacts and 28 methods.
+
+The [default executor A/B](benchmarks/background-cleanup-2026-10-29/README.md)
+uses the safe `6f97881` baseline, CPU 24, nodes 1/8 and windows 1/16, 30000
+requests after 5000 warmup and nine interleaved repetitions. Both RMWs pass the
+original 5% latency/throughput/CPU gates: 216 application records and 6480000 RTT
+samples. It verifies the default path's performance boundary, not a cleanup
+throughput improvement. Background tail precision and wider scaling remain open.
+

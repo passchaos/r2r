@@ -211,6 +211,7 @@ fn with_prepared_action_server<S: ?Sized, P, T>(
 }
 
 pub trait ActionServer_ {
+    fn set_maintenance_wake(&mut self, _wake: Option<std::task::Waker>) {}
     fn id(&self) -> uuid::Uuid;
     fn handle(&self) -> &rcl_action_server_t;
     fn handle_mut(&mut self) -> &mut rcl_action_server_t;
@@ -319,7 +320,7 @@ where
 {
     receiver: mpsc::Receiver<ActionServerGoalRequest<T>>,
     pub(crate) id: uuid::Uuid,
-    dropped_action_servers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    dropped_action_servers: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
 }
 
 impl<T> ActionServer<T>
@@ -328,7 +329,7 @@ where
 {
     pub(crate) fn new(
         receiver: mpsc::Receiver<ActionServerGoalRequest<T>>, id: uuid::Uuid,
-        dropped_action_servers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+        dropped_action_servers: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
     ) -> Self {
         Self {
             receiver,
@@ -360,7 +361,7 @@ where
 {
     fn drop(&mut self) {
         self.receiver.close();
-        self.dropped_action_servers.lock().push_back(self.id);
+        crate::notifications::enqueue(&self.dropped_action_servers, self.id);
     }
 }
 
@@ -784,10 +785,17 @@ pub struct ActiveCancelRequest {
     completed_decisions: Vec<std::result::Result<(uuid::Uuid, bool), oneshot::Canceled>>,
 }
 
+#[cfg(test)]
 fn poll_cancel_decisions(
     request: &mut ActiveCancelRequest,
 ) -> Option<Vec<std::result::Result<(uuid::Uuid, bool), oneshot::Canceled>>> {
-    let mut context = Context::from_waker(noop_waker_ref());
+    poll_cancel_decisions_with_wake(request, None)
+}
+
+fn poll_cancel_decisions_with_wake(
+    request: &mut ActiveCancelRequest, wake: Option<&std::task::Waker>,
+) -> Option<Vec<std::result::Result<(uuid::Uuid, bool), oneshot::Canceled>>> {
+    let mut context = Context::from_waker(wake.unwrap_or(noop_waker_ref()));
     let scan_count = request
         .pending_decisions
         .len()
@@ -866,9 +874,18 @@ fn take_cancel_deliveries(
     detached
 }
 
+#[cfg(test)]
 fn cancel_request_delivery(
+    detached: Vec<DetachedCancelDelivery>, pending: PendingCancelRequest,
+    finish: impl FnOnce(PendingCancelRequest) -> Result<()> + 'static,
+) -> ActionServerCompletion {
+    cancel_request_delivery_with_wake(detached, pending, finish, None)
+}
+
+fn cancel_request_delivery_with_wake(
     detached: Vec<DetachedCancelDelivery>, mut pending: PendingCancelRequest,
     finish: impl FnOnce(PendingCancelRequest) -> Result<()> + 'static,
+    wake: Option<std::task::Waker>,
 ) -> ActionServerCompletion {
     Box::new(move || {
         for DetachedCancelDelivery {
@@ -880,10 +897,16 @@ fn cancel_request_delivery(
             let uuid = delivery.uuid;
             match sender.try_send(delivery.request) {
                 Ok(()) => {}
-                Err(err) if err.is_full() => pending.deliveries.push_back(PendingCancelDelivery {
-                    uuid,
-                    request: err.into_inner(),
-                }),
+                Err(err) if err.is_full() => {
+                    pending.deliveries.push_back(PendingCancelDelivery {
+                        uuid,
+                        request: err.into_inner(),
+                    });
+                    if let Some(wake) = &wake {
+                        let mut context = Context::from_waker(wake);
+                        let _ = sender.poll_ready(&mut context);
+                    }
+                }
                 Err(_) => {}
             }
             *sender_slot.lock() = Some(sender);
@@ -975,7 +998,7 @@ where
     pub cancel_senders:
         HashMap<uuid::Uuid, Arc<Mutex<Option<mpsc::Sender<ActionServerCancelRequest>>>>>,
     pub(crate) pending_cancel_request: Option<PendingCancelRequest>,
-    pub active_cancel_requests: VecDeque<ActiveCancelRequest>,
+    pub active_cancel_requests: crate::notifications::NotificationQueue<ActiveCancelRequest>,
     pub(crate) goals: HashMap<uuid::Uuid, OwnedGoalHandle>,
     pub result_msgs: HashMap<uuid::Uuid, Box<dyn VoidPtr>>,
     pub result_requests: HashMap<uuid::Uuid, Vec<rmw_request_id_t>>,
@@ -1042,10 +1065,16 @@ where
             return None;
         }
 
-        Some(cancel_request_delivery(detached, pending, move |pending| {
-            server.lock().finish_cancel_delivery(pending);
-            Ok(())
-        }))
+        let wake = self.active_cancel_requests.wake();
+        Some(cancel_request_delivery_with_wake(
+            detached,
+            pending,
+            move |pending| {
+                server.lock().finish_cancel_delivery(pending);
+                Ok(())
+            },
+            wake,
+        ))
     }
 }
 
@@ -1053,6 +1082,9 @@ impl<T: 'static> ActionServer_ for WrappedActionServer<T>
 where
     T: WrappedActionTypeSupport,
 {
+    fn set_maintenance_wake(&mut self, wake: Option<std::task::Waker>) {
+        self.active_cancel_requests.set_wake(wake);
+    }
     fn id(&self) -> uuid::Uuid {
         self.id
     }
@@ -1202,7 +1234,10 @@ where
         let mut canceled = vec![];
         let mut responses = vec![];
         let mut first_error = None;
-        let completed = poll_bounded_queue(&mut self.active_cancel_requests, poll_cancel_decisions);
+        let wake = self.active_cancel_requests.wake();
+        let completed = poll_bounded_queue(&mut self.active_cancel_requests, |request| {
+            poll_cancel_decisions_with_wake(request, wake.as_ref())
+        });
         for (request, results) in completed {
             let ActiveCancelRequest {
                 request_id,
@@ -1417,6 +1452,7 @@ where
             return Err(Error::from_rcl_error(ret));
         }
 
+        let wake = self.active_cancel_requests.wake();
         Ok(ActionServerDeliveryAction::Deliver(cancel_request_conversion_completion(
             server,
             cancel_response,
@@ -1428,8 +1464,12 @@ where
                     .iter()
                     .map(|goal_info| {
                         let uuid = uuid_msg_to_uuid(&goal_info.goal_id)?;
-                        let (response_sender, response_receiver) =
+                        let (response_sender, mut response_receiver) =
                             oneshot::channel::<(uuid::Uuid, bool)>();
+                        if let Some(wake) = &wake {
+                            let mut context = Context::from_waker(wake);
+                            let _ = Pin::new(&mut response_receiver).poll(&mut context);
+                        }
                         Ok((
                             PendingCancelDelivery {
                                 uuid,
@@ -2022,6 +2062,7 @@ mod tests {
         task::{waker_ref, ArcWake, LocalSpawnExt},
         FutureExt, StreamExt,
     };
+    use std::sync::atomic::AtomicUsize;
     use std::{
         sync::atomic::{AtomicBool, Ordering},
         time::Duration,
@@ -2032,7 +2073,8 @@ mod tests {
     #[test]
     fn dropping_action_server_stream_queues_its_id() {
         let id = uuid::Uuid::from_u128(1);
-        let dropped_action_servers = Arc::new(Mutex::new(VecDeque::new()));
+        let dropped_action_servers =
+            Arc::new(Mutex::new(crate::notifications::NotificationQueue::default()));
         let (sender, receiver) = mpsc::channel::<ActionServerGoalRequest<Fibonacci::Action>>(1);
         let stream = ActionServer::new(receiver, id, Arc::clone(&dropped_action_servers));
 
@@ -2310,6 +2352,91 @@ mod tests {
         assert!(poll_cancel_decisions(&mut request).is_none());
         sender.send((goal, true)).unwrap();
         assert_eq!(poll_cancel_decisions(&mut request).unwrap(), vec![Ok((goal, true))]);
+    }
+
+    #[test]
+    fn delayed_cancel_decision_notifies_its_native_maintenance_waker() {
+        struct Count(AtomicUsize);
+        impl futures::task::ArcWake for Count {
+            fn wake_by_ref(this: &Arc<Self>) {
+                this.0.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+        let count = Arc::new(Count(AtomicUsize::new(0)));
+        let waker = futures::task::waker(count.clone());
+        let goal = uuid::Uuid::new_v4();
+        let (sender, receiver) = oneshot::channel();
+        let mut request = ActiveCancelRequest {
+            request_id: unsafe { std::mem::zeroed() },
+            response: action_msgs::srv::CancelGoal::Response::default(),
+            pending_decisions: VecDeque::from([receiver]),
+            completed_decisions: Vec::new(),
+        };
+        assert!(poll_cancel_decisions_with_wake(&mut request, Some(&waker)).is_none());
+        assert_eq!(count.0.load(Ordering::Relaxed), 0);
+        sender.send((goal, false)).unwrap();
+        assert_eq!(count.0.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            poll_cancel_decisions_with_wake(&mut request, Some(&waker)).unwrap(),
+            [Ok((goal, false))]
+        );
+    }
+
+    #[test]
+    fn freeing_backpressured_cancel_stream_notifies_native_retry() {
+        struct Count(AtomicUsize);
+        impl futures::task::ArcWake for Count {
+            fn wake_by_ref(this: &Arc<Self>) {
+                this.0.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+        let count = Arc::new(Count(AtomicUsize::new(0)));
+        let waker = futures::task::waker(count.clone());
+        let (mut sender, mut receiver) = mpsc::channel(0);
+        let goal = uuid::Uuid::new_v4();
+        let (first, _) = oneshot::channel();
+        sender
+            .try_send(ActionServerCancelRequest {
+                uuid: goal,
+                response_sender: first,
+            })
+            .unwrap();
+        let sender_slot = Arc::new(Mutex::new(None));
+        let (decision, _) = oneshot::channel();
+        let detached = vec![DetachedCancelDelivery {
+            sender_slot: sender_slot.clone(),
+            sender,
+            delivery: PendingCancelDelivery {
+                uuid: goal,
+                request: ActionServerCancelRequest {
+                    uuid: goal,
+                    response_sender: decision,
+                },
+            },
+        }];
+        let pending = PendingCancelRequest {
+            request_id: unsafe { std::mem::zeroed() },
+            response: action_msgs::srv::CancelGoal::Response::default(),
+            deliveries: VecDeque::new(),
+            decisions: Vec::new(),
+        };
+        let saved = Arc::new(Mutex::new(None));
+        let capture = saved.clone();
+        cancel_request_delivery_with_wake(
+            detached,
+            pending,
+            move |pending| {
+                *capture.lock() = Some(pending);
+                Ok(())
+            },
+            Some(waker),
+        )()
+        .unwrap();
+        assert_eq!(saved.lock().as_ref().unwrap().deliveries.len(), 1);
+        let before = count.0.load(Ordering::Relaxed);
+        assert!(receiver.next().now_or_never().flatten().is_some());
+        assert!(count.0.load(Ordering::Relaxed) > before);
+        assert!(sender_slot.lock().is_some());
     }
 
     #[test]

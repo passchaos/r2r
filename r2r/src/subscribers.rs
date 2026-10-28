@@ -2,7 +2,6 @@ use futures::{channel::mpsc, task::noop_waker_ref, Future, Stream, TryFutureExt}
 use parking_lot::Mutex;
 use std::{
     any::TypeId,
-    collections::VecDeque,
     ffi::{CStr, CString},
     marker::PhantomData,
     mem::MaybeUninit,
@@ -258,13 +257,13 @@ pub(crate) fn attach_message_info<T>(message: T, info: MessageInfo) -> ReceivedM
 pub struct Subscription<T> {
     receiver: mpsc::Receiver<T>,
     pub(crate) id: uuid::Uuid,
-    canceled_subscriptions: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    canceled_subscriptions: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
 }
 
 impl<T> Subscription<T> {
     pub(crate) fn new(
         receiver: mpsc::Receiver<T>, id: uuid::Uuid,
-        canceled_subscriptions: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+        canceled_subscriptions: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
     ) -> Self {
         Self {
             receiver,
@@ -435,7 +434,7 @@ impl<T> Stream for Subscription<T> {
 impl<T> Drop for Subscription<T> {
     fn drop(&mut self) {
         self.receiver.close();
-        self.canceled_subscriptions.lock().push_back(self.id);
+        crate::notifications::enqueue(&self.canceled_subscriptions, self.id);
     }
 }
 
@@ -1380,7 +1379,8 @@ mod tests {
     #[test]
     fn dropping_subscription_queues_only_its_id() {
         let target = uuid::Uuid::from_u128(1);
-        let canceled_subscriptions = Arc::new(Mutex::new(VecDeque::new()));
+        let canceled_subscriptions =
+            Arc::new(Mutex::new(crate::notifications::NotificationQueue::default()));
         let (sender, receiver) = mpsc::channel::<()>(1);
         let subscription = Subscription::new(receiver, target, Arc::clone(&canceled_subscriptions));
 

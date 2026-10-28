@@ -208,6 +208,14 @@ impl Node {
                     .insert(identity);
             }
             maintenance_result?;
+            // Result/feedback cancellation can remove the last outstanding
+            // work after the initial endpoint-removal pass above. Retry this
+            // maintained identity before entering an otherwise indefinite wait.
+            if self.pending_action_client_removals.contains(&identity)
+                && self.remove_action_client(identity)?
+            {
+                self.pending_action_client_removals.remove(&identity);
+            }
         }
 
         {

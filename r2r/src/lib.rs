@@ -100,6 +100,7 @@ pub use subscribers::{
 };
 
 mod native_metadata;
+mod notifications;
 mod publishers;
 pub use publishers::{
     IncompatibleTypeStatus, LivelinessLostStatus, LoanedMessage, MatchedStatus,

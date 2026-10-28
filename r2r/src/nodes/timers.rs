@@ -194,13 +194,13 @@ pub struct Timer {
     receiver: mpsc::Receiver<TimerTick>,
     pub(crate) id: uuid::Uuid,
     clock_type: ClockType,
-    canceled_timers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    canceled_timers: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
 }
 
 impl Drop for Timer {
     fn drop(&mut self) {
         self.receiver.close();
-        self.canceled_timers.lock().push_back(self.id);
+        crate::notifications::enqueue(&self.canceled_timers, self.id);
     }
 }
 

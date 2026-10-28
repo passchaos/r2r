@@ -76,7 +76,8 @@ impl Executor {
         let index = *self.indexes.get(&id).ok_or(Error::RCL_RET_NODE_INVALID)?;
         self.wait_set.clear()?;
         self.indexes.remove(&id);
-        let entry = self.nodes.swap_remove(index);
+        let mut entry = self.nodes.swap_remove(index);
+        entry.node.set_background_wake(None);
         if let Some(swapped) = self.nodes.get(index) {
             self.indexes.insert(swapped.id, index);
         }

@@ -144,8 +144,14 @@ impl Drop for PendingGoalRegistration {
     fn drop(&mut self) {
         if self.armed {
             if let Some(client) = self.client.upgrade() {
-                let completions = { client.lock().forget_goal(&self.uuid) };
+                let (completions, wake) = {
+                    let mut client = client.lock();
+                    (client.forget_goal(&self.uuid), client.poll_available_channels.native_wake())
+                };
                 run_detached_action_client_completions(completions);
+                if let Some(wake) = wake {
+                    wake.wake();
+                }
             }
         }
     }
@@ -154,7 +160,14 @@ impl Drop for PendingGoalRegistration {
 impl Drop for GoalStatusRegistration {
     fn drop(&mut self) {
         if let Some(client) = self.client.upgrade() {
-            client.lock().goal_status.remove(&self.uuid);
+            let wake = {
+                let mut client = client.lock();
+                client.goal_status.remove(&self.uuid);
+                client.poll_available_channels.native_wake()
+            };
+            if let Some(wake) = wake {
+                wake.wake();
+            }
         }
     }
 }
@@ -556,7 +569,7 @@ type GoalResponseSender = (uuid::Uuid, oneshot::Sender<(bool, builtin_interfaces
 
 pub(crate) fn make_action_client_untyped(
     client: Weak<Mutex<WrappedActionClientUntyped>>, identity: usize,
-    dropped_action_clients: Arc<Mutex<VecDeque<usize>>>,
+    dropped_action_clients: Arc<Mutex<crate::notifications::NotificationQueue<usize>>>,
     active_availability_clients: Arc<Mutex<VecDeque<usize>>>,
 ) -> ActionClientUntyped {
     ActionClientUntyped {

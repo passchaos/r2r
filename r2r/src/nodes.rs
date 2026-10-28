@@ -42,6 +42,7 @@ use crate::{
     subscribers::*,
 };
 
+mod background_notifications;
 mod executor;
 mod future_executor;
 mod graph;
@@ -106,44 +107,44 @@ pub struct Node {
     // the node owns the subscribers
     pub(crate) subscribers: Vec<Box<dyn Subscriber_>>,
     subscription_indexes: HashMap<uuid::Uuid, usize>,
-    canceled_subscriptions: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    canceled_subscriptions: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
     subscriptions_with_active_waits: HashSet<uuid::Uuid>,
     // services,
     services: Vec<Arc<Mutex<dyn Service_>>>,
     service_indexes: HashMap<uuid::Uuid, usize>,
-    canceled_services: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    canceled_services: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
     // service clients
     clients: Vec<Arc<Mutex<dyn Client_>>>,
     client_identities: HashMap<usize, usize>,
-    dropped_clients: Arc<Mutex<VecDeque<usize>>>,
+    dropped_clients: Arc<Mutex<crate::notifications::NotificationQueue<usize>>>,
     pending_client_removals: HashSet<usize>,
     active_availability_clients: Arc<Mutex<VecDeque<usize>>>,
     clients_with_active_availability: HashSet<usize>,
     // action clients
     action_clients: Vec<Arc<Mutex<dyn ActionClient_>>>,
     action_client_identities: HashMap<usize, usize>,
-    dropped_action_clients: Arc<Mutex<VecDeque<usize>>>,
+    dropped_action_clients: Arc<Mutex<crate::notifications::NotificationQueue<usize>>>,
     pending_action_client_removals: HashSet<usize>,
     active_availability_action_clients: Arc<Mutex<VecDeque<usize>>>,
     action_clients_with_active_availability: HashSet<usize>,
-    active_maintenance_action_clients: Arc<Mutex<VecDeque<usize>>>,
+    active_maintenance_action_clients: Arc<Mutex<crate::notifications::NotificationQueue<usize>>>,
     action_clients_with_pending_maintenance: HashSet<usize>,
     // action servers
     action_servers: Vec<Arc<Mutex<dyn ActionServer_>>>,
     action_server_indexes: HashMap<uuid::Uuid, usize>,
-    dropped_action_servers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    dropped_action_servers: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
     pending_action_server_removals: HashSet<uuid::Uuid>,
     action_servers_with_pending_cancels: HashSet<uuid::Uuid>,
     action_wait_set_capacities: WaitSetCapacities,
     // timers,
     timers: Vec<Timer_>,
     timer_indexes: HashMap<uuid::Uuid, usize>,
-    canceled_timers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    canceled_timers: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
     managed_timers: Option<Box<managed_timers::ManagedTimers>>,
     // and the publishers, whom we allow to be shared.. hmm.
     pub(crate) pubs: Vec<Arc<Publisher_>>,
     publisher_indexes: HashMap<uuid::Uuid, usize>,
-    dropped_publishers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    dropped_publishers: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
     pending_publisher_removals: HashSet<uuid::Uuid>,
     active_wait_publishers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
     publishers_with_active_waits: HashSet<uuid::Uuid>,

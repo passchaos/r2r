@@ -62,6 +62,8 @@ def rust_binary(source, target, destination, env, workload="codec"):
     sources.extend(source / f"r2r/src/{name}.rs" for name in ["lib", "error", "availability"])
     if (source / "r2r/src/native_metadata.rs").exists():
         sources.append(source / "r2r/src/native_metadata.rs")
+    if (source / "r2r/src/notifications.rs").exists():
+        sources.append(source / "r2r/src/notifications.rs")
     if workload in {"service", "executor"}:
         sources.extend(sorted((source / "r2r/src/nodes").rglob("*.rs")))
         sources.extend(sorted((source / "r2r/src/lifecycle").rglob("*.rs")))

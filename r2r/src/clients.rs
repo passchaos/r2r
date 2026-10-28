@@ -140,13 +140,16 @@ impl<T, C: ClientResponseRegistry> Drop for ClientResponseFuture<T, C> {
         }
         self.receiver.close();
         if let Some(client) = self.client.take().and_then(|client| client.upgrade()) {
-            client.lock().remove_canceled_response(self.sequence);
+            let wake = client.lock().remove_canceled_response(self.sequence);
+            if let Some(wake) = wake {
+                wake.wake();
+            }
         }
     }
 }
 
 trait ClientResponseRegistry {
-    fn remove_canceled_response(&mut self, sequence: i64);
+    fn remove_canceled_response(&mut self, sequence: i64) -> Option<std::task::Waker>;
 }
 
 fn client_response_future<C, T>(
@@ -244,7 +247,7 @@ where
 
 pub(crate) struct ClientHandleLifecycle {
     identity: usize,
-    dropped_clients: Arc<Mutex<VecDeque<usize>>>,
+    dropped_clients: Arc<Mutex<crate::notifications::NotificationQueue<usize>>>,
     active_availability_clients: Arc<Mutex<VecDeque<usize>>>,
     explicitly_destroyed: AtomicBool,
 }
@@ -252,7 +255,7 @@ pub(crate) struct ClientHandleLifecycle {
 impl Drop for ClientHandleLifecycle {
     fn drop(&mut self) {
         if !self.explicitly_destroyed.load(Ordering::Acquire) {
-            self.dropped_clients.lock().push_back(self.identity);
+            crate::notifications::enqueue(&self.dropped_clients, self.identity);
         }
     }
 }
@@ -647,7 +650,7 @@ fn client_response_subscription_actual_qos(handle: &rcl_client_t) -> Result<QosP
 
 pub(crate) fn make_client<T>(
     client: Weak<Mutex<TypedClient<T>>>, identity: usize,
-    dropped_clients: Arc<Mutex<VecDeque<usize>>>,
+    dropped_clients: Arc<Mutex<crate::notifications::NotificationQueue<usize>>>,
     active_availability_clients: Arc<Mutex<VecDeque<usize>>>,
 ) -> Client<T>
 where
@@ -666,7 +669,7 @@ where
 
 pub(crate) fn make_untyped_client(
     client: Weak<Mutex<UntypedClient_>>, identity: usize,
-    dropped_clients: Arc<Mutex<VecDeque<usize>>>,
+    dropped_clients: Arc<Mutex<crate::notifications::NotificationQueue<usize>>>,
     active_availability_clients: Arc<Mutex<VecDeque<usize>>>,
 ) -> ClientUntyped {
     ClientUntyped {
@@ -794,14 +797,16 @@ impl<T> ClientResponseRegistry for TypedClient<T>
 where
     T: WrappedServiceTypeSupport,
 {
-    fn remove_canceled_response(&mut self, sequence: i64) {
+    fn remove_canceled_response(&mut self, sequence: i64) -> Option<std::task::Waker> {
         if self
             .response_channels
             .get(&sequence)
             .is_some_and(ClientResponseSender::is_canceled)
         {
             self.response_channels.remove(&sequence);
+            return self.poll_available_channels.native_wake();
         }
+        None
     }
 }
 
@@ -904,14 +909,16 @@ pub struct UntypedClient_ {
 }
 
 impl ClientResponseRegistry for UntypedClient_ {
-    fn remove_canceled_response(&mut self, sequence: i64) {
+    fn remove_canceled_response(&mut self, sequence: i64) -> Option<std::task::Waker> {
         if self
             .response_channels
             .get(&sequence)
             .is_some_and(ClientResponseSender::is_canceled)
         {
             self.response_channels.remove(&sequence);
+            return self.poll_available_channels.native_wake();
         }
+        None
     }
 }
 
@@ -1166,7 +1173,8 @@ mod tests {
 
     #[test]
     fn final_client_handle_drop_queues_its_identity_once() {
-        let dropped_clients = Arc::new(Mutex::new(VecDeque::new()));
+        let dropped_clients =
+            Arc::new(Mutex::new(crate::notifications::NotificationQueue::default()));
         let client = Arc::new(Mutex::new(TypedClient::<AddTwoInts::Service> {
             rcl_handle: unsafe { rcl_get_zero_initialized_client() },
             response_channels: HashMap::new(),

@@ -175,15 +175,7 @@ impl Executor {
             std::sync::Arc::downgrade(&guard),
         )));
         for entry in &mut self.nodes {
-            for client in &entry.node.clients {
-                client.lock().set_availability_wake(Some(wake.clone()));
-            }
-            for client in &entry.node.action_clients {
-                client.lock().set_availability_wake(Some(wake.clone()));
-            }
-            for publisher in &entry.node.pubs {
-                publisher.set_observer_wake(Some(wake.clone()));
-            }
+            entry.node.set_background_wake(Some(wake.clone()));
         }
         let (sender, completion) = oneshot::channel();
         let thread = thread::Builder::new()

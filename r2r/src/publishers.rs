@@ -390,7 +390,8 @@ mod waiter_tests {
 
     #[test]
     fn final_publisher_handle_drop_queues_its_identity_once() {
-        let dropped_publishers = Arc::new(Mutex::new(VecDeque::new()));
+        let dropped_publishers =
+            Arc::new(Mutex::new(crate::notifications::NotificationQueue::default()));
         let publisher = Arc::new(Publisher_ {
             id: uuid::Uuid::from_u128(1),
             handle: Arc::new(Mutex::new(PublisherHandle {
@@ -959,14 +960,14 @@ where
 #[derive(Debug)]
 pub(crate) struct PublisherHandleLifecycle {
     id: uuid::Uuid,
-    dropped_publishers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    dropped_publishers: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
     explicitly_destroyed: AtomicBool,
 }
 
 impl Drop for PublisherHandleLifecycle {
     fn drop(&mut self) {
         if !self.explicitly_destroyed.load(Ordering::Acquire) {
-            self.dropped_publishers.lock().push_back(self.id);
+            crate::notifications::enqueue(&self.dropped_publishers, self.id);
         }
     }
 }
@@ -1111,7 +1112,8 @@ impl PublisherUntyped {
 }
 
 pub(crate) fn make_publisher<T>(
-    handle: Weak<Publisher_>, id: uuid::Uuid, dropped_publishers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    handle: Weak<Publisher_>, id: uuid::Uuid,
+    dropped_publishers: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
 ) -> Publisher<T>
 where
     T: WrappedTypesupport,
@@ -1128,7 +1130,8 @@ where
 }
 
 pub(crate) fn make_publisher_untyped(
-    handle: Weak<Publisher_>, id: uuid::Uuid, dropped_publishers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    handle: Weak<Publisher_>, id: uuid::Uuid,
+    dropped_publishers: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
     type_: String,
 ) -> PublisherUntyped {
     PublisherUntyped {

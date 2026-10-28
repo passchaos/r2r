@@ -60,11 +60,13 @@ pub(crate) struct PendingFeedbackQueue {
 
 pub(crate) struct ActionClientMaintenanceNotifier {
     identity: AtomicUsize,
-    active_clients: Arc<Mutex<VecDeque<usize>>>,
+    active_clients: Arc<Mutex<crate::notifications::NotificationQueue<usize>>>,
 }
 
 impl ActionClientMaintenanceNotifier {
-    pub(crate) fn new(active_clients: Arc<Mutex<VecDeque<usize>>>) -> Self {
+    pub(crate) fn new(
+        active_clients: Arc<Mutex<crate::notifications::NotificationQueue<usize>>>,
+    ) -> Self {
         Self {
             identity: AtomicUsize::new(0),
             active_clients,
@@ -80,8 +82,12 @@ impl ActionClientMaintenanceNotifier {
     fn notify(&self) {
         let mut active_clients = self.active_clients.lock();
         let identity = self.identity.load(Ordering::Acquire);
-        if identity != 0 {
-            active_clients.push_back(identity);
+        let wake = (identity != 0)
+            .then(|| active_clients.push_and_take_wake(identity))
+            .flatten();
+        drop(active_clients);
+        if let Some(wake) = wake {
+            wake.wake();
         }
     }
 
@@ -753,7 +759,7 @@ where
 
 pub(crate) struct ActionClientHandleLifecycle {
     pub(crate) identity: usize,
-    pub(crate) dropped_action_clients: Arc<Mutex<VecDeque<usize>>>,
+    pub(crate) dropped_action_clients: Arc<Mutex<crate::notifications::NotificationQueue<usize>>>,
     pub(crate) active_availability_clients: Arc<Mutex<VecDeque<usize>>>,
     pub(crate) explicitly_destroyed: AtomicBool,
 }
@@ -761,7 +767,7 @@ pub(crate) struct ActionClientHandleLifecycle {
 impl Drop for ActionClientHandleLifecycle {
     fn drop(&mut self) {
         if !self.explicitly_destroyed.load(Ordering::Acquire) {
-            self.dropped_action_clients.lock().push_back(self.identity);
+            crate::notifications::enqueue(&self.dropped_action_clients, self.identity);
         }
     }
 }
@@ -913,8 +919,14 @@ where
     fn drop(&mut self) {
         if self.armed {
             if let Some(client) = self.client.upgrade() {
-                let completions = { client.lock().forget_goal(&self.uuid) };
+                let (completions, wake) = {
+                    let mut client = client.lock();
+                    (client.forget_goal(&self.uuid), client.poll_available_channels.native_wake())
+                };
                 run_detached_action_client_completions(completions);
+                if let Some(wake) = wake {
+                    wake.wake();
+                }
             }
         }
     }
@@ -926,7 +938,14 @@ where
 {
     fn drop(&mut self) {
         if let Some(client) = self.client.upgrade() {
-            client.lock().goal_status.remove(&self.uuid);
+            let wake = {
+                let mut client = client.lock();
+                client.goal_status.remove(&self.uuid);
+                client.poll_available_channels.native_wake()
+            };
+            if let Some(wake) = wake {
+                wake.wake();
+            }
         }
     }
 }
@@ -1337,7 +1356,7 @@ type GoalResponseSender = (uuid::Uuid, oneshot::Sender<(bool, builtin_interfaces
 
 pub(crate) fn make_action_client<T>(
     client: Weak<Mutex<WrappedActionClient<T>>>, identity: usize,
-    dropped_action_clients: Arc<Mutex<VecDeque<usize>>>,
+    dropped_action_clients: Arc<Mutex<crate::notifications::NotificationQueue<usize>>>,
     active_availability_clients: Arc<Mutex<VecDeque<usize>>>,
 ) -> ActionClient<T>
 where
@@ -2213,7 +2232,8 @@ mod tests {
 
     #[test]
     fn maintenance_queues_notify_until_disabled() {
-        let active_clients = Arc::new(Mutex::new(VecDeque::new()));
+        let active_clients =
+            Arc::new(Mutex::new(crate::notifications::NotificationQueue::default()));
         let notifier = Arc::new(ActionClientMaintenanceNotifier::new(Arc::clone(&active_clients)));
         notifier.set_identity(42);
         let canceled =
@@ -2233,7 +2253,8 @@ mod tests {
 
     #[test]
     fn final_action_client_handle_drop_queues_its_identity_once() {
-        let dropped_action_clients = Arc::new(Mutex::new(VecDeque::new()));
+        let dropped_action_clients =
+            Arc::new(Mutex::new(crate::notifications::NotificationQueue::default()));
         let active_availability_clients = Arc::new(Mutex::new(VecDeque::new()));
         let client = Arc::new(Mutex::new(WrappedActionClient::<Fibonacci::Action> {
             rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },

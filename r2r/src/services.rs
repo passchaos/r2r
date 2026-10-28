@@ -1,7 +1,6 @@
 use futures::{channel::mpsc, task::noop_waker_ref, Stream};
 use parking_lot::Mutex;
 use std::{
-    collections::VecDeque,
     ffi::{CStr, CString},
     pin::Pin,
     sync::{
@@ -146,20 +145,20 @@ where
 {
     receiver: mpsc::Receiver<ServiceRequest<T>>,
     pub(crate) id: uuid::Uuid,
-    canceled_services: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    canceled_services: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
 }
 
 /// A runtime-typed ROS service request stream.
 pub struct ServiceUntyped {
     receiver: mpsc::Receiver<ServiceRequestUntyped>,
     pub(crate) id: uuid::Uuid,
-    canceled_services: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+    canceled_services: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
 }
 
 impl ServiceUntyped {
     pub(crate) fn new(
         receiver: mpsc::Receiver<ServiceRequestUntyped>, id: uuid::Uuid,
-        canceled_services: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+        canceled_services: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
     ) -> Self {
         Self {
             receiver,
@@ -195,7 +194,7 @@ impl Stream for ServiceUntyped {
 impl Drop for ServiceUntyped {
     fn drop(&mut self) {
         self.receiver.close();
-        self.canceled_services.lock().push_back(self.id);
+        crate::notifications::enqueue(&self.canceled_services, self.id);
     }
 }
 
@@ -205,7 +204,7 @@ where
 {
     pub(crate) fn new(
         receiver: mpsc::Receiver<ServiceRequest<T>>, id: uuid::Uuid,
-        canceled_services: Arc<Mutex<VecDeque<uuid::Uuid>>>,
+        canceled_services: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
     ) -> Self {
         Self {
             receiver,
@@ -247,7 +246,7 @@ where
 {
     fn drop(&mut self) {
         self.receiver.close();
-        self.canceled_services.lock().push_back(self.id);
+        crate::notifications::enqueue(&self.canceled_services, self.id);
     }
 }
 
@@ -860,7 +859,8 @@ mod tests {
     #[test]
     fn dropping_typed_service_stream_queues_its_id() {
         let id = uuid::Uuid::from_u128(1);
-        let canceled_services = Arc::new(Mutex::new(VecDeque::new()));
+        let canceled_services =
+            Arc::new(Mutex::new(crate::notifications::NotificationQueue::default()));
         let (sender, receiver) = mpsc::channel::<ServiceRequest<AddTwoInts::Service>>(1);
         let service = Service::new(receiver, id, Arc::clone(&canceled_services));
 
@@ -892,7 +892,8 @@ mod tests {
     #[test]
     fn dropping_untyped_service_stream_queues_its_id() {
         let id = uuid::Uuid::from_u128(2);
-        let canceled_services = Arc::new(Mutex::new(VecDeque::new()));
+        let canceled_services =
+            Arc::new(Mutex::new(crate::notifications::NotificationQueue::default()));
         let (sender, receiver) = mpsc::channel::<ServiceRequestUntyped>(1);
         let service = ServiceUntyped::new(receiver, id, Arc::clone(&canceled_services));
 
