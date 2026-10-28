@@ -852,7 +852,7 @@ pub struct Node {
     active_wait_publishers: Arc<Mutex<VecDeque<uuid::Uuid>>>,
     publishers_with_active_waits: HashSet<uuid::Uuid>,
     // RosTime clock used by all timers created by create_timer()
-    ros_clock: Arc<Mutex<Clock>>,
+    pub(crate) ros_clock: Arc<Mutex<Clock>>,
     // time source that provides simulated time
     #[cfg(r2r__rosgraph_msgs__msg__Clock)]
     time_source: TimeSource,
@@ -1098,7 +1098,7 @@ impl Node {
         }
     }
 
-    fn add_service(&mut self, id: uuid::Uuid, service: Arc<Mutex<dyn Service_>>) {
+    pub(crate) fn add_service(&mut self, id: uuid::Uuid, service: Arc<Mutex<dyn Service_>>) {
         let index = self.services.len();
         let previous = self.service_indexes.insert(id, index);
         debug_assert!(previous.is_none());

@@ -190,7 +190,10 @@ pub use nodes::{
 #[cfg(not(feature = "doc-only"))]
 mod lifecycle;
 #[cfg(not(feature = "doc-only"))]
-pub use lifecycle::{LifecycleState, LifecycleStateMachine, LifecycleTrigger, TransitionEdge};
+pub use lifecycle::{
+    CallbackReturn, LifecycleCallback, LifecycleNode, LifecycleState, LifecycleStateMachine,
+    LifecycleTrigger, TransitionEdge,
+};
 
 pub mod qos;
 mod strings;

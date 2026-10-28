@@ -1,16 +1,11 @@
 //! Safe owned wrapper over `rcl_lifecycle_state_machine_t`.
 
 use std::ffi::{c_char, CStr, CString};
-use std::marker::PhantomData;
-use std::ptr;
 use std::slice;
 
 use r2r_rcl::*;
 
 use crate::error::{Error, Result};
-use crate::lifecycle_msgs::msg::TransitionEvent;
-use crate::nodes::Node;
-use crate::WrappedTypesupport;
 
 /// A state in a ROS 2 lifecycle state machine.
 ///
@@ -309,72 +304,49 @@ impl TransitionEdge {
 
 /// Owned, finalized-on-drop wrapper around `rcl_lifecycle_state_machine_t`.
 ///
-/// The machine is initialized with the standard default state map and the rcl
-/// *publisher-only* communication mode: the five lifecycle services are not
-/// created by rcl (managed-node services are provided as native r2r entities
-/// so the unified executor owns all readiness), while rcl still creates the
-/// transition-event publisher. Driving the machine through this wrapper never
-/// publishes (`publish_notification` is always `false`), so tests cause no
-/// lifecycle graph traffic. The lifetime parameter ties the machine to the
-/// borrowed [`Node`] so that rcl can never see a finalized node handle.
-pub struct LifecycleStateMachine<'a> {
+/// This wraps only the *state map*: the standard eleven states and
+/// twenty-five transitions are allocated with the rcutils default allocator,
+/// while rcl's communication interface is never initialized. No node, DDS
+/// publisher or lifecycle service is created, so constructing and driving the
+/// machine needs neither an initialized context nor any graph traffic. The
+/// managed [`crate::LifecycleNode`] owns one of these and serves its lifecycle
+/// services/publisher through native r2r entities, which keeps all readiness
+/// inside the unified executor.
+///
+/// The raw rcl functions are not thread-safe; mutation is therefore
+/// serialized by the managed node (the machine is always kept behind a
+/// `Mutex` there). Direct standalone use must likewise synchronize concurrent
+/// access.
+pub struct LifecycleStateMachine {
     handle: Box<rcl_lifecycle_state_machine_t>,
-    node_handle: *mut rcl_node_t,
-    _node: PhantomData<&'a Node>,
 }
 
-// rcl_lifecycle functions are documented as not thread-safe, so this type is
-// intentionally neither Send nor Sync (the raw pointers already deny both).
+// SAFETY: the machine contains raw pointers but owns no thread-local state,
+// and every managed-node access goes through a mutex. Triggers require
+// `&mut self` in standalone use, and the type stays `!Sync` so shared
+// references cannot cross threads.
+unsafe impl Send for LifecycleStateMachine {}
 
-impl<'a> LifecycleStateMachine<'a> {
-    /// Create the default lifecycle state machine attached to `node`.
+impl LifecycleStateMachine {
+    /// Create the default lifecycle state machine.
     ///
-    /// The machine starts in the `unconfigured` primary state. The rcl
-    /// built-in lifecycle services are disabled (only its transition-event
-    /// publisher is created); see the type documentation for details.
-    pub fn new(node: &'a Node) -> Result<Self> {
-        unsafe { Self::attach(node.node_handle.as_ref() as *const rcl_node_t as *mut rcl_node_t) }
-    }
-
-    /// Initialize a default state machine on an already initialized node
-    /// handle.
-    ///
-    /// # Safety
-    ///
-    /// `node_handle` must point to an initialized, not-yet-finalized
-    /// `rcl_node_t` which outlives the returned machine. In particular the
-    /// caller is responsible for dropping the machine before finalizing the
-    /// node.
-    pub(crate) unsafe fn attach(node_handle: *mut rcl_node_t) -> Result<Self> {
-        let mut handle = Box::new(rcl_lifecycle_get_zero_initialized_state_machine());
-        let mut options = rcl_lifecycle_get_default_state_machine_options();
-        // Do not let rcl create the five lifecycle services: managed-node
-        // services are provided as native r2r entities so the unified executor
-        // owns all readiness. rcl still creates the transition-event publisher
-        // in this mode, so its message type support is required.
+    /// The machine starts in the `unconfigured` primary state. No rcl
+    /// communication entities are created.
+    pub fn new() -> Result<Self> {
+        let mut handle = Box::new(unsafe { rcl_lifecycle_get_zero_initialized_state_machine() });
+        let mut options = unsafe { rcl_lifecycle_get_default_state_machine_options() };
+        // Map-only: never initialize the node-bound communication interface.
         options.enable_com_interface = false;
-        let ts_pub_notify = <TransitionEvent as WrappedTypesupport>::get_ts();
-        let ret = rcl_lifecycle_state_machine_init(
-            handle.as_mut(),
-            node_handle,
-            ts_pub_notify,
-            ptr::null(),
-            ptr::null(),
-            ptr::null(),
-            ptr::null(),
-            ptr::null(),
-            &options,
-        );
+        handle.options = options;
+        // Map-only initialization: allocate the standard states/transitions
+        // without the node-bound publisher and services.
+        let ret = unsafe {
+            rcl_lifecycle_init_default_state_machine(handle.as_mut(), &options.allocator)
+        };
         if ret != RCL_RET_OK as i32 {
-            // Free any states/transitions registered before the failed init.
-            let _ = rcl_lifecycle_state_machine_fini(handle.as_mut(), node_handle);
             return Err(Error::from_rcl_error(ret));
         }
-        Ok(LifecycleStateMachine {
-            handle,
-            node_handle,
-            _node: PhantomData,
-        })
+        Ok(LifecycleStateMachine { handle })
     }
 
     /// Whether the underlying rcl state machine is initialized.
@@ -394,6 +366,30 @@ impl<'a> LifecycleStateMachine<'a> {
     /// The returned borrow is valid for as long as the machine is borrowed.
     pub fn current_state_label(&self) -> &str {
         unsafe { c_str_to_str((*self.handle.current_state).label) }
+    }
+
+    /// Look up an edge leaving the current state by
+    /// `lifecycle_msgs/msg/Transition` id.
+    pub(crate) fn current_transition_by_id(&self, id: u8) -> Option<TransitionEdge> {
+        let state = self.handle.current_state;
+        let raw = unsafe { rcl_lifecycle_get_transition_by_id(state, id) };
+        if raw.is_null() {
+            None
+        } else {
+            Some(unsafe { TransitionEdge::from_raw(raw) })
+        }
+    }
+
+    /// Look up an edge leaving the current state by its rcl label.
+    pub(crate) fn current_transition_by_label(&self, label: &str) -> Option<TransitionEdge> {
+        let c_label = CString::new(label).ok()?;
+        let state = self.handle.current_state;
+        let raw = unsafe { rcl_lifecycle_get_transition_by_label(state, c_label.as_ptr()) };
+        if raw.is_null() {
+            None
+        } else {
+            Some(unsafe { TransitionEdge::from_raw(raw) })
+        }
     }
 
     /// Transitions registered as directly triggerable from the current state.
@@ -484,7 +480,7 @@ impl<'a> LifecycleStateMachine<'a> {
     }
 }
 
-impl std::fmt::Debug for LifecycleStateMachine<'_> {
+impl std::fmt::Debug for LifecycleStateMachine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LifecycleStateMachine")
             .field("initialized", &self.is_initialized())
@@ -493,12 +489,18 @@ impl std::fmt::Debug for LifecycleStateMachine<'_> {
     }
 }
 
-impl Drop for LifecycleStateMachine<'_> {
+impl Drop for LifecycleStateMachine {
     fn drop(&mut self) {
-        let ret =
-            unsafe { rcl_lifecycle_state_machine_fini(self.handle.as_mut(), self.node_handle) };
+        // Map-only machines never initialized the communication interface;
+        // free just the registered states/transitions.
+        let ret = unsafe {
+            rcl_lifecycle_transition_map_fini(
+                &mut self.handle.transition_map,
+                &self.handle.options.allocator,
+            )
+        };
         if ret != RCL_RET_OK as i32 {
-            log::error!("failed to finalize lifecycle state machine (rcl ret {})", ret);
+            log::error!("failed to finalize lifecycle transition map (rcl ret {})", ret);
         }
     }
 }
@@ -520,7 +522,7 @@ unsafe fn c_str_to_str<'a>(ptr: *const c_char) -> &'a str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{lifecycle_msgs, Context};
+    use crate::lifecycle_msgs;
 
     #[test]
     fn standard_ids_match_lifecycle_msgs_constants() {
@@ -646,9 +648,7 @@ mod tests {
 
     #[test]
     fn starts_unconfigured_and_reports_default_map() {
-        let context = Context::create().unwrap();
-        let node = Node::create(context, "lc_default_map", "").unwrap();
-        let sm = LifecycleStateMachine::new(&node).unwrap();
+        let sm = LifecycleStateMachine::new().unwrap();
         assert!(sm.is_initialized());
         assert_eq!(sm.current_state(), LifecycleState::Unconfigured);
         assert_eq!(sm.current_state_label(), "unconfigured");
@@ -678,9 +678,7 @@ mod tests {
 
     #[test]
     fn available_transitions_follow_primary_states() {
-        let context = Context::create().unwrap();
-        let node = Node::create(context, "lc_available", "").unwrap();
-        let mut sm = LifecycleStateMachine::new(&node).unwrap();
+        let mut sm = LifecycleStateMachine::new().unwrap();
 
         let unconfigured: Vec<u8> = sm
             .transitions_from_current()
@@ -726,9 +724,7 @@ mod tests {
 
     #[test]
     fn full_happy_path_reaches_finalized() {
-        let context = Context::create().unwrap();
-        let node = Node::create(context, "lc_happy", "").unwrap();
-        let mut sm = LifecycleStateMachine::new(&node).unwrap();
+        let mut sm = LifecycleStateMachine::new().unwrap();
 
         // rcl labels the external commands and the generic callback labels.
         assert_eq!(sm.trigger_label("configure").unwrap(), LifecycleState::Configuring);
@@ -763,9 +759,7 @@ mod tests {
 
     #[test]
     fn invalid_triggers_from_current_state_are_errors() {
-        let context = Context::create().unwrap();
-        let node = Node::create(context, "lc_invalid", "").unwrap();
-        let mut sm = LifecycleStateMachine::new(&node).unwrap();
+        let mut sm = LifecycleStateMachine::new().unwrap();
         // activate is only valid from inactive.
         assert!(sm.trigger(LifecycleTrigger::Activate).is_err());
         assert!(sm.trigger_id(200).is_err());
@@ -778,9 +772,7 @@ mod tests {
 
     #[test]
     fn configure_failure_returns_to_unconfigured() {
-        let context = Context::create().unwrap();
-        let node = Node::create(context, "lc_failure", "").unwrap();
-        let mut sm = LifecycleStateMachine::new(&node).unwrap();
+        let mut sm = LifecycleStateMachine::new().unwrap();
         sm.trigger(LifecycleTrigger::Configure).unwrap();
         assert_eq!(
             sm.trigger(LifecycleTrigger::OnConfigureFailure).unwrap(),
@@ -790,9 +782,7 @@ mod tests {
 
     #[test]
     fn cleanup_and_activate_failures_return_to_inactive() {
-        let context = Context::create().unwrap();
-        let node = Node::create(context, "lc_cb_failure", "").unwrap();
-        let mut sm = LifecycleStateMachine::new(&node).unwrap();
+        let mut sm = LifecycleStateMachine::new().unwrap();
         sm.trigger(LifecycleTrigger::Configure).unwrap();
         sm.trigger(LifecycleTrigger::OnConfigureSuccess).unwrap();
 
@@ -811,9 +801,7 @@ mod tests {
 
     #[test]
     fn deactivate_failure_returns_to_active() {
-        let context = Context::create().unwrap();
-        let node = Node::create(context, "lc_deact_failure", "").unwrap();
-        let mut sm = LifecycleStateMachine::new(&node).unwrap();
+        let mut sm = LifecycleStateMachine::new().unwrap();
         sm.trigger(LifecycleTrigger::Configure).unwrap();
         sm.trigger(LifecycleTrigger::OnConfigureSuccess).unwrap();
         sm.trigger(LifecycleTrigger::Activate).unwrap();
@@ -828,9 +816,7 @@ mod tests {
 
     #[test]
     fn error_recovery_and_fatal_paths() {
-        let context = Context::create().unwrap();
-        let node = Node::create(context, "lc_error", "").unwrap();
-        let mut sm = LifecycleStateMachine::new(&node).unwrap();
+        let mut sm = LifecycleStateMachine::new().unwrap();
 
         // configure error -> errorprocessing -> success -> unconfigured.
         sm.trigger(LifecycleTrigger::Configure).unwrap();
@@ -858,14 +844,12 @@ mod tests {
 
     #[test]
     fn shutdown_failure_still_finalizes_from_each_primary_state() {
-        for (trigger, name) in [
-            (LifecycleTrigger::UnconfiguredShutdown, "lc_shut_unc"),
-            (LifecycleTrigger::InactiveShutdown, "lc_shut_inact"),
-            (LifecycleTrigger::ActiveShutdown, "lc_shut_act"),
+        for trigger in [
+            LifecycleTrigger::UnconfiguredShutdown,
+            LifecycleTrigger::InactiveShutdown,
+            LifecycleTrigger::ActiveShutdown,
         ] {
-            let context = Context::create().unwrap();
-            let node = Node::create(context, name, "").unwrap();
-            let mut sm = LifecycleStateMachine::new(&node).unwrap();
+            let mut sm = LifecycleStateMachine::new().unwrap();
             if trigger != LifecycleTrigger::UnconfiguredShutdown {
                 sm.trigger(LifecycleTrigger::Configure).unwrap();
                 sm.trigger(LifecycleTrigger::OnConfigureSuccess).unwrap();
@@ -886,9 +870,7 @@ mod tests {
 
     #[test]
     fn graph_edges_match_standard_map() {
-        let context = Context::create().unwrap();
-        let node = Node::create(context, "lc_graph", "").unwrap();
-        let sm = LifecycleStateMachine::new(&node).unwrap();
+        let sm = LifecycleStateMachine::new().unwrap();
         let graph = sm.transition_graph();
 
         let expected: &[(u32, LifecycleState, LifecycleState)] = &[
@@ -932,18 +914,16 @@ mod tests {
     }
 
     #[test]
-    fn machines_can_be_recreated_on_a_live_node() {
-        let context = Context::create().unwrap();
-        let node = Node::create(context, "lc_recreate", "").unwrap();
+    fn machines_can_be_created_and_finalized_repeatedly() {
         for _ in 0..3 {
-            let mut sm = LifecycleStateMachine::new(&node).unwrap();
+            let mut sm = LifecycleStateMachine::new().unwrap();
             assert_eq!(sm.current_state(), LifecycleState::Unconfigured);
             sm.trigger(LifecycleTrigger::Configure).unwrap();
             sm.trigger(LifecycleTrigger::OnConfigureSuccess).unwrap();
             assert_eq!(sm.current_state(), LifecycleState::Inactive);
-            // drop finalizes the machine before the next one attaches
+            // drop finalizes the machine before the next one is created
         }
-        let again = LifecycleStateMachine::new(&node).unwrap();
+        let again = LifecycleStateMachine::new().unwrap();
         assert_eq!(again.current_state(), LifecycleState::Unconfigured);
     }
 }

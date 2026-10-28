@@ -20,6 +20,7 @@
 // managed/lifecycle nodes
 #if __has_include(<rcl_lifecycle/rcl_lifecycle.h>)
 #include <rcl_lifecycle/rcl_lifecycle.h>
+#include <rcl_lifecycle/transition_map.h>
 #endif
 
 // errors

@@ -63,3 +63,35 @@ useful for catching profile-dependent failures that compilation or debug-only un
 
 Keep state-changing expressions outside every `debug_assert!`, `debug_assert_eq!` and
 `debug_assert_ne!`. Assertions should inspect results already produced by normal execution.
+
+## Native lifecycle (managed node) support added on 2026-10-28
+
+The lifecycle feature ships in two layers: a map-only safe wrapper over
+`rcl_lifecycle_state_machine_t` (`LifecycleStateMachine`, no node/DDS entities)
+and `LifecycleNode`, which owns a regular `Node` plus one machine and serves
+the five standard lifecycle services and the `~/transition_event` publisher
+as native r2r entities. Transition semantics match `rclcpp_lifecycle`:
+external command edge, user callback on the intermediate state, generic
+`transition_success`/`transition_failure`/`transition_error` edge, plus the
+error-processing callback; label-based requests take precedence over ids.
+
+Targeted gates (debug and `--release`, nonzero matched cases each):
+
+```sh
+cargo test -p r2r --lib lifecycle -- --test-threads=1
+cargo test -p r2r --lib --release lifecycle -- --test-threads=1
+```
+
+25 lifecycle cases execute: 13 state-machine cases (full 11-state/25-edge graph
+oracle taken from the installed Jazzy rcl via a C probe, happy path,
+failure/error/shutdown edges, invalid triggers) and 12 managed-node cases over
+native r2r service clients/subscribers including the unified `Executor`.
+External interoperability was verified with `ros2 lifecycle get/list/set`
+against a running r2r node: configure, activate, an invalid command rejected
+with the state unchanged, deactivate, cleanup and shutdown all returned the
+standard `unconfigured/inactive/active/finalized` states.
+
+Note: the local Jazzy shell exports a stale `CYCLONEDDS_URI=/nav_env/...`;
+DDS-backed gates run with that variable unset. Map-only state-machine cases
+need no DDS at all.
+
