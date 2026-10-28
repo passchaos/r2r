@@ -121,3 +121,34 @@ fn independently_created_context_handle_wakes_an_empty_node_spin() {
     assert!(elapsed >= Duration::from_millis(10));
     assert!(elapsed < Duration::from_millis(500));
 }
+
+#[test]
+fn shutdown_completes_background_task_and_rejects_new_spawn() {
+    let _lock = context_test_lock();
+    let context = Context::create().unwrap();
+    let node = Node::create(context.clone(), "shutdown_background_task", "").unwrap();
+    let mut executor = r2r::Executor::new(context.clone());
+    executor.add_node(node).unwrap();
+    let task = executor.spawn().unwrap();
+    let shutdown_context = context.clone();
+    let shutdown = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(20));
+        shutdown_context.shutdown().unwrap();
+    });
+    let (finished, completed) = std::sync::mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        finished.send(futures::executor::block_on(task)).unwrap();
+    });
+    let executor = completed
+        .recv_timeout(Duration::from_secs(5))
+        .expect("shutdown did not wake background executor")
+        .unwrap();
+    assert_eq!(executor.len(), 1);
+    assert!(!context.is_valid());
+    assert!(matches!(
+        executor.spawn(),
+        Err(r2r::ExecutorTaskError::Native(Error::RCL_RET_NOT_INIT))
+    ));
+    shutdown.join().unwrap();
+    worker.join().unwrap();
+}

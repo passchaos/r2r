@@ -2,7 +2,9 @@ use super::{
     future_executor::{self, FutureDriver, FutureGuard, FutureWake},
     spin, *,
 };
+mod background;
 mod control;
+pub use background::{ExecutorTask, ExecutorTaskError};
 pub use control::ExecutorHandle;
 
 /// Identifies a node owned by an [`Executor`]. IDs remain stable across other node removals.

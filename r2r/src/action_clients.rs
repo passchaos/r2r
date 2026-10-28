@@ -1379,6 +1379,7 @@ where
 }
 
 pub trait ActionClient_ {
+    fn set_availability_wake(&mut self, _wake: Option<std::task::Waker>) {}
     fn handle(&self) -> &rcl_action_client_t;
     fn destroy(&mut self, node: &mut rcl_node_t);
     fn has_pending_work(&mut self) -> bool;
@@ -1656,6 +1657,9 @@ impl<T: 'static> ActionClient_ for WrappedActionClient<T>
 where
     T: WrappedActionTypeSupport,
 {
+    fn set_availability_wake(&mut self, wake: Option<std::task::Waker>) {
+        self.poll_available_channels.set_native_wake(wake);
+    }
     fn handle(&self) -> &rcl_action_client_t {
         &self.rcl_handle
     }
@@ -2085,6 +2089,7 @@ where
                 .lock()
                 .push_back(self.lifecycle.identity);
         }
+        client.poll_available_channels.notify_native();
         Ok(())
     }
 

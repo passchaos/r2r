@@ -27,6 +27,32 @@ fn drive<T>(nodes: Vec<Node>, future: impl Future<Output = r2r::Result<T>>) -> r
         for node in nodes {
             executor.add_node(node)?;
         }
+        if std::env::var_os("R2R_BENCH_BACKGROUND_ENABLED").is_some() {
+            #[cfg(r2r_bench_background_task)]
+            {
+                let task = executor.spawn().map_err(|_| Error::RCL_RET_ERROR)?;
+                let result = futures::executor::block_on(future);
+                let stopped = futures::executor::block_on(task.stop());
+                stopped.map_err(|_| Error::RCL_RET_ERROR)?;
+                return result;
+            }
+            #[cfg(not(r2r_bench_background_task))]
+            {
+                // Same background native wait and application future for the
+                // historical manual-thread API, without task conveniences.
+                let control = executor.handle();
+                let worker = std::thread::spawn(move || {
+                    executor.spin()?;
+                    Ok::<_, Error>(executor)
+                });
+                let result = futures::executor::block_on(future);
+                let cancellation = control.cancel();
+                let stopped = worker.join().map_err(|_| Error::RCL_RET_ERROR)?;
+                cancellation?;
+                stopped.map_err(|_| Error::RCL_RET_ERROR)?;
+                return result;
+            }
+        }
         #[cfg(r2r_bench_executor_control)]
         let _control =
             (std::env::var_os("R2R_BENCH_CONTROL_ENABLED").is_some()).then(|| executor.handle());
@@ -171,7 +197,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ordered.sort_unstable();
     let percentile = |percent: usize| ordered[((ordered.len() - 1) * percent).div_ceil(100)];
     #[cfg(r2r_bench_shared_executor)]
-    let driver = "shared_wait";
+    let driver = if std::env::var_os("R2R_BENCH_BACKGROUND_ENABLED").is_some() {
+        if cfg!(r2r_bench_background_task) {
+            "background_task"
+        } else {
+            "background_thread"
+        }
+    } else {
+        "shared_wait"
+    };
     #[cfg(not(r2r_bench_shared_executor))]
     let driver = if node_count == 1 {
         "node_wait"

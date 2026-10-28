@@ -1,5 +1,11 @@
 # Driving multiple ROS nodes
 
+For an independently driven async runtime, [`Executor::spawn`](BACKGROUND_EXECUTION.md)
+returns an awaitable owned task. ROS nodes use one native wait thread while the
+runtime processes I/O and application futures; `task.stop().await` returns the
+executor for reuse. The [Tokio example](../r2r/examples/tokio_executor.rs) covers
+TCP, ROS service/pub/sub and cleanup on a current-thread runtime.
+
 `Executor` owns nodes from one `Context` and waits for all their native ROS entities in one
 reusable RCL wait set. Empty nodes do not add sequential wait deadlines. Ready subscriptions,
 timers, service clients/servers and action clients/servers are dispatched after the same native

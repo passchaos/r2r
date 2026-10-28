@@ -767,6 +767,7 @@ impl UntypedClient_ {
 }
 
 pub trait Client_ {
+    fn set_availability_wake(&mut self, _wake: Option<std::task::Waker>) {}
     fn handle(&self) -> &rcl_client_t;
     fn handle_response(&mut self) -> Result<ClientResponseAction>;
     fn register_poll_available(&mut self, s: oneshot::Sender<()>) -> bool;
@@ -808,6 +809,9 @@ impl<T: 'static> Client_ for TypedClient<T>
 where
     T: WrappedServiceTypeSupport,
 {
+    fn set_availability_wake(&mut self, wake: Option<std::task::Waker>) {
+        self.poll_available_channels.set_native_wake(wake);
+    }
     fn handle(&self) -> &rcl_client_t {
         &self.rcl_handle
     }
@@ -912,6 +916,9 @@ impl ClientResponseRegistry for UntypedClient_ {
 }
 
 impl Client_ for UntypedClient_ {
+    fn set_availability_wake(&mut self, wake: Option<std::task::Waker>) {
+        self.poll_available_channels.set_native_wake(wake);
+    }
     fn handle(&self) -> &rcl_client_t {
         &self.rcl_handle
     }
@@ -1046,6 +1053,7 @@ where
                 .lock()
                 .push_back(self.lifecycle.identity);
         }
+        client.poll_available_channels.notify_native();
         Ok(())
     }
 
@@ -1064,6 +1072,7 @@ impl IsAvailablePollable for ClientUntyped {
                 .lock()
                 .push_back(self.lifecycle.identity);
         }
+        client.poll_available_channels.notify_native();
         Ok(())
     }
 

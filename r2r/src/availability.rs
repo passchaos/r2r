@@ -6,25 +6,38 @@ use parking_lot::Mutex;
 use std::{
     collections::{BTreeMap, VecDeque},
     sync::Arc,
-    task::{Context, Poll},
+    task::{Context, Poll, Waker},
 };
 
 const MAX_CANCELED_AVAILABILITY_WAITERS_PER_SPIN: usize = 16;
 
+#[derive(Default)]
+struct CancellationState {
+    tokens: VecDeque<u64>,
+    native_wake: Option<Waker>,
+}
+
 struct AvailabilityCancellationWake {
-    canceled_waiters: Arc<Mutex<VecDeque<u64>>>,
+    canceled_waiters: Arc<Mutex<CancellationState>>,
     token: u64,
 }
 
 impl ArcWake for AvailabilityCancellationWake {
     fn wake_by_ref(arc_self: &Arc<Self>) {
-        arc_self.canceled_waiters.lock().push_back(arc_self.token);
+        let wake = {
+            let mut state = arc_self.canceled_waiters.lock();
+            state.tokens.push_back(arc_self.token);
+            state.native_wake.clone()
+        };
+        if let Some(wake) = wake {
+            wake.wake_by_ref();
+        }
     }
 }
 
 pub(crate) struct Waiters<T> {
     senders: BTreeMap<u64, oneshot::Sender<T>>,
-    canceled_waiters: Arc<Mutex<VecDeque<u64>>>,
+    canceled_waiters: Arc<Mutex<CancellationState>>,
     next_token: u64,
 }
 
@@ -32,13 +45,25 @@ impl<T> Default for Waiters<T> {
     fn default() -> Self {
         Self {
             senders: BTreeMap::new(),
-            canceled_waiters: Arc::new(Mutex::new(VecDeque::new())),
+            canceled_waiters: Arc::new(Mutex::new(CancellationState::default())),
             next_token: 0,
         }
     }
 }
 
 impl<T> Waiters<T> {
+    pub(crate) fn set_native_wake(&mut self, wake: Option<Waker>) {
+        self.canceled_waiters.lock().native_wake = wake;
+    }
+
+    /// Notify after scheduling the active entity queue. Existing observer
+    /// cancellation wakes share this state, including observers predating spawn.
+    pub(crate) fn notify_native(&self) {
+        let wake = self.canceled_waiters.lock().native_wake.clone();
+        if let Some(wake) = wake {
+            wake.wake_by_ref();
+        }
+    }
     pub(crate) fn register(&mut self, mut sender: oneshot::Sender<T>) -> bool {
         let was_empty = self.senders.is_empty();
         let token = loop {
@@ -65,9 +90,10 @@ impl<T> Waiters<T> {
         let candidates = {
             let mut canceled_waiters = self.canceled_waiters.lock();
             let count = canceled_waiters
+                .tokens
                 .len()
                 .min(MAX_CANCELED_AVAILABILITY_WAITERS_PER_SPIN);
-            canceled_waiters.drain(..count).collect::<Vec<_>>()
+            canceled_waiters.tokens.drain(..count).collect::<Vec<_>>()
         };
         for token in candidates {
             if self
@@ -118,6 +144,29 @@ mod tests {
     use super::*;
 
     #[test]
+    fn native_notification_follows_explicit_scheduling_and_observer_cancellation() {
+        struct Count(std::sync::atomic::AtomicUsize);
+        impl ArcWake for Count {
+            fn wake_by_ref(this: &Arc<Self>) {
+                this.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+        }
+        let count = Arc::new(Count(std::sync::atomic::AtomicUsize::new(0)));
+        let waker = futures::task::waker(count.clone());
+        let mut waiters = AvailabilityWaiters::default();
+        let (sender, receiver) = oneshot::channel();
+        assert!(waiters.register(sender));
+        waiters.set_native_wake(Some(waker));
+        assert_eq!(count.0.load(std::sync::atomic::Ordering::Relaxed), 0);
+        waiters.notify_native();
+        assert_eq!(count.0.load(std::sync::atomic::Ordering::Relaxed), 1);
+        drop(receiver);
+        assert_eq!(count.0.load(std::sync::atomic::Ordering::Relaxed), 2);
+        waiters.prune_canceled();
+        assert!(waiters.is_empty());
+    }
+
+    #[test]
     fn canceled_waiters_are_removed_by_token_and_live_waiters_are_preserved() {
         let mut waiters = AvailabilityWaiters::default();
         let (canceled_sender, canceled_receiver) = oneshot::channel();
@@ -147,7 +196,7 @@ mod tests {
         waiters.prune_canceled();
 
         assert_eq!(waiters.senders.len(), 4);
-        assert_eq!(waiters.canceled_waiters.lock().len(), 4);
+        assert_eq!(waiters.canceled_waiters.lock().tokens.len(), 4);
     }
 
     #[test]
@@ -159,7 +208,7 @@ mod tests {
         waiters.register(sender);
 
         assert!(waiters.is_empty());
-        assert!(waiters.canceled_waiters.lock().is_empty());
+        assert!(waiters.canceled_waiters.lock().tokens.is_empty());
     }
 
     #[test]

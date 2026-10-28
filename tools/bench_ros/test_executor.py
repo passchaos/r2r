@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from executor import regressions, validate, verify
+from executor import calibration_failures, regressions, validate, verify
 
 
 class ExecutorProtocolValidation(unittest.TestCase):
@@ -26,6 +26,28 @@ class ExecutorProtocolValidation(unittest.TestCase):
         validate(self.record,"baseline",1,1,2,1,"rmw_cyclonedds_cpp",baseline_shared=True)
         with self.assertRaisesRegex(RuntimeError,"driver mismatch"):
             validate(self.record,"baseline",1,1,2,1,"rmw_cyclonedds_cpp")
+
+    def test_background_task_and_manual_thread_identities_must_be_declared(self):
+        task=dict(self.record,driver="background_task")
+        manual=dict(self.record,driver="background_thread")
+        validate(task,"rust",1,1,2,1,"rmw_cyclonedds_cpp",background_enabled=True)
+        validate(manual,"baseline",1,1,2,1,"rmw_cyclonedds_cpp",baseline_shared=True,background_enabled=True)
+        for record,language in [(task,"rust"),(manual,"baseline")]:
+            with self.assertRaisesRegex(RuntimeError,"driver mismatch"):
+                validate(record,language,1,1,2,1,"rmw_cyclonedds_cpp",baseline_shared=True)
+        with self.assertRaisesRegex(RuntimeError,"driver mismatch"):
+            validate(self.record,"rust",1,1,2,1,"rmw_cyclonedds_cpp",background_enabled=True)
+        validate(task,"baseline",1,1,2,1,"rmw_cyclonedds_cpp",baseline_shared=True,
+                 background_enabled=True,same_binary_control=True)
+
+    def test_symmetric_calibration_rejects_apparent_improvement_as_drift(self):
+        baseline={"language":"baseline","nodes":1,"window":1,"rtt_ns_p50":10,"rtt_ns_p95":20,
+                  "rtt_ns_p99":30,"requests_per_second":100,"cpu_per_request_ns":50}
+        candidate=dict(baseline,language="rust")
+        self.assertFalse(calibration_failures([baseline,candidate],1.05))
+        candidate['rtt_ns_p99']=20
+        self.assertFalse(regressions([baseline,candidate],1.05))
+        self.assertTrue(calibration_failures([baseline,candidate],1.05))
 
     def test_enabled_cancellation_control_must_be_declared_and_executed(self):
         record=dict(self.record,control_enabled=True)
@@ -74,9 +96,25 @@ class ExecutorProtocolValidation(unittest.TestCase):
             path.write_text(json.dumps(report))
             verify(path,True)
             corrupt=copy.deepcopy(report)
+            corrupt['metadata'].update(cpu=24,cpu_affinity=[24,24])
+            path.write_text(json.dumps(corrupt))
+            with self.assertRaisesRegex(RuntimeError,'CPU affinity'): verify(path)
+            corrupt=copy.deepcopy(report)
+            corrupt['metadata'].update(same_binary_control=True,binary_sha256={'baseline':'a','rust':'b'})
+            path.write_text(json.dumps(corrupt))
+            with self.assertRaisesRegex(RuntimeError,'identical binaries'): verify(path)
+            corrupt=copy.deepcopy(report)
             corrupt['records'][0]['driver']='shared_wait'
             path.write_text(json.dumps(corrupt))
             with self.assertRaisesRegex(RuntimeError,'driver mismatch'): verify(path)
+            corrupt=copy.deepcopy(report)
+            corrupt['metadata']['background_enabled']=True
+            corrupt['metadata']['baseline_shared']=True
+            path.write_text(json.dumps(corrupt))
+            with self.assertRaisesRegex(RuntimeError,'driver mismatch'): verify(path)
+            corrupt['metadata']['baseline_shared']=False
+            path.write_text(json.dumps(corrupt))
+            with self.assertRaisesRegex(RuntimeError,'background executor comparison'): verify(path)
             path.write_text(json.dumps(report))
             (path.parent/'samples.gz').write_bytes(b'corrupt')
             with self.assertRaisesRegex(RuntimeError,'digest'): verify(path)

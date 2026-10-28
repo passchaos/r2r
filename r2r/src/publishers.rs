@@ -813,15 +813,24 @@ impl Publisher_ {
     }
 
     fn register_ack_wait(&self, sender: oneshot::Sender<Result<()>>) {
-        if self.poll_ack_channels.lock().register(sender) {
+        let mut waiters = self.poll_ack_channels.lock();
+        if waiters.register(sender) {
             self.active_wait_publishers.lock().push_back(self.id);
         }
+        waiters.notify_native();
     }
 
     fn register_subscriber_wait(&self, sender: oneshot::Sender<()>) {
-        if self.poll_subscriber_channels.lock().register(sender) {
+        let mut waiters = self.poll_subscriber_channels.lock();
+        if waiters.register(sender) {
             self.active_wait_publishers.lock().push_back(self.id);
         }
+        waiters.notify_native();
+    }
+
+    pub(crate) fn set_observer_wake(&self, wake: Option<std::task::Waker>) {
+        self.poll_ack_channels.lock().set_native_wake(wake.clone());
+        self.poll_subscriber_channels.lock().set_native_wake(wake);
     }
 
     fn get_actual_qos(&self) -> Result<QosProfile> {

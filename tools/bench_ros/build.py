@@ -40,6 +40,9 @@ def rust_binary(source, target, destination, env, workload="codec"):
         flags += " --check-cfg=cfg(r2r_bench_executor_control)"
         if (source / "r2r/src/nodes/executor/control.rs").exists():
             flags += " --cfg r2r_bench_executor_control"
+        flags += " --check-cfg=cfg(r2r_bench_background_task)"
+        if (source / "r2r/src/nodes/executor/background.rs").exists():
+            flags += " --cfg r2r_bench_background_task"
         build_env["RUSTFLAGS"] = flags.strip()
     if workload == "native_views":
         flags = build_env.get("RUSTFLAGS", "") + " --check-cfg=cfg(r2r_bench_native_views)"
@@ -56,6 +59,7 @@ def rust_binary(source, target, destination, env, workload="codec"):
     executable = next(item["executable"] for item in artifacts if item.get("reason") == "compiler-artifact" and item.get("target", {}).get("name") == benchmark and item.get("executable"))
     shutil.copy2(executable, destination)
     sources = [source / f"r2r/benches/{benchmark}.rs", source / "r2r/src/msg_types.rs", source / "r2r/src/nodes.rs", source / "r2r/src/subscribers.rs", source / "r2r/src/publishers.rs", source / "r2r/src/clients.rs", source / "r2r/src/services.rs", source / "r2r_rcl/src/lib.rs", source / "r2r_msg_gen/src/lib.rs", source / "Cargo.lock"]
+    sources.extend(source / f"r2r/src/{name}.rs" for name in ["lib", "error", "availability"])
     if (source / "r2r/src/native_metadata.rs").exists():
         sources.append(source / "r2r/src/native_metadata.rs")
     if workload in {"service", "executor"}:
@@ -109,7 +113,8 @@ def main():
     if args.workload == "executor":
         manifests["executor_api_detection"] = "nodes/executor.rs present: shared native wait; absent: Node native wait for one node and nonblocking round-robin for multiple nodes"
         manifests["executor_control_detection"] = "nodes/executor/control.rs present: cancellation handle available; R2R_BENCH_CONTROL_ENABLED creates and retains a handle before measurement"
-        manifests["benchmark_cfg"] = "--check-cfg declares r2r_bench_shared_executor and r2r_bench_executor_control; --cfg enables each only where its API exists"
+        manifests["background_api_detection"] = "nodes/executor/background.rs present: Executor::spawn task; absent: manual native wait thread and join; R2R_BENCH_BACKGROUND_ENABLED selects runtime-independent block_on application driver"
+        manifests["benchmark_cfg"] = "--check-cfg declares shared_executor, executor_control and background_task; --cfg enables each only where its API exists"
     if args.workload == "native_views":
         manifests["receive_api_detection"] = "native_views.rs present: subscribe_view and publish_view echo; absent: normal typed receive/publish fallback"
         manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_native_views); --cfg r2r_bench_native_views only where the view API exists"

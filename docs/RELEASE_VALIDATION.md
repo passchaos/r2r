@@ -217,3 +217,52 @@ cells: 140 records and 700000 raw RTT samples. This service workload measures
 the optional managed registry's effect on ordinary nodes; managed-timer scaling
 remains a separate performance requirement.
 
+## Owned background executor and runtime I/O (2026-10-29)
+
+[`Executor::spawn`](BACKGROUND_EXECUTION.md) returns an awaitable owned task
+backed by one shared native wait thread. Stop/cancellation returns node ownership
+without shutting down the context. Drop requests cancellation without joining
+on the runtime thread; native errors and inline callback panics release nodes
+before completion. Background-specific errors use `ExecutorTaskError`, preserving
+the ordinary ROS error representation.
+
+A late-observer regression case first timed out after discovery was complete and
+the native wait had started. Background startup now installs a weak notification
+waker in the existing observer-cancellation allocation. Service/action matching
+and publisher matching/ACK queues are scheduled before triggering the existing
+native guard. Cancellation uses the same state, including observers registered
+before spawn. The default observer queue layout is retained.
+
+Twelve background cases cover ownership/reuse, cancellation before guard
+registration, drop cleanup, pending callbacks, failure/panic teardown, unobserved
+completion, late typed/untyped/action/matching/ACK observers, current-thread TCP
+I/O and non-Send application futures. Seven observer cases retain bounded
+cancellation and registration semantics. The separate context-shutdown case
+checks native wake, task completion and rejection of spawn after shutdown.
+The complete current-thread Tokio example verifies 32 TCP/ROS-service/pub/sub
+roundtrips, ACK progress, explicit stop and a second exchange after reuse.
+
+The Jazzy debug workspace and optimized library suites execute 522 library
+cases, with two manual benchmarks ignored. Fast DDS executes all 12 optimized
+background cases. Native Humble/Kilted each pass the 12 optimized background
+cases, seven observer cases, context shutdown, optimized example and full-target
+Clippy. Ten public compilation boundaries include task ownership/Send/result
+types. No-ROS compilation covers all targets and checks 13 API artifacts and
+28 methods, including `ExecutorTaskError`.
+
+[Performance reports](benchmarks/background-executor-2026-10-29/README.md) retain
+the initial failures and same-binary calibration runs. Final default same-thread
+and optional background A/B reports under both Jazzy RMWs record passing original
+5% p50/p95/p99/CPU/inverse-throughput gates: 432 records and 12960000 RTT samples.
+Default processes use CPU 24; all compared background processes and RMW threads
+use the same physical CPU set 24/25. The background baseline is the safe manual
+native-thread API at `67ea778`.
+
+The earlier background A/A calibration had a 5.2% tail difference after longer
+warmup/sample cohorts. The final candidate has no passing matched same-binary
+calibration, so passing A/B reports remain limited evidence and do not establish
+calibrated tail precision or superiority over C++. Native-thread
+handoff costs, scheduling, allocation/resource evidence and reactor integration
+without a separate wait thread remain explicit work. The default fast path is
+preserved; the concrete improvement is safe async-runtime I/O composition.
+

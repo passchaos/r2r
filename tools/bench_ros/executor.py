@@ -23,8 +23,10 @@ def percentile(samples, percent):
     return values[math.ceil((len(values)-1)*percent/100)]
 
 
-def validate(result, language, nodes, window, iterations, warmup, rmw, baseline_shared=False, control_enabled=False):
+def validate(result, language, nodes, window, iterations, warmup, rmw, baseline_shared=False, control_enabled=False, background_enabled=False, same_binary_control=False):
     driver = {"rust":"shared_wait", "cpp":"single_threaded_executor", "baseline":"shared_wait" if baseline_shared else "node_wait" if nodes==1 else "nonblocking_round_robin"}[language]
+    if background_enabled and language != "cpp":
+        driver = "background_task" if language == "rust" or same_binary_control else "background_thread"
     if (result["implementation"],result["driver"],result["nodes"],result["window"],result["iterations"],result["warmup"],result["rmw"]) != ("rclcpp" if language=="cpp" else "r2r",driver,nodes,window,iterations,warmup,rmw):
         raise RuntimeError("executor identity or driver mismatch")
     if result.get("control_enabled",False) is not (control_enabled and language=="rust"):
@@ -56,9 +58,28 @@ def regressions(summary, maximum):
     return failures
 
 
+def calibration_failures(summary, maximum):
+    failures=[]
+    for candidate in [row for row in summary if row["language"]=="rust"]:
+        baseline=next(row for row in summary if (row["nodes"],row["window"],row["language"])==(candidate["nodes"],candidate["window"],"baseline"))
+        ratios={field:max(candidate[field]/baseline[field],baseline[field]/candidate[field]) for field in FIELDS}
+        if any(ratio>maximum for ratio in ratios.values()):
+            failures.append({"nodes":candidate["nodes"],"window":candidate["window"],"ratios":ratios})
+    return failures
+
+
 def verify(path, require_performance_pass=False):
     report=json.loads(path.read_text())
     metadata=report["metadata"]
+    affinity=metadata.get("cpu_affinity")
+    if affinity is not None and (not 1<=len(affinity)<=2 or len(set(affinity))!=len(affinity)
+                                 or any(type(cpu) is not int or cpu<0 for cpu in affinity)
+                                 or affinity[0]!=metadata["cpu"]):
+        raise RuntimeError("invalid executor CPU affinity metadata")
+    if metadata.get("background_enabled",False) and (not metadata.get("baseline_shared",False) or metadata.get("control_enabled",False)):
+        raise RuntimeError("invalid background executor comparison settings")
+    if metadata.get("same_binary_control",False) and metadata["binary_sha256"]["baseline"]!=metadata["binary_sha256"]["rust"]:
+        raise RuntimeError("same-binary executor calibration requires identical binaries")
     artifact=metadata["samples_artifact"]
     compressed=(path.parent/artifact["file"]).read_bytes()
     if hashlib.sha256(compressed).hexdigest()!=artifact["sha256"]:
@@ -74,7 +95,7 @@ def verify(path, require_performance_pass=False):
         if key in keys: raise RuntimeError("duplicate executor record")
         keys.add(key)
         record["samples_ns"]=trace["samples_ns"]
-        validate(record,record["language"],record["nodes"],record["window"],metadata["iterations"],metadata["warmup"],metadata["rmw"],metadata.get("baseline_shared",False),metadata.get("control_enabled",False))
+        validate(record,record["language"],record["nodes"],record["window"],metadata["iterations"],metadata["warmup"],metadata["rmw"],metadata.get("baseline_shared",False),metadata.get("control_enabled",False),metadata.get("background_enabled",False),metadata.get("same_binary_control",False))
         if record["cpu_per_request_ns"] != record["cpu_ns"]/metadata["iterations"]:
             raise RuntimeError("executor CPU calculation mismatch")
     expected={(nodes,window,language,repetition) for nodes in metadata["nodes"] for window in metadata["windows"] for language in ["baseline","rust","cpp"] for repetition in range(metadata["repetitions"])}
@@ -93,7 +114,7 @@ def verify(path, require_performance_pass=False):
         raise RuntimeError("incomplete executor summary matrix")
     gate=metadata.get("regression_gate")
     if gate:
-        failures=regressions(report["summary"],gate["maximum_ratio"])
+        failures=(calibration_failures if metadata.get("same_binary_control",False) else regressions)(report["summary"],gate["maximum_ratio"])
         if gate["passed"]!=(not failures) or gate["failures"]!=failures:
             raise RuntimeError("executor regression gate mismatch")
     if require_performance_pass and (not gate or not gate["passed"]):
@@ -112,17 +133,28 @@ def run(args):
         raise ValueError("invalid executor dimensions or CPU/domain")
     if args.max_regression is not None and (not math.isfinite(args.max_regression) or args.max_regression<1):
         raise ValueError("invalid executor regression tolerance")
+    if args.background_enabled and (not args.baseline_shared or args.control_enabled):
+        raise ValueError("background comparison requires a shared baseline and its own cancellation control")
+    cpu_affinity=[args.cpu]
+    if args.cpu_secondary is not None:
+        if args.cpu_secondary==args.cpu or args.cpu_secondary not in os.sched_getaffinity(0):
+            raise ValueError("secondary CPU must be distinct and available")
+        cpu_affinity.append(args.cpu_secondary)
     binaries={"baseline":args.baseline.resolve(),"rust":args.rust.resolve(),"cpp":args.cpp.resolve()}
+    if args.same_binary_control and hashlib.sha256(binaries["baseline"].read_bytes()).digest()!=hashlib.sha256(binaries["rust"].read_bytes()).digest():
+        raise ValueError("same-binary control requires identical Rust binaries")
     env=os.environ.copy()
     env.update(RMW_IMPLEMENTATION=args.rmw,ROS_DOMAIN_ID=str(args.domain_id),ROS_LOCALHOST_ONLY="1")
     for name in ["CYCLONEDDS_URI","FASTRTPS_DEFAULT_PROFILES_FILE","FASTDDS_DEFAULT_PROFILES_FILE"]: env.pop(name,None)
     metadata={"workload":"multi_node_service","started_utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),
-              "cpu":args.cpu,"domain_id":args.domain_id,"rmw":args.rmw,"ros_distro":env["ROS_DISTRO"],
+              "cpu":args.cpu,"cpu_affinity":cpu_affinity,"domain_id":args.domain_id,"rmw":args.rmw,"ros_distro":env["ROS_DISTRO"],
               "platform":platform.platform(),
               "cpu_model":next(line.split(':',1)[1].strip() for line in Path('/proc/cpuinfo').read_text().splitlines() if line.startswith('model name')),
               "nodes":nodes,"windows":windows,"iterations":args.iterations,"warmup":args.warmup,"repetitions":args.repetitions,
               "baseline_shared":args.baseline_shared,
               "control_enabled":args.control_enabled,
+              "background_enabled":args.background_enabled,
+              "same_binary_control":args.same_binary_control,
               "git_head":subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip(),
               "working_tree_dirty":bool(subprocess.check_output(["git","status","--porcelain"],text=True).strip()),
               "binary_sha256":{name:hashlib.sha256(path.read_bytes()).hexdigest() for name,path in binaries.items()},
@@ -134,6 +166,10 @@ def run(args):
               "throughput_boundary":"complete measured requests including validation; excludes setup/discovery/warmup/teardown",
               "cpu_boundary":"process CPU clock across all threads inside the measured window, per completed request",
               "source_sha256":{str(path):hashlib.sha256(path.read_bytes()).hexdigest() for path in [Path('r2r/benches/multi_node_service.rs'),Path('tools/bench_ros/multi_node_service.cpp'),Path('tools/bench_ros/executor.py')]}}
+    if args.background_enabled:
+        metadata["scheduling"] = "application and one native wait thread, plus RMW threads, on the same fixed CPU; task versus manual-thread baseline and rclcpp single-thread executor"
+    if len(cpu_affinity)>1:
+        metadata["scheduling"] += "; all languages and native/RMW threads share the same allowed CPU set " + str(cpu_affinity)
     if args.build_manifest: metadata["build_manifest"]=json.loads(args.build_manifest.read_text())
     prefix=Path('/opt/ros')/env['ROS_DISTRO']/'share'
     metadata['ros_packages']={name:ET.parse(prefix/name/'package.xml').findtext('version') for name in ['rcl','rclcpp','example_interfaces',args.rmw]}
@@ -142,14 +178,16 @@ def run(args):
         for window in windows:
             for repetition in range(args.repetitions):
                 for language in (["baseline","rust","cpp"] if repetition%2==0 else ["cpp","rust","baseline"]):
-                    command=["taskset","-c",str(args.cpu),str(binaries[language]),str(count),str(window),str(args.iterations),str(args.warmup),"/executor_bench_"+uuid.uuid4().hex]
+                    command=["taskset","-c",",".join(map(str,cpu_affinity)),str(binaries[language]),str(count),str(window),str(args.iterations),str(args.warmup),"/executor_bench_"+uuid.uuid4().hex]
                     run_env=env.copy()
                     if args.control_enabled and language=="rust": run_env["R2R_BENCH_CONTROL_ENABLED"]="1"
                     else: run_env.pop("R2R_BENCH_CONTROL_ENABLED",None)
+                    if args.background_enabled and language!="cpp": run_env["R2R_BENCH_BACKGROUND_ENABLED"]="1"
+                    else: run_env.pop("R2R_BENCH_BACKGROUND_ENABLED",None)
                     result=subprocess.run(command,env=run_env,text=True,capture_output=True,timeout=120)
                     if result.returncode: raise RuntimeError(f"{language} executor failed: {result.stderr}")
                     record=json.loads(result.stdout)
-                    validate(record,language,count,window,args.iterations,args.warmup,args.rmw,args.baseline_shared,args.control_enabled)
+                    validate(record,language,count,window,args.iterations,args.warmup,args.rmw,args.baseline_shared,args.control_enabled,args.background_enabled,args.same_binary_control)
                     traces.append({"record":len(records),"samples_ns":record.pop("samples_ns")})
                     record.update(language=language,repetition=repetition,cpu_per_request_ns=record["cpu_ns"]/args.iterations)
                     records.append(record)
@@ -166,7 +204,7 @@ def run(args):
     artifact.write_bytes(compressed)
     metadata["samples_artifact"]={"file":artifact.name,"sha256":hashlib.sha256(compressed).hexdigest(),"records":len(records)}
     metadata["completed_utc"]=datetime.datetime.now(datetime.timezone.utc).isoformat()
-    failures=regressions(summary,args.max_regression) if args.max_regression is not None else []
+    failures=(calibration_failures if args.same_binary_control else regressions)(summary,args.max_regression) if args.max_regression is not None else []
     if args.max_regression is not None: metadata["regression_gate"]={"maximum_ratio":args.max_regression,"passed":not failures,"failures":failures}
     args.output.write_text(json.dumps({"metadata":metadata,"records":records,"summary":summary},indent=2)+'\n')
     if failures: raise RuntimeError(f"executor regression gate failed: {failures}")
@@ -178,6 +216,7 @@ def main():
     runner=commands.add_parser('run')
     for name in ['baseline','rust','cpp']: runner.add_argument('--'+name,type=Path,required=True)
     runner.add_argument('--cpu',type=int,required=True)
+    runner.add_argument('--cpu-secondary',type=int,help='allow a second distinct CPU for every compared application and its native/RMW threads')
     runner.add_argument('--nodes',default='1,2,8')
     runner.add_argument('--windows',default='1,16')
     runner.add_argument('--iterations',type=int,default=5000)
@@ -187,6 +226,8 @@ def main():
     runner.add_argument('--rmw',default='rmw_cyclonedds_cpp')
     runner.add_argument('--max-regression',type=float)
     runner.add_argument('--baseline-shared',action='store_true',help='baseline library already provides the shared native executor')
+    runner.add_argument('--same-binary-control',action='store_true',help='require identical Rust binaries and symmetric calibration')
+    runner.add_argument('--background-enabled',action='store_true',help='compare ExecutorTask with the historical manual native wait thread')
     runner.add_argument('--control-enabled',action='store_true',help='candidate explicitly creates and retains its cancellation handle before measurement')
     runner.add_argument('--build-manifest',type=Path)
     runner.add_argument('--output',type=Path,required=True)

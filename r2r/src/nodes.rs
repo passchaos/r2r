@@ -65,7 +65,7 @@ mod spin;
 mod subscription_api;
 mod timers;
 mod wait_set;
-pub use executor::{Executor, ExecutorHandle, ExecutorNodeId};
+pub use executor::{Executor, ExecutorHandle, ExecutorNodeId, ExecutorTask, ExecutorTaskError};
 pub use future_executor::FutureExecutionOptions;
 #[cfg(all(test, not(r2r__ros__distro__humble)))]
 pub(crate) use graph::c_string_from_ptr;

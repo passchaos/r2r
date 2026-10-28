@@ -44,6 +44,16 @@ fn timer_controls(timer: &mut r2r::LifecycleTimer, node: &mut Node) {
     timer.period(node).unwrap();
     drop(timer.tick());
 }
+fn task(executor: r2r::Executor) -> r2r::ExecutorTask {
+    executor.spawn().unwrap()
+}
+async fn stop(task: r2r::ExecutorTask) -> Result<r2r::Executor, r2r::ExecutorTaskError> {
+    task.stop().await
+}
+fn send_task(task: r2r::ExecutorTask) {
+    fn require_send<T: Send>(_: T) {}
+    require_send(task);
+}
 """,
         None,
     ),
@@ -71,6 +81,11 @@ fn timer_controls(timer: &mut r2r::LifecycleTimer, node: &mut Node) {
         "loan_field_escape",
         "fn escape<'node>(loan: LifecycleLoanedMessage<'node, Int32>) -> LoanedMessage<'node, Int32> { loan.message }",
         "E0616",
+    ),
+    (
+        "background_node_ownership_escape",
+        "fn escape(task: &mut r2r::ExecutorTask, id: r2r::ExecutorNodeId) { task.node_mut(id); }",
+        "E0599",
     ),
     (
         "timer_deref_escape",

@@ -822,6 +822,9 @@ impl WrappedActionClientUntyped {
 }
 
 impl ActionClient_ for WrappedActionClientUntyped {
+    fn set_availability_wake(&mut self, wake: Option<std::task::Waker>) {
+        self.poll_available_channels.set_native_wake(wake);
+    }
     fn handle(&self) -> &rcl_action_client_t {
         &self.rcl_handle
     }
@@ -1104,6 +1107,7 @@ impl IsAvailablePollable for ActionClientUntyped {
                 .lock()
                 .push_back(self.lifecycle.identity);
         }
+        client.poll_available_channels.notify_native();
         Ok(())
     }
 
