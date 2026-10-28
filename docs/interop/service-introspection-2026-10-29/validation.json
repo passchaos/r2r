@@ -1,0 +1,222 @@
+{
+  "date_utc": "2026-10-28T23:38:31.196973+00:00",
+  "parent_ref": "877b2801cc704c392e40ba2a48717c962ab9ec48",
+  "scope": "independent service introspection interoperability; production hot paths unchanged",
+  "goal_status": "active",
+  "matrices": {
+    "distributions": [
+      "jazzy",
+      "kilted"
+    ],
+    "rmws": [
+      "rmw_cyclonedds_cpp",
+      "rmw_fastrtps_cpp"
+    ],
+    "pairs": 16,
+    "endpoint_phases": 160,
+    "requests": 240,
+    "event_observations": 1152
+  },
+  "validation": {
+    "unit-final": {
+      "exit_code": 0,
+      "log": "logs/service-events-unit-final.log.gz",
+      "sha256": "67e9ad27fbc33e13b481faf41944b7174296dff24f8c1ace2b0fceec9dfbe42d",
+      "observed_test_results": []
+    },
+    "format-final": {
+      "exit_code": 0,
+      "log": "logs/service-events-format-final.log.gz",
+      "sha256": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+      "observed_test_results": []
+    },
+    "native-fastdds-final": {
+      "exit_code": 0,
+      "log": "logs/service-events-native-fastdds-final.log.gz",
+      "sha256": "f00a2299f8b783ac8672e9fd3f6d93e2a3f8c116e19df395f515333ffc901cf2",
+      "observed_test_results": [
+        "ok. 4 passed; 0 failed; 0 ignored; 0 measured; 563 filtered out; finished in 1.65s"
+      ]
+    },
+    "clippy-final": {
+      "exit_code": 0,
+      "log": "logs/service-events-clippy-final.log.gz",
+      "sha256": "82d72d2bda5a7aa70f7b2349a45f60f0ece70d2625008662ba38a06892ea0678",
+      "observed_test_results": []
+    },
+    "workspace-final": {
+      "exit_code": 0,
+      "log": "logs/service-events-workspace-final.log.gz",
+      "sha256": "cc524ff282934741bd464f69b090aabebcf217aff69662b1efc62ac39e640de6",
+      "observed_test_results": [
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.00s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.01s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.02s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.00s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.01s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.01s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.01s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.01s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.01s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.01s",
+        "ok. 564 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 9.79s",
+        "ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 40.60s",
+        "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.44s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s",
+        "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s",
+        "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s",
+        "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s",
+        "ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+        "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ]
+    },
+    "release-final": {
+      "exit_code": 0,
+      "log": "logs/service-events-release-final.log.gz",
+      "sha256": "f937bd1efbd9ba44bf568b35b4d82c345110267a2499db0c93ba26dc5eae8a57",
+      "observed_test_results": [
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.00s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.03s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.00s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.01s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.01s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.01s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.01s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.01s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.01s",
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 566 filtered out; finished in 0.01s",
+        "ok. 564 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 10.26s"
+      ]
+    },
+    "kilted-validation": {
+      "exit_code": 0,
+      "log": "logs/service-events-kilted-validation.log.gz",
+      "sha256": "58fdcaed605050810c1abc29c949a742d49fd31a413e6d0ed605dcb9e8017630",
+      "observed_test_results": [
+        "ok. 4 passed; 0 failed; 0 ignored; 0 measured; 567 filtered out; finished in 1.90s",
+        "ok. 4 passed; 0 failed; 0 ignored; 0 measured; 567 filtered out; finished in 1.71s"
+      ]
+    },
+    "humble-validation": {
+      "exit_code": 0,
+      "log": "logs/service-events-humble-validation.log.gz",
+      "sha256": "2cfef371605631b59bf590c28b6601dea5b22896178fd76cad2cf47b44fdf02d",
+      "observed_test_results": [
+        "ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s"
+      ]
+    },
+    "no-ros-validation": {
+      "exit_code": 0,
+      "log": "logs/service-events-no-ros-validation.log.gz",
+      "sha256": "c8a7c715b88dcc20f62513feeda09adb898ff8ac763d019e3716d5d69f2b2c72",
+      "observed_test_results": [
+        "ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+        "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ],
+      "api_artifacts": 13,
+      "documented_methods": 28
+    }
+  },
+  "source_identity": {
+    "jazzy": {
+      "source_files": 118,
+      "mismatches": [],
+      "binary_sha256": {
+        "rust": "8c9505462a236a7bb43c0faed5e8c990bcce577c95023be504e46c84e00e91a7",
+        "cpp": "403b9e2301cc92378ed730621d48b0856548fb5b66c15cd6b8ec6ad22f26485d"
+      }
+    },
+    "kilted": {
+      "source_files": 118,
+      "mismatches": [],
+      "binary_sha256": {
+        "rust": "d7da67b1187a7dbf47eb9c0ff843cc6f582a3c407a4814bb7304ed67f76ed58a",
+        "cpp": "dd7f5fab2a8be48de67a7523c61c9f180db73a8c34d404c067ebf9c1d7667cb4"
+      }
+    }
+  },
+  "derived_kilted_image": "sha256:ec6f487ef6d7746c569668e6e173ac49af301cfd5c2bb95d00cf9ef6106c83ab",
+  "expected_unsupported": {
+    "distribution": "humble",
+    "example_exit_code": 2,
+    "runner_exit_code": 2
+  },
+  "preserved_initial_failures": [
+    "Fast DDS untyped client request before service availability",
+    "Kilted image missing rmw_cyclonedds_cpp package"
+  ],
+  "remaining_evidence": [
+    "Iron, Lyrical and Rolling live CI results",
+    "Broader payload/event QoS/external late-subscriber diagnostics",
+    "No new performance claim"
+  ],
+  "archive_sha256": {
+    "README.md": "cdf019ef18b7f987458be95f0fa47c408fd3aacfcd786b211fc7aa9a32ce84a2",
+    "initial-fastdds/build-manifest.json": "fb33bce019abd59766b6b55f3443b10013e9555e9902d18f94f58875ff8f7126",
+    "initial-fastdds/cyclonedds.json": "8a687f77f5b1ed55d70d8e9c35a7f42353268367064abf8e5c27fb4928afb4f7",
+    "initial-fastdds/fastdds-failed.json": "16bc47df95ab2e902f1e03a3b2d0101da318c003e0eec40732239c131135ae7a",
+    "initial-fastdds/fastdds-logs/client-typed/client.stderr.log": "b0dadad62563c2a1b9d66df67ff1583a2a5f946af89f381901dced8e41777b1c",
+    "initial-fastdds/fastdds-logs/client-typed/server.stderr.log": "342158f8ccfa9df879b5bbdd44dec54eae8fe5d77c7674dceeee20f938bbdb3d",
+    "initial-fastdds/fastdds-logs/client-untyped/client.stderr.log": "177994dcbfef778869e63aca955bdb5565dc797c9bb57d6e4118ee88e9341fda",
+    "initial-fastdds/fastdds-logs/client-untyped/server.stderr.log": "de36197386c68c733a0a1022906b76b612367fb16615d6ebe78779cd414fbfc2",
+    "initial-fastdds/service_events.cpp.gz": "105fb1f208c27e679dadeef1b68a07c718a907dc89fdfae0e64bd599513e882d",
+    "initial-fastdds/service_introspection_interop.rs.gz": "de6a7d60d461844c6cd582cd0a2687a1ec1b3fc651e4c97004f7c0e2a6f3b3a6",
+    "jazzy/build-manifest.json": "117eee75ce06869be3dcddd6d76d3b6b18e694e3e58dec8cb226ab363c879453",
+    "jazzy/cyclonedds.json": "a16023e6cff4c7eaa442f8545992ad990d4d966efb7643d4b55d35a9051fd5eb",
+    "jazzy/fastdds.json": "58ec6a76638a8e287ea1f28f1a69cf51a974a4258e5b3ec7e7c031d7db421142",
+    "kilted/build-manifest.json": "7eca04972a28b2c3bf834f368412551b51db3a69812645a0992f9ab7e8a93e00",
+    "kilted/cyclonedds.json": "da8fc5039be374f0fede0005704757624755ac43c48cd456bb76bb652242149b",
+    "kilted/fastdds.json": "73de3a7d66a768eb503f77c4f9539d7789a3d2b3787c9fbc4e1d650fc6ded8f8",
+    "logs/jazzy/cyclonedds-logs/client-typed/client.stderr.log.gz": "8d2e3705ec22f3d005dfd62ecf30e1a03e85823b4314f173a2f7eba71c40bd72",
+    "logs/jazzy/cyclonedds-logs/client-typed/server.stderr.log.gz": "d83633123be74ad6b96d6713a6d1d991d2b1aaf144de0869331c91a621b9075d",
+    "logs/jazzy/cyclonedds-logs/client-untyped/client.stderr.log.gz": "bc4a64f9b97b31af8a3736142eb13e1624c7fb8ce49782ed249b986a37e07dd4",
+    "logs/jazzy/cyclonedds-logs/client-untyped/server.stderr.log.gz": "567fbf37ea04bf70a123038fefb63364cfdb2d03f5ed07ba8ffd7ef8d33dff11",
+    "logs/jazzy/cyclonedds-logs/server-typed/client.stderr.log.gz": "36b3032d395de4ecf709224a9711d27bc243e561b8f5b714be19a609c5d6d7f5",
+    "logs/jazzy/cyclonedds-logs/server-typed/server.stderr.log.gz": "cf5f082fb42eb0317a56b0fa3239029e4df9f0f823f33d3d92e84d730cc77a99",
+    "logs/jazzy/cyclonedds-logs/server-untyped/client.stderr.log.gz": "6ef4dda1e4519ca3e824e70433e91c217339e08e4c449f0c680a132db3734470",
+    "logs/jazzy/cyclonedds-logs/server-untyped/server.stderr.log.gz": "182f6704ad094cfd455b247820c72f1403230055b8a2b10aacbb3c9db8f13989",
+    "logs/jazzy/fastdds-logs/client-typed/client.stderr.log.gz": "b6eecddd8aaa8b95dac53d19f098b55f9f3885c650017d108a532c0ccba46678",
+    "logs/jazzy/fastdds-logs/client-typed/server.stderr.log.gz": "6ef96efe1dcf53c4bddf06b7731a15be70ba3b33ae79b0723095aa233e96e012",
+    "logs/jazzy/fastdds-logs/client-untyped/client.stderr.log.gz": "7cd2fc56d7764f6be97456b624f999f8210cdb3b6b13342cb740091402f87d22",
+    "logs/jazzy/fastdds-logs/client-untyped/server.stderr.log.gz": "bc10df38f7131018fc2e390f1a8830a6001b98ced4fbeadd6defe7a2ed42c3ed",
+    "logs/jazzy/fastdds-logs/server-typed/client.stderr.log.gz": "c8179e7d73a535a14ef0174ca111c2f61bcc36e45c90bfda4731c43ef877ab1b",
+    "logs/jazzy/fastdds-logs/server-typed/server.stderr.log.gz": "c2927556fa1e841f8f990cee146f17a9e75ed2f4f0195dd2f57bf3c35d0cf5bb",
+    "logs/jazzy/fastdds-logs/server-untyped/client.stderr.log.gz": "c10e6519bc91fa858e2c9f50ef0ad62cdbb530de1b9a5dbd1e7c6de168ecf0d6",
+    "logs/jazzy/fastdds-logs/server-untyped/server.stderr.log.gz": "d4ce1306e48779a9295c9d31ba6bfdede5289af61b26cc051919bafe67840a8d",
+    "logs/jazzy-build.log.gz": "eb88abf1e44b183641136ad357d56d2a41b4f0eac2b2f88d5e34a94b3771b43b",
+    "logs/kilted/cyclonedds-logs/client-typed/client.stderr.log.gz": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+    "logs/kilted/cyclonedds-logs/client-typed/server.stderr.log.gz": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+    "logs/kilted/cyclonedds-logs/client-untyped/client.stderr.log.gz": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+    "logs/kilted/cyclonedds-logs/client-untyped/server.stderr.log.gz": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+    "logs/kilted/cyclonedds-logs/server-typed/client.stderr.log.gz": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+    "logs/kilted/cyclonedds-logs/server-typed/server.stderr.log.gz": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+    "logs/kilted/cyclonedds-logs/server-untyped/client.stderr.log.gz": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+    "logs/kilted/cyclonedds-logs/server-untyped/server.stderr.log.gz": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+    "logs/kilted/fastdds-logs/client-typed/client.stderr.log.gz": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+    "logs/kilted/fastdds-logs/client-typed/server.stderr.log.gz": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+    "logs/kilted/fastdds-logs/client-untyped/client.stderr.log.gz": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+    "logs/kilted/fastdds-logs/client-untyped/server.stderr.log.gz": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+    "logs/kilted/fastdds-logs/server-typed/client.stderr.log.gz": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+    "logs/kilted/fastdds-logs/server-typed/server.stderr.log.gz": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+    "logs/kilted/fastdds-logs/server-untyped/client.stderr.log.gz": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+    "logs/kilted/fastdds-logs/server-untyped/server.stderr.log.gz": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+    "logs/kilted-build.log.gz": "270fad281560ae0d8b03bc7a80a171048fcc9828540b2beefaea3efadaec80d1",
+    "logs/service-events-clippy-final.log.gz": "82d72d2bda5a7aa70f7b2349a45f60f0ece70d2625008662ba38a06892ea0678",
+    "logs/service-events-format-final.log.gz": "f61f27bd17de546264aa58f40f3aafaac7021e0ef69c17f6b1b4cd7664a037ec",
+    "logs/service-events-humble-validation.log.gz": "2cfef371605631b59bf590c28b6601dea5b22896178fd76cad2cf47b44fdf02d",
+    "logs/service-events-kilted-image.log.gz": "93b3f63f0fb1ff0cc445650d18739558d7ea89ca7585a2929887612214c2385f",
+    "logs/service-events-kilted-missing-rmw.log.gz": "fc7e6df91e767043abc365a72a9e6b747011eedc7a5401137b1f31daa15b4930",
+    "logs/service-events-kilted-validation.log.gz": "58fdcaed605050810c1abc29c949a742d49fd31a413e6d0ed605dcb9e8017630",
+    "logs/service-events-native-fastdds-final.log.gz": "f00a2299f8b783ac8672e9fd3f6d93e2a3f8c116e19df395f515333ffc901cf2",
+    "logs/service-events-no-ros-validation.log.gz": "c8a7c715b88dcc20f62513feeda09adb898ff8ac763d019e3716d5d69f2b2c72",
+    "logs/service-events-release-final.log.gz": "f937bd1efbd9ba44bf568b35b4d82c345110267a2499db0c93ba26dc5eae8a57",
+    "logs/service-events-unit-final.log.gz": "67e9ad27fbc33e13b481faf41944b7174296dff24f8c1ace2b0fceec9dfbe42d",
+    "logs/service-events-workspace-final.log.gz": "cc524ff282934741bd464f69b090aabebcf217aff69662b1efc62ac39e640de6"
+  }
+}

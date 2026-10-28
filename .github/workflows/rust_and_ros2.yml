@@ -56,3 +56,31 @@ jobs:
       run: docker build . --file ./tests/Dockerfile_ros --build-arg ROS_DISTRO=${{ matrix.ros_distro }} --tag r2r_test
     - name: Run workspace tests
       run: docker run r2r_test cargo test --workspace -- --test-threads=1
+    - name: Check service-event oracle rejection cases
+      run: docker run r2r_test python3 -m unittest discover -s tools/ros_oracles -p test_service_events.py
+    - name: Verify external Rust and C++ service introspection
+      if: matrix.ros_distro != 'humble'
+      run: |
+        mkdir -p interop-results
+        docker run --rm -v "$PWD/interop-results:/results" r2r_test bash -c '
+          set -e
+          python3 tools/ros_oracles/service_events.py build --output-dir target/service-events
+          python3 tools/ros_oracles/service_events.py run --binaries target/service-events \
+            --rmw rmw_cyclonedds_cpp --domain-id 142 --output /results/cyclonedds.json
+          python3 tools/ros_oracles/service_events.py run --binaries target/service-events \
+            --rmw rmw_fastrtps_cpp --domain-id 144 --output /results/fastdds.json
+        '
+    - name: Verify Humble service introspection boundary
+      if: matrix.ros_distro == 'humble'
+      run: |
+        docker run r2r_test bash -c '
+          cargo build -p r2r --example service_introspection_interop || exit
+          target/debug/examples/service_introspection_interop
+          test "$?" -eq 2
+        '
+    - name: Save service introspection interoperability evidence
+      if: always() && matrix.ros_distro != 'humble'
+      uses: actions/upload-artifact@v4
+      with:
+        name: service-introspection-${{ matrix.ros_distro }}
+        path: interop-results/

@@ -520,3 +520,52 @@ evidence. Native wait-set construction/dispatch scaling, complete mixed-load
 benchmarks, allocation/resource accounting and representative C++ comparisons
 remain additional requirements toward the long-term goal.
 
+## External service introspection (2026-10-29)
+
+[Service introspection](SERVICE_INTROSPECTION.md) now has independently launched
+typed/untyped Rust clients against rclcpp services and typed/untyped Rust
+services against rclcpp clients. The native endpoints remain alive through
+`Off -> Metadata -> Contents -> Off -> Contents`. Each phase performs three
+ordered, distinct sum calls. Both subscribers must observe the complete native
+event set, exact payloads appropriate to the mode, correlated native request
+sequences and the frozen simulated timestamp 12.000000034. Client GID and
+server-observed writer GUID are checked against their corresponding origin,
+preserving middleware-specific encodings. Disabled phases require zero event
+publishers and zero received events after 200 ms of additional spinning.
+
+[Four saved matrices](interop/service-introspection-2026-10-29/README.md) pass
+under Jazzy/Kilted and CycloneDDS/Fast DDS: sixteen endpoint pairs, 160 endpoint
+phases, 240 real calls and 1152 event observations. The original four nearby
+native introspection cases pass under all four environments, including foreign
+ownership and retained history for late subscribers. The final source and binary
+inventories match all four final validated candidates. All calls/events and compiler/package
+versions remain in the reports.
+
+The initial Fast DDS untyped-client run timed out before its first phase
+completed because the new harness submitted before service discovery. It is
+preserved with its source and manifest; the final harness uses the existing
+public `wait_for_service()` in both representations. Kilted's initial validation
+image lacked CycloneDDS and failed the native package check. A separate derived
+validation image installs the missing RMW, and the original failure/image-build
+logs remain archived. Neither failure was bypassed or treated as a passing cell.
+
+Five adversarial validator tests reject missing/duplicate events, wrong native
+identities, timestamp/payload corruption, disabled publication, missing reenable
+events, incomplete matrices and native call mismatches. Formatting, all-target
+workspace Clippy, the complete Jazzy debug workspace and complete optimized
+library suite pass (564 library cases, three manual benchmarks ignored).
+Humble compiles the new example and explicitly returns exit 2 for unsupported
+service introspection; the runner rejects that distribution before building.
+Humble's support-boundary test and all-target Clippy pass. The no-ROS container
+compiles every workspace target, passes six snapshot/two generator cases and
+verifies 13 public API artifacts and 28 methods.
+
+CI now installs both DDS implementations and requires the independent matrix
+on Iron/Jazzy/Kilted/Lyrical/Rolling, uploading reports and endpoint logs. Iron,
+Lyrical and Rolling have no new local runtime evidence; their live CI outcomes
+remain unverified here. This slice adds diagnostics/interoperability evidence
+and a runnable Rust workflow without changing production hot paths. It makes
+no new latency/throughput claim. Broader payloads, event QoS combinations,
+distributed diagnostic applications and the remaining runtime matrix remain
+requirements toward the full goal.
+

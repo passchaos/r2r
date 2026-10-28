@@ -41,6 +41,8 @@ Run `cargo run -p r2r --example action_lifecycle` for deterministic deferred exe
 
 On ROS 2 Iron and newer, typed and untyped services and clients expose `configure_introspection(&mut node, state, event_qos)`. Choose `ServiceIntrospectionState::Metadata` for identities and timestamps or `Contents` to include payloads; `Off` disables publication. Subscribe to the generated service `Event` type on `<service_name>/_service_event`. Run `cargo run -p r2r --example service_introspection` for a complete request, response and event stream example.
 
+[Service introspection](docs/SERVICE_INTROSPECTION.md) explains cross-language tracing, native identities and simulated clocks. The independent Rust/rclcpp workflow verifies typed/untyped endpoints, mode transitions and complete event contents under both Jazzy and Kilted RMW implementations.
+
 Generated service bindings provide the associated `Event` type automatically. Manual implementations of `WrappedServiceTypeSupport` on Iron and newer must also define `type Event` to match their native service event type.
 
 Development focuses on complete application workflows, safe and convenient Rust APIs, and measured performance against native ROS implementations. The API may change as capability gaps are closed. Feature requests and contributions are welcome; the roadmap records current evidence and remaining work.

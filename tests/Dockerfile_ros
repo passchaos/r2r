@@ -4,8 +4,9 @@ FROM ros:${ROS_DISTRO}
 ARG ROS_DISTRO
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential curl libclang-dev \
+    build-essential cmake curl libclang-dev \
     ros-${ROS_DISTRO}-test-msgs ros-${ROS_DISTRO}-example-interfaces \
+    ros-${ROS_DISTRO}-rmw-cyclonedds-cpp ros-${ROS_DISTRO}-rmw-fastrtps-cpp \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | bash -s -- -y
