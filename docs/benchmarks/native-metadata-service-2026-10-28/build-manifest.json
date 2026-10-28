@@ -1,0 +1,23 @@
+{
+  "workload": "service",
+  "candidate": {
+    "r2r/benches/service_roundtrip.rs": "283eba0b18ca5de806494a0d8abfbb6ab1072602e0ec2726d894f26e92c85a37",
+    "r2r/src/msg_types.rs": "d930a2b48a3487c00e1da68fbeb0f15b11a607e1c34287031861e72515953f09",
+    "r2r/src/nodes.rs": "2c130f35f27de52016f16d2513d90b5e0945435b06d71429ee243d49f619dce4",
+    "r2r/src/subscribers.rs": "8edd1704d1ec0575c3b285bec7bc4266167e5cea765fb3f484b2ad8640f21904",
+    "r2r/src/publishers.rs": "3556123ece3ce113aebef91e26a19929a9e20aea358bf7d133f473dbb0369e43",
+    "r2r/src/clients.rs": "bcc982cc5b73590e0c69ef31ee29f05758b9975fbc88a61018fee0c82fa70842",
+    "r2r/src/services.rs": "9c9e294ffd4b970a27984e95ae3876c197d18d6c519e9b25b06c88e84fd17bed",
+    "r2r_rcl/src/lib.rs": "bc1e3726db0c322542561c7f9c4473f9d3f5f3cc7e5c4c63fc244ea1097b8ed6",
+    "r2r_msg_gen/src/lib.rs": "ec0df20401be217f875bd4e736377b2560edeb4e5991bc73403ce2a42ee6356b",
+    "Cargo.lock": "428a1d6163da6ef76f11f9e15e3a7d91ba6656a3a33228e9161cb28ccb741312",
+    "r2r/src/native_metadata.rs": "1067fea3d06121ebb1e04272f55e409bf52fb1cdb2ccbc8123a01b7b40157153",
+    "r2r/src/serialization.rs": "a1d697444fdc3ca6dd542e6cdf5514f6653b0f3aa4e69de7250cc6e4c0c57169"
+  },
+  "cpp_source_sha256": {
+    "tools/bench_ros/CMakeLists.txt": "30c7555e70e8fc90d682010e8f1d5c2bf48966809d4ef5f8cc03dad1cd2ab709",
+    "tools/bench_ros/service.cpp": "f81a6cbdbf64be7f8ce47b93f1d56dc0e80b3b354453eec154cd78eeb0a70bcd"
+  },
+  "rustflags": "",
+  "cargo_release_opt_level": "3"
+}

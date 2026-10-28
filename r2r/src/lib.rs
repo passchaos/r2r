@@ -99,6 +99,7 @@ pub use subscribers::{
     SubscriptionOptions,
 };
 
+mod native_metadata;
 mod publishers;
 pub use publishers::{
     IncompatibleTypeStatus, LivelinessLostStatus, LoanedMessage, MatchedStatus,

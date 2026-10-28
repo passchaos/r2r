@@ -5,7 +5,6 @@
 //! readiness stays entirely inside the unified executor and each service call
 //! costs one take plus one send.
 
-use std::mem::MaybeUninit;
 use std::sync::Arc;
 
 use parking_lot::Mutex;
@@ -52,12 +51,12 @@ impl LifecycleService {
     fn take_request<T: crate::WrappedTypesupport>(
         &mut self,
     ) -> Result<Option<(rmw_request_id_t, T)>> {
-        let mut request_info = MaybeUninit::<rmw_service_info_t>::uninit();
+        let mut request_info = crate::native_metadata::service_info();
         let mut request_msg = WrappedNativeMsg::<T>::try_new()?;
         let ret = unsafe {
             rcl_take_request_with_info(
                 &self.rcl_handle,
-                request_info.as_mut_ptr(),
+                &mut request_info,
                 request_msg.void_ptr_mut(),
             )
         };
@@ -67,7 +66,6 @@ impl LifecycleService {
         if ret != RCL_RET_OK as i32 {
             return Err(Error::from_rcl_error(ret));
         }
-        let request_info = unsafe { request_info.assume_init() };
         Ok(Some((request_info.request_id, T::from_native(&request_msg))))
     }
 

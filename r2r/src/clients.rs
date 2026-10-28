@@ -1,5 +1,7 @@
 use futures::channel::oneshot;
 use parking_lot::Mutex;
+#[cfg(not(r2r__ros__distro__humble))]
+use std::mem::MaybeUninit;
 #[cfg(test)]
 use std::sync::atomic::AtomicUsize;
 use std::{
@@ -7,7 +9,6 @@ use std::{
     ffi::{CStr, CString},
     fmt::Debug,
     future::Future,
-    mem::MaybeUninit,
     pin::Pin,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -45,7 +46,8 @@ pub struct ServiceResponseInfo {
     pub source_timestamp: i64,
     /// Receive timestamp in nanoseconds, or zero when unsupported by the RMW implementation.
     pub received_timestamp: i64,
-    /// Writer GUID from the original request associated with this response.
+    /// Writer identity supplied by the RMW, or all zero when not provided.
+    /// Its encoding may differ from the server-observed request writer GUID.
     pub writer_guid: [u8; 16],
     /// Sequence number assigned to the original request.
     pub sequence_number: i64,
@@ -811,13 +813,13 @@ where
     }
 
     fn handle_response(&mut self) -> Result<ClientResponseAction> {
-        let mut response_info = MaybeUninit::<rmw_service_info_t>::uninit();
+        let mut response_info = crate::native_metadata::service_info();
         let mut response_msg = WrappedNativeMsg::<T::Response>::try_new()?;
 
         let ret = unsafe {
             rcl_take_response_with_info(
                 &self.rcl_handle,
-                response_info.as_mut_ptr(),
+                &mut response_info,
                 response_msg.void_ptr_mut(),
             )
         };
@@ -828,7 +830,6 @@ where
             return Err(Error::from_rcl_error(ret));
         }
 
-        let response_info = unsafe { response_info.assume_init() };
         let info = ServiceResponseInfo::from(&response_info);
         if let Some(sender) = self.response_channels.remove(&info.sequence_number) {
             Ok(ClientResponseAction::Taken(Some(response_conversion_completion(
@@ -916,13 +917,13 @@ impl Client_ for UntypedClient_ {
     }
 
     fn handle_response(&mut self) -> Result<ClientResponseAction> {
-        let mut response_info = MaybeUninit::<rmw_service_info_t>::uninit();
+        let mut response_info = crate::native_metadata::service_info();
         let mut response_msg = (self.service_type.make_response_msg)()?;
 
         let ret = unsafe {
             rcl_take_response_with_info(
                 &self.rcl_handle,
-                response_info.as_mut_ptr(),
+                &mut response_info,
                 response_msg.void_ptr_mut(),
             )
         };
@@ -933,7 +934,6 @@ impl Client_ for UntypedClient_ {
             return Err(Error::from_rcl_error(ret));
         }
 
-        let response_info = unsafe { response_info.assume_init() };
         let info = ServiceResponseInfo::from(&response_info);
         if let Some(sender) = self.response_channels.remove(&info.sequence_number) {
             Ok(ClientResponseAction::Taken(Some(response_conversion_completion(

@@ -1699,10 +1699,9 @@ where
             )
         };
         if action_client_take_succeeded(ret)? {
-            let request_id = unsafe { request_id.assume_init() };
-            if let Some((uuid, sender)) =
-                self.take_goal_response_by_sequence(request_id.sequence_number)
-            {
+            let sequence_number =
+                unsafe { crate::native_metadata::response_sequence_number(&request_id) };
+            if let Some((uuid, sender)) = self.take_goal_response_by_sequence(sequence_number) {
                 completions.push(action_stateful_response_completion(
                     sender,
                     response_msg,
@@ -1722,7 +1721,7 @@ where
             } else {
                 log::error!(
                     "no such req id: {}, we have {:?}, ignoring",
-                    request_id.sequence_number,
+                    sequence_number,
                     self.goal_response_channels.keys()
                 );
             }
@@ -1747,11 +1746,9 @@ where
             )
         };
         if action_client_take_succeeded(ret)? {
-            let request_id = unsafe { request_id.assume_init() };
-            if let Some(sender) = self
-                .cancel_response_channels
-                .remove(&request_id.sequence_number)
-            {
+            let sequence_number =
+                unsafe { crate::native_metadata::response_sequence_number(&request_id) };
+            if let Some(sender) = self.cancel_response_channels.remove(&sequence_number) {
                 completions.push(action_response_conversion_completion(
                     sender,
                     response_msg,
@@ -1764,7 +1761,7 @@ where
             } else {
                 log::error!(
                     "no such req id: {}, we have {:?}, ignoring",
-                    request_id.sequence_number,
+                    sequence_number,
                     self.cancel_response_channels.keys()
                 );
             }
@@ -1837,8 +1834,9 @@ where
         };
 
         if action_client_take_succeeded(ret)? {
-            let request_id = unsafe { request_id.assume_init() };
-            if let Some(uuid) = self.take_result_request_by_sequence(request_id.sequence_number) {
+            let sequence_number =
+                unsafe { crate::native_metadata::response_sequence_number(&request_id) };
+            if let Some(uuid) = self.take_result_request_by_sequence(sequence_number) {
                 if let Some(sender) = self.result_senders.remove(&uuid) {
                     completions.push(action_stateful_response_completion(
                         sender,
@@ -1858,7 +1856,7 @@ where
             } else {
                 log::error!(
                     "no such req id: {}, we have {:?}, ignoring",
-                    request_id.sequence_number,
+                    sequence_number,
                     self.result_requests.keys()
                 );
             }

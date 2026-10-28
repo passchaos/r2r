@@ -3,7 +3,6 @@ use parking_lot::Mutex;
 use std::{
     collections::VecDeque,
     ffi::{CStr, CString},
-    mem::MaybeUninit,
     pin::Pin,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -510,12 +509,12 @@ impl Service_ for UntypedService {
             }
         }
 
-        let mut request_info = MaybeUninit::<rmw_service_info_t>::uninit();
+        let mut request_info = crate::native_metadata::service_info();
         let mut request_msg = (self.service_type.make_request_msg)()?;
         let ret = unsafe {
             rcl_take_request_with_info(
                 &self.rcl_handle,
-                request_info.as_mut_ptr(),
+                &mut request_info,
                 request_msg.void_ptr_mut(),
             )
         };
@@ -526,7 +525,6 @@ impl Service_ for UntypedService {
             return Err(Error::from_rcl_error(ret));
         }
 
-        let request_info = unsafe { request_info.assume_init() };
         let request_id = request_info.request_id;
         let request_info = ServiceRequestInfo::from(&request_info);
         let service = Arc::downgrade(&service);
@@ -617,13 +615,13 @@ where
             }
         }
 
-        let mut request_info = MaybeUninit::<rmw_service_info_t>::uninit();
+        let mut request_info = crate::native_metadata::service_info();
         let mut request_msg = WrappedNativeMsg::<T::Request>::try_new()?;
 
         let ret = unsafe {
             rcl_take_request_with_info(
                 &self.rcl_handle,
-                request_info.as_mut_ptr(),
+                &mut request_info,
                 request_msg.void_ptr_mut(),
             )
         };
@@ -634,7 +632,6 @@ where
             return Err(Error::from_rcl_error(ret));
         }
 
-        let request_info = unsafe { request_info.assume_init() };
         let request_id = request_info.request_id;
         let request_info = ServiceRequestInfo::from(&request_info);
         let service = Arc::downgrade(&service);

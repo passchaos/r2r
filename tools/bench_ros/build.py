@@ -56,6 +56,8 @@ def rust_binary(source, target, destination, env, workload="codec"):
     executable = next(item["executable"] for item in artifacts if item.get("reason") == "compiler-artifact" and item.get("target", {}).get("name") == benchmark and item.get("executable"))
     shutil.copy2(executable, destination)
     sources = [source / f"r2r/benches/{benchmark}.rs", source / "r2r/src/msg_types.rs", source / "r2r/src/nodes.rs", source / "r2r/src/subscribers.rs", source / "r2r/src/publishers.rs", source / "r2r/src/clients.rs", source / "r2r/src/services.rs", source / "r2r_rcl/src/lib.rs", source / "r2r_msg_gen/src/lib.rs", source / "Cargo.lock"]
+    if (source / "r2r/src/native_metadata.rs").exists():
+        sources.append(source / "r2r/src/native_metadata.rs")
     if workload in {"codec", "codec_strings"}:
         sources.append(source / "r2r/benches/support/codec.rs")
         sources.append(source / "r2r/benches/support/allocation_probe.rs")
