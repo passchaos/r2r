@@ -110,6 +110,10 @@ Eighteen optimized executor tests and the background cancel/join/reuse example p
 Jazzy RMWs and native Humble/Kilted. Handles are weak, requests persist until reset, and native
 wakes coalesce without shutting down the context or adding another thread/timer/guard.
 
+## Rust ROS 2 ecosystem comparison
+
+A design-level comparison of the four practical Rust ROS 2 clients (r2r, rclrs, safe_drive, ros2-client), including middleware strategy, execution models, feature coverage and maturity, is in [RUST_ROS2_COMPARISON.md](RUST_ROS2_COMPARISON.md).
+
 ## Reproducible local gates
 
 With the ROS environment sourced and the repository-pinned Rust toolchain:
