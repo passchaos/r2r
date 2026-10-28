@@ -21,6 +21,8 @@ To compose ROS with Tokio or another independently driven runtime, `Executor::sp
 
 Dropped endpoint handles and canceled final operations wake the background native executor for targeted cleanup. Delayed action cancellation decisions and full cancel streams also notify native maintenance when work becomes ready. [Background cleanup](docs/BACKGROUND_CLEANUP.md) describes the resource and cancellation contracts.
 
+Canceled action observers continue cleanup across sixteen-entry maintenance batches. The current batch reports unexamined work directly to native waiting, so large result/cancel/feedback-observer backlogs can drain without unrelated ROS traffic. [Cancellation backlog cleanup](docs/ACTION_CANCELLATION_BACKLOG.md) describes batching, live-observer checks and retry behavior.
+
 For repeated message publication, keep a `NativeMsg<T>`, update it with `try_copy_to_native`, and use `publish_native`. Primitive and nested-message sequences retain capacity across smaller updates, and string fields reuse existing storage when it fits. Run `cargo run -p r2r --example native_message_reuse` for a complete example. [The Rust/rclcpp comparison harness](tools/bench_ros/README.md) measures the copy and codec stages with identical message fixtures.
 
 For repeated serialization, `MessageSerializer::<T>::new()?` keeps native message storage and returns borrowed ROS wire bytes from `serialize(&message)?`. Pass the slice directly to `publish_raw`, or call `to_vec()` when separate ownership is needed. Run `cargo run -p r2r --example reusable_serialization` for a complete typed receive/raw publish example. The selected RMW may resize the serializer's output buffer; returned bytes remain valid for their Rust borrow.

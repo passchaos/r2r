@@ -1,0 +1,13 @@
+{
+  "sources": {
+    "r2r/src/action_clients.rs": "dfb89e7f48011ef5fc61e6ef0ab715744b5edd2de33e6ebc89bccccef0596629",
+    "r2r/src/action_clients_untyped.rs": "b7fdd41a640e16bd648bfc88cd611964573738935231db3e7d6709a108c7fa56",
+    "r2r/src/action_clients/cancellation.rs": "c4fe53c575ae846c6309091c28cdb8c59775e93d0999b121da9c006373b47586",
+    "r2r/src/nodes/spin/prepare.rs": "c6fbd4c067fc947011ceb2aaff98b848bd85179796de9343ce3f890c54ba6ab3"
+  },
+  "binary_sha256": {
+    "r2r-candidate": "fbabd8fb8ae177a9cc67d2f02a18f6aff7446fce4f8ce681dfc4dce6fb4c3f4a",
+    "r2r-baseline": "84ed2de79b940eb082da89cd41e2fee2c9e1e2085910df0b4dff8fa1c69ce490",
+    "rclcpp-comparison": "547677f0aa734ed161bc087407a044ba9f5a972ea93a902dbca3f3e6c3ead30f"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "path": "r2r/src/nodes.rs",
+  "measured_file_sha256": "4619efda3fa7cfead28909c180810edf587d77ac0ed134bb0d7fbb1670ea1e18",
+  "verified_file_sha256": "d6fbce8a135c48c43bd3cfc8eaf4c70ae0a4b0d543f6f9d047ffdc8d1a0d0ebe",
+  "runtime_prefix_sha256": "0640dc6d75de69abde4326825588b3857038b796eeae03cb894cd185bbdea2bb",
+  "runtime_prefix_equal": true,
+  "note": "Only graph test relocation changed nodes.rs after performance measurement; non-test source is byte-identical."
+}

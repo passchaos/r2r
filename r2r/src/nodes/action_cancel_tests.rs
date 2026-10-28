@@ -1,6 +1,63 @@
 use super::*;
 use crate::{example_interfaces::action::Fibonacci, GoalStatus};
 
+#[test]
+fn cancellation_backlog_does_not_sleep_over_remaining_same_thread_work() {
+    let context = Context::create().unwrap();
+    let mut node = Node::create(context, "same_thread_cancel_backlog", "").unwrap();
+    let name = format!("/cancel_backlog_{}", uuid::Uuid::new_v4().simple());
+    let mut requests = node
+        .create_action_server::<Fibonacci::Action>(&name)
+        .unwrap();
+    let client = node
+        .create_action_client::<Fibonacci::Action>(&name)
+        .unwrap();
+    let mut server_goals = Vec::new();
+    let mut observed = Vec::new();
+    for order in 0..40 {
+        let response = client.send_goal_request(Fibonacci::Goal { order }).unwrap();
+        let (server_goal, response) = node
+            .spin_until_future_complete_with_options(
+                async {
+                    let accepted = async {
+                        requests
+                            .next()
+                            .await
+                            .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?
+                            .accept_deferred()
+                    };
+                    futures::try_join!(accepted, response)
+                },
+                Duration::from_secs(5),
+                FutureExecutionOptions::wake_driven(),
+            )
+            .unwrap();
+        server_goals.push(server_goal);
+        observed.push(response);
+    }
+    for _ in 0..20 {
+        node.try_spin_once(Duration::ZERO).unwrap();
+    }
+    let mut handles = Vec::new();
+    for (goal, result, feedback) in observed {
+        handles.push(goal);
+        drop((result, feedback));
+    }
+    assert!(node.action_clients[0].lock().has_pending_maintenance());
+    let preparation = node.prepare_spin(Duration::from_millis(250)).unwrap();
+    assert_eq!(preparation.timeout, Duration::ZERO);
+    assert!(node.action_clients[0].lock().has_pending_maintenance());
+    let started = Instant::now();
+    node.try_spin_once(Duration::from_millis(250)).unwrap();
+    assert!(started.elapsed() < Duration::from_millis(125));
+    for _ in 0..3 {
+        node.try_spin_once(Duration::ZERO).unwrap();
+    }
+    assert!(handles.iter().all(|goal| !goal.is_result_aware().unwrap()));
+    assert!(!node.action_clients[0].lock().has_pending_maintenance());
+    drop((handles, server_goals));
+}
+
 fn drive<T>(
     server: &mut Node, client: &mut Node, future: impl Future<Output = Result<T>>,
 ) -> Result<T> {

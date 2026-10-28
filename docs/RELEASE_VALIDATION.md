@@ -320,3 +320,42 @@ stability. The full source patch, test logs and source identities are archived;
 the prototype was removed from production. These open liveness/performance
 requirements are not recorded as achieved.
 
+## Canceled-observer backlog continuation (2026-10-29)
+
+[Cancellation cleanup](ACTION_CANCELLATION_BACKLOG.md) now re-arms the existing
+action-client maintenance notifier if a bounded drain leaves unexamined entries.
+The drain returns that progress bit through the existing maintenance operation
+to native waiting. It adds no queue layout, epoch, timer, guard or queue-length
+query, and keeps the sixteen-entry limit. The bit is captured before detached
+feedback-sender retries are requeued; retries alone do not make that pass busy.
+
+Six directly relevant cases cover queue boundaries 0/1/16/17/40/128, unlock and
+notification ordering, final/disabled notifications, live result/cancel senders,
+stale identifiers, detached feedback retry, typed/untyped native forty-observer
+cleanup and same-thread nonblocking continuation. Goal handles stay alive while
+the native cases wait for cleanup so status-drop or result events cannot conceal
+lost continuation. All six execute in optimized native Humble and Kilted; their
+full-target Clippy gates pass. The ROS-free all-target/documentation gate remains
+green at 13 API artifacts/28 methods.
+
+[The normal-action A/B](benchmarks/cancellation-continuation-2026-10-29/README.md)
+uses a safe `f3bc7ad` baseline, independent release binaries, CPUs 24/25 and the
+same success/cancellation oracles. Both final RMW reports pass the original 5%
+p50/p95/p99/throughput regression gates: 140 records and 140000 RTT samples.
+Initial failures are retained. The first design added queue-length queries; the
+final design derives progress while draining, without those extra queries.
+Prior action A/A tail limitations are not treated as calibrated improvements.
+
+Jazzy's debug workspace and optimized library suite each pass 538 library cases,
+with two manual benchmarks ignored. The first release run exposed a pre-existing
+graph test that queried local discovery before the DDS cache update. That test
+now lives with the graph cases and registers a graph waiter before querying,
+using the existing two-second discovery deadline. Relative/private topic types
+and exact publisher/subscription/service/client counts remain asserted in an
+isolated namespace. Its optimized gate passes under both Jazzy RMWs; only test
+code changed after the performance measurements.
+
+This is a promoted fix for canceled-observer cleanup only. Pending feedback
+delivery and large server cancel delivery/decision batches remain open and the
+earlier broad prototype remains unpromoted.
+

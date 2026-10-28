@@ -745,16 +745,30 @@ impl WrappedActionClientUntyped {
         }))
     }
 
-    fn prune_canceled_requests(&mut self) -> Vec<ActionClientCompletion> {
+    fn prune_canceled_requests_with_progress(&mut self) -> (Vec<ActionClientCompletion>, bool) {
         let mut completions = Vec::new();
-        self.prune_canceled_cancel_requests();
-        self.prune_canceled_feedback();
-        let canceled_results =
-            take_canceled_result_goals(&self.canceled_result_goals, &self.result_senders);
+        let (canceled_cancels, cancels_left) = take_canceled_cancel_sequences_with_progress(
+            &self.canceled_cancel_requests,
+            &self.cancel_response_channels,
+        );
+        for sequence in canceled_cancels {
+            self.cancel_response_channels.remove(&sequence);
+        }
+        let (canceled_feedback, feedback_left) = take_canceled_feedback_goals_with_progress(
+            &self.canceled_feedback_goals,
+            &self.feedback_senders,
+        );
+        for uuid in canceled_feedback {
+            self.feedback_senders.remove(&uuid);
+        }
+        let (canceled_results, results_left) = take_canceled_result_goals_with_progress(
+            &self.canceled_result_goals,
+            &self.result_senders,
+        );
         for uuid in canceled_results {
             completions.extend(self.forget_result(&uuid));
         }
-        completions
+        (completions, cancels_left || feedback_left || results_left)
     }
 
     fn prune_canceled_cancel_requests(&mut self) {
@@ -1047,12 +1061,12 @@ impl ActionClient_ for WrappedActionClientUntyped {
         self.poll_available_channels.register(s)
     }
 
-    fn poll_maintenance(&mut self) -> Vec<ActionClientCompletion> {
-        let mut completions = self.prune_canceled_requests();
+    fn poll_maintenance(&mut self) -> (Vec<ActionClientCompletion>, bool) {
+        let (mut completions, continuation) = self.prune_canceled_requests_with_progress();
         if let PendingFeedbackAction::Deliver(completion) = self.pending_feedback_completion() {
             completions.push(completion);
         }
-        completions
+        (completions, continuation)
     }
 
     fn has_pending_maintenance(&self) -> bool {

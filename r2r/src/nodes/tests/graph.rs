@@ -167,3 +167,88 @@ fn counts_topic_and_service_graph_entities() {
         Err(Error::RCL_RET_INVALID_ARGUMENT)
     ));
 }
+
+#[test]
+fn endpoint_info_queries_expand_relative_and_private_topic_names() {
+    let context = Context::create().unwrap();
+    let namespace = format!("/scope/endpoint_{}", uuid::Uuid::new_v4().simple());
+    let mut node = Node::create(context, "endpoint_name_test", &namespace).unwrap();
+    let _relative = node
+        .create_publisher::<crate::std_msgs::msg::String>("relative", QosProfile::default())
+        .unwrap();
+    let _private = node
+        .create_publisher::<crate::std_msgs::msg::String>("~/private", QosProfile::default())
+        .unwrap();
+    let _relative_subscription = node
+        .subscribe::<crate::std_msgs::msg::String>("relative", QosProfile::default())
+        .unwrap();
+    let _private_subscription = node
+        .subscribe::<crate::std_msgs::msg::String>("~/private", QosProfile::default())
+        .unwrap();
+    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
+    let _relative_service = node
+        .create_service::<crate::example_interfaces::srv::AddTwoInts::Service>(
+            "relative_service",
+            QosProfile::default(),
+        )
+        .unwrap();
+    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
+    let _relative_client = node
+        .create_client::<crate::example_interfaces::srv::AddTwoInts::Service>(
+            "relative_client",
+            QosProfile::default(),
+        )
+        .unwrap();
+
+    wait_for_graph_condition(&mut node, |node| {
+        let present = ["relative", "~/private"].iter().all(|topic| {
+            node.get_publishers_info_by_topic(topic, false)
+                .unwrap()
+                .iter()
+                .any(|info| info.topic_type == "std_msgs/msg/String")
+                && node
+                    .get_subscriptions_info_by_topic(topic, false)
+                    .unwrap()
+                    .iter()
+                    .any(|info| info.topic_type == "std_msgs/msg/String")
+        });
+        #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
+        let present = present
+            && node.count_services("relative_service").unwrap() == 1
+            && node.count_clients("relative_client").unwrap() == 1;
+        present
+    });
+
+    let relative = node
+        .get_publishers_info_by_topic("relative", false)
+        .unwrap();
+    assert!(relative
+        .iter()
+        .any(|info| info.topic_type == "std_msgs/msg/String"));
+    let private = node
+        .get_publishers_info_by_topic("~/private", false)
+        .unwrap();
+    assert!(private
+        .iter()
+        .any(|info| info.topic_type == "std_msgs/msg/String"));
+    let relative = node
+        .get_subscriptions_info_by_topic("relative", false)
+        .unwrap();
+    assert!(relative
+        .iter()
+        .any(|info| info.topic_type == "std_msgs/msg/String"));
+    let private = node
+        .get_subscriptions_info_by_topic("~/private", false)
+        .unwrap();
+    assert!(private
+        .iter()
+        .any(|info| info.topic_type == "std_msgs/msg/String"));
+
+    assert_eq!(node.count_publishers("relative").unwrap(), 1);
+    assert_eq!(node.count_subscribers("relative").unwrap(), 1);
+    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
+    {
+        assert_eq!(node.count_services("relative_service").unwrap(), 1);
+        assert_eq!(node.count_clients("relative_client").unwrap(), 1);
+    }
+}

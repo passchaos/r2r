@@ -31,6 +31,7 @@ use crate::{
 use r2r_actions::*;
 use r2r_rcl::*;
 
+mod cancellation;
 mod status;
 
 pub(crate) struct ActionClientCompletion {
@@ -267,53 +268,68 @@ impl Drop for ResultFutureRegistration {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn take_canceled_result_goals<T>(
     canceled_results: &CanceledResultQueue,
     result_senders: &HashMap<uuid::Uuid, oneshot::Sender<T>>,
 ) -> Vec<uuid::Uuid> {
-    let candidates = {
-        let mut canceled_results = canceled_results.lock();
-        let count = canceled_results.len().min(MAX_ACTION_RESPONSES_PER_SPIN);
-        canceled_results.drain(..count).collect::<Vec<_>>()
-    };
-    candidates
+    take_canceled_result_goals_with_progress(canceled_results, result_senders).0
+}
+
+pub(crate) fn take_canceled_result_goals_with_progress<T>(
+    canceled_results: &CanceledResultQueue,
+    result_senders: &HashMap<uuid::Uuid, oneshot::Sender<T>>,
+) -> (Vec<uuid::Uuid>, bool) {
+    let (candidates, unexamined) =
+        cancellation::take_batch_with_progress(canceled_results, MAX_ACTION_RESPONSES_PER_SPIN);
+    let canceled = candidates
         .into_iter()
         .filter(|uuid| {
             result_senders
                 .get(uuid)
                 .is_some_and(oneshot::Sender::is_canceled)
         })
-        .collect()
+        .collect();
+    (canceled, unexamined)
 }
 
 pub(crate) fn take_canceled_cancel_sequences(
     canceled_cancels: &CanceledCancelQueue,
     cancel_senders: &HashMap<i64, oneshot::Sender<action_msgs::srv::CancelGoal::Response>>,
 ) -> Vec<i64> {
-    let candidates = {
-        let mut canceled_cancels = canceled_cancels.lock();
-        let count = canceled_cancels.len().min(MAX_ACTION_RESPONSES_PER_SPIN);
-        canceled_cancels.drain(..count).collect::<Vec<_>>()
-    };
-    candidates
+    take_canceled_cancel_sequences_with_progress(canceled_cancels, cancel_senders).0
+}
+
+pub(crate) fn take_canceled_cancel_sequences_with_progress(
+    canceled_cancels: &CanceledCancelQueue,
+    cancel_senders: &HashMap<i64, oneshot::Sender<action_msgs::srv::CancelGoal::Response>>,
+) -> (Vec<i64>, bool) {
+    let (candidates, unexamined) =
+        cancellation::take_batch_with_progress(canceled_cancels, MAX_ACTION_RESPONSES_PER_SPIN);
+    let canceled = candidates
         .into_iter()
         .filter(|sequence| {
             cancel_senders
                 .get(sequence)
                 .is_some_and(oneshot::Sender::is_canceled)
         })
-        .collect()
+        .collect();
+    (canceled, unexamined)
 }
 
 pub(crate) fn take_canceled_feedback_goals<T>(
     canceled_feedback: &CanceledFeedbackQueue,
     feedback_senders: &HashMap<uuid::Uuid, FeedbackSender<T>>,
 ) -> Vec<uuid::Uuid> {
-    let candidates = {
-        let mut canceled_feedback = canceled_feedback.lock();
-        let count = canceled_feedback.len().min(MAX_ACTION_FEEDBACK_PER_SPIN);
-        canceled_feedback.drain(..count).collect::<Vec<_>>()
-    };
+    take_canceled_feedback_goals_with_progress(canceled_feedback, feedback_senders).0
+}
+
+pub(crate) fn take_canceled_feedback_goals_with_progress<T>(
+    canceled_feedback: &CanceledFeedbackQueue,
+    feedback_senders: &HashMap<uuid::Uuid, FeedbackSender<T>>,
+) -> (Vec<uuid::Uuid>, bool) {
+    let (candidates, unexamined) =
+        cancellation::take_batch_with_progress(canceled_feedback, MAX_ACTION_FEEDBACK_PER_SPIN);
     let mut canceled = Vec::new();
     let mut retry = Vec::new();
     for uuid in candidates {
@@ -330,7 +346,7 @@ pub(crate) fn take_canceled_feedback_goals<T>(
     if !retry.is_empty() {
         canceled_feedback.lock().extend(retry);
     }
-    canceled
+    (canceled, unexamined)
 }
 
 impl PendingFeedbackQueue {
@@ -1432,7 +1448,7 @@ pub trait ActionClient_ {
     ) -> Result<ActionClientTakeResult>;
 
     fn register_poll_available(&mut self, s: oneshot::Sender<()>) -> bool;
-    fn poll_maintenance(&mut self) -> Vec<ActionClientCompletion>;
+    fn poll_maintenance(&mut self) -> (Vec<ActionClientCompletion>, bool);
     fn has_pending_maintenance(&self) -> bool;
     fn disable_maintenance_notifications(&self);
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Vec<ActionClientCompletion>;
@@ -1580,16 +1596,35 @@ where
         }))
     }
 
+    #[cfg(test)]
     fn prune_canceled_requests(&mut self) -> Vec<ActionClientCompletion> {
+        self.prune_canceled_requests_with_progress().0
+    }
+
+    fn prune_canceled_requests_with_progress(&mut self) -> (Vec<ActionClientCompletion>, bool) {
         let mut completions = Vec::new();
-        self.prune_canceled_cancel_requests();
-        self.prune_canceled_feedback();
-        let canceled_results =
-            take_canceled_result_goals(&self.canceled_result_goals, &self.result_senders);
+        let (canceled_cancels, cancels_left) = take_canceled_cancel_sequences_with_progress(
+            &self.canceled_cancel_requests,
+            &self.cancel_response_channels,
+        );
+        for sequence in canceled_cancels {
+            self.cancel_response_channels.remove(&sequence);
+        }
+        let (canceled_feedback, feedback_left) = take_canceled_feedback_goals_with_progress(
+            &self.canceled_feedback_goals,
+            &self.feedback_senders,
+        );
+        for uuid in canceled_feedback {
+            self.feedback_senders.remove(&uuid);
+        }
+        let (canceled_results, results_left) = take_canceled_result_goals_with_progress(
+            &self.canceled_result_goals,
+            &self.result_senders,
+        );
         for uuid in canceled_results {
             completions.extend(self.forget_result(&uuid));
         }
-        completions
+        (completions, cancels_left || feedback_left || results_left)
     }
 
     fn prune_canceled_cancel_requests(&mut self) {
@@ -1893,12 +1928,12 @@ where
         self.poll_available_channels.register(s)
     }
 
-    fn poll_maintenance(&mut self) -> Vec<ActionClientCompletion> {
-        let mut completions = self.prune_canceled_requests();
+    fn poll_maintenance(&mut self) -> (Vec<ActionClientCompletion>, bool) {
+        let (mut completions, continuation) = self.prune_canceled_requests_with_progress();
         if let PendingFeedbackAction::Deliver(completion) = self.pending_feedback_completion() {
             completions.push(completion);
         }
-        completions
+        (completions, continuation)
     }
 
     fn has_pending_maintenance(&self) -> bool {
@@ -2552,8 +2587,8 @@ mod tests {
             fn register_poll_available(&mut self, _sender: oneshot::Sender<()>) -> bool {
                 false
             }
-            fn poll_maintenance(&mut self) -> Vec<ActionClientCompletion> {
-                Vec::new()
+            fn poll_maintenance(&mut self) -> (Vec<ActionClientCompletion>, bool) {
+                (Vec::new(), false)
             }
 
             fn has_pending_maintenance(&self) -> bool {

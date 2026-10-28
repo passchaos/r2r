@@ -198,7 +198,9 @@ impl Node {
             let maintenance_result = complete_action_client_operation(
                 client,
                 |client, completions| {
-                    completions.extend(client.poll_maintenance());
+                    let (ready, continuation) = client.poll_maintenance();
+                    local_action_progress |= continuation;
+                    completions.extend(ready);
                     Ok(())
                 },
                 |client, uuid| client.forget_goal(uuid),

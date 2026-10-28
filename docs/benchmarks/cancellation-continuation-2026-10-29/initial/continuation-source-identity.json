@@ -1,0 +1,12 @@
+{
+  "sources": {
+    "r2r/src/nodes/spin/prepare.rs": "dc6bdab09b05e30e3dff336d6df37b9de592759d4a0221ed451eaba240b216d5",
+    "r2r/src/action_clients/cancellation.rs": "064172b2aba2d32dbd5d16bcfb56bf171b3fe41444adaa424a120a784afd066a"
+  },
+  "binary_sha256": {
+    "r2r-candidate": "3500f0f3863ed88da489c9e8ba3d0aa23f135fe2b51684b09356d7b39788b0d3",
+    "r2r-baseline": "84ed2de79b940eb082da89cd41e2fee2c9e1e2085910df0b4dff8fa1c69ce490",
+    "rclcpp-comparison": "547677f0aa734ed161bc087407a044ba9f5a972ea93a902dbca3f3e6c3ead30f"
+  },
+  "note": "supplemental source hashes; only extra unit assertions changed after build, runtime implementation is unchanged"
+}

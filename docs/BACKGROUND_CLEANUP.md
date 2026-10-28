@@ -1,5 +1,9 @@
 # Background entity cleanup and action maintenance
 
+[Cancellation backlog cleanup](ACTION_CANCELLATION_BACKLOG.md) continues result,
+cancel and feedback observer cleanup across bounded passes, even after the
+initial enqueue notification has been consumed.
+
 Dropping a public endpoint queues its identity for the owning node's next
 prepare/dispatch cycle. A background executor can wait indefinitely without
 unrelated traffic; queued cleanup must wake that native wait itself. The
