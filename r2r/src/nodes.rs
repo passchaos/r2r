@@ -421,6 +421,7 @@ impl Node {
             result_msgs: HashMap::new(),
             result_requests: HashMap::new(),
             cancel_request_channel_capacity,
+            maintenance_wake_owner: Arc::downgrade(&self.dropped_action_servers),
         };
 
         let server_arc = Arc::new(Mutex::new(server));

@@ -2,6 +2,76 @@ use super::*;
 use crate::{example_interfaces::action::Fibonacci, GoalStatus};
 
 #[test]
+fn ready_fanout_cancel_decisions_continue_before_native_wait() {
+    let context = Context::create().unwrap();
+    let mut server = Node::create(context.clone(), "fanout_cancel_server", "").unwrap();
+    let mut client_node = Node::create(context, "fanout_cancel_client", "").unwrap();
+    let name = format!("/fanout_cancel_{}", uuid::Uuid::new_v4().simple());
+    let mut requests = server
+        .create_action_server::<Fibonacci::Action>(&name)
+        .unwrap();
+    let client = client_node
+        .create_action_client::<Fibonacci::Action>(&name)
+        .unwrap();
+    let cancel = client_node
+        .create_client::<crate::action_msgs::srv::CancelGoal::Service>(
+            &format!("{name}/_action/cancel_goal"),
+            QosProfile::default(),
+        )
+        .unwrap();
+    let mut goals = Vec::new();
+    let mut observations = Vec::new();
+    for order in 0..40 {
+        let response = client.send_goal_request(Fibonacci::Goal { order }).unwrap();
+        let request = drive(&mut server, &mut client_node, async {
+            requests
+                .next()
+                .await
+                .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)
+        })
+        .unwrap();
+        goals.push(request.accept_deferred().unwrap());
+        observations.push(drive(&mut server, &mut client_node, response).unwrap());
+    }
+    let response = cancel
+        .request(&crate::action_msgs::srv::CancelGoal::Request::default())
+        .unwrap();
+    let mut decisions = Vec::new();
+    for (_, stream) in &mut goals {
+        decisions.push(
+            drive(&mut server, &mut client_node, async {
+                stream
+                    .next()
+                    .await
+                    .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)
+            })
+            .unwrap(),
+        );
+    }
+    for _ in 0..4 {
+        server.try_spin_once(Duration::ZERO).unwrap();
+        client_node.try_spin_once(Duration::ZERO).unwrap();
+    }
+    for decision in decisions {
+        decision.reject();
+    }
+    let prepared = server.prepare_spin(Duration::from_millis(250)).unwrap();
+    assert_eq!(
+        prepared.timeout,
+        Duration::ZERO,
+        "unexamined cancel decisions entered a long wait"
+    );
+    let response = drive(&mut server, &mut client_node, response).unwrap();
+    assert_eq!(
+        response.return_code,
+        crate::action_msgs::srv::CancelGoal::Response::ERROR_REJECTED as i8
+    );
+    assert!(response.goals_canceling.is_empty());
+    assert!(goals.iter().all(|(goal, _)| !goal.is_cancelling().unwrap()));
+    drop((observations, goals));
+}
+
+#[test]
 fn same_thread_feedback_capacity_recovery_delivers_without_another_ros_message() {
     let context = Context::create().unwrap();
     let mut node = Node::create(context, "same_thread_feedback_ready", "").unwrap();

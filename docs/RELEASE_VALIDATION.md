@@ -407,3 +407,58 @@ decision batches remain separate requirements. The broader rejected prototype
 remains unpromoted, and passing this ordinary-path gate does not establish
 multigoal throughput leadership over C++.
 
+## Indexed action-server cancellation work (2026-10-29)
+
+[Server cancellation progress](ACTION_SERVER_CANCELLATION_PROGRESS.md) replaces
+large request/decision rotation with ready indices. A native forty-goal
+counterexample originally entered a 250 ms wait after processing only sixteen
+ready decisions. Pending registration and delivery now continue in bounded
+passes; full channels park until capacity recovery. Request-slot generations
+reject stale notifications and weak node notification ownership follows executor
+transfer, including ordinary small cancel streams. Bulk state is boxed and
+allocated on demand; an ordinary successful single-goal operation does not
+allocate bulk readiness state.
+
+Seven nearby cases cover 0/1/16/17/40/128 request and decision boundaries,
+all-ready/all-blocked work, exact ready selection, slot reuse, abandoned
+decisions, weak current ownership, wake-after-unlock and removed-goal sender
+restoration. All 38 original action-server cases pass. Typed/untyped native
+cases issue two forty-goal requests into zero-capacity cancel channels, verify
+all-blocked quiescence, recover only the final goal, transfer the blocked node,
+then check rejected/partially accepted responses, exact UUID sets and all
+terminal results. A two-goal case covers small-stream transfer; the same-thread
+counterexample now requires a zero wait. These boundaries pass under both Jazzy
+RMWs. Result endpoints use KeepLast(64) for the forty-result burst; the earlier
+default-depth terminal-result timeout is retained as a diagnostic.
+
+The complete `action_cancel_group` application uses public `cancel_all()`,
+accepts twenty cancellations and rejects twenty, verifies forty terminal results
+and explicitly stops its current-thread Tokio/native executor. It runs under
+both Jazzy RMWs. The complete debug workspace suite passes 557 library cases,
+with two manual benchmarks ignored. Formatting and all-target workspace Clippy
+with warnings denied pass.
+
+[Ordinary action A/B](benchmarks/server-cancellation-2026-10-29/README.md) uses
+safe `b15e12b` and independent optimized binaries, fixed CPUs 24/25 and identical
+inputs/QoS. Both original Rust/Rust versus baseline/baseline 5% latency and
+inverse-throughput gates pass: 140 application records and 140000 raw RTT
+samples, with all protocol checks. Source inventories include all extracted
+server modules and node preparation/factory code. The mixed-endpoint controls
+retain unresolved p99 increases, including 11.6% for Fast DDS C++/Rust success;
+those comparisons are outside the preselected gate and have no matched passing
+calibration. Passing the gate does not establish calibrated tail gains or C++
+performance leadership.
+
+Complete optimized Jazzy library suites execute 557 cases under CycloneDDS and
+Fast DDS, with two manual benchmarks ignored. These full suites include the
+new cancellation boundaries and the existing lifecycle, ownership, background
+I/O and cleanup contracts.
+
+Native Humble and Kilted each pass 45 optimized action-server module cases,
+four native scheduling/transfer cases and the same-thread fanout counterexample,
+plus the optimized complete application and all-target workspace Clippy. The
+no-ROS Ubuntu container compiles all workspace targets, passes snapshot and
+generator checks, and verifies 13 public API artifacts and 28 methods. Iron,
+Lyrical and Rolling retain supported CI entries without new local runtime
+evidence for this slice.
+

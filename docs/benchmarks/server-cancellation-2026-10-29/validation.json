@@ -1,0 +1,88 @@
+{
+  "checks": [
+    {
+      "gate": "workspace-final",
+      "exit_code": 0,
+      "passed_counts": [
+        557
+      ],
+      "log": "logs/server-cancel-workspace-final.log.gz",
+      "raw_log_sha256": "48c96c9547ac3850ccf105e96980cc227a3ac857fa8c7332abfc32cf8663dc45"
+    },
+    {
+      "gate": "release-cyclone-final",
+      "exit_code": 0,
+      "passed_counts": [
+        557
+      ],
+      "log": "logs/server-cancel-release-cyclone-final.log.gz",
+      "raw_log_sha256": "be798139c00f298a3e3962ce048db49a6809239100c0085dd1ef16164015d526"
+    },
+    {
+      "gate": "release-fastdds-final",
+      "exit_code": 0,
+      "passed_counts": [
+        557
+      ],
+      "log": "logs/server-cancel-release-fastdds-final.log.gz",
+      "raw_log_sha256": "b85c3dbbfb6e18fa4eb842140f21fa89496104b9485c39a6d803081bcd5c67bd"
+    },
+    {
+      "gate": "humble-final",
+      "exit_code": 0,
+      "passed_counts": [
+        45,
+        4,
+        1
+      ],
+      "log": "logs/server-cancel-humble-final.log.gz",
+      "raw_log_sha256": "7201eb46bf275581c4c11a6b1cece61abc259bdd0f9aa73dafb553dffdb98447"
+    },
+    {
+      "gate": "kilted-final",
+      "exit_code": 0,
+      "passed_counts": [
+        45,
+        4,
+        1
+      ],
+      "log": "logs/server-cancel-kilted-final.log.gz",
+      "raw_log_sha256": "d27a78246f4fc5203d839fcf81349b7bda3021a1ffd46b98fc38699f7eaa5bd6"
+    },
+    {
+      "gate": "format-final",
+      "exit_code": 0,
+      "log": "logs/server-cancel-format-final.log.gz",
+      "raw_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "gate": "clippy",
+      "exit_code": 0,
+      "log": "logs/server-cancel-clippy.log.gz",
+      "raw_log_sha256": "34c15b1886bbc0fced469674fe7cd493ba43fdf6f3d45fcdeb9815fc39e6e842"
+    },
+    {
+      "gate": "example-cyclone",
+      "exit_code": 0,
+      "log": "logs/server-cancel-example-cyclone.log.gz",
+      "raw_log_sha256": "09b3a51bde81770fa68ee7665d4cbee0116eae7e2244d9a1aaedd7ade1bb3b35"
+    },
+    {
+      "gate": "example-fastdds",
+      "exit_code": 0,
+      "log": "logs/server-cancel-example-fastdds.log.gz",
+      "raw_log_sha256": "282e737e35f8b6c8b5ea60b1a753e947ff8277a531102dcec2cb752f9670d921"
+    },
+    {
+      "gate": "no-ros-final",
+      "exit_code": 0,
+      "log": "logs/server-cancel-no-ros-final.log.gz",
+      "raw_log_sha256": "f08cf79fb0654221aedf778bd2245d9b6d796cce36418024b32866a40ee444a1",
+      "api_artifacts": 13,
+      "documented_methods": 28,
+      "all_workspace_targets": "compiled"
+    }
+  ],
+  "production_source_matches_measured_manifest": true,
+  "performance_gate_scope": "Rust/Rust versus baseline/baseline, maximum ratio 1.05; mixed-endpoint p99 observations and lack of matched calibration remain explicit."
+}

@@ -36,9 +36,14 @@ Production now [continues canceled-observer cleanup batches](ACTION_CANCELLATION
 using the bounded drain's progress flag. [Feedback capacity recovery](ACTION_FEEDBACK_PROGRESS.md)
 parks full senders and notifies runnable retries by goal, retaining bounded
 sixteen-candidate passes and stopping self-notifications when all goals are blocked.
-Native middleware feedback ingress/fanout and large server cancel delivery/decision
-batches remain open. The archived broader prototype is not used to establish
-these narrower fixes; qualified tail precision remains a separate requirement.
+[Server cancellation progress](ACTION_SERVER_CANCELLATION_PROGRESS.md) now uses
+indexed request/goal queues for large cancellation work and follows current
+executor bindings for both large and ordinary cancel streams. The complete
+forty-goal `cancel_all()` application checks partial acceptance and every result.
+Native middleware feedback ingress/fanout, cross-server scheduling, allocation
+accounting and larger mixed workloads remain open. The archived broader
+prototype is not used to establish these implementations; qualified tail
+precision remains a separate requirement.
 
 1. Finish the service-event distribution and external endpoint matrix after the local Jazzy vertical slice: correct bindings, event publication controls, native endpoint integration, and an executable example.
 2. Validate the Humble-and-newer distribution boundaries and update saved documentation bindings, with independent gates for each version-dependent API.

@@ -89,6 +89,7 @@ def rust_binary(source, target, destination, env, workload="codec"):
     if workload == "action":
         sources.extend(source / f"r2r/src/{name}.rs" for name in ["action_common", "action_clients", "action_clients_untyped", "action_servers"])
         sources.extend(sorted((source / "r2r/src/action_clients").rglob("*.rs")))
+        sources.extend(sorted((source / "r2r/src/action_servers").rglob("*.rs")))
         sources.extend(sorted((source / "r2r/src/nodes").rglob("*.rs")))
         sources.extend(sorted((source / "r2r/benches/support").rglob("*.rs")))
     if workload == "future":

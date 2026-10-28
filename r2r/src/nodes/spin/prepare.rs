@@ -128,12 +128,8 @@ impl Node {
             record_action_server_maintenance_poll();
             let maintenance_result =
                 complete_action_server_operation(action_server, |server, completions| {
-                    completions
-                        .extend(server.take_pending_cancel_delivery(Arc::clone(action_server)));
-                    let delivery_completions = completions.len();
-                    server
-                        .send_completed_cancel_requests(Arc::clone(action_server), completions)?;
-                    local_action_progress |= completions.len() > delivery_completions;
+                    local_action_progress |=
+                        server.poll_cancel_maintenance(Arc::clone(action_server), completions)?;
                     Ok(())
                 });
             if !action_server.lock().has_pending_cancel_work() {
