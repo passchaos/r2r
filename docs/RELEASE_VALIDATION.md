@@ -100,3 +100,16 @@ Note: the local Jazzy shell exports a stale `CYCLONEDDS_URI=/nav_env/...`;
 DDS-backed gates run with that variable unset. Map-only state-machine cases
 need no DDS at all.
 
+## Distribution boundaries after node module extraction (2026-10-28)
+
+Native Humble validation found two extraction regressions: the `nodes` module
+re-exported Jazzy's `TimerCallInfo` without its Humble/Iron exclusion, and the
+action-name resolver became private to the action-client module even though
+the action-server factory also uses it. The export now follows the type's
+distribution condition and the resolver is visible inside `crate::nodes`.
+The test-only graph string helper is also imported only where its caller exists.
+Humble passes the action-name case, seven timer cases and library/test/example
+Clippy with warnings denied. The native Jazzy workspace suite passes with these
+boundaries restored. Iron uses the same guarded APIs; its local runtime matrix
+remains unverified.
+

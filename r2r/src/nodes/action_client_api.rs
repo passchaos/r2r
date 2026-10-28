@@ -79,7 +79,7 @@ impl Node {
     }
 
     #[cfg(any(r2r__ros__distro__humble, r2r__ros__distro__iron))]
-    fn resolve_action_name(&self, name: &str) -> Result<String> {
+    pub(in crate::nodes) fn resolve_action_name(&self, name: &str) -> Result<String> {
         self.resolve_topic_name(name).map_err(|error| match error {
             Error::RCL_RET_TOPIC_NAME_INVALID => Error::RCL_RET_ACTION_NAME_INVALID,
             error => error,

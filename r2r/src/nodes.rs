@@ -66,11 +66,13 @@ mod timers;
 mod wait_set;
 pub use executor::{Executor, ExecutorHandle, ExecutorNodeId};
 pub use future_executor::FutureExecutionOptions;
-#[cfg(test)]
+#[cfg(all(test, not(r2r__ros__distro__humble)))]
 pub(crate) use graph::c_string_from_ptr;
 pub use graph::{TopicEndpointInfo, TopicEndpointType, TopicTypeHash};
+#[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
+pub use timers::TimerCallInfo;
 pub(crate) use timers::{future_with_timeout, Timer_};
-pub use timers::{Timer, TimerCallInfo, TimerOptions};
+pub use timers::{Timer, TimerOptions};
 use wait_set::{
     action_client_wait_set_capacities, action_server_wait_set_capacities, WaitSet,
     WaitSetCapacities,
