@@ -112,3 +112,45 @@ points at where to keep extending the lead:
   allocation accounting on hot paths, and an entity-scaling benchmark before
   any registry/slotmap change. No competing Rust library does these today,
   so completing them is direct differentiation rather than catch-up.
+
+## Should r2r rewrite rcl/rmw away? (2026-10-28 decision: no)
+
+Measured dependency surface: r2r calls about 213 distinct `rcl_*`, 51
+`rcl_action_*`, 20 `rmw_*` and a dozen `rcl_lifecycle_*` entry points (librcl
+is 284 KB / 286 exported symbols, librmw 44 KB — thin C libraries, not the
+rclcpp C++ layer r2r already bypasses for execution).
+
+A full rewrite would mean independently re-implementing and maintaining
+interoperable semantics for: the action protocol (five hidden services plus
+feedback/status topics, UUID and result-retention conventions), the parameter
+system (CLI/YAML parsing, seven services, events, descriptor constraints),
+name/remapping expansion with per-distribution corner cases, QoS
+compatibility arbitration (an rcl responsibility, not automatic in DDS),
+SROS2 security, content-filtered topics, REP-2011 type-hash negotiation,
+service introspection events, loaned messages, rosout, graph caches and
+RMW-specific GID encodings — then proving all of it across six distributions
+and multiple RMWs that today work by inheritance.
+
+Three independent data points point the same way: `ros2-client` (pure
+RustDDS, years active) still has no lifecycle, experimental security/codegen
+and repeated protocol-driven API breakage; `safe_drive` (rmw-level bypass
+with the TLA+ scheduler proof) stopped releasing in 2024; and `rclrs`, the
+official ROS 2 Rust client, still chooses to link rcl after facing the same
+trade-off. Against all three goals the rewrite is neutral-to-negative:
+features accelerate through rcl (the lifecycle slice landed in a day on
+`rcl_lifecycle` and Zenoh/security are inherited), the measured performance
+advantage comes from replacing the rclcpp *execution model* with one shared
+native wait — already done — while a thin non-virtual rcl FFI boundary is
+nanoseconds and has never shown up as a hotspot, and the rcl dependency is
+free for the target users, who already have ROS installed.
+
+Reconsider only if one of these becomes real: a strategic rcl-free
+deployment requirement (statically linked production images with no ROS
+install), profiling with interleaved A/B evidence that rcl itself (not
+rclcpp) is the bottleneck, or upstream rcl maintenance stopping. The cheap
+ways to capture the benefits without a rewrite are incremental bindgen
+caching, refreshed doc-only binding snapshots, the no-colcon cargo path, and
+an `rmw_zenoh` interoperability matrix (already inherited, currently
+unevidenced). If middleware independence is ever genuinely required it should
+arrive as an optional compile-time backend behind a trait, not as a rewrite
+of the default.
