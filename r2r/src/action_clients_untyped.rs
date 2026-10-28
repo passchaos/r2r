@@ -350,7 +350,7 @@ impl ActionClientUntyped {
 
         let uuid = uuid::Uuid::new_v4();
         let uuid_msg = unique_identifier_msgs::msg::UUID {
-            uuid: uuid.as_bytes().to_vec(),
+            uuid: *uuid.as_bytes(),
         };
         let make_goal_request_msg = client.lock().action_type_support.make_goal_request_msg;
         let fut_client = Weak::clone(&self.client);
@@ -416,7 +416,7 @@ impl ActionClientUntyped {
                                         .upgrade()
                                         .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
                                     let uuid_msg = unique_identifier_msgs::msg::UUID {
-                                        uuid: uuid.as_bytes().to_vec(),
+                                        uuid: *uuid.as_bytes(),
                                     };
                                     let make_result_request_msg =
                                         c.lock().action_type_support.make_result_request_msg;

@@ -412,7 +412,12 @@ impl ParameterClient {
             self.list_parameters(prefixes, srv::ListParameters::Request::DEPTH_RECURSIVE as u64)?;
         let client = self.clone();
         Ok(async move {
-            let mut names = list.await?.names;
+            let mut names = list
+                .await?
+                .names
+                .into_iter()
+                .map(|name| name.into_text("parameter name"))
+                .collect::<Result<Vec<_>>>()?;
             let trim = if prefix.is_empty() {
                 0
             } else {
@@ -609,14 +614,14 @@ fn normalize_remote_node_name(name: &str) -> Result<String> {
     Ok(normalized.to_owned())
 }
 
-fn strings<I, S>(values: I) -> Vec<String>
+fn strings<I, S>(values: I) -> Vec<crate::RosString>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
     values
         .into_iter()
-        .map(|value| value.as_ref().to_owned())
+        .map(|value| crate::RosString::from(value.as_ref()))
         .collect()
 }
 
@@ -629,7 +634,7 @@ where
     parameters
         .into_iter()
         .map(|(name, value)| msg::Parameter {
-            name: name.into(),
+            name: crate::RosString::from(Into::<String>::into(name)),
             value: value.into().into_parameter_value_msg(),
         })
         .collect()

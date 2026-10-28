@@ -370,7 +370,7 @@ pub mod msg {
     #[serde(default)]
     pub struct Header {
         pub stamp: builtin_interfaces::msg::Time,
-        pub frame_id: std::string::String,
+        pub frame_id: crate::RosString,
     }
     unsafe impl WrappedTypesupport for Header {
         type CStruct = std_msgs__msg__Header;
@@ -391,12 +391,12 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Header {
             Header {
                 stamp: builtin_interfaces::msg::Time::from_native(&msg.stamp),
-                frame_id: msg.frame_id.to_str().to_owned(),
+                frame_id: crate::RosString::from(msg.frame_id.as_bytes()),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.stamp.copy_to_native(&mut msg.stamp);
-            msg.frame_id.assign(&self.frame_id);
+            msg.frame_id.try_assign_bytes((&self.frame_id).as_bytes());
         }
     }
     impl Default for Header {
@@ -704,7 +704,7 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct MultiArrayDimension {
-        pub label: std::string::String,
+        pub label: crate::RosString,
         pub size: u32,
         pub stride: u32,
     }
@@ -727,13 +727,13 @@ pub mod msg {
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> MultiArrayDimension {
             MultiArrayDimension {
-                label: msg.label.to_str().to_owned(),
+                label: crate::RosString::from(msg.label.as_bytes()),
                 size: msg.size,
                 stride: msg.stride,
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.label.assign(&self.label);
+            msg.label.try_assign_bytes((&self.label).as_bytes());
             msg.size = self.size;
             msg.stride = self.stride;
         }
@@ -806,7 +806,7 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct String {
-        pub data: std::string::String,
+        pub data: crate::RosString,
     }
     unsafe impl WrappedTypesupport for String {
         type CStruct = std_msgs__msg__String;
@@ -826,11 +826,11 @@ pub mod msg {
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> String {
             String {
-                data: msg.data.to_str().to_owned(),
+                data: crate::RosString::from(msg.data.as_bytes()),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.data.assign(&self.data);
+            msg.data.try_assign_bytes((&self.data).as_bytes());
         }
     }
     impl Default for String {

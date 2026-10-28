@@ -11,6 +11,8 @@ from run import regression_failures, validate_result
 def verify(path, require_performance_pass=False):
     report = json.loads(path.read_text())
     records, metadata = report["records"], report["metadata"]
+    if metadata.get("allocation_probe") and "regression_gate" in metadata:
+        raise RuntimeError("instrumented codec report cannot claim a latency gate")
     labels = set(metadata["binary_sha256"])
     sizes = metadata.get("payload_sizes", sorted({row["elements"] for row in report["summary"]}))
     modes = metadata.get("modes", list(dict.fromkeys(row["mode"] for row in report["summary"])))
@@ -26,7 +28,7 @@ def verify(path, require_performance_pass=False):
             group = [row for row in size_records if row["mode"] == mode]
             reference = group[0]
             for row in group:
-                validate_result(row, metadata["rmw"], mode, size, reference["iterations"], fixture["wire_bytes"], fixture["wire_hash"])
+                validate_result(row, metadata["rmw"], mode, size, reference["iterations"], fixture["wire_bytes"], fixture["wire_hash"],metadata.get("fixture","int32_array"),bool(metadata.get("allocation_probe")))
                 if row["checksum"] != reference["checksum"] or row["implementation"] != ("rclcpp" if row["label"] == "rclcpp" else "r2r"):
                     raise RuntimeError("codec result identity or checksum mismatch")
     rows = {(row["elements"], row["mode"]) for row in report["summary"]}

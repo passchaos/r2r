@@ -84,7 +84,8 @@ pub mod msg {
     #[serde(default)]
     pub struct AccelWithCovariance {
         pub accel: geometry_msgs::msg::Accel,
-        pub covariance: Vec<f64>,
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub covariance: [f64; 36usize],
     }
     unsafe impl WrappedTypesupport for AccelWithCovariance {
         type CStruct = geometry_msgs__msg__AccelWithCovariance;
@@ -108,14 +109,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> AccelWithCovariance {
             AccelWithCovariance {
                 accel: geometry_msgs::msg::Accel::from_native(&msg.accel),
-                covariance: msg.covariance.to_vec(),
+                covariance: msg.covariance,
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.accel.copy_to_native(&mut msg.accel);
             assert_eq!(
-                self.covariance.len(), 36usize, "Field {} is fixed size of {}!",
-                "covariance", 36usize
+                self.covariance.len(),
+                36usize,
+                "Field {} is fixed size of {}!",
+                "covariance",
+                36usize,
             );
             msg.covariance.copy_from_slice(&self.covariance[..36usize]);
         }
@@ -685,7 +689,8 @@ pub mod msg {
     #[serde(default)]
     pub struct PoseWithCovariance {
         pub pose: geometry_msgs::msg::Pose,
-        pub covariance: Vec<f64>,
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub covariance: [f64; 36usize],
     }
     unsafe impl WrappedTypesupport for PoseWithCovariance {
         type CStruct = geometry_msgs__msg__PoseWithCovariance;
@@ -708,14 +713,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> PoseWithCovariance {
             PoseWithCovariance {
                 pose: geometry_msgs::msg::Pose::from_native(&msg.pose),
-                covariance: msg.covariance.to_vec(),
+                covariance: msg.covariance,
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.pose.copy_to_native(&mut msg.pose);
             assert_eq!(
-                self.covariance.len(), 36usize, "Field {} is fixed size of {}!",
-                "covariance", 36usize
+                self.covariance.len(),
+                36usize,
+                "Field {} is fixed size of {}!",
+                "covariance",
+                36usize,
             );
             msg.covariance.copy_from_slice(&self.covariance[..36usize]);
         }
@@ -902,7 +910,7 @@ pub mod msg {
     #[serde(default)]
     pub struct TransformStamped {
         pub header: std_msgs::msg::Header,
-        pub child_frame_id: std::string::String,
+        pub child_frame_id: crate::RosString,
         pub transform: geometry_msgs::msg::Transform,
     }
     unsafe impl WrappedTypesupport for TransformStamped {
@@ -926,13 +934,13 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> TransformStamped {
             TransformStamped {
                 header: std_msgs::msg::Header::from_native(&msg.header),
-                child_frame_id: msg.child_frame_id.to_str().to_owned(),
+                child_frame_id: crate::RosString::from(msg.child_frame_id.as_bytes()),
                 transform: geometry_msgs::msg::Transform::from_native(&msg.transform),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.header.copy_to_native(&mut msg.header);
-            msg.child_frame_id.assign(&self.child_frame_id);
+            msg.child_frame_id.try_assign_bytes((&self.child_frame_id).as_bytes());
             self.transform.copy_to_native(&mut msg.transform);
         }
     }
@@ -1026,7 +1034,8 @@ pub mod msg {
     #[serde(default)]
     pub struct TwistWithCovariance {
         pub twist: geometry_msgs::msg::Twist,
-        pub covariance: Vec<f64>,
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub covariance: [f64; 36usize],
     }
     unsafe impl WrappedTypesupport for TwistWithCovariance {
         type CStruct = geometry_msgs__msg__TwistWithCovariance;
@@ -1050,14 +1059,17 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> TwistWithCovariance {
             TwistWithCovariance {
                 twist: geometry_msgs::msg::Twist::from_native(&msg.twist),
-                covariance: msg.covariance.to_vec(),
+                covariance: msg.covariance,
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.twist.copy_to_native(&mut msg.twist);
             assert_eq!(
-                self.covariance.len(), 36usize, "Field {} is fixed size of {}!",
-                "covariance", 36usize
+                self.covariance.len(),
+                36usize,
+                "Field {} is fixed size of {}!",
+                "covariance",
+                36usize,
             );
             msg.covariance.copy_from_slice(&self.covariance[..36usize]);
         }

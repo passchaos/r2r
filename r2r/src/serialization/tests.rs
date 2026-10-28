@@ -65,17 +65,12 @@ fn serialization_reuses_capacity_and_matches_full_native_wire_oracle() {
 }
 
 #[test]
-fn invalid_native_input_returns_an_error_and_valid_input_can_retry() {
+fn invalid_fixed_array_json_is_rejected_before_native_serialization() {
     let mut serializer = MessageSerializer::<UUID>::new().unwrap();
-    let valid = UUID { uuid: vec![7; 16] };
-    assert_eq!(serializer.serialize(&valid).unwrap(), valid.to_serialized_bytes().unwrap());
+    let valid = UUID { uuid: [7; 16] };
     for count in [0, 15, 17] {
-        assert!(matches!(
-            serializer.serialize(&UUID {
-                uuid: vec![9; count]
-            }),
-            Err(Error::RCL_RET_INVALID_ARGUMENT)
-        ));
+        let value = serde_json::json!({"uuid":vec![9;count]});
+        assert!(serde_json::from_value::<UUID>(value).is_err());
         assert_eq!(serializer.serialize(&valid).unwrap(), valid.to_serialized_bytes().unwrap());
     }
 }

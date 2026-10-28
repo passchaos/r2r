@@ -17,8 +17,8 @@ pub mod msg {
         pub present: bool,
         pub cell_voltage: Vec<f32>,
         pub cell_temperature: Vec<f32>,
-        pub location: std::string::String,
-        pub serial_number: std::string::String,
+        pub location: crate::RosString,
+        pub serial_number: crate::RosString,
     }
     unsafe impl WrappedTypesupport for BatteryState {
         type CStruct = sensor_msgs__msg__BatteryState;
@@ -53,8 +53,8 @@ pub mod msg {
                 present: msg.present,
                 cell_voltage: msg.cell_voltage.to_vec(),
                 cell_temperature: msg.cell_temperature.to_vec(),
-                location: msg.location.to_str().to_owned(),
-                serial_number: msg.serial_number.to_str().to_owned(),
+                location: crate::RosString::from(msg.location.as_bytes()),
+                serial_number: crate::RosString::from(msg.serial_number.as_bytes()),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
@@ -72,8 +72,8 @@ pub mod msg {
             msg.present = self.present;
             msg.cell_voltage.update(&self.cell_voltage);
             msg.cell_temperature.update(&self.cell_temperature);
-            msg.location.assign(&self.location);
-            msg.serial_number.assign(&self.serial_number);
+            msg.location.try_assign_bytes((&self.location).as_bytes());
+            msg.serial_number.try_assign_bytes((&self.serial_number).as_bytes());
         }
     }
     impl Default for BatteryState {
@@ -112,11 +112,14 @@ pub mod msg {
         pub header: std_msgs::msg::Header,
         pub height: u32,
         pub width: u32,
-        pub distortion_model: std::string::String,
+        pub distortion_model: crate::RosString,
         pub d: Vec<f64>,
-        pub k: Vec<f64>,
-        pub r: Vec<f64>,
-        pub p: Vec<f64>,
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub k: [f64; 9usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub r: [f64; 9usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub p: [f64; 12usize],
         pub binning_x: u32,
         pub binning_y: u32,
         pub roi: sensor_msgs::msg::RegionOfInterest,
@@ -143,11 +146,13 @@ pub mod msg {
                 header: std_msgs::msg::Header::from_native(&msg.header),
                 height: msg.height,
                 width: msg.width,
-                distortion_model: msg.distortion_model.to_str().to_owned(),
+                distortion_model: crate::RosString::from(
+                    msg.distortion_model.as_bytes(),
+                ),
                 d: msg.d.to_vec(),
-                k: msg.k.to_vec(),
-                r: msg.r.to_vec(),
-                p: msg.p.to_vec(),
+                k: msg.k,
+                r: msg.r,
+                p: msg.p,
                 binning_x: msg.binning_x,
                 binning_y: msg.binning_y,
                 roi: sensor_msgs::msg::RegionOfInterest::from_native(&msg.roi),
@@ -157,18 +162,30 @@ pub mod msg {
             self.header.copy_to_native(&mut msg.header);
             msg.height = self.height;
             msg.width = self.width;
-            msg.distortion_model.assign(&self.distortion_model);
+            msg.distortion_model.try_assign_bytes((&self.distortion_model).as_bytes());
             msg.d.update(&self.d);
             assert_eq!(
-                self.k.len(), 9usize, "Field {} is fixed size of {}!", "k", 9usize
+                self.k.len(),
+                9usize,
+                "Field {} is fixed size of {}!",
+                "k",
+                9usize,
             );
             msg.k.copy_from_slice(&self.k[..9usize]);
             assert_eq!(
-                self.r.len(), 9usize, "Field {} is fixed size of {}!", "r", 9usize
+                self.r.len(),
+                9usize,
+                "Field {} is fixed size of {}!",
+                "r",
+                9usize,
             );
             msg.r.copy_from_slice(&self.r[..9usize]);
             assert_eq!(
-                self.p.len(), 12usize, "Field {} is fixed size of {}!", "p", 12usize
+                self.p.len(),
+                12usize,
+                "Field {} is fixed size of {}!",
+                "p",
+                12usize,
             );
             msg.p.copy_from_slice(&self.p[..12usize]);
             msg.binning_x = self.binning_x;
@@ -185,7 +202,7 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct ChannelFloat32 {
-        pub name: std::string::String,
+        pub name: crate::RosString,
         pub values: Vec<f32>,
     }
     unsafe impl WrappedTypesupport for ChannelFloat32 {
@@ -207,12 +224,12 @@ pub mod msg {
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> ChannelFloat32 {
             ChannelFloat32 {
-                name: msg.name.to_str().to_owned(),
+                name: crate::RosString::from(msg.name.as_bytes()),
                 values: msg.values.to_vec(),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.name.assign(&self.name);
+            msg.name.try_assign_bytes((&self.name).as_bytes());
             msg.values.update(&self.values);
         }
     }
@@ -226,7 +243,7 @@ pub mod msg {
     #[serde(default)]
     pub struct CompressedImage {
         pub header: std_msgs::msg::Header,
-        pub format: std::string::String,
+        pub format: crate::RosString,
         pub data: Vec<u8>,
     }
     unsafe impl WrappedTypesupport for CompressedImage {
@@ -249,13 +266,13 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> CompressedImage {
             CompressedImage {
                 header: std_msgs::msg::Header::from_native(&msg.header),
-                format: msg.format.to_str().to_owned(),
+                format: crate::RosString::from(msg.format.as_bytes()),
                 data: msg.data.to_vec(),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.header.copy_to_native(&mut msg.header);
-            msg.format.assign(&self.format);
+            msg.format.try_assign_bytes((&self.format).as_bytes());
             msg.data.update(&self.data);
         }
     }
@@ -357,7 +374,7 @@ pub mod msg {
         pub header: std_msgs::msg::Header,
         pub height: u32,
         pub width: u32,
-        pub encoding: std::string::String,
+        pub encoding: crate::RosString,
         pub is_bigendian: u8,
         pub step: u32,
         pub data: Vec<u8>,
@@ -384,7 +401,7 @@ pub mod msg {
                 header: std_msgs::msg::Header::from_native(&msg.header),
                 height: msg.height,
                 width: msg.width,
-                encoding: msg.encoding.to_str().to_owned(),
+                encoding: crate::RosString::from(msg.encoding.as_bytes()),
                 is_bigendian: msg.is_bigendian,
                 step: msg.step,
                 data: msg.data.to_vec(),
@@ -394,7 +411,7 @@ pub mod msg {
             self.header.copy_to_native(&mut msg.header);
             msg.height = self.height;
             msg.width = self.width;
-            msg.encoding.assign(&self.encoding);
+            msg.encoding.try_assign_bytes((&self.encoding).as_bytes());
             msg.is_bigendian = self.is_bigendian;
             msg.step = self.step;
             msg.data.update(&self.data);
@@ -411,11 +428,14 @@ pub mod msg {
     pub struct Imu {
         pub header: std_msgs::msg::Header,
         pub orientation: geometry_msgs::msg::Quaternion,
-        pub orientation_covariance: Vec<f64>,
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub orientation_covariance: [f64; 9usize],
         pub angular_velocity: geometry_msgs::msg::Vector3,
-        pub angular_velocity_covariance: Vec<f64>,
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub angular_velocity_covariance: [f64; 9usize],
         pub linear_acceleration: geometry_msgs::msg::Vector3,
-        pub linear_acceleration_covariance: Vec<f64>,
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub linear_acceleration_covariance: [f64; 9usize],
     }
     unsafe impl WrappedTypesupport for Imu {
         type CStruct = sensor_msgs__msg__Imu;
@@ -439,39 +459,46 @@ pub mod msg {
                 orientation: geometry_msgs::msg::Quaternion::from_native(
                     &msg.orientation,
                 ),
-                orientation_covariance: msg.orientation_covariance.to_vec(),
+                orientation_covariance: msg.orientation_covariance,
                 angular_velocity: geometry_msgs::msg::Vector3::from_native(
                     &msg.angular_velocity,
                 ),
-                angular_velocity_covariance: msg.angular_velocity_covariance.to_vec(),
+                angular_velocity_covariance: msg.angular_velocity_covariance,
                 linear_acceleration: geometry_msgs::msg::Vector3::from_native(
                     &msg.linear_acceleration,
                 ),
-                linear_acceleration_covariance: msg
-                    .linear_acceleration_covariance
-                    .to_vec(),
+                linear_acceleration_covariance: msg.linear_acceleration_covariance,
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.header.copy_to_native(&mut msg.header);
             self.orientation.copy_to_native(&mut msg.orientation);
             assert_eq!(
-                self.orientation_covariance.len(), 9usize,
-                "Field {} is fixed size of {}!", "orientation_covariance", 9usize
+                self.orientation_covariance.len(),
+                9usize,
+                "Field {} is fixed size of {}!",
+                "orientation_covariance",
+                9usize,
             );
             msg.orientation_covariance
                 .copy_from_slice(&self.orientation_covariance[..9usize]);
             self.angular_velocity.copy_to_native(&mut msg.angular_velocity);
             assert_eq!(
-                self.angular_velocity_covariance.len(), 9usize,
-                "Field {} is fixed size of {}!", "angular_velocity_covariance", 9usize
+                self.angular_velocity_covariance.len(),
+                9usize,
+                "Field {} is fixed size of {}!",
+                "angular_velocity_covariance",
+                9usize,
             );
             msg.angular_velocity_covariance
                 .copy_from_slice(&self.angular_velocity_covariance[..9usize]);
             self.linear_acceleration.copy_to_native(&mut msg.linear_acceleration);
             assert_eq!(
-                self.linear_acceleration_covariance.len(), 9usize,
-                "Field {} is fixed size of {}!", "linear_acceleration_covariance", 9usize
+                self.linear_acceleration_covariance.len(),
+                9usize,
+                "Field {} is fixed size of {}!",
+                "linear_acceleration_covariance",
+                9usize,
             );
             msg.linear_acceleration_covariance
                 .copy_from_slice(&self.linear_acceleration_covariance[..9usize]);
@@ -487,7 +514,7 @@ pub mod msg {
     #[serde(default)]
     pub struct JointState {
         pub header: std_msgs::msg::Header,
-        pub name: Vec<std::string::String>,
+        pub name: Vec<crate::RosString>,
         pub position: Vec<f64>,
         pub velocity: Vec<f64>,
         pub effort: Vec<f64>,
@@ -512,7 +539,7 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> JointState {
             JointState {
                 header: std_msgs::msg::Header::from_native(&msg.header),
-                name: msg.name.to_vec(),
+                name: msg.name.to_bytes_vec::<crate::RosString>(),
                 position: msg.position.to_vec(),
                 velocity: msg.velocity.to_vec(),
                 effort: msg.effort.to_vec(),
@@ -520,7 +547,7 @@ pub mod msg {
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.header.copy_to_native(&mut msg.header);
-            msg.name.update(&self.name);
+            msg.name.try_update_bytes(&self.name);
             msg.position.update(&self.position);
             msg.velocity.update(&self.velocity);
             msg.effort.update(&self.effort);
@@ -789,7 +816,8 @@ pub mod msg {
     pub struct MagneticField {
         pub header: std_msgs::msg::Header,
         pub magnetic_field: geometry_msgs::msg::Vector3,
-        pub magnetic_field_covariance: Vec<f64>,
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub magnetic_field_covariance: [f64; 9usize],
     }
     unsafe impl WrappedTypesupport for MagneticField {
         type CStruct = sensor_msgs__msg__MagneticField;
@@ -814,15 +842,18 @@ pub mod msg {
                 magnetic_field: geometry_msgs::msg::Vector3::from_native(
                     &msg.magnetic_field,
                 ),
-                magnetic_field_covariance: msg.magnetic_field_covariance.to_vec(),
+                magnetic_field_covariance: msg.magnetic_field_covariance,
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.header.copy_to_native(&mut msg.header);
             self.magnetic_field.copy_to_native(&mut msg.magnetic_field);
             assert_eq!(
-                self.magnetic_field_covariance.len(), 9usize,
-                "Field {} is fixed size of {}!", "magnetic_field_covariance", 9usize
+                self.magnetic_field_covariance.len(),
+                9usize,
+                "Field {} is fixed size of {}!",
+                "magnetic_field_covariance",
+                9usize,
             );
             msg.magnetic_field_covariance
                 .copy_from_slice(&self.magnetic_field_covariance[..9usize]);
@@ -838,7 +869,7 @@ pub mod msg {
     #[serde(default)]
     pub struct MultiDOFJointState {
         pub header: std_msgs::msg::Header,
-        pub joint_names: Vec<std::string::String>,
+        pub joint_names: Vec<crate::RosString>,
         pub transforms: Vec<geometry_msgs::msg::Transform>,
         pub twist: Vec<geometry_msgs::msg::Twist>,
         pub wrench: Vec<geometry_msgs::msg::Wrench>,
@@ -864,7 +895,7 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> MultiDOFJointState {
             MultiDOFJointState {
                 header: std_msgs::msg::Header::from_native(&msg.header),
-                joint_names: msg.joint_names.to_vec(),
+                joint_names: msg.joint_names.to_bytes_vec::<crate::RosString>(),
                 transforms: {
                     let mut temp = Vec::with_capacity(msg.transforms.size);
                     let slice = unsafe {
@@ -902,7 +933,7 @@ pub mod msg {
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.header.copy_to_native(&mut msg.header);
-            msg.joint_names.update(&self.joint_names);
+            msg.joint_names.try_update_bytes(&self.joint_names);
             unsafe {
                 geometry_msgs__msg__Transform__Sequence__fini(&mut msg.transforms);
                 geometry_msgs__msg__Transform__Sequence__init(
@@ -1073,7 +1104,8 @@ pub mod msg {
         pub latitude: f64,
         pub longitude: f64,
         pub altitude: f64,
-        pub position_covariance: Vec<f64>,
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub position_covariance: [f64; 9usize],
         pub position_covariance_type: u8,
     }
     unsafe impl WrappedTypesupport for NavSatFix {
@@ -1100,7 +1132,7 @@ pub mod msg {
                 latitude: msg.latitude,
                 longitude: msg.longitude,
                 altitude: msg.altitude,
-                position_covariance: msg.position_covariance.to_vec(),
+                position_covariance: msg.position_covariance,
                 position_covariance_type: msg.position_covariance_type,
             }
         }
@@ -1111,8 +1143,11 @@ pub mod msg {
             msg.longitude = self.longitude;
             msg.altitude = self.altitude;
             assert_eq!(
-                self.position_covariance.len(), 9usize, "Field {} is fixed size of {}!",
-                "position_covariance", 9usize
+                self.position_covariance.len(),
+                9usize,
+                "Field {} is fixed size of {}!",
+                "position_covariance",
+                9usize,
             );
             msg.position_covariance.copy_from_slice(&self.position_covariance[..9usize]);
             msg.position_covariance_type = self.position_covariance_type;
@@ -1355,7 +1390,7 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct PointField {
-        pub name: std::string::String,
+        pub name: crate::RosString,
         pub offset: u32,
         pub datatype: u8,
         pub count: u32,
@@ -1379,14 +1414,14 @@ pub mod msg {
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> PointField {
             PointField {
-                name: msg.name.to_str().to_owned(),
+                name: crate::RosString::from(msg.name.as_bytes()),
                 offset: msg.offset,
                 datatype: msg.datatype,
                 count: msg.count,
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.name.assign(&self.name);
+            msg.name.try_assign_bytes((&self.name).as_bytes());
             msg.offset = self.offset;
             msg.datatype = self.datatype;
             msg.count = self.count;
@@ -1606,7 +1641,7 @@ pub mod msg {
     pub struct TimeReference {
         pub header: std_msgs::msg::Header,
         pub time_ref: builtin_interfaces::msg::Time,
-        pub source: std::string::String,
+        pub source: crate::RosString,
     }
     unsafe impl WrappedTypesupport for TimeReference {
         type CStruct = sensor_msgs__msg__TimeReference;
@@ -1629,13 +1664,13 @@ pub mod msg {
             TimeReference {
                 header: std_msgs::msg::Header::from_native(&msg.header),
                 time_ref: builtin_interfaces::msg::Time::from_native(&msg.time_ref),
-                source: msg.source.to_str().to_owned(),
+                source: crate::RosString::from(msg.source.as_bytes()),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.header.copy_to_native(&mut msg.header);
             self.time_ref.copy_to_native(&mut msg.time_ref);
-            msg.source.assign(&self.source);
+            msg.source.try_assign_bytes((&self.source).as_bytes());
         }
     }
     impl Default for TimeReference {
@@ -1705,7 +1740,7 @@ pub mod srv {
         #[serde(default)]
         pub struct Response {
             pub success: bool,
-            pub status_message: std::string::String,
+            pub status_message: crate::RosString,
         }
         unsafe impl WrappedTypesupport for Response {
             type CStruct = sensor_msgs__srv__SetCameraInfo_Response;
@@ -1729,12 +1764,12 @@ pub mod srv {
             fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Response {
                 Response {
                     success: msg.success,
-                    status_message: msg.status_message.to_str().to_owned(),
+                    status_message: crate::RosString::from(msg.status_message.as_bytes()),
                 }
             }
             fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
                 msg.success = self.success;
-                msg.status_message.assign(&self.status_message);
+                msg.status_message.try_assign_bytes((&self.status_message).as_bytes());
             }
         }
         impl Default for Response {

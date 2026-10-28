@@ -1,0 +1,51 @@
+{
+  "workload": "codec_strings",
+  "serializer_api_detection": "r2r/src/serialization.rs present: reusable API; absent: historical owned-byte API fallback for serialize_reuse modes",
+  "benchmark_cfg": "--check-cfg=cfg(r2r_bench_serializer); --cfg r2r_bench_serializer only when serializer API exists",
+  "candidate": {
+    "r2r/benches/string_sequences.rs": "039557b486c72c38f7bf980e2c235ca46f1e5ed40b9f70cf8aff69fd9e2b5f24",
+    "r2r/src/msg_types.rs": "78725de3e8e6a30c3ac5694babe8cb1b9d68c9496b4ad7bbd1b2756fabf685a5",
+    "r2r/src/nodes.rs": "bb51cc9ecd41f6c102f010ef640c9d601038c4ceec40d7ff7496194da2a2e984",
+    "r2r/src/subscribers.rs": "8edd1704d1ec0575c3b285bec7bc4266167e5cea765fb3f484b2ad8640f21904",
+    "r2r/src/publishers.rs": "3556123ece3ce113aebef91e26a19929a9e20aea358bf7d133f473dbb0369e43",
+    "r2r/src/clients.rs": "ff5392bc6d09f7cf10639fecd8278dbc54224543a832574ace33c34dac44fd34",
+    "r2r/src/services.rs": "a6a0a990fe34f954f8174eddac6ef533c85503b0c16e2c5410993c19de895f5d",
+    "r2r_rcl/src/lib.rs": "bc1e3726db0c322542561c7f9c4473f9d3f5f3cc7e5c4c63fc244ea1097b8ed6",
+    "r2r_msg_gen/src/lib.rs": "aa23f531e645db8e42c32f8cf20499de07688d2a7af8f325dc05c57ff4290866",
+    "Cargo.lock": "e434d933fd016c998dc92ed73cbfe83993036d64993fcf7f1f13e861512a407e",
+    "r2r/benches/support/codec.rs": "df5ebdb8769fb76a8b139a832903f8f1067bbfbb0ba65e2571e00c1a21aca303",
+    "r2r/benches/support/allocation_probe.rs": "5b9bb562e8c6ab7bee6427be15af5134d13cefd557b6bc13e1e2f102c864f56d",
+    "r2r_rcl/src/strings/sequences.rs": "3d94312be5f8cb17c7e2e7bfed6ad9b0303ff0ccefd46a88a5b09dfc58b8bbfd",
+    "r2r_rcl/src/strings/tests.rs": "4c165e21909305a8259d0c424ad5804a083a97405c636d229d009b4468f54278",
+    "r2r_rcl/src/strings.rs": "13492ef5527905011755343400156278707c44ed3a22f85bb6da7616efc3eb6b",
+    "r2r/src/serialization.rs": "a1d697444fdc3ca6dd542e6cdf5514f6653b0f3aa4e69de7250cc6e4c0c57169"
+  },
+  "baseline": {
+    "r2r/benches/string_sequences.rs": "039557b486c72c38f7bf980e2c235ca46f1e5ed40b9f70cf8aff69fd9e2b5f24",
+    "r2r/src/msg_types.rs": "78725de3e8e6a30c3ac5694babe8cb1b9d68c9496b4ad7bbd1b2756fabf685a5",
+    "r2r/src/nodes.rs": "bb51cc9ecd41f6c102f010ef640c9d601038c4ceec40d7ff7496194da2a2e984",
+    "r2r/src/subscribers.rs": "8edd1704d1ec0575c3b285bec7bc4266167e5cea765fb3f484b2ad8640f21904",
+    "r2r/src/publishers.rs": "3556123ece3ce113aebef91e26a19929a9e20aea358bf7d133f473dbb0369e43",
+    "r2r/src/clients.rs": "ff5392bc6d09f7cf10639fecd8278dbc54224543a832574ace33c34dac44fd34",
+    "r2r/src/services.rs": "a6a0a990fe34f954f8174eddac6ef533c85503b0c16e2c5410993c19de895f5d",
+    "r2r_rcl/src/lib.rs": "d4f9ac1238b8fb29d1f50351e7403a4d13a137ac4f08383b055df1ce67f568f0",
+    "r2r_msg_gen/src/lib.rs": "aa23f531e645db8e42c32f8cf20499de07688d2a7af8f325dc05c57ff4290866",
+    "Cargo.lock": "e434d933fd016c998dc92ed73cbfe83993036d64993fcf7f1f13e861512a407e",
+    "r2r/benches/support/codec.rs": "df5ebdb8769fb76a8b139a832903f8f1067bbfbb0ba65e2571e00c1a21aca303",
+    "r2r/benches/support/allocation_probe.rs": "5b9bb562e8c6ab7bee6427be15af5134d13cefd557b6bc13e1e2f102c864f56d",
+    "r2r/src/serialization.rs": "a1d697444fdc3ca6dd542e6cdf5514f6653b0f3aa4e69de7250cc6e4c0c57169"
+  },
+  "baseline_ref": "ece856eff586313acfa0d6d4e1937f1447cc16fd",
+  "cpp_source_sha256": {
+    "tools/bench_ros/CMakeLists.txt": "30c7555e70e8fc90d682010e8f1d5c2bf48966809d4ef5f8cc03dad1cd2ab709",
+    "tools/bench_ros/string_sequences.cpp": "0e732093aae9682b8445c7a630df50817c472bca585a6c2c574b840c60502f85",
+    "tools/bench_ros/codec_support/probe.hpp": "c189f5c1818ad2b68c97f08e9404ea793c1d0020a073895453760af9f6cb9a8d",
+    "tools/bench_ros/codec_support/run.hpp": "7518c3e2374415a938cae173b1d5da9f2fcd2569180a57f3f242b7089b673cc0"
+  },
+  "probe_source_sha256": {
+    "tools/bench_ros/probe/probe.c": "fb969b91fc6e8f4755e4932f89044c1d35dc1dc5b5a9ff2175735e877bcb6394",
+    "tools/bench_ros/probe/probe.h": "1e158b3e377055c8b746728a4920a74523bbf0958054d04c926d79becbb8fe8a"
+  },
+  "rustflags": "",
+  "cargo_release_opt_level": "3"
+}

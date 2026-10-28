@@ -1,0 +1,60 @@
+[
+  {
+    "native_matches": true,
+    "cdr_matches": false,
+    "wire_bytes": 70,
+    "input_bytes": 9,
+    "observed_bytes": 4,
+    "library": "baseline",
+    "rmw": "rmw_cyclonedds_cpp",
+    "binary_sha256": "e6f79567acbd15f9d1d8dbc654be7a4f528cd387b69a2a39cfebb313178a7391"
+  },
+  {
+    "native_matches": true,
+    "cdr_matches": false,
+    "wire_bytes": 78,
+    "input_bytes": 9,
+    "observed_bytes": 4,
+    "library": "baseline",
+    "rmw": "rmw_fastrtps_cpp",
+    "binary_sha256": "e6f79567acbd15f9d1d8dbc654be7a4f528cd387b69a2a39cfebb313178a7391"
+  },
+  {
+    "native_matches": true,
+    "cdr_matches": false,
+    "wire_bytes": 70,
+    "input_bytes": 9,
+    "observed_bytes": 4,
+    "library": "candidate",
+    "rmw": "rmw_cyclonedds_cpp",
+    "binary_sha256": "42e18b3c0fde22d31338100dbf70302b9a8aee21dc17827b71ae918d03cfb4b9"
+  },
+  {
+    "native_matches": true,
+    "cdr_matches": false,
+    "wire_bytes": 78,
+    "input_bytes": 9,
+    "observed_bytes": 4,
+    "library": "candidate",
+    "rmw": "rmw_fastrtps_cpp",
+    "binary_sha256": "42e18b3c0fde22d31338100dbf70302b9a8aee21dc17827b71ae918d03cfb4b9"
+  },
+  {
+    "cdr_matches": true,
+    "wire_bytes": 70,
+    "input_bytes": 9,
+    "observed_bytes": 9,
+    "library": "rclcpp",
+    "rmw": "rmw_cyclonedds_cpp",
+    "binary_sha256": "550ade224a8690c83ef8f74cf22ebe62855d37240715a7e15fe83a01b4b8524c"
+  },
+  {
+    "cdr_matches": false,
+    "wire_bytes": 78,
+    "input_bytes": 9,
+    "observed_bytes": 4,
+    "library": "rclcpp",
+    "rmw": "rmw_fastrtps_cpp",
+    "binary_sha256": "550ade224a8690c83ef8f74cf22ebe62855d37240715a7e15fe83a01b4b8524c"
+  }
+]

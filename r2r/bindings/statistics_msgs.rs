@@ -3,9 +3,9 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct MetricsMessage {
-        pub measurement_source_name: std::string::String,
-        pub metrics_source: std::string::String,
-        pub unit: std::string::String,
+        pub measurement_source_name: crate::RosString,
+        pub metrics_source: crate::RosString,
+        pub unit: crate::RosString,
         pub window_start: builtin_interfaces::msg::Time,
         pub window_stop: builtin_interfaces::msg::Time,
         pub statistics: Vec<statistics_msgs::msg::StatisticDataPoint>,
@@ -30,9 +30,11 @@ pub mod msg {
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> MetricsMessage {
             MetricsMessage {
-                measurement_source_name: msg.measurement_source_name.to_str().to_owned(),
-                metrics_source: msg.metrics_source.to_str().to_owned(),
-                unit: msg.unit.to_str().to_owned(),
+                measurement_source_name: crate::RosString::from(
+                    msg.measurement_source_name.as_bytes(),
+                ),
+                metrics_source: crate::RosString::from(msg.metrics_source.as_bytes()),
+                unit: crate::RosString::from(msg.unit.as_bytes()),
                 window_start: builtin_interfaces::msg::Time::from_native(
                     &msg.window_start,
                 ),
@@ -57,9 +59,10 @@ pub mod msg {
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.measurement_source_name.assign(&self.measurement_source_name);
-            msg.metrics_source.assign(&self.metrics_source);
-            msg.unit.assign(&self.unit);
+            msg.measurement_source_name
+                .try_assign_bytes((&self.measurement_source_name).as_bytes());
+            msg.metrics_source.try_assign_bytes((&self.metrics_source).as_bytes());
+            msg.unit.try_assign_bytes((&self.unit).as_bytes());
             self.window_start.copy_to_native(&mut msg.window_start);
             self.window_stop.copy_to_native(&mut msg.window_stop);
             unsafe {

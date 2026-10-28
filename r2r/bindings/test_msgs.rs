@@ -16,37 +16,68 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Request {
-            pub bool_values: Vec<bool>,
-            pub byte_values: Vec<u8>,
-            pub char_values: Vec<u8>,
-            pub float32_values: Vec<f32>,
-            pub float64_values: Vec<f64>,
-            pub int8_values: Vec<i8>,
-            pub uint8_values: Vec<u8>,
-            pub int16_values: Vec<i16>,
-            pub uint16_values: Vec<u16>,
-            pub int32_values: Vec<i32>,
-            pub uint32_values: Vec<u32>,
-            pub int64_values: Vec<i64>,
-            pub uint64_values: Vec<u64>,
-            pub string_values: Vec<std::string::String>,
-            pub basic_types_values: Vec<test_msgs::msg::BasicTypes>,
-            pub constants_values: Vec<test_msgs::msg::Constants>,
-            pub defaults_values: Vec<test_msgs::msg::Defaults>,
-            pub bool_values_default: Vec<bool>,
-            pub byte_values_default: Vec<u8>,
-            pub char_values_default: Vec<u8>,
-            pub float32_values_default: Vec<f32>,
-            pub float64_values_default: Vec<f64>,
-            pub int8_values_default: Vec<i8>,
-            pub uint8_values_default: Vec<u8>,
-            pub int16_values_default: Vec<i16>,
-            pub uint16_values_default: Vec<u16>,
-            pub int32_values_default: Vec<i32>,
-            pub uint32_values_default: Vec<u32>,
-            pub int64_values_default: Vec<i64>,
-            pub uint64_values_default: Vec<u64>,
-            pub string_values_default: Vec<std::string::String>,
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub bool_values: [bool; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub byte_values: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub char_values: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub float32_values: [f32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub float64_values: [f64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int8_values: [i8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint8_values: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int16_values: [i16; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint16_values: [u16; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int32_values: [i32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint32_values: [u32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int64_values: [i64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint64_values: [u64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub string_values: [crate::RosString; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub basic_types_values: [test_msgs::msg::BasicTypes; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub constants_values: [test_msgs::msg::Constants; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub defaults_values: [test_msgs::msg::Defaults; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub bool_values_default: [bool; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub byte_values_default: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub char_values_default: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub float32_values_default: [f32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub float64_values_default: [f64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int8_values_default: [i8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint8_values_default: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int16_values_default: [i16; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint16_values_default: [u16; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int32_values_default: [i32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint32_values_default: [u32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int64_values_default: [i64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint64_values_default: [u64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub string_values_default: [crate::RosString; 3usize],
         }
         unsafe impl WrappedTypesupport for Request {
             type CStruct = test_msgs__srv__Arrays_Request;
@@ -67,144 +98,170 @@ pub mod srv {
             }
             fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Request {
                 Request {
-                    bool_values: msg.bool_values.to_vec(),
-                    byte_values: msg.byte_values.to_vec(),
-                    char_values: msg.char_values.to_vec(),
-                    float32_values: msg.float32_values.to_vec(),
-                    float64_values: msg.float64_values.to_vec(),
-                    int8_values: msg.int8_values.to_vec(),
-                    uint8_values: msg.uint8_values.to_vec(),
-                    int16_values: msg.int16_values.to_vec(),
-                    uint16_values: msg.uint16_values.to_vec(),
-                    int32_values: msg.int32_values.to_vec(),
-                    uint32_values: msg.uint32_values.to_vec(),
-                    int64_values: msg.int64_values.to_vec(),
-                    uint64_values: msg.uint64_values.to_vec(),
-                    string_values: msg
-                        .string_values
-                        .iter()
-                        .map(|s| s.to_str().to_owned())
-                        .collect(),
-                    basic_types_values: {
-                        let vec: Vec<_> = msg
-                            .basic_types_values
-                            .iter()
-                            .map(|s| test_msgs::msg::BasicTypes::from_native(s))
-                            .collect();
-                        vec
-                    },
-                    constants_values: {
-                        let vec: Vec<_> = msg
-                            .constants_values
-                            .iter()
-                            .map(|s| test_msgs::msg::Constants::from_native(s))
-                            .collect();
-                        vec
-                    },
-                    defaults_values: {
-                        let vec: Vec<_> = msg
-                            .defaults_values
-                            .iter()
-                            .map(|s| test_msgs::msg::Defaults::from_native(s))
-                            .collect();
-                        vec
-                    },
-                    bool_values_default: msg.bool_values_default.to_vec(),
-                    byte_values_default: msg.byte_values_default.to_vec(),
-                    char_values_default: msg.char_values_default.to_vec(),
-                    float32_values_default: msg.float32_values_default.to_vec(),
-                    float64_values_default: msg.float64_values_default.to_vec(),
-                    int8_values_default: msg.int8_values_default.to_vec(),
-                    uint8_values_default: msg.uint8_values_default.to_vec(),
-                    int16_values_default: msg.int16_values_default.to_vec(),
-                    uint16_values_default: msg.uint16_values_default.to_vec(),
-                    int32_values_default: msg.int32_values_default.to_vec(),
-                    uint32_values_default: msg.uint32_values_default.to_vec(),
-                    int64_values_default: msg.int64_values_default.to_vec(),
-                    uint64_values_default: msg.uint64_values_default.to_vec(),
-                    string_values_default: msg
-                        .string_values_default
-                        .iter()
-                        .map(|s| s.to_str().to_owned())
-                        .collect(),
+                    bool_values: msg.bool_values,
+                    byte_values: msg.byte_values,
+                    char_values: msg.char_values,
+                    float32_values: msg.float32_values,
+                    float64_values: msg.float64_values,
+                    int8_values: msg.int8_values,
+                    uint8_values: msg.uint8_values,
+                    int16_values: msg.int16_values,
+                    uint16_values: msg.uint16_values,
+                    int32_values: msg.int32_values,
+                    uint32_values: msg.uint32_values,
+                    int64_values: msg.int64_values,
+                    uint64_values: msg.uint64_values,
+                    string_values: std::array::from_fn(|index| crate::RosString::from(
+                        msg.string_values[index].as_bytes(),
+                    )),
+                    basic_types_values: std::array::from_fn(|index| test_msgs::msg::BasicTypes::from_native(
+                        &msg.basic_types_values[index],
+                    )),
+                    constants_values: std::array::from_fn(|index| test_msgs::msg::Constants::from_native(
+                        &msg.constants_values[index],
+                    )),
+                    defaults_values: std::array::from_fn(|index| test_msgs::msg::Defaults::from_native(
+                        &msg.defaults_values[index],
+                    )),
+                    bool_values_default: msg.bool_values_default,
+                    byte_values_default: msg.byte_values_default,
+                    char_values_default: msg.char_values_default,
+                    float32_values_default: msg.float32_values_default,
+                    float64_values_default: msg.float64_values_default,
+                    int8_values_default: msg.int8_values_default,
+                    uint8_values_default: msg.uint8_values_default,
+                    int16_values_default: msg.int16_values_default,
+                    uint16_values_default: msg.uint16_values_default,
+                    int32_values_default: msg.int32_values_default,
+                    uint32_values_default: msg.uint32_values_default,
+                    int64_values_default: msg.int64_values_default,
+                    uint64_values_default: msg.uint64_values_default,
+                    string_values_default: std::array::from_fn(|index| crate::RosString::from(
+                        msg.string_values_default[index].as_bytes(),
+                    )),
                 }
             }
             fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
                 assert_eq!(
-                    self.bool_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "bool_values", 3usize
+                    self.bool_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "bool_values",
+                    3usize,
                 );
                 msg.bool_values.copy_from_slice(&self.bool_values[..3usize]);
                 assert_eq!(
-                    self.byte_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "byte_values", 3usize
+                    self.byte_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "byte_values",
+                    3usize,
                 );
                 msg.byte_values.copy_from_slice(&self.byte_values[..3usize]);
                 assert_eq!(
-                    self.char_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "char_values", 3usize
+                    self.char_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "char_values",
+                    3usize,
                 );
                 msg.char_values.copy_from_slice(&self.char_values[..3usize]);
                 assert_eq!(
-                    self.float32_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "float32_values", 3usize
+                    self.float32_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "float32_values",
+                    3usize,
                 );
                 msg.float32_values.copy_from_slice(&self.float32_values[..3usize]);
                 assert_eq!(
-                    self.float64_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "float64_values", 3usize
+                    self.float64_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "float64_values",
+                    3usize,
                 );
                 msg.float64_values.copy_from_slice(&self.float64_values[..3usize]);
                 assert_eq!(
-                    self.int8_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "int8_values", 3usize
+                    self.int8_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "int8_values",
+                    3usize,
                 );
                 msg.int8_values.copy_from_slice(&self.int8_values[..3usize]);
                 assert_eq!(
-                    self.uint8_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "uint8_values", 3usize
+                    self.uint8_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "uint8_values",
+                    3usize,
                 );
                 msg.uint8_values.copy_from_slice(&self.uint8_values[..3usize]);
                 assert_eq!(
-                    self.int16_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "int16_values", 3usize
+                    self.int16_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "int16_values",
+                    3usize,
                 );
                 msg.int16_values.copy_from_slice(&self.int16_values[..3usize]);
                 assert_eq!(
-                    self.uint16_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "uint16_values", 3usize
+                    self.uint16_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "uint16_values",
+                    3usize,
                 );
                 msg.uint16_values.copy_from_slice(&self.uint16_values[..3usize]);
                 assert_eq!(
-                    self.int32_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "int32_values", 3usize
+                    self.int32_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "int32_values",
+                    3usize,
                 );
                 msg.int32_values.copy_from_slice(&self.int32_values[..3usize]);
                 assert_eq!(
-                    self.uint32_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "uint32_values", 3usize
+                    self.uint32_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "uint32_values",
+                    3usize,
                 );
                 msg.uint32_values.copy_from_slice(&self.uint32_values[..3usize]);
                 assert_eq!(
-                    self.int64_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "int64_values", 3usize
+                    self.int64_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "int64_values",
+                    3usize,
                 );
                 msg.int64_values.copy_from_slice(&self.int64_values[..3usize]);
                 assert_eq!(
-                    self.uint64_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "uint64_values", 3usize
+                    self.uint64_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "uint64_values",
+                    3usize,
                 );
                 msg.uint64_values.copy_from_slice(&self.uint64_values[..3usize]);
                 assert_eq!(
-                    self.string_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "string_values", 3usize
+                    self.string_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "string_values",
+                    3usize,
                 );
                 for (t, s) in msg.string_values.iter_mut().zip(&self.string_values) {
-                    t.assign(&s);
+                    t.try_assign_bytes((&s).as_bytes());
                 }
                 assert_eq!(
-                    self.basic_types_values.len(), 3usize,
-                    "Field {} is fixed size of {}!", "basic_types_values", 3usize
+                    self.basic_types_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "basic_types_values",
+                    3usize,
                 );
                 for (t, s) in msg
                     .basic_types_values
@@ -214,108 +271,156 @@ pub mod srv {
                     s.copy_to_native(t);
                 }
                 assert_eq!(
-                    self.constants_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "constants_values", 3usize
+                    self.constants_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "constants_values",
+                    3usize,
                 );
                 for (t, s) in msg.constants_values.iter_mut().zip(&self.constants_values)
                 {
                     s.copy_to_native(t);
                 }
                 assert_eq!(
-                    self.defaults_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "defaults_values", 3usize
+                    self.defaults_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "defaults_values",
+                    3usize,
                 );
                 for (t, s) in msg.defaults_values.iter_mut().zip(&self.defaults_values) {
                     s.copy_to_native(t);
                 }
                 assert_eq!(
-                    self.bool_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "bool_values_default", 3usize
+                    self.bool_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "bool_values_default",
+                    3usize,
                 );
                 msg.bool_values_default
                     .copy_from_slice(&self.bool_values_default[..3usize]);
                 assert_eq!(
-                    self.byte_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "byte_values_default", 3usize
+                    self.byte_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "byte_values_default",
+                    3usize,
                 );
                 msg.byte_values_default
                     .copy_from_slice(&self.byte_values_default[..3usize]);
                 assert_eq!(
-                    self.char_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "char_values_default", 3usize
+                    self.char_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "char_values_default",
+                    3usize,
                 );
                 msg.char_values_default
                     .copy_from_slice(&self.char_values_default[..3usize]);
                 assert_eq!(
-                    self.float32_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "float32_values_default", 3usize
+                    self.float32_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "float32_values_default",
+                    3usize,
                 );
                 msg.float32_values_default
                     .copy_from_slice(&self.float32_values_default[..3usize]);
                 assert_eq!(
-                    self.float64_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "float64_values_default", 3usize
+                    self.float64_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "float64_values_default",
+                    3usize,
                 );
                 msg.float64_values_default
                     .copy_from_slice(&self.float64_values_default[..3usize]);
                 assert_eq!(
-                    self.int8_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "int8_values_default", 3usize
+                    self.int8_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "int8_values_default",
+                    3usize,
                 );
                 msg.int8_values_default
                     .copy_from_slice(&self.int8_values_default[..3usize]);
                 assert_eq!(
-                    self.uint8_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "uint8_values_default", 3usize
+                    self.uint8_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "uint8_values_default",
+                    3usize,
                 );
                 msg.uint8_values_default
                     .copy_from_slice(&self.uint8_values_default[..3usize]);
                 assert_eq!(
-                    self.int16_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "int16_values_default", 3usize
+                    self.int16_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "int16_values_default",
+                    3usize,
                 );
                 msg.int16_values_default
                     .copy_from_slice(&self.int16_values_default[..3usize]);
                 assert_eq!(
-                    self.uint16_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "uint16_values_default", 3usize
+                    self.uint16_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "uint16_values_default",
+                    3usize,
                 );
                 msg.uint16_values_default
                     .copy_from_slice(&self.uint16_values_default[..3usize]);
                 assert_eq!(
-                    self.int32_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "int32_values_default", 3usize
+                    self.int32_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "int32_values_default",
+                    3usize,
                 );
                 msg.int32_values_default
                     .copy_from_slice(&self.int32_values_default[..3usize]);
                 assert_eq!(
-                    self.uint32_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "uint32_values_default", 3usize
+                    self.uint32_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "uint32_values_default",
+                    3usize,
                 );
                 msg.uint32_values_default
                     .copy_from_slice(&self.uint32_values_default[..3usize]);
                 assert_eq!(
-                    self.int64_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "int64_values_default", 3usize
+                    self.int64_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "int64_values_default",
+                    3usize,
                 );
                 msg.int64_values_default
                     .copy_from_slice(&self.int64_values_default[..3usize]);
                 assert_eq!(
-                    self.uint64_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "uint64_values_default", 3usize
+                    self.uint64_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "uint64_values_default",
+                    3usize,
                 );
                 msg.uint64_values_default
                     .copy_from_slice(&self.uint64_values_default[..3usize]);
                 assert_eq!(
-                    self.string_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "string_values_default", 3usize
+                    self.string_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "string_values_default",
+                    3usize,
                 );
                 for (t, s) in msg
                     .string_values_default
                     .iter_mut()
                     .zip(&self.string_values_default)
                 {
-                    t.assign(&s);
+                    t.try_assign_bytes((&s).as_bytes());
                 }
             }
         }
@@ -328,37 +433,68 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Response {
-            pub bool_values: Vec<bool>,
-            pub byte_values: Vec<u8>,
-            pub char_values: Vec<u8>,
-            pub float32_values: Vec<f32>,
-            pub float64_values: Vec<f64>,
-            pub int8_values: Vec<i8>,
-            pub uint8_values: Vec<u8>,
-            pub int16_values: Vec<i16>,
-            pub uint16_values: Vec<u16>,
-            pub int32_values: Vec<i32>,
-            pub uint32_values: Vec<u32>,
-            pub int64_values: Vec<i64>,
-            pub uint64_values: Vec<u64>,
-            pub string_values: Vec<std::string::String>,
-            pub basic_types_values: Vec<test_msgs::msg::BasicTypes>,
-            pub constants_values: Vec<test_msgs::msg::Constants>,
-            pub defaults_values: Vec<test_msgs::msg::Defaults>,
-            pub bool_values_default: Vec<bool>,
-            pub byte_values_default: Vec<u8>,
-            pub char_values_default: Vec<u8>,
-            pub float32_values_default: Vec<f32>,
-            pub float64_values_default: Vec<f64>,
-            pub int8_values_default: Vec<i8>,
-            pub uint8_values_default: Vec<u8>,
-            pub int16_values_default: Vec<i16>,
-            pub uint16_values_default: Vec<u16>,
-            pub int32_values_default: Vec<i32>,
-            pub uint32_values_default: Vec<u32>,
-            pub int64_values_default: Vec<i64>,
-            pub uint64_values_default: Vec<u64>,
-            pub string_values_default: Vec<std::string::String>,
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub bool_values: [bool; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub byte_values: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub char_values: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub float32_values: [f32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub float64_values: [f64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int8_values: [i8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint8_values: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int16_values: [i16; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint16_values: [u16; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int32_values: [i32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint32_values: [u32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int64_values: [i64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint64_values: [u64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub string_values: [crate::RosString; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub basic_types_values: [test_msgs::msg::BasicTypes; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub constants_values: [test_msgs::msg::Constants; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub defaults_values: [test_msgs::msg::Defaults; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub bool_values_default: [bool; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub byte_values_default: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub char_values_default: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub float32_values_default: [f32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub float64_values_default: [f64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int8_values_default: [i8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint8_values_default: [u8; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int16_values_default: [i16; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint16_values_default: [u16; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int32_values_default: [i32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint32_values_default: [u32; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub int64_values_default: [i64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub uint64_values_default: [u64; 3usize],
+            #[serde(with = "crate::msg_types::fixed_array")]
+            pub string_values_default: [crate::RosString; 3usize],
         }
         unsafe impl WrappedTypesupport for Response {
             type CStruct = test_msgs__srv__Arrays_Response;
@@ -380,144 +516,170 @@ pub mod srv {
             }
             fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Response {
                 Response {
-                    bool_values: msg.bool_values.to_vec(),
-                    byte_values: msg.byte_values.to_vec(),
-                    char_values: msg.char_values.to_vec(),
-                    float32_values: msg.float32_values.to_vec(),
-                    float64_values: msg.float64_values.to_vec(),
-                    int8_values: msg.int8_values.to_vec(),
-                    uint8_values: msg.uint8_values.to_vec(),
-                    int16_values: msg.int16_values.to_vec(),
-                    uint16_values: msg.uint16_values.to_vec(),
-                    int32_values: msg.int32_values.to_vec(),
-                    uint32_values: msg.uint32_values.to_vec(),
-                    int64_values: msg.int64_values.to_vec(),
-                    uint64_values: msg.uint64_values.to_vec(),
-                    string_values: msg
-                        .string_values
-                        .iter()
-                        .map(|s| s.to_str().to_owned())
-                        .collect(),
-                    basic_types_values: {
-                        let vec: Vec<_> = msg
-                            .basic_types_values
-                            .iter()
-                            .map(|s| test_msgs::msg::BasicTypes::from_native(s))
-                            .collect();
-                        vec
-                    },
-                    constants_values: {
-                        let vec: Vec<_> = msg
-                            .constants_values
-                            .iter()
-                            .map(|s| test_msgs::msg::Constants::from_native(s))
-                            .collect();
-                        vec
-                    },
-                    defaults_values: {
-                        let vec: Vec<_> = msg
-                            .defaults_values
-                            .iter()
-                            .map(|s| test_msgs::msg::Defaults::from_native(s))
-                            .collect();
-                        vec
-                    },
-                    bool_values_default: msg.bool_values_default.to_vec(),
-                    byte_values_default: msg.byte_values_default.to_vec(),
-                    char_values_default: msg.char_values_default.to_vec(),
-                    float32_values_default: msg.float32_values_default.to_vec(),
-                    float64_values_default: msg.float64_values_default.to_vec(),
-                    int8_values_default: msg.int8_values_default.to_vec(),
-                    uint8_values_default: msg.uint8_values_default.to_vec(),
-                    int16_values_default: msg.int16_values_default.to_vec(),
-                    uint16_values_default: msg.uint16_values_default.to_vec(),
-                    int32_values_default: msg.int32_values_default.to_vec(),
-                    uint32_values_default: msg.uint32_values_default.to_vec(),
-                    int64_values_default: msg.int64_values_default.to_vec(),
-                    uint64_values_default: msg.uint64_values_default.to_vec(),
-                    string_values_default: msg
-                        .string_values_default
-                        .iter()
-                        .map(|s| s.to_str().to_owned())
-                        .collect(),
+                    bool_values: msg.bool_values,
+                    byte_values: msg.byte_values,
+                    char_values: msg.char_values,
+                    float32_values: msg.float32_values,
+                    float64_values: msg.float64_values,
+                    int8_values: msg.int8_values,
+                    uint8_values: msg.uint8_values,
+                    int16_values: msg.int16_values,
+                    uint16_values: msg.uint16_values,
+                    int32_values: msg.int32_values,
+                    uint32_values: msg.uint32_values,
+                    int64_values: msg.int64_values,
+                    uint64_values: msg.uint64_values,
+                    string_values: std::array::from_fn(|index| crate::RosString::from(
+                        msg.string_values[index].as_bytes(),
+                    )),
+                    basic_types_values: std::array::from_fn(|index| test_msgs::msg::BasicTypes::from_native(
+                        &msg.basic_types_values[index],
+                    )),
+                    constants_values: std::array::from_fn(|index| test_msgs::msg::Constants::from_native(
+                        &msg.constants_values[index],
+                    )),
+                    defaults_values: std::array::from_fn(|index| test_msgs::msg::Defaults::from_native(
+                        &msg.defaults_values[index],
+                    )),
+                    bool_values_default: msg.bool_values_default,
+                    byte_values_default: msg.byte_values_default,
+                    char_values_default: msg.char_values_default,
+                    float32_values_default: msg.float32_values_default,
+                    float64_values_default: msg.float64_values_default,
+                    int8_values_default: msg.int8_values_default,
+                    uint8_values_default: msg.uint8_values_default,
+                    int16_values_default: msg.int16_values_default,
+                    uint16_values_default: msg.uint16_values_default,
+                    int32_values_default: msg.int32_values_default,
+                    uint32_values_default: msg.uint32_values_default,
+                    int64_values_default: msg.int64_values_default,
+                    uint64_values_default: msg.uint64_values_default,
+                    string_values_default: std::array::from_fn(|index| crate::RosString::from(
+                        msg.string_values_default[index].as_bytes(),
+                    )),
                 }
             }
             fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
                 assert_eq!(
-                    self.bool_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "bool_values", 3usize
+                    self.bool_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "bool_values",
+                    3usize,
                 );
                 msg.bool_values.copy_from_slice(&self.bool_values[..3usize]);
                 assert_eq!(
-                    self.byte_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "byte_values", 3usize
+                    self.byte_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "byte_values",
+                    3usize,
                 );
                 msg.byte_values.copy_from_slice(&self.byte_values[..3usize]);
                 assert_eq!(
-                    self.char_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "char_values", 3usize
+                    self.char_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "char_values",
+                    3usize,
                 );
                 msg.char_values.copy_from_slice(&self.char_values[..3usize]);
                 assert_eq!(
-                    self.float32_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "float32_values", 3usize
+                    self.float32_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "float32_values",
+                    3usize,
                 );
                 msg.float32_values.copy_from_slice(&self.float32_values[..3usize]);
                 assert_eq!(
-                    self.float64_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "float64_values", 3usize
+                    self.float64_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "float64_values",
+                    3usize,
                 );
                 msg.float64_values.copy_from_slice(&self.float64_values[..3usize]);
                 assert_eq!(
-                    self.int8_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "int8_values", 3usize
+                    self.int8_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "int8_values",
+                    3usize,
                 );
                 msg.int8_values.copy_from_slice(&self.int8_values[..3usize]);
                 assert_eq!(
-                    self.uint8_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "uint8_values", 3usize
+                    self.uint8_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "uint8_values",
+                    3usize,
                 );
                 msg.uint8_values.copy_from_slice(&self.uint8_values[..3usize]);
                 assert_eq!(
-                    self.int16_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "int16_values", 3usize
+                    self.int16_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "int16_values",
+                    3usize,
                 );
                 msg.int16_values.copy_from_slice(&self.int16_values[..3usize]);
                 assert_eq!(
-                    self.uint16_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "uint16_values", 3usize
+                    self.uint16_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "uint16_values",
+                    3usize,
                 );
                 msg.uint16_values.copy_from_slice(&self.uint16_values[..3usize]);
                 assert_eq!(
-                    self.int32_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "int32_values", 3usize
+                    self.int32_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "int32_values",
+                    3usize,
                 );
                 msg.int32_values.copy_from_slice(&self.int32_values[..3usize]);
                 assert_eq!(
-                    self.uint32_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "uint32_values", 3usize
+                    self.uint32_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "uint32_values",
+                    3usize,
                 );
                 msg.uint32_values.copy_from_slice(&self.uint32_values[..3usize]);
                 assert_eq!(
-                    self.int64_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "int64_values", 3usize
+                    self.int64_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "int64_values",
+                    3usize,
                 );
                 msg.int64_values.copy_from_slice(&self.int64_values[..3usize]);
                 assert_eq!(
-                    self.uint64_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "uint64_values", 3usize
+                    self.uint64_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "uint64_values",
+                    3usize,
                 );
                 msg.uint64_values.copy_from_slice(&self.uint64_values[..3usize]);
                 assert_eq!(
-                    self.string_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "string_values", 3usize
+                    self.string_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "string_values",
+                    3usize,
                 );
                 for (t, s) in msg.string_values.iter_mut().zip(&self.string_values) {
-                    t.assign(&s);
+                    t.try_assign_bytes((&s).as_bytes());
                 }
                 assert_eq!(
-                    self.basic_types_values.len(), 3usize,
-                    "Field {} is fixed size of {}!", "basic_types_values", 3usize
+                    self.basic_types_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "basic_types_values",
+                    3usize,
                 );
                 for (t, s) in msg
                     .basic_types_values
@@ -527,108 +689,156 @@ pub mod srv {
                     s.copy_to_native(t);
                 }
                 assert_eq!(
-                    self.constants_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "constants_values", 3usize
+                    self.constants_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "constants_values",
+                    3usize,
                 );
                 for (t, s) in msg.constants_values.iter_mut().zip(&self.constants_values)
                 {
                     s.copy_to_native(t);
                 }
                 assert_eq!(
-                    self.defaults_values.len(), 3usize, "Field {} is fixed size of {}!",
-                    "defaults_values", 3usize
+                    self.defaults_values.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "defaults_values",
+                    3usize,
                 );
                 for (t, s) in msg.defaults_values.iter_mut().zip(&self.defaults_values) {
                     s.copy_to_native(t);
                 }
                 assert_eq!(
-                    self.bool_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "bool_values_default", 3usize
+                    self.bool_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "bool_values_default",
+                    3usize,
                 );
                 msg.bool_values_default
                     .copy_from_slice(&self.bool_values_default[..3usize]);
                 assert_eq!(
-                    self.byte_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "byte_values_default", 3usize
+                    self.byte_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "byte_values_default",
+                    3usize,
                 );
                 msg.byte_values_default
                     .copy_from_slice(&self.byte_values_default[..3usize]);
                 assert_eq!(
-                    self.char_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "char_values_default", 3usize
+                    self.char_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "char_values_default",
+                    3usize,
                 );
                 msg.char_values_default
                     .copy_from_slice(&self.char_values_default[..3usize]);
                 assert_eq!(
-                    self.float32_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "float32_values_default", 3usize
+                    self.float32_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "float32_values_default",
+                    3usize,
                 );
                 msg.float32_values_default
                     .copy_from_slice(&self.float32_values_default[..3usize]);
                 assert_eq!(
-                    self.float64_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "float64_values_default", 3usize
+                    self.float64_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "float64_values_default",
+                    3usize,
                 );
                 msg.float64_values_default
                     .copy_from_slice(&self.float64_values_default[..3usize]);
                 assert_eq!(
-                    self.int8_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "int8_values_default", 3usize
+                    self.int8_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "int8_values_default",
+                    3usize,
                 );
                 msg.int8_values_default
                     .copy_from_slice(&self.int8_values_default[..3usize]);
                 assert_eq!(
-                    self.uint8_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "uint8_values_default", 3usize
+                    self.uint8_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "uint8_values_default",
+                    3usize,
                 );
                 msg.uint8_values_default
                     .copy_from_slice(&self.uint8_values_default[..3usize]);
                 assert_eq!(
-                    self.int16_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "int16_values_default", 3usize
+                    self.int16_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "int16_values_default",
+                    3usize,
                 );
                 msg.int16_values_default
                     .copy_from_slice(&self.int16_values_default[..3usize]);
                 assert_eq!(
-                    self.uint16_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "uint16_values_default", 3usize
+                    self.uint16_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "uint16_values_default",
+                    3usize,
                 );
                 msg.uint16_values_default
                     .copy_from_slice(&self.uint16_values_default[..3usize]);
                 assert_eq!(
-                    self.int32_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "int32_values_default", 3usize
+                    self.int32_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "int32_values_default",
+                    3usize,
                 );
                 msg.int32_values_default
                     .copy_from_slice(&self.int32_values_default[..3usize]);
                 assert_eq!(
-                    self.uint32_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "uint32_values_default", 3usize
+                    self.uint32_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "uint32_values_default",
+                    3usize,
                 );
                 msg.uint32_values_default
                     .copy_from_slice(&self.uint32_values_default[..3usize]);
                 assert_eq!(
-                    self.int64_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "int64_values_default", 3usize
+                    self.int64_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "int64_values_default",
+                    3usize,
                 );
                 msg.int64_values_default
                     .copy_from_slice(&self.int64_values_default[..3usize]);
                 assert_eq!(
-                    self.uint64_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "uint64_values_default", 3usize
+                    self.uint64_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "uint64_values_default",
+                    3usize,
                 );
                 msg.uint64_values_default
                     .copy_from_slice(&self.uint64_values_default[..3usize]);
                 assert_eq!(
-                    self.string_values_default.len(), 3usize,
-                    "Field {} is fixed size of {}!", "string_values_default", 3usize
+                    self.string_values_default.len(),
+                    3usize,
+                    "Field {} is fixed size of {}!",
+                    "string_values_default",
+                    3usize,
                 );
                 for (t, s) in msg
                     .string_values_default
                     .iter_mut()
                     .zip(&self.string_values_default)
                 {
-                    t.assign(&s);
+                    t.try_assign_bytes((&s).as_bytes());
                 }
             }
         }
@@ -669,7 +879,7 @@ pub mod srv {
             pub uint32_value: u32,
             pub int64_value: i64,
             pub uint64_value: u64,
-            pub string_value: std::string::String,
+            pub string_value: crate::RosString,
         }
         unsafe impl WrappedTypesupport for Request {
             type CStruct = test_msgs__srv__BasicTypes_Request;
@@ -704,7 +914,7 @@ pub mod srv {
                     uint32_value: msg.uint32_value,
                     int64_value: msg.int64_value,
                     uint64_value: msg.uint64_value,
-                    string_value: msg.string_value.to_str().to_owned(),
+                    string_value: crate::RosString::from(msg.string_value.as_bytes()),
                 }
             }
             fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
@@ -721,7 +931,7 @@ pub mod srv {
                 msg.uint32_value = self.uint32_value;
                 msg.int64_value = self.int64_value;
                 msg.uint64_value = self.uint64_value;
-                msg.string_value.assign(&self.string_value);
+                msg.string_value.try_assign_bytes((&self.string_value).as_bytes());
             }
         }
         impl Default for Request {
@@ -746,7 +956,7 @@ pub mod srv {
             pub uint32_value: u32,
             pub int64_value: i64,
             pub uint64_value: u64,
-            pub string_value: std::string::String,
+            pub string_value: crate::RosString,
         }
         unsafe impl WrappedTypesupport for Response {
             type CStruct = test_msgs__srv__BasicTypes_Response;
@@ -782,7 +992,7 @@ pub mod srv {
                     uint32_value: msg.uint32_value,
                     int64_value: msg.int64_value,
                     uint64_value: msg.uint64_value,
-                    string_value: msg.string_value.to_str().to_owned(),
+                    string_value: crate::RosString::from(msg.string_value.as_bytes()),
                 }
             }
             fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
@@ -799,7 +1009,7 @@ pub mod srv {
                 msg.uint32_value = self.uint32_value;
                 msg.int64_value = self.int64_value;
                 msg.uint64_value = self.uint64_value;
-                msg.string_value.assign(&self.string_value);
+                msg.string_value.try_assign_bytes((&self.string_value).as_bytes());
             }
         }
         impl Default for Response {
@@ -1867,37 +2077,68 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct Arrays {
-        pub bool_values: Vec<bool>,
-        pub byte_values: Vec<u8>,
-        pub char_values: Vec<u8>,
-        pub float32_values: Vec<f32>,
-        pub float64_values: Vec<f64>,
-        pub int8_values: Vec<i8>,
-        pub uint8_values: Vec<u8>,
-        pub int16_values: Vec<i16>,
-        pub uint16_values: Vec<u16>,
-        pub int32_values: Vec<i32>,
-        pub uint32_values: Vec<u32>,
-        pub int64_values: Vec<i64>,
-        pub uint64_values: Vec<u64>,
-        pub string_values: Vec<std::string::String>,
-        pub basic_types_values: Vec<test_msgs::msg::BasicTypes>,
-        pub constants_values: Vec<test_msgs::msg::Constants>,
-        pub defaults_values: Vec<test_msgs::msg::Defaults>,
-        pub bool_values_default: Vec<bool>,
-        pub byte_values_default: Vec<u8>,
-        pub char_values_default: Vec<u8>,
-        pub float32_values_default: Vec<f32>,
-        pub float64_values_default: Vec<f64>,
-        pub int8_values_default: Vec<i8>,
-        pub uint8_values_default: Vec<u8>,
-        pub int16_values_default: Vec<i16>,
-        pub uint16_values_default: Vec<u16>,
-        pub int32_values_default: Vec<i32>,
-        pub uint32_values_default: Vec<u32>,
-        pub int64_values_default: Vec<i64>,
-        pub uint64_values_default: Vec<u64>,
-        pub string_values_default: Vec<std::string::String>,
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub bool_values: [bool; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub byte_values: [u8; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub char_values: [u8; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub float32_values: [f32; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub float64_values: [f64; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub int8_values: [i8; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub uint8_values: [u8; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub int16_values: [i16; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub uint16_values: [u16; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub int32_values: [i32; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub uint32_values: [u32; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub int64_values: [i64; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub uint64_values: [u64; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub string_values: [crate::RosString; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub basic_types_values: [test_msgs::msg::BasicTypes; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub constants_values: [test_msgs::msg::Constants; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub defaults_values: [test_msgs::msg::Defaults; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub bool_values_default: [bool; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub byte_values_default: [u8; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub char_values_default: [u8; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub float32_values_default: [f32; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub float64_values_default: [f64; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub int8_values_default: [i8; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub uint8_values_default: [u8; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub int16_values_default: [i16; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub uint16_values_default: [u16; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub int32_values_default: [i32; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub uint32_values_default: [u32; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub int64_values_default: [i64; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub uint64_values_default: [u64; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub string_values_default: [crate::RosString; 3usize],
         pub alignment_check: i32,
     }
     unsafe impl WrappedTypesupport for Arrays {
@@ -1918,248 +2159,322 @@ pub mod msg {
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Arrays {
             Arrays {
-                bool_values: msg.bool_values.to_vec(),
-                byte_values: msg.byte_values.to_vec(),
-                char_values: msg.char_values.to_vec(),
-                float32_values: msg.float32_values.to_vec(),
-                float64_values: msg.float64_values.to_vec(),
-                int8_values: msg.int8_values.to_vec(),
-                uint8_values: msg.uint8_values.to_vec(),
-                int16_values: msg.int16_values.to_vec(),
-                uint16_values: msg.uint16_values.to_vec(),
-                int32_values: msg.int32_values.to_vec(),
-                uint32_values: msg.uint32_values.to_vec(),
-                int64_values: msg.int64_values.to_vec(),
-                uint64_values: msg.uint64_values.to_vec(),
-                string_values: msg
-                    .string_values
-                    .iter()
-                    .map(|s| s.to_str().to_owned())
-                    .collect(),
-                basic_types_values: {
-                    let vec: Vec<_> = msg
-                        .basic_types_values
-                        .iter()
-                        .map(|s| test_msgs::msg::BasicTypes::from_native(s))
-                        .collect();
-                    vec
-                },
-                constants_values: {
-                    let vec: Vec<_> = msg
-                        .constants_values
-                        .iter()
-                        .map(|s| test_msgs::msg::Constants::from_native(s))
-                        .collect();
-                    vec
-                },
-                defaults_values: {
-                    let vec: Vec<_> = msg
-                        .defaults_values
-                        .iter()
-                        .map(|s| test_msgs::msg::Defaults::from_native(s))
-                        .collect();
-                    vec
-                },
-                bool_values_default: msg.bool_values_default.to_vec(),
-                byte_values_default: msg.byte_values_default.to_vec(),
-                char_values_default: msg.char_values_default.to_vec(),
-                float32_values_default: msg.float32_values_default.to_vec(),
-                float64_values_default: msg.float64_values_default.to_vec(),
-                int8_values_default: msg.int8_values_default.to_vec(),
-                uint8_values_default: msg.uint8_values_default.to_vec(),
-                int16_values_default: msg.int16_values_default.to_vec(),
-                uint16_values_default: msg.uint16_values_default.to_vec(),
-                int32_values_default: msg.int32_values_default.to_vec(),
-                uint32_values_default: msg.uint32_values_default.to_vec(),
-                int64_values_default: msg.int64_values_default.to_vec(),
-                uint64_values_default: msg.uint64_values_default.to_vec(),
-                string_values_default: msg
-                    .string_values_default
-                    .iter()
-                    .map(|s| s.to_str().to_owned())
-                    .collect(),
+                bool_values: msg.bool_values,
+                byte_values: msg.byte_values,
+                char_values: msg.char_values,
+                float32_values: msg.float32_values,
+                float64_values: msg.float64_values,
+                int8_values: msg.int8_values,
+                uint8_values: msg.uint8_values,
+                int16_values: msg.int16_values,
+                uint16_values: msg.uint16_values,
+                int32_values: msg.int32_values,
+                uint32_values: msg.uint32_values,
+                int64_values: msg.int64_values,
+                uint64_values: msg.uint64_values,
+                string_values: std::array::from_fn(|index| crate::RosString::from(
+                    msg.string_values[index].as_bytes(),
+                )),
+                basic_types_values: std::array::from_fn(|index| test_msgs::msg::BasicTypes::from_native(
+                    &msg.basic_types_values[index],
+                )),
+                constants_values: std::array::from_fn(|index| test_msgs::msg::Constants::from_native(
+                    &msg.constants_values[index],
+                )),
+                defaults_values: std::array::from_fn(|index| test_msgs::msg::Defaults::from_native(
+                    &msg.defaults_values[index],
+                )),
+                bool_values_default: msg.bool_values_default,
+                byte_values_default: msg.byte_values_default,
+                char_values_default: msg.char_values_default,
+                float32_values_default: msg.float32_values_default,
+                float64_values_default: msg.float64_values_default,
+                int8_values_default: msg.int8_values_default,
+                uint8_values_default: msg.uint8_values_default,
+                int16_values_default: msg.int16_values_default,
+                uint16_values_default: msg.uint16_values_default,
+                int32_values_default: msg.int32_values_default,
+                uint32_values_default: msg.uint32_values_default,
+                int64_values_default: msg.int64_values_default,
+                uint64_values_default: msg.uint64_values_default,
+                string_values_default: std::array::from_fn(|index| crate::RosString::from(
+                    msg.string_values_default[index].as_bytes(),
+                )),
                 alignment_check: msg.alignment_check,
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             assert_eq!(
-                self.bool_values.len(), 3usize, "Field {} is fixed size of {}!",
-                "bool_values", 3usize
+                self.bool_values.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "bool_values",
+                3usize,
             );
             msg.bool_values.copy_from_slice(&self.bool_values[..3usize]);
             assert_eq!(
-                self.byte_values.len(), 3usize, "Field {} is fixed size of {}!",
-                "byte_values", 3usize
+                self.byte_values.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "byte_values",
+                3usize,
             );
             msg.byte_values.copy_from_slice(&self.byte_values[..3usize]);
             assert_eq!(
-                self.char_values.len(), 3usize, "Field {} is fixed size of {}!",
-                "char_values", 3usize
+                self.char_values.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "char_values",
+                3usize,
             );
             msg.char_values.copy_from_slice(&self.char_values[..3usize]);
             assert_eq!(
-                self.float32_values.len(), 3usize, "Field {} is fixed size of {}!",
-                "float32_values", 3usize
+                self.float32_values.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "float32_values",
+                3usize,
             );
             msg.float32_values.copy_from_slice(&self.float32_values[..3usize]);
             assert_eq!(
-                self.float64_values.len(), 3usize, "Field {} is fixed size of {}!",
-                "float64_values", 3usize
+                self.float64_values.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "float64_values",
+                3usize,
             );
             msg.float64_values.copy_from_slice(&self.float64_values[..3usize]);
             assert_eq!(
-                self.int8_values.len(), 3usize, "Field {} is fixed size of {}!",
-                "int8_values", 3usize
+                self.int8_values.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "int8_values",
+                3usize,
             );
             msg.int8_values.copy_from_slice(&self.int8_values[..3usize]);
             assert_eq!(
-                self.uint8_values.len(), 3usize, "Field {} is fixed size of {}!",
-                "uint8_values", 3usize
+                self.uint8_values.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "uint8_values",
+                3usize,
             );
             msg.uint8_values.copy_from_slice(&self.uint8_values[..3usize]);
             assert_eq!(
-                self.int16_values.len(), 3usize, "Field {} is fixed size of {}!",
-                "int16_values", 3usize
+                self.int16_values.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "int16_values",
+                3usize,
             );
             msg.int16_values.copy_from_slice(&self.int16_values[..3usize]);
             assert_eq!(
-                self.uint16_values.len(), 3usize, "Field {} is fixed size of {}!",
-                "uint16_values", 3usize
+                self.uint16_values.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "uint16_values",
+                3usize,
             );
             msg.uint16_values.copy_from_slice(&self.uint16_values[..3usize]);
             assert_eq!(
-                self.int32_values.len(), 3usize, "Field {} is fixed size of {}!",
-                "int32_values", 3usize
+                self.int32_values.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "int32_values",
+                3usize,
             );
             msg.int32_values.copy_from_slice(&self.int32_values[..3usize]);
             assert_eq!(
-                self.uint32_values.len(), 3usize, "Field {} is fixed size of {}!",
-                "uint32_values", 3usize
+                self.uint32_values.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "uint32_values",
+                3usize,
             );
             msg.uint32_values.copy_from_slice(&self.uint32_values[..3usize]);
             assert_eq!(
-                self.int64_values.len(), 3usize, "Field {} is fixed size of {}!",
-                "int64_values", 3usize
+                self.int64_values.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "int64_values",
+                3usize,
             );
             msg.int64_values.copy_from_slice(&self.int64_values[..3usize]);
             assert_eq!(
-                self.uint64_values.len(), 3usize, "Field {} is fixed size of {}!",
-                "uint64_values", 3usize
+                self.uint64_values.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "uint64_values",
+                3usize,
             );
             msg.uint64_values.copy_from_slice(&self.uint64_values[..3usize]);
             assert_eq!(
-                self.string_values.len(), 3usize, "Field {} is fixed size of {}!",
-                "string_values", 3usize
+                self.string_values.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "string_values",
+                3usize,
             );
             for (t, s) in msg.string_values.iter_mut().zip(&self.string_values) {
-                t.assign(&s);
+                t.try_assign_bytes((&s).as_bytes());
             }
             assert_eq!(
-                self.basic_types_values.len(), 3usize, "Field {} is fixed size of {}!",
-                "basic_types_values", 3usize
+                self.basic_types_values.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "basic_types_values",
+                3usize,
             );
             for (t, s) in msg.basic_types_values.iter_mut().zip(&self.basic_types_values)
             {
                 s.copy_to_native(t);
             }
             assert_eq!(
-                self.constants_values.len(), 3usize, "Field {} is fixed size of {}!",
-                "constants_values", 3usize
+                self.constants_values.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "constants_values",
+                3usize,
             );
             for (t, s) in msg.constants_values.iter_mut().zip(&self.constants_values) {
                 s.copy_to_native(t);
             }
             assert_eq!(
-                self.defaults_values.len(), 3usize, "Field {} is fixed size of {}!",
-                "defaults_values", 3usize
+                self.defaults_values.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "defaults_values",
+                3usize,
             );
             for (t, s) in msg.defaults_values.iter_mut().zip(&self.defaults_values) {
                 s.copy_to_native(t);
             }
             assert_eq!(
-                self.bool_values_default.len(), 3usize, "Field {} is fixed size of {}!",
-                "bool_values_default", 3usize
+                self.bool_values_default.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "bool_values_default",
+                3usize,
             );
             msg.bool_values_default.copy_from_slice(&self.bool_values_default[..3usize]);
             assert_eq!(
-                self.byte_values_default.len(), 3usize, "Field {} is fixed size of {}!",
-                "byte_values_default", 3usize
+                self.byte_values_default.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "byte_values_default",
+                3usize,
             );
             msg.byte_values_default.copy_from_slice(&self.byte_values_default[..3usize]);
             assert_eq!(
-                self.char_values_default.len(), 3usize, "Field {} is fixed size of {}!",
-                "char_values_default", 3usize
+                self.char_values_default.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "char_values_default",
+                3usize,
             );
             msg.char_values_default.copy_from_slice(&self.char_values_default[..3usize]);
             assert_eq!(
-                self.float32_values_default.len(), 3usize,
-                "Field {} is fixed size of {}!", "float32_values_default", 3usize
+                self.float32_values_default.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "float32_values_default",
+                3usize,
             );
             msg.float32_values_default
                 .copy_from_slice(&self.float32_values_default[..3usize]);
             assert_eq!(
-                self.float64_values_default.len(), 3usize,
-                "Field {} is fixed size of {}!", "float64_values_default", 3usize
+                self.float64_values_default.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "float64_values_default",
+                3usize,
             );
             msg.float64_values_default
                 .copy_from_slice(&self.float64_values_default[..3usize]);
             assert_eq!(
-                self.int8_values_default.len(), 3usize, "Field {} is fixed size of {}!",
-                "int8_values_default", 3usize
+                self.int8_values_default.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "int8_values_default",
+                3usize,
             );
             msg.int8_values_default.copy_from_slice(&self.int8_values_default[..3usize]);
             assert_eq!(
-                self.uint8_values_default.len(), 3usize, "Field {} is fixed size of {}!",
-                "uint8_values_default", 3usize
+                self.uint8_values_default.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "uint8_values_default",
+                3usize,
             );
             msg.uint8_values_default
                 .copy_from_slice(&self.uint8_values_default[..3usize]);
             assert_eq!(
-                self.int16_values_default.len(), 3usize, "Field {} is fixed size of {}!",
-                "int16_values_default", 3usize
+                self.int16_values_default.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "int16_values_default",
+                3usize,
             );
             msg.int16_values_default
                 .copy_from_slice(&self.int16_values_default[..3usize]);
             assert_eq!(
-                self.uint16_values_default.len(), 3usize,
-                "Field {} is fixed size of {}!", "uint16_values_default", 3usize
+                self.uint16_values_default.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "uint16_values_default",
+                3usize,
             );
             msg.uint16_values_default
                 .copy_from_slice(&self.uint16_values_default[..3usize]);
             assert_eq!(
-                self.int32_values_default.len(), 3usize, "Field {} is fixed size of {}!",
-                "int32_values_default", 3usize
+                self.int32_values_default.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "int32_values_default",
+                3usize,
             );
             msg.int32_values_default
                 .copy_from_slice(&self.int32_values_default[..3usize]);
             assert_eq!(
-                self.uint32_values_default.len(), 3usize,
-                "Field {} is fixed size of {}!", "uint32_values_default", 3usize
+                self.uint32_values_default.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "uint32_values_default",
+                3usize,
             );
             msg.uint32_values_default
                 .copy_from_slice(&self.uint32_values_default[..3usize]);
             assert_eq!(
-                self.int64_values_default.len(), 3usize, "Field {} is fixed size of {}!",
-                "int64_values_default", 3usize
+                self.int64_values_default.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "int64_values_default",
+                3usize,
             );
             msg.int64_values_default
                 .copy_from_slice(&self.int64_values_default[..3usize]);
             assert_eq!(
-                self.uint64_values_default.len(), 3usize,
-                "Field {} is fixed size of {}!", "uint64_values_default", 3usize
+                self.uint64_values_default.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "uint64_values_default",
+                3usize,
             );
             msg.uint64_values_default
                 .copy_from_slice(&self.uint64_values_default[..3usize]);
             assert_eq!(
-                self.string_values_default.len(), 3usize,
-                "Field {} is fixed size of {}!", "string_values_default", 3usize
+                self.string_values_default.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "string_values_default",
+                3usize,
             );
             for (t, s) in msg
                 .string_values_default
                 .iter_mut()
                 .zip(&self.string_values_default)
             {
-                t.assign(&s);
+                t.try_assign_bytes((&s).as_bytes());
             }
             msg.alignment_check = self.alignment_check;
         }
@@ -2367,68 +2682,94 @@ pub mod msg {
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             assert!(
-                self.bool_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "bool_values", 3usize
+                self.bool_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "bool_values",
+                3usize,
             );
             msg.bool_values.update(&self.bool_values);
             assert!(
-                self.byte_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "byte_values", 3usize
+                self.byte_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "byte_values",
+                3usize,
             );
             msg.byte_values.update(&self.byte_values);
             assert!(
-                self.char_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "char_values", 3usize
+                self.char_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "char_values",
+                3usize,
             );
             msg.char_values.update(&self.char_values);
             assert!(
-                self.float32_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "float32_values", 3usize
+                self.float32_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "float32_values",
+                3usize,
             );
             msg.float32_values.update(&self.float32_values);
             assert!(
-                self.float64_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "float64_values", 3usize
+                self.float64_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "float64_values",
+                3usize,
             );
             msg.float64_values.update(&self.float64_values);
             assert!(
-                self.int8_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "int8_values", 3usize
+                self.int8_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "int8_values",
+                3usize,
             );
             msg.int8_values.update(&self.int8_values);
             assert!(
-                self.uint8_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "uint8_values", 3usize
+                self.uint8_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "uint8_values",
+                3usize,
             );
             msg.uint8_values.update(&self.uint8_values);
             assert!(
-                self.int16_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "int16_values", 3usize
+                self.int16_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "int16_values",
+                3usize,
             );
             msg.int16_values.update(&self.int16_values);
             assert!(
-                self.uint16_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "uint16_values", 3usize
+                self.uint16_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "uint16_values",
+                3usize,
             );
             msg.uint16_values.update(&self.uint16_values);
             assert!(
-                self.int32_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "int32_values", 3usize
+                self.int32_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "int32_values",
+                3usize,
             );
             msg.int32_values.update(&self.int32_values);
             assert!(
-                self.uint32_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "uint32_values", 3usize
+                self.uint32_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "uint32_values",
+                3usize,
             );
             msg.uint32_values.update(&self.uint32_values);
             assert!(
-                self.int64_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "int64_values", 3usize
+                self.int64_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "int64_values",
+                3usize,
             );
             msg.int64_values.update(&self.int64_values);
             assert!(
-                self.uint64_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "uint64_values", 3usize
+                self.uint64_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "uint64_values",
+                3usize,
             );
             msg.uint64_values.update(&self.uint64_values);
             unsafe {
@@ -2475,67 +2816,93 @@ pub mod msg {
             }
             assert!(
                 self.bool_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "bool_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "bool_values_default",
+                3usize,
             );
             msg.bool_values_default.update(&self.bool_values_default);
             assert!(
                 self.byte_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "byte_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "byte_values_default",
+                3usize,
             );
             msg.byte_values_default.update(&self.byte_values_default);
             assert!(
                 self.char_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "char_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "char_values_default",
+                3usize,
             );
             msg.char_values_default.update(&self.char_values_default);
             assert!(
                 self.float32_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "float32_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "float32_values_default",
+                3usize,
             );
             msg.float32_values_default.update(&self.float32_values_default);
             assert!(
                 self.float64_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "float64_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "float64_values_default",
+                3usize,
             );
             msg.float64_values_default.update(&self.float64_values_default);
             assert!(
                 self.int8_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "int8_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "int8_values_default",
+                3usize,
             );
             msg.int8_values_default.update(&self.int8_values_default);
             assert!(
                 self.uint8_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "uint8_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "uint8_values_default",
+                3usize,
             );
             msg.uint8_values_default.update(&self.uint8_values_default);
             assert!(
                 self.int16_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "int16_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "int16_values_default",
+                3usize,
             );
             msg.int16_values_default.update(&self.int16_values_default);
             assert!(
                 self.uint16_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "uint16_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "uint16_values_default",
+                3usize,
             );
             msg.uint16_values_default.update(&self.uint16_values_default);
             assert!(
                 self.int32_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "int32_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "int32_values_default",
+                3usize,
             );
             msg.int32_values_default.update(&self.int32_values_default);
             assert!(
                 self.uint32_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "uint32_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "uint32_values_default",
+                3usize,
             );
             msg.uint32_values_default.update(&self.uint32_values_default);
             assert!(
                 self.int64_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "int64_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "int64_values_default",
+                3usize,
             );
             msg.int64_values_default.update(&self.int64_values_default);
             assert!(
                 self.uint64_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "uint64_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "uint64_values_default",
+                3usize,
             );
             msg.uint64_values_default.update(&self.uint64_values_default);
             msg.alignment_check = self.alignment_check;
@@ -2563,7 +2930,7 @@ pub mod msg {
         pub uint32_values: Vec<u32>,
         pub int64_values: Vec<i64>,
         pub uint64_values: Vec<u64>,
-        pub string_values: Vec<std::string::String>,
+        pub string_values: Vec<crate::RosString>,
         pub basic_types_values: Vec<test_msgs::msg::BasicTypes>,
         pub constants_values: Vec<test_msgs::msg::Constants>,
         pub defaults_values: Vec<test_msgs::msg::Defaults>,
@@ -2580,7 +2947,7 @@ pub mod msg {
         pub uint32_values_default: Vec<u32>,
         pub int64_values_default: Vec<i64>,
         pub uint64_values_default: Vec<u64>,
-        pub string_values_default: Vec<std::string::String>,
+        pub string_values_default: Vec<crate::RosString>,
         pub alignment_check: i32,
     }
     unsafe impl WrappedTypesupport for BoundedSequences {
@@ -2615,7 +2982,7 @@ pub mod msg {
                 uint32_values: msg.uint32_values.to_vec(),
                 int64_values: msg.int64_values.to_vec(),
                 uint64_values: msg.uint64_values.to_vec(),
-                string_values: msg.string_values.to_vec(),
+                string_values: msg.string_values.to_bytes_vec::<crate::RosString>(),
                 basic_types_values: {
                     let mut temp = Vec::with_capacity(msg.basic_types_values.size);
                     let slice = unsafe {
@@ -2668,81 +3035,111 @@ pub mod msg {
                 uint32_values_default: msg.uint32_values_default.to_vec(),
                 int64_values_default: msg.int64_values_default.to_vec(),
                 uint64_values_default: msg.uint64_values_default.to_vec(),
-                string_values_default: msg.string_values_default.to_vec(),
+                string_values_default: msg
+                    .string_values_default
+                    .to_bytes_vec::<crate::RosString>(),
                 alignment_check: msg.alignment_check,
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             assert!(
-                self.bool_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "bool_values", 3usize
+                self.bool_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "bool_values",
+                3usize,
             );
             msg.bool_values.update(&self.bool_values);
             assert!(
-                self.byte_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "byte_values", 3usize
+                self.byte_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "byte_values",
+                3usize,
             );
             msg.byte_values.update(&self.byte_values);
             assert!(
-                self.char_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "char_values", 3usize
+                self.char_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "char_values",
+                3usize,
             );
             msg.char_values.update(&self.char_values);
             assert!(
-                self.float32_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "float32_values", 3usize
+                self.float32_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "float32_values",
+                3usize,
             );
             msg.float32_values.update(&self.float32_values);
             assert!(
-                self.float64_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "float64_values", 3usize
+                self.float64_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "float64_values",
+                3usize,
             );
             msg.float64_values.update(&self.float64_values);
             assert!(
-                self.int8_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "int8_values", 3usize
+                self.int8_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "int8_values",
+                3usize,
             );
             msg.int8_values.update(&self.int8_values);
             assert!(
-                self.uint8_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "uint8_values", 3usize
+                self.uint8_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "uint8_values",
+                3usize,
             );
             msg.uint8_values.update(&self.uint8_values);
             assert!(
-                self.int16_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "int16_values", 3usize
+                self.int16_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "int16_values",
+                3usize,
             );
             msg.int16_values.update(&self.int16_values);
             assert!(
-                self.uint16_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "uint16_values", 3usize
+                self.uint16_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "uint16_values",
+                3usize,
             );
             msg.uint16_values.update(&self.uint16_values);
             assert!(
-                self.int32_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "int32_values", 3usize
+                self.int32_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "int32_values",
+                3usize,
             );
             msg.int32_values.update(&self.int32_values);
             assert!(
-                self.uint32_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "uint32_values", 3usize
+                self.uint32_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "uint32_values",
+                3usize,
             );
             msg.uint32_values.update(&self.uint32_values);
             assert!(
-                self.int64_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "int64_values", 3usize
+                self.int64_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "int64_values",
+                3usize,
             );
             msg.int64_values.update(&self.int64_values);
             assert!(
-                self.uint64_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "uint64_values", 3usize
+                self.uint64_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "uint64_values",
+                3usize,
             );
             msg.uint64_values.update(&self.uint64_values);
             assert!(
-                self.string_values.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "string_values", 3usize
+                self.string_values.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "string_values",
+                3usize,
             );
-            msg.string_values.update(&self.string_values);
+            msg.string_values.try_update_bytes(&self.string_values);
             unsafe {
                 test_msgs__msg__BasicTypes__Sequence__fini(&mut msg.basic_types_values);
                 test_msgs__msg__BasicTypes__Sequence__init(
@@ -2787,74 +3184,102 @@ pub mod msg {
             }
             assert!(
                 self.bool_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "bool_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "bool_values_default",
+                3usize,
             );
             msg.bool_values_default.update(&self.bool_values_default);
             assert!(
                 self.byte_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "byte_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "byte_values_default",
+                3usize,
             );
             msg.byte_values_default.update(&self.byte_values_default);
             assert!(
                 self.char_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "char_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "char_values_default",
+                3usize,
             );
             msg.char_values_default.update(&self.char_values_default);
             assert!(
                 self.float32_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "float32_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "float32_values_default",
+                3usize,
             );
             msg.float32_values_default.update(&self.float32_values_default);
             assert!(
                 self.float64_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "float64_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "float64_values_default",
+                3usize,
             );
             msg.float64_values_default.update(&self.float64_values_default);
             assert!(
                 self.int8_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "int8_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "int8_values_default",
+                3usize,
             );
             msg.int8_values_default.update(&self.int8_values_default);
             assert!(
                 self.uint8_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "uint8_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "uint8_values_default",
+                3usize,
             );
             msg.uint8_values_default.update(&self.uint8_values_default);
             assert!(
                 self.int16_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "int16_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "int16_values_default",
+                3usize,
             );
             msg.int16_values_default.update(&self.int16_values_default);
             assert!(
                 self.uint16_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "uint16_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "uint16_values_default",
+                3usize,
             );
             msg.uint16_values_default.update(&self.uint16_values_default);
             assert!(
                 self.int32_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "int32_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "int32_values_default",
+                3usize,
             );
             msg.int32_values_default.update(&self.int32_values_default);
             assert!(
                 self.uint32_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "uint32_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "uint32_values_default",
+                3usize,
             );
             msg.uint32_values_default.update(&self.uint32_values_default);
             assert!(
                 self.int64_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "int64_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "int64_values_default",
+                3usize,
             );
             msg.int64_values_default.update(&self.int64_values_default);
             assert!(
                 self.uint64_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "uint64_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "uint64_values_default",
+                3usize,
             );
             msg.uint64_values_default.update(&self.uint64_values_default);
             assert!(
                 self.string_values_default.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "string_values_default", 3usize
+                "Field {} is upper bounded by {}!",
+                "string_values_default",
+                3usize,
             );
-            msg.string_values_default.update(&self.string_values_default);
+            msg.string_values_default.try_update_bytes(&self.string_values_default);
             msg.alignment_check = self.alignment_check;
         }
     }
@@ -3059,9 +3484,12 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct MultiNested {
-        pub array_of_arrays: Vec<test_msgs::msg::Arrays>,
-        pub array_of_bounded_sequences: Vec<test_msgs::msg::BoundedSequences>,
-        pub array_of_unbounded_sequences: Vec<test_msgs::msg::UnboundedSequences>,
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub array_of_arrays: [test_msgs::msg::Arrays; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub array_of_bounded_sequences: [test_msgs::msg::BoundedSequences; 3usize],
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub array_of_unbounded_sequences: [test_msgs::msg::UnboundedSequences; 3usize],
         pub bounded_sequence_of_arrays: Vec<test_msgs::msg::Arrays>,
         pub bounded_sequence_of_bounded_sequences: Vec<test_msgs::msg::BoundedSequences>,
         pub bounded_sequence_of_unbounded_sequences: Vec<
@@ -3094,30 +3522,15 @@ pub mod msg {
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> MultiNested {
             MultiNested {
-                array_of_arrays: {
-                    let vec: Vec<_> = msg
-                        .array_of_arrays
-                        .iter()
-                        .map(|s| test_msgs::msg::Arrays::from_native(s))
-                        .collect();
-                    vec
-                },
-                array_of_bounded_sequences: {
-                    let vec: Vec<_> = msg
-                        .array_of_bounded_sequences
-                        .iter()
-                        .map(|s| test_msgs::msg::BoundedSequences::from_native(s))
-                        .collect();
-                    vec
-                },
-                array_of_unbounded_sequences: {
-                    let vec: Vec<_> = msg
-                        .array_of_unbounded_sequences
-                        .iter()
-                        .map(|s| test_msgs::msg::UnboundedSequences::from_native(s))
-                        .collect();
-                    vec
-                },
+                array_of_arrays: std::array::from_fn(|index| test_msgs::msg::Arrays::from_native(
+                    &msg.array_of_arrays[index],
+                )),
+                array_of_bounded_sequences: std::array::from_fn(|index| test_msgs::msg::BoundedSequences::from_native(
+                    &msg.array_of_bounded_sequences[index],
+                )),
+                array_of_unbounded_sequences: std::array::from_fn(|index| test_msgs::msg::UnboundedSequences::from_native(
+                    &msg.array_of_unbounded_sequences[index],
+                )),
                 bounded_sequence_of_arrays: {
                     let mut temp = Vec::with_capacity(
                         msg.bounded_sequence_of_arrays.size,
@@ -3212,15 +3625,21 @@ pub mod msg {
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             assert_eq!(
-                self.array_of_arrays.len(), 3usize, "Field {} is fixed size of {}!",
-                "array_of_arrays", 3usize
+                self.array_of_arrays.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "array_of_arrays",
+                3usize,
             );
             for (t, s) in msg.array_of_arrays.iter_mut().zip(&self.array_of_arrays) {
                 s.copy_to_native(t);
             }
             assert_eq!(
-                self.array_of_bounded_sequences.len(), 3usize,
-                "Field {} is fixed size of {}!", "array_of_bounded_sequences", 3usize
+                self.array_of_bounded_sequences.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "array_of_bounded_sequences",
+                3usize,
             );
             for (t, s) in msg
                 .array_of_bounded_sequences
@@ -3230,8 +3649,11 @@ pub mod msg {
                 s.copy_to_native(t);
             }
             assert_eq!(
-                self.array_of_unbounded_sequences.len(), 3usize,
-                "Field {} is fixed size of {}!", "array_of_unbounded_sequences", 3usize
+                self.array_of_unbounded_sequences.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "array_of_unbounded_sequences",
+                3usize,
             );
             for (t, s) in msg
                 .array_of_unbounded_sequences
@@ -3397,18 +3819,18 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct Strings {
-        pub string_value: std::string::String,
-        pub string_value_default1: std::string::String,
-        pub string_value_default2: std::string::String,
-        pub string_value_default3: std::string::String,
-        pub string_value_default4: std::string::String,
-        pub string_value_default5: std::string::String,
-        pub bounded_string_value: std::string::String,
-        pub bounded_string_value_default1: std::string::String,
-        pub bounded_string_value_default2: std::string::String,
-        pub bounded_string_value_default3: std::string::String,
-        pub bounded_string_value_default4: std::string::String,
-        pub bounded_string_value_default5: std::string::String,
+        pub string_value: crate::RosString,
+        pub string_value_default1: crate::RosString,
+        pub string_value_default2: crate::RosString,
+        pub string_value_default3: crate::RosString,
+        pub string_value_default4: crate::RosString,
+        pub string_value_default5: crate::RosString,
+        pub bounded_string_value: crate::RosString,
+        pub bounded_string_value_default1: crate::RosString,
+        pub bounded_string_value_default2: crate::RosString,
+        pub bounded_string_value_default3: crate::RosString,
+        pub bounded_string_value_default4: crate::RosString,
+        pub bounded_string_value_default5: crate::RosString,
     }
     unsafe impl WrappedTypesupport for Strings {
         type CStruct = test_msgs__msg__Strings;
@@ -3429,53 +3851,66 @@ pub mod msg {
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Strings {
             Strings {
-                string_value: msg.string_value.to_str().to_owned(),
-                string_value_default1: msg.string_value_default1.to_str().to_owned(),
-                string_value_default2: msg.string_value_default2.to_str().to_owned(),
-                string_value_default3: msg.string_value_default3.to_str().to_owned(),
-                string_value_default4: msg.string_value_default4.to_str().to_owned(),
-                string_value_default5: msg.string_value_default5.to_str().to_owned(),
-                bounded_string_value: msg.bounded_string_value.to_str().to_owned(),
-                bounded_string_value_default1: msg
-                    .bounded_string_value_default1
-                    .to_str()
-                    .to_owned(),
-                bounded_string_value_default2: msg
-                    .bounded_string_value_default2
-                    .to_str()
-                    .to_owned(),
-                bounded_string_value_default3: msg
-                    .bounded_string_value_default3
-                    .to_str()
-                    .to_owned(),
-                bounded_string_value_default4: msg
-                    .bounded_string_value_default4
-                    .to_str()
-                    .to_owned(),
-                bounded_string_value_default5: msg
-                    .bounded_string_value_default5
-                    .to_str()
-                    .to_owned(),
+                string_value: crate::RosString::from(msg.string_value.as_bytes()),
+                string_value_default1: crate::RosString::from(
+                    msg.string_value_default1.as_bytes(),
+                ),
+                string_value_default2: crate::RosString::from(
+                    msg.string_value_default2.as_bytes(),
+                ),
+                string_value_default3: crate::RosString::from(
+                    msg.string_value_default3.as_bytes(),
+                ),
+                string_value_default4: crate::RosString::from(
+                    msg.string_value_default4.as_bytes(),
+                ),
+                string_value_default5: crate::RosString::from(
+                    msg.string_value_default5.as_bytes(),
+                ),
+                bounded_string_value: crate::RosString::from(
+                    msg.bounded_string_value.as_bytes(),
+                ),
+                bounded_string_value_default1: crate::RosString::from(
+                    msg.bounded_string_value_default1.as_bytes(),
+                ),
+                bounded_string_value_default2: crate::RosString::from(
+                    msg.bounded_string_value_default2.as_bytes(),
+                ),
+                bounded_string_value_default3: crate::RosString::from(
+                    msg.bounded_string_value_default3.as_bytes(),
+                ),
+                bounded_string_value_default4: crate::RosString::from(
+                    msg.bounded_string_value_default4.as_bytes(),
+                ),
+                bounded_string_value_default5: crate::RosString::from(
+                    msg.bounded_string_value_default5.as_bytes(),
+                ),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.string_value.assign(&self.string_value);
-            msg.string_value_default1.assign(&self.string_value_default1);
-            msg.string_value_default2.assign(&self.string_value_default2);
-            msg.string_value_default3.assign(&self.string_value_default3);
-            msg.string_value_default4.assign(&self.string_value_default4);
-            msg.string_value_default5.assign(&self.string_value_default5);
-            msg.bounded_string_value.assign(&self.bounded_string_value);
+            msg.string_value.try_assign_bytes((&self.string_value).as_bytes());
+            msg.string_value_default1
+                .try_assign_bytes((&self.string_value_default1).as_bytes());
+            msg.string_value_default2
+                .try_assign_bytes((&self.string_value_default2).as_bytes());
+            msg.string_value_default3
+                .try_assign_bytes((&self.string_value_default3).as_bytes());
+            msg.string_value_default4
+                .try_assign_bytes((&self.string_value_default4).as_bytes());
+            msg.string_value_default5
+                .try_assign_bytes((&self.string_value_default5).as_bytes());
+            msg.bounded_string_value
+                .try_assign_bytes((&self.bounded_string_value).as_bytes());
             msg.bounded_string_value_default1
-                .assign(&self.bounded_string_value_default1);
+                .try_assign_bytes((&self.bounded_string_value_default1).as_bytes());
             msg.bounded_string_value_default2
-                .assign(&self.bounded_string_value_default2);
+                .try_assign_bytes((&self.bounded_string_value_default2).as_bytes());
             msg.bounded_string_value_default3
-                .assign(&self.bounded_string_value_default3);
+                .try_assign_bytes((&self.bounded_string_value_default3).as_bytes());
             msg.bounded_string_value_default4
-                .assign(&self.bounded_string_value_default4);
+                .try_assign_bytes((&self.bounded_string_value_default4).as_bytes());
             msg.bounded_string_value_default5
-                .assign(&self.bounded_string_value_default5);
+                .try_assign_bytes((&self.bounded_string_value_default5).as_bytes());
         }
     }
     impl Default for Strings {
@@ -3504,7 +3939,7 @@ pub mod msg {
         pub uint32_values: Vec<u32>,
         pub int64_values: Vec<i64>,
         pub uint64_values: Vec<u64>,
-        pub string_values: Vec<std::string::String>,
+        pub string_values: Vec<crate::RosString>,
         pub basic_types_values: Vec<test_msgs::msg::BasicTypes>,
         pub constants_values: Vec<test_msgs::msg::Constants>,
         pub defaults_values: Vec<test_msgs::msg::Defaults>,
@@ -3521,7 +3956,7 @@ pub mod msg {
         pub uint32_values_default: Vec<u32>,
         pub int64_values_default: Vec<i64>,
         pub uint64_values_default: Vec<u64>,
-        pub string_values_default: Vec<std::string::String>,
+        pub string_values_default: Vec<crate::RosString>,
         pub alignment_check: i32,
     }
     unsafe impl WrappedTypesupport for UnboundedSequences {
@@ -3556,7 +3991,7 @@ pub mod msg {
                 uint32_values: msg.uint32_values.to_vec(),
                 int64_values: msg.int64_values.to_vec(),
                 uint64_values: msg.uint64_values.to_vec(),
-                string_values: msg.string_values.to_vec(),
+                string_values: msg.string_values.to_bytes_vec::<crate::RosString>(),
                 basic_types_values: {
                     let mut temp = Vec::with_capacity(msg.basic_types_values.size);
                     let slice = unsafe {
@@ -3609,7 +4044,9 @@ pub mod msg {
                 uint32_values_default: msg.uint32_values_default.to_vec(),
                 int64_values_default: msg.int64_values_default.to_vec(),
                 uint64_values_default: msg.uint64_values_default.to_vec(),
-                string_values_default: msg.string_values_default.to_vec(),
+                string_values_default: msg
+                    .string_values_default
+                    .to_bytes_vec::<crate::RosString>(),
                 alignment_check: msg.alignment_check,
             }
         }
@@ -3627,7 +4064,7 @@ pub mod msg {
             msg.uint32_values.update(&self.uint32_values);
             msg.int64_values.update(&self.int64_values);
             msg.uint64_values.update(&self.uint64_values);
-            msg.string_values.update(&self.string_values);
+            msg.string_values.try_update_bytes(&self.string_values);
             unsafe {
                 test_msgs__msg__BasicTypes__Sequence__fini(&mut msg.basic_types_values);
                 test_msgs__msg__BasicTypes__Sequence__init(
@@ -3683,7 +4120,7 @@ pub mod msg {
             msg.uint32_values_default.update(&self.uint32_values_default);
             msg.int64_values_default.update(&self.int64_values_default);
             msg.uint64_values_default.update(&self.uint64_values_default);
-            msg.string_values_default.update(&self.string_values_default);
+            msg.string_values_default.try_update_bytes(&self.string_values_default);
             msg.alignment_check = self.alignment_check;
         }
     }
@@ -3696,13 +4133,14 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct WStrings {
-        pub wstring_value: std::string::String,
-        pub wstring_value_default1: std::string::String,
-        pub wstring_value_default2: std::string::String,
-        pub wstring_value_default3: std::string::String,
-        pub array_of_wstrings: Vec<std::string::String>,
-        pub bounded_sequence_of_wstrings: Vec<std::string::String>,
-        pub unbounded_sequence_of_wstrings: Vec<std::string::String>,
+        pub wstring_value: crate::RosWString,
+        pub wstring_value_default1: crate::RosWString,
+        pub wstring_value_default2: crate::RosWString,
+        pub wstring_value_default3: crate::RosWString,
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub array_of_wstrings: [crate::RosWString; 3usize],
+        pub bounded_sequence_of_wstrings: Vec<crate::RosWString>,
+        pub unbounded_sequence_of_wstrings: Vec<crate::RosWString>,
     }
     unsafe impl WrappedTypesupport for WStrings {
         type CStruct = test_msgs__msg__WStrings;
@@ -3723,41 +4161,55 @@ pub mod msg {
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> WStrings {
             WStrings {
-                wstring_value: msg.wstring_value.to_str().to_owned(),
-                wstring_value_default1: msg.wstring_value_default1.to_str().to_owned(),
-                wstring_value_default2: msg.wstring_value_default2.to_str().to_owned(),
-                wstring_value_default3: msg.wstring_value_default3.to_str().to_owned(),
-                array_of_wstrings: msg
-                    .array_of_wstrings
-                    .iter()
-                    .map(|s| s.to_str().to_owned())
-                    .collect(),
-                bounded_sequence_of_wstrings: msg.bounded_sequence_of_wstrings.to_vec(),
+                wstring_value: crate::RosWString::from(msg.wstring_value.as_units()),
+                wstring_value_default1: crate::RosWString::from(
+                    msg.wstring_value_default1.as_units(),
+                ),
+                wstring_value_default2: crate::RosWString::from(
+                    msg.wstring_value_default2.as_units(),
+                ),
+                wstring_value_default3: crate::RosWString::from(
+                    msg.wstring_value_default3.as_units(),
+                ),
+                array_of_wstrings: std::array::from_fn(|index| crate::RosWString::from(
+                    msg.array_of_wstrings[index].as_units(),
+                )),
+                bounded_sequence_of_wstrings: msg
+                    .bounded_sequence_of_wstrings
+                    .to_units_vec::<crate::RosWString>(),
                 unbounded_sequence_of_wstrings: msg
                     .unbounded_sequence_of_wstrings
-                    .to_vec(),
+                    .to_units_vec::<crate::RosWString>(),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.wstring_value.assign(&self.wstring_value);
-            msg.wstring_value_default1.assign(&self.wstring_value_default1);
-            msg.wstring_value_default2.assign(&self.wstring_value_default2);
-            msg.wstring_value_default3.assign(&self.wstring_value_default3);
+            msg.wstring_value.try_assign_units((&self.wstring_value).as_units());
+            msg.wstring_value_default1
+                .try_assign_units((&self.wstring_value_default1).as_units());
+            msg.wstring_value_default2
+                .try_assign_units((&self.wstring_value_default2).as_units());
+            msg.wstring_value_default3
+                .try_assign_units((&self.wstring_value_default3).as_units());
             assert_eq!(
-                self.array_of_wstrings.len(), 3usize, "Field {} is fixed size of {}!",
-                "array_of_wstrings", 3usize
+                self.array_of_wstrings.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "array_of_wstrings",
+                3usize,
             );
             for (t, s) in msg.array_of_wstrings.iter_mut().zip(&self.array_of_wstrings) {
-                t.assign(&s);
+                t.try_assign_units((&s).as_units());
             }
             assert!(
                 self.bounded_sequence_of_wstrings.len() <= 3usize,
-                "Field {} is upper bounded by {}!", "bounded_sequence_of_wstrings",
-                3usize
+                "Field {} is upper bounded by {}!",
+                "bounded_sequence_of_wstrings",
+                3usize,
             );
-            msg.bounded_sequence_of_wstrings.update(&self.bounded_sequence_of_wstrings);
+            msg.bounded_sequence_of_wstrings
+                .try_update_units(&self.bounded_sequence_of_wstrings);
             msg.unbounded_sequence_of_wstrings
-                .update(&self.unbounded_sequence_of_wstrings);
+                .try_update_units(&self.unbounded_sequence_of_wstrings);
         }
     }
     impl Default for WStrings {

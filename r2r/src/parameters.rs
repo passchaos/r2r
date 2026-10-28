@@ -1,4 +1,4 @@
-use crate::{Error, Result};
+use crate::{Error, Result, RosString};
 use std::ffi::CStr;
 
 use crate::msg_types::generated_msgs::rcl_interfaces;
@@ -43,9 +43,9 @@ impl ParameterDeclarationOptions {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParameterEventChange {
     pub stamp: crate::builtin_interfaces::msg::Time,
-    pub node: String,
+    pub node: RosString,
     pub kind: ParameterEventKind,
-    pub name: String,
+    pub name: RosString,
     pub value: ParameterValue,
 }
 
@@ -80,7 +80,7 @@ pub(crate) fn flatten_parameter_event(
                     value,
                 }),
                 Err(err) => {
-                    log::warn!("ignoring malformed parameter event for {name}: {err}");
+                    log::warn!("ignoring malformed parameter event for {name:?}: {err}");
                     None
                 }
             }
@@ -96,12 +96,12 @@ pub enum ParameterValue {
     Bool(bool),
     Integer(i64),
     Double(f64),
-    String(String),
+    String(RosString),
     BoolArray(Vec<bool>),
     ByteArray(Vec<u8>),
     IntegerArray(Vec<i64>),
     DoubleArray(Vec<f64>),
-    StringArray(Vec<String>),
+    StringArray(Vec<RosString>),
 }
 
 impl From<()> for ParameterValue {
@@ -144,13 +144,13 @@ impl From<f64> for ParameterValue {
 
 impl From<String> for ParameterValue {
     fn from(value: String) -> Self {
-        Self::String(value)
+        Self::String(value.into())
     }
 }
 
 impl From<&str> for ParameterValue {
     fn from(value: &str) -> Self {
-        Self::String(value.to_owned())
+        Self::String(value.into())
     }
 }
 
@@ -180,11 +180,37 @@ parameter_array_from!(bool, BoolArray);
 parameter_array_from!(u8, ByteArray);
 parameter_array_from!(i64, IntegerArray);
 parameter_array_from!(f64, DoubleArray);
-parameter_array_from!(String, StringArray);
+parameter_array_from!(RosString, StringArray);
+
+impl From<RosString> for ParameterValue {
+    fn from(value: RosString) -> Self {
+        Self::String(value)
+    }
+}
+impl From<Vec<String>> for ParameterValue {
+    fn from(value: Vec<String>) -> Self {
+        Self::StringArray(value.into_iter().map(Into::into).collect())
+    }
+}
+impl From<&[String]> for ParameterValue {
+    fn from(value: &[String]) -> Self {
+        Self::StringArray(
+            value
+                .iter()
+                .map(|value| RosString::from(value.as_str()))
+                .collect(),
+        )
+    }
+}
+impl<const N: usize> From<[String; N]> for ParameterValue {
+    fn from(value: [String; N]) -> Self {
+        Self::StringArray(value.into_iter().map(Into::into).collect())
+    }
+}
 
 impl<const N: usize> From<[&str; N]> for ParameterValue {
     fn from(value: [&str; N]) -> Self {
-        Self::StringArray(value.into_iter().map(str::to_owned).collect())
+        Self::StringArray(value.into_iter().map(Into::into).collect())
     }
 }
 
@@ -266,12 +292,14 @@ try_into_template!((), "not set", ParameterValue::NotSet => ());
 try_into_template!(bool, "boolean", ParameterValue::Bool(value) => value);
 try_into_template!(i64, "integer", ParameterValue::Integer(value) => value);
 try_into_template!(f64, "double", ParameterValue::Double(value) => value);
-try_into_template!(String, "string", ParameterValue::String(value) => value);
+try_into_template!(RosString, "string", ParameterValue::String(value) => value);
+try_into_template!(String, "string", ParameterValue::String(value) => decode_text(value)?);
 try_into_template!(Vec<bool>, "boolean array", ParameterValue::BoolArray(value) => value);
 try_into_template!(Vec<u8>, "byte array", ParameterValue::ByteArray(value) => value);
 try_into_template!(Vec<i64>, "integer array", ParameterValue::IntegerArray(value) => value);
 try_into_template!(Vec<f64>, "double array", ParameterValue::DoubleArray(value) => value);
-try_into_template!(Vec<String>, "string array", ParameterValue::StringArray(value) => value);
+try_into_template!(Vec<RosString>, "string array", ParameterValue::StringArray(value) => value);
+try_into_template!(Vec<String>, "string array", ParameterValue::StringArray(value) => decode_texts(value)?);
 
 macro_rules! try_into_option_template {
     ($ty:ty, $expected_type_name:literal, $variant:pat => $result:expr) => {
@@ -295,12 +323,31 @@ macro_rules! try_into_option_template {
 try_into_option_template!(bool, "boolean", ParameterValue::Bool(value) => value);
 try_into_option_template!(i64, "integer", ParameterValue::Integer(value) => value);
 try_into_option_template!(f64, "double", ParameterValue::Double(value) => value);
-try_into_option_template!(String, "string", ParameterValue::String(value) => value);
+try_into_option_template!(RosString, "string", ParameterValue::String(value) => value);
+try_into_option_template!(String, "string", ParameterValue::String(value) => decode_text(value)?);
 try_into_option_template!(Vec<bool>, "boolean array", ParameterValue::BoolArray(value) => value);
 try_into_option_template!(Vec<u8>, "byte array", ParameterValue::ByteArray(value) => value);
 try_into_option_template!(Vec<i64>, "integer array", ParameterValue::IntegerArray(value) => value);
 try_into_option_template!(Vec<f64>, "double array", ParameterValue::DoubleArray(value) => value);
-try_into_option_template!(Vec<String>, "string array", ParameterValue::StringArray(value) => value);
+try_into_option_template!(Vec<RosString>, "string array", ParameterValue::StringArray(value) => value);
+try_into_option_template!(Vec<String>, "string array", ParameterValue::StringArray(value) => decode_texts(value)?);
+
+fn decode_text(value: RosString) -> std::result::Result<String, WrongParameterType> {
+    value.into_string().map_err(|_| WrongParameterType {
+        expected_type_name: "UTF-8 string",
+        actual_type_name: "non-UTF-8 string",
+    })
+}
+fn decode_texts(values: Vec<RosString>) -> std::result::Result<Vec<String>, WrongParameterType> {
+    values
+        .into_iter()
+        .map(decode_text)
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(|_| WrongParameterType {
+            expected_type_name: "UTF-8 string array",
+            actual_type_name: "non-UTF-8 string array",
+        })
+}
 
 impl ParameterValue {
     pub fn type_name(&self) -> &'static str {
@@ -327,11 +374,7 @@ impl ParameterValue {
             ParameterValue::Double(unsafe { *v.double_value })
         } else if !v.string_value.is_null() {
             let s = unsafe { CStr::from_ptr(v.string_value) };
-            let string = s.to_str().map_err(|err| Error::InvalidUtf8 {
-                context: "parameter override value",
-                err: err.to_string(),
-            })?;
-            let string = string.to_owned();
+            let string = RosString::from(s.to_bytes());
             ParameterValue::String(string)
         } else if !v.byte_array_value.is_null() {
             let array = unsafe { &*v.byte_array_value };
@@ -355,12 +398,7 @@ impl ParameterValue {
                         return Err(Error::RCL_RET_ERROR);
                     }
                     let s = unsafe { CStr::from_ptr(*cs) };
-                    s.to_str()
-                        .map(str::to_owned)
-                        .map_err(|err| Error::InvalidUtf8 {
-                            context: "parameter override string array",
-                            err: err.to_string(),
-                        })
+                    Ok(RosString::from(s.to_bytes()))
                 })
                 .collect::<Result<Vec<_>>>()?;
             ParameterValue::StringArray(s)
@@ -766,12 +804,14 @@ impl_ros_params!(u16, ParameterValue::Integer, try_conv, try_conv);
 impl_ros_params!(u32, ParameterValue::Integer, try_conv, try_conv);
 impl_ros_params!(f64, ParameterValue::Double, noop, noop);
 impl_ros_params!(f32, ParameterValue::Double, to_f64, to_f32);
-impl_ros_params!(String, ParameterValue::String, to_string, to_string);
+impl_ros_params!(String, ParameterValue::String, to_ros_string, from_ros_string);
+impl_ros_params!(RosString, ParameterValue::String, clone_value, clone_value);
 impl_ros_params!(Vec<bool>, ParameterValue::BoolArray, clone_value, clone_value);
 impl_ros_params!(Vec<u8>, ParameterValue::ByteArray, clone_value, clone_value);
 impl_ros_params!(Vec<i64>, ParameterValue::IntegerArray, clone_value, clone_value);
 impl_ros_params!(Vec<f64>, ParameterValue::DoubleArray, clone_value, clone_value);
-impl_ros_params!(Vec<String>, ParameterValue::StringArray, clone_value, clone_value);
+impl_ros_params!(Vec<String>, ParameterValue::StringArray, to_ros_strings, from_ros_strings);
+impl_ros_params!(Vec<RosString>, ParameterValue::StringArray, clone_value, clone_value);
 
 // Helper conversion functions
 fn noop<T: Copy>(x: &T) -> Result<T> {
@@ -797,8 +837,26 @@ where
     })
 }
 
-fn to_string(x: &str) -> Result<String> {
-    Ok(x.to_string())
+fn to_ros_string(value: &str) -> Result<RosString> {
+    Ok(value.into())
+}
+fn from_ros_string(value: &RosString) -> Result<String> {
+    value
+        .try_to_str()
+        .map(str::to_owned)
+        .map_err(|error| Error::InvalidUtf8 {
+            context: "parameter string",
+            err: error.to_string(),
+        })
+}
+fn to_ros_strings(values: &[String]) -> Result<Vec<RosString>> {
+    Ok(values
+        .iter()
+        .map(|value| RosString::from(value.as_str()))
+        .collect())
+}
+fn from_ros_strings(values: &[RosString]) -> Result<Vec<String>> {
+    values.iter().map(from_ros_string).collect()
 }
 
 fn clone_value<T: Clone>(value: &T) -> Result<T> {
@@ -895,10 +953,10 @@ mod tests {
 
         assert_eq!(
             registered.get("names").map(|parameter| &parameter.value),
-            Some(&ParameterValue::StringArray(strings.clone()))
+            Some(&ParameterValue::from(strings.clone()))
         );
         strings
-            .set_parameter("", &ParameterValue::StringArray(vec!["replacement".to_owned()]))
+            .set_parameter("", &ParameterValue::from(["replacement"]))
             .unwrap();
         assert_eq!(strings, vec!["replacement"]);
         assert!(strings

@@ -1136,7 +1136,7 @@ where
             &client,
             || {
                 let uuid_msg = unique_identifier_msgs::msg::UUID {
-                    uuid: uuid.as_bytes().to_vec(),
+                    uuid: *uuid.as_bytes(),
                 };
                 let request_msg = T::make_goal_request_msg(uuid_msg, goal);
                 WrappedNativeMsg::try_from(&request_msg)
@@ -1934,7 +1934,7 @@ pub(crate) fn batch_cancel_goal_info(
     stamp: builtin_interfaces::msg::Time,
 ) -> action_msgs::msg::GoalInfo {
     action_msgs::msg::GoalInfo {
-        goal_id: unique_identifier_msgs::msg::UUID { uuid: vec![0; 16] },
+        goal_id: unique_identifier_msgs::msg::UUID { uuid: [0; 16] },
         stamp,
     }
 }
@@ -1942,7 +1942,7 @@ pub(crate) fn batch_cancel_goal_info(
 pub(crate) fn goal_cancel_info(uuid: &uuid::Uuid) -> action_msgs::msg::GoalInfo {
     action_msgs::msg::GoalInfo {
         goal_id: unique_identifier_msgs::msg::UUID {
-            uuid: uuid.as_bytes().to_vec(),
+            uuid: *uuid.as_bytes(),
         },
         ..Default::default()
     }
@@ -1965,7 +1965,7 @@ where
     T: WrappedActionTypeSupport,
 {
     let uuid_msg = unique_identifier_msgs::msg::UUID {
-        uuid: uuid.as_bytes().to_vec(),
+        uuid: *uuid.as_bytes(),
     };
     WrappedNativeMsg::try_from(&T::make_result_request_msg(uuid_msg))
 }
@@ -2560,14 +2560,14 @@ mod tests {
     }
 
     #[test]
-    fn status_decoding_rejects_a_batch_before_applying_any_updates() {
+    fn status_json_rejects_malformed_fixed_goal_ids_before_decoding() {
         let valid = uuid::Uuid::new_v4();
         let status_array = action_msgs::msg::GoalStatusArray {
             status_list: vec![
                 action_msgs::msg::GoalStatus {
                     goal_info: action_msgs::msg::GoalInfo {
                         goal_id: unique_identifier_msgs::msg::UUID {
-                            uuid: valid.as_bytes().to_vec(),
+                            uuid: *valid.as_bytes(),
                         },
                         ..Default::default()
                     },
@@ -2575,7 +2575,7 @@ mod tests {
                 },
                 action_msgs::msg::GoalStatus {
                     goal_info: action_msgs::msg::GoalInfo {
-                        goal_id: unique_identifier_msgs::msg::UUID { uuid: vec![0; 15] },
+                        goal_id: unique_identifier_msgs::msg::UUID { uuid: [0; 16] },
                         ..Default::default()
                     },
                     status: action_msgs::msg::GoalStatus::STATUS_SUCCEEDED as i8,
@@ -2583,10 +2583,10 @@ mod tests {
             ],
         };
 
-        assert!(matches!(
-            decode_status_updates(&status_array),
-            Err(Error::InvalidActionUuidLength { actual: 15 })
-        ));
+        let mut value = serde_json::to_value(&status_array).unwrap();
+        value["status_list"][1]["goal_info"]["goal_id"]["uuid"] = serde_json::json!(vec![0; 15]);
+        assert!(serde_json::from_value::<action_msgs::msg::GoalStatusArray>(value).is_err());
+        assert_eq!(decode_status_updates(&status_array).unwrap().len(), 2);
     }
 
     #[test]
@@ -3712,7 +3712,7 @@ mod tests {
                     .into_iter()
                     .map(|uuid| action_msgs::msg::GoalInfo {
                         goal_id: unique_identifier_msgs::msg::UUID {
-                            uuid: uuid.as_bytes().to_vec(),
+                            uuid: *uuid.as_bytes(),
                         },
                         ..Default::default()
                     })
@@ -3724,27 +3724,16 @@ mod tests {
             vec![first, second]
         );
 
-        let (sender, receiver) = oneshot::channel();
-        sender
-            .send(action_msgs::srv::CancelGoal::Response {
-                return_code: action_msgs::srv::CancelGoal::Response::ERROR_NONE as i8,
-                goals_canceling: vec![action_msgs::msg::GoalInfo {
-                    goal_id: unique_identifier_msgs::msg::UUID { uuid: vec![0; 15] },
-                    ..Default::default()
-                }],
-            })
-            .unwrap();
-        assert!(matches!(
-            futures::executor::block_on(cancel_response_future(receiver)),
-            Err(Error::InvalidActionUuidLength { actual: 15 })
-        ));
+        let value = serde_json::json!({"return_code":0,"goals_canceling":[
+            {"goal_id":{"uuid":vec![0;15]},"stamp":{"sec":0,"nanosec":0}}]});
+        assert!(serde_json::from_value::<action_msgs::srv::CancelGoal::Response>(value).is_err());
 
         let stamp = builtin_interfaces::msg::Time {
             sec: 42,
             nanosec: 7,
         };
         let request = batch_cancel_goal_info(stamp.clone());
-        assert_eq!(request.goal_id.uuid, vec![0; 16]);
+        assert_eq!(request.goal_id.uuid, [0; 16]);
         assert_eq!(request.stamp, stamp);
     }
 

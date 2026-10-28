@@ -195,7 +195,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Request {
-            pub map_url: std::string::String,
+            pub map_url: crate::RosString,
         }
         unsafe impl WrappedTypesupport for Request {
             type CStruct = nav_msgs__srv__LoadMap_Request;
@@ -216,11 +216,11 @@ pub mod srv {
             }
             fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Request {
                 Request {
-                    map_url: msg.map_url.to_str().to_owned(),
+                    map_url: crate::RosString::from(msg.map_url.as_bytes()),
                 }
             }
             fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                msg.map_url.assign(&self.map_url);
+                msg.map_url.try_assign_bytes((&self.map_url).as_bytes());
             }
         }
         impl Default for Request {
@@ -540,7 +540,7 @@ pub mod msg {
     #[serde(default)]
     pub struct Odometry {
         pub header: std_msgs::msg::Header,
-        pub child_frame_id: std::string::String,
+        pub child_frame_id: crate::RosString,
         pub pose: geometry_msgs::msg::PoseWithCovariance,
         pub twist: geometry_msgs::msg::TwistWithCovariance,
     }
@@ -564,14 +564,14 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Odometry {
             Odometry {
                 header: std_msgs::msg::Header::from_native(&msg.header),
-                child_frame_id: msg.child_frame_id.to_str().to_owned(),
+                child_frame_id: crate::RosString::from(msg.child_frame_id.as_bytes()),
                 pose: geometry_msgs::msg::PoseWithCovariance::from_native(&msg.pose),
                 twist: geometry_msgs::msg::TwistWithCovariance::from_native(&msg.twist),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.header.copy_to_native(&mut msg.header);
-            msg.child_frame_id.assign(&self.child_frame_id);
+            msg.child_frame_id.try_assign_bytes((&self.child_frame_id).as_bytes());
             self.pose.copy_to_native(&mut msg.pose);
             self.twist.copy_to_native(&mut msg.twist);
         }

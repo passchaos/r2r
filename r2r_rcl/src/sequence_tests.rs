@@ -1,46 +1,5 @@
 use super::*;
 
-#[test]
-fn string_capacity_fast_path_matches_native_assignn_oracle() {
-    struct Owned(rosidl_runtime_c__String);
-    impl Drop for Owned {
-        fn drop(&mut self) {
-            unsafe { rosidl_runtime_c__String__fini(&mut self.0) };
-        }
-    }
-    let empty = || rosidl_runtime_c__String {
-        data: std::ptr::null_mut(),
-        size: 0,
-        capacity: 0,
-    };
-    let mut candidate = Owned(empty());
-    let mut oracle = Owned(empty());
-    for text in [
-        "",
-        "a string with spare room",
-        "short",
-        "",
-        "ハロー\0world",
-        "a longer value forcing native allocation",
-        "small",
-    ] {
-        assert!(candidate.0.try_assign(text));
-        assert!(unsafe {
-            rosidl_runtime_c__String__assignn(&mut oracle.0, text.as_ptr().cast(), text.len())
-        });
-        assert_eq!(candidate.0.size, oracle.0.size);
-        assert!(candidate.0.capacity > candidate.0.size);
-        assert_eq!(candidate.0.try_to_str().unwrap(), oracle.0.try_to_str().unwrap());
-        assert_eq!(unsafe { *candidate.0.data.add(candidate.0.size) }, 0);
-    }
-    let pointer = candidate.0.data;
-    for text in ["", "a", "b\0c", "ハロー"] {
-        assert!(candidate.0.try_assign(text));
-        assert_eq!(candidate.0.data, pointer);
-        assert_eq!(candidate.0.try_to_str().unwrap(), text);
-    }
-}
-
 macro_rules! sequence_case {
     ($ctype:ident, $values:expr) => {
         paste::item! {

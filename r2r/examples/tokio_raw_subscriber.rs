@@ -14,7 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         for x in 5..50 {
             // Send a string with varying length.
             let _ = p.publish(&r2r::std_msgs::msg::String {
-                data: format!("Hello{:>width$}", "World", width = x),
+                data: format!("Hello{:>width$}", "World", width = x).into(),
             });
             let _ = tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }

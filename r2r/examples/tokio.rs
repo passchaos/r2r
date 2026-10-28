@@ -26,7 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         while let Some(msg) = sub.next().await {
             if x % 2 == 0 {
                 p.publish(&r2r::std_msgs::msg::String {
-                    data: format!("({}): new msg: {}", x, msg.data),
+                    data: format!("({}): new msg: {}", x, msg.data).into(),
                 })
                 .unwrap();
             } else {

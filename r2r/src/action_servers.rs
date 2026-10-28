@@ -641,7 +641,7 @@ where
         mut self, execute: bool,
     ) -> Result<(ActionServerGoal<T>, mpsc::Receiver<ActionServerCancelRequest>)> {
         let uuid_msg = unique_identifier_msgs::msg::UUID {
-            uuid: self.uuid.as_bytes().to_vec(),
+            uuid: *self.uuid.as_bytes(),
         };
         let time = {
             let mut clock = self.clock.lock();
@@ -1158,7 +1158,7 @@ where
     ) -> Result<()> {
         let goal_info = action_msgs::msg::GoalInfo {
             goal_id: unique_identifier_msgs::msg::UUID {
-                uuid: uuid.as_bytes().to_vec(),
+                uuid: *uuid.as_bytes(),
             },
             ..action_msgs::msg::GoalInfo::default()
         };
@@ -1846,7 +1846,7 @@ where
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
 
         let uuid_msg = unique_identifier_msgs::msg::UUID {
-            uuid: self.uuid.as_bytes().to_vec(),
+            uuid: *self.uuid.as_bytes(),
         };
         let feedback_msg = T::make_feedback_msg(uuid_msg, msg);
         let mut native_msg = WrappedNativeMsg::<T::FeedbackMessage>::try_from(&feedback_msg)?;
@@ -2245,7 +2245,7 @@ mod tests {
     fn goal_info(uuid: uuid::Uuid) -> action_msgs::msg::GoalInfo {
         action_msgs::msg::GoalInfo {
             goal_id: unique_identifier_msgs::msg::UUID {
-                uuid: uuid.as_bytes().to_vec(),
+                uuid: *uuid.as_bytes(),
             },
             ..Default::default()
         }
@@ -2277,23 +2277,22 @@ mod tests {
     }
 
     #[test]
-    fn malformed_cancel_uuid_does_not_partially_filter_response() {
+    fn cancel_response_json_rejects_malformed_fixed_goal_ids() {
         let accepted = uuid::Uuid::from_u128(1);
-        let mut response = action_msgs::srv::CancelGoal::Response {
+        let response = action_msgs::srv::CancelGoal::Response {
             goals_canceling: vec![
                 goal_info(accepted),
                 action_msgs::msg::GoalInfo {
-                    goal_id: unique_identifier_msgs::msg::UUID { uuid: vec![0; 15] },
+                    goal_id: unique_identifier_msgs::msg::UUID { uuid: [0; 16] },
                     ..Default::default()
                 },
             ],
             ..Default::default()
         };
 
-        assert!(matches!(
-            retain_accepted_cancellations(&mut response, [(accepted, true)]),
-            Err(Error::InvalidActionUuidLength { actual: 15 })
-        ));
+        let mut value = serde_json::to_value(&response).unwrap();
+        value["goals_canceling"][1]["goal_id"]["uuid"] = serde_json::json!(vec![0; 15]);
+        assert!(serde_json::from_value::<action_msgs::srv::CancelGoal::Response>(value).is_err());
         assert_eq!(response.goals_canceling.len(), 2);
     }
 

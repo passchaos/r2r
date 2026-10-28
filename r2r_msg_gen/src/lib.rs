@@ -319,15 +319,16 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                     rust_field_type.to_rust_type()
                 };
 
-                let field = if c_member.is_array_ {
-                    // if member.array_size_ > 0 {
-                    // fixed size array
-                    // format!("pub {}: [{};{}usize],\n",field_name, rust_field_type, array_size)
-                    // actually lets use a vector anyway because its more convenient with traits. assert on the fixed size instead!
-                    //} else {
-                    // vector type
-                    quote! { pub #field_name : Vec< #rust_field_type > }
-                //}
+                let field = if let Some(array) = member.array_info() {
+                    if array.size > 0 && !array.is_upper_bound {
+                        let length = array.size;
+                        quote! {
+                            #[serde(with = "crate::msg_types::fixed_array")]
+                            pub #field_name : [#rust_field_type; #length]
+                        }
+                    } else {
+                        quote! { pub #field_name : Vec< #rust_field_type > }
+                    }
                 } else {
                     quote! { pub #field_name : #rust_field_type }
                 };
@@ -374,25 +375,22 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                             let path = rust_message_path(&module, &prefix, &name);
 
                             quote! {
-                                #field_name: {
-                                    let vec: Vec<_> = msg
-                                        .#field_name
-                                        .iter()
-                                        .map(|s| #path :: from_native(s))
-                                        .collect();
-                                    vec
-                                },
+                                #field_name: std::array::from_fn(|index| #path::from_native(&msg.#field_name[index])),
                             }
                         }
-                        MemberType::String | MemberType::WString => {
+                        MemberType::String => {
                             quote! {
-                                #field_name :
-                                msg. #field_name .iter().map(|s|s.to_str().to_owned()).collect(),
+                                #field_name: std::array::from_fn(|index| crate::RosString::from(msg.#field_name[index].as_bytes())),
+                            }
+                        }
+                        MemberType::WString => {
+                            quote! {
+                                #field_name: std::array::from_fn(|index| crate::RosWString::from(msg.#field_name[index].as_units())),
                             }
                         }
                         _ => {
                             quote! {
-                                #field_name : msg. #field_name .to_vec(),
+                                #field_name : msg. #field_name,
                             }
                         }
                     };
@@ -434,6 +432,10 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                                 temp
                             },
                         }
+                    } else if rust_field_type == MemberType::String {
+                        quote! { #field_name: msg.#field_name.to_bytes_vec::<crate::RosString>(), }
+                    } else if rust_field_type == MemberType::WString {
+                        quote! { #field_name: msg.#field_name.to_units_vec::<crate::RosWString>(), }
                     } else {
                         quote! {
                             #field_name: msg. #field_name .to_vec(),
@@ -447,9 +449,14 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                 }
             } else {
                 match rust_field_type {
-                    MemberType::String | MemberType::WString => {
+                    MemberType::String => {
                         quote! {
-                            #field_name: msg. #field_name .to_str().to_owned(),
+                            #field_name: crate::RosString::from(msg.#field_name.as_bytes()),
+                        }
+                    }
+                    MemberType::WString => {
+                        quote! {
+                            #field_name: crate::RosWString::from(msg.#field_name.as_units()),
                         }
                     }
                     MemberType::Message => {
@@ -497,7 +504,7 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
 
                 if array_info.size > 0 && !array_info.is_upper_bound {
                     // these are plain arrays
-                    // fixed size array, just copy but first check the size!
+                    // The generated Rust array has the exact native length.
 
                     let content = match rust_field_type {
                         MemberType::Message => {
@@ -507,10 +514,17 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                                 }
                             }
                         }
-                        MemberType::String | MemberType::WString => {
+                        MemberType::String => {
+                            quote! {
+                                for (t,s) in msg.#field_name.iter_mut().zip(&self.#field_name) {
+                                    check_rosidl_runtime_ret(t.try_assign_bytes(s.as_bytes()))?;
+                                }
+                            }
+                        }
+                        MemberType::WString => {
                             quote! {
                                 for (t, s) in msg. #field_name .iter_mut().zip(&self. #field_name ) {
-                                    check_rosidl_runtime_ret(t.try_assign(&s))?;
+                                    check_rosidl_runtime_ret(t.try_assign_units(s.as_units()))?;
                                 }
                             }
                         }
@@ -522,9 +536,6 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                     };
 
                     quote! {
-                        if self. #field_name .len() != #array_size {
-                            return Err(Error::RCL_RET_INVALID_ARGUMENT);
-                        }
                         #content
                     }
                 } else {
@@ -566,6 +577,16 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                                 }
                             }
                         }
+                    } else if rust_field_type == MemberType::String {
+                        quote! {
+                            #assert_stmt
+                            check_rosidl_runtime_ret(msg.#field_name.try_update_bytes(&self.#field_name))?;
+                        }
+                    } else if rust_field_type == MemberType::WString {
+                        quote! {
+                            #assert_stmt
+                            check_rosidl_runtime_ret(msg.#field_name.try_update_units(&self.#field_name))?;
+                        }
                     } else {
                         quote! {
                             #assert_stmt
@@ -577,11 +598,14 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
                 }
             } else {
                 match rust_field_type {
-                    MemberType::String | MemberType::WString => {
+                    MemberType::String => {
                         quote! {
-                            check_rosidl_runtime_ret(
-                                msg. #field_name .try_assign(&self. #field_name )
-                            )?;
+                            check_rosidl_runtime_ret(msg.#field_name.try_assign_bytes(self.#field_name.as_bytes()))?;
+                        }
+                    }
+                    MemberType::WString => {
+                        quote! {
+                            check_rosidl_runtime_ret(msg.#field_name.try_assign_units(self.#field_name.as_units()))?;
                         }
                     }
                     MemberType::Message => {

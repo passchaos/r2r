@@ -1,0 +1,22 @@
+copy_reuse elements=0 repetition=1/5
+copy_reuse elements=0 repetition=2/5
+copy_reuse elements=0 repetition=3/5
+copy_reuse elements=0 repetition=4/5
+copy_reuse elements=0 repetition=5/5
+serialize_owned elements=0 repetition=1/5
+serialize_owned elements=0 repetition=2/5
+serialize_owned elements=0 repetition=3/5
+serialize_owned elements=0 repetition=4/5
+serialize_owned elements=0 repetition=5/5
+Traceback (most recent call last):
+  File "/home/passchaos/Work/r2r/tools/bench_ros/run.py", line 175, in <module>
+    main()
+  File "/home/passchaos/Work/r2r/tools/bench_ros/run.py", line 143, in main
+    calibrations = [json.loads(run(["taskset", "-c", str(args.cpu), str(binary), mode, str(size), "10000"], env))["ns_per_op"] for binary in binaries.values()]
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/passchaos/Work/r2r/tools/bench_ros/run.py", line 18, in run
+    return subprocess.run(command, env=env, check=True, text=True, capture_output=True, timeout=120).stdout.strip()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['taskset', '-c', '24', '/home/passchaos/Work/r2r/target/string-reuse-ab/rclcpp-comparison', 'serialize_reuse', '0', '10000']' returned non-zero exit status 1.

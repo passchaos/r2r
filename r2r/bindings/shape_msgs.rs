@@ -89,7 +89,8 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct MeshTriangle {
-        pub vertex_indices: Vec<u32>,
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub vertex_indices: [u32; 3usize],
     }
     unsafe impl WrappedTypesupport for MeshTriangle {
         type CStruct = shape_msgs__msg__MeshTriangle;
@@ -110,13 +111,16 @@ pub mod msg {
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> MeshTriangle {
             MeshTriangle {
-                vertex_indices: msg.vertex_indices.to_vec(),
+                vertex_indices: msg.vertex_indices,
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             assert_eq!(
-                self.vertex_indices.len(), 3usize, "Field {} is fixed size of {}!",
-                "vertex_indices", 3usize
+                self.vertex_indices.len(),
+                3usize,
+                "Field {} is fixed size of {}!",
+                "vertex_indices",
+                3usize,
             );
             msg.vertex_indices.copy_from_slice(&self.vertex_indices[..3usize]);
         }
@@ -130,7 +134,8 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct Plane {
-        pub coef: Vec<f64>,
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub coef: [f64; 4usize],
     }
     unsafe impl WrappedTypesupport for Plane {
         type CStruct = shape_msgs__msg__Plane;
@@ -149,11 +154,15 @@ pub mod msg {
             #[cfg(feature = "doc-only")] shape_msgs__msg__Plane__destroy(msg)
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Plane {
-            Plane { coef: msg.coef.to_vec() }
+            Plane { coef: msg.coef }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             assert_eq!(
-                self.coef.len(), 4usize, "Field {} is fixed size of {}!", "coef", 4usize
+                self.coef.len(),
+                4usize,
+                "Field {} is fixed size of {}!",
+                "coef",
+                4usize,
             );
             msg.coef.copy_from_slice(&self.coef[..4usize]);
         }
@@ -199,8 +208,10 @@ pub mod msg {
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             msg.type_ = self.type_;
             assert!(
-                self.dimensions.len() <= 3usize, "Field {} is upper bounded by {}!",
-                "dimensions", 3usize
+                self.dimensions.len() <= 3usize,
+                "Field {} is upper bounded by {}!",
+                "dimensions",
+                3usize,
             );
             msg.dimensions.update(&self.dimensions);
             self.polygon.copy_to_native(&mut msg.polygon);

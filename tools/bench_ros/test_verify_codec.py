@@ -32,6 +32,17 @@ class CodecArchiveValidation(unittest.TestCase):
     def test_complete_matrix_passes(self):
         self.check()
 
+    def test_archived_string_fixture_cannot_use_integer_records(self):
+        self.report["metadata"]["fixture"]="string_array"
+        with self.assertRaisesRegex(RuntimeError,"fixture mismatch"):
+            self.check()
+        for row in self.report["records"]:
+            row["fixture"]="string_array"
+        self.check()
+        self.report["records"][0]["fixture"]="int32_array"
+        with self.assertRaisesRegex(RuntimeError,"fixture mismatch"):
+            self.check()
+
     def test_missing_record_fails(self):
         self.report["records"].pop()
         with self.assertRaisesRegex(RuntimeError, "matrix"):
@@ -49,6 +60,11 @@ class CodecArchiveValidation(unittest.TestCase):
     def test_gate_cannot_claim_false_success(self):
         self.report["metadata"]["regression_gate"]["passed"] = False
         with self.assertRaisesRegex(RuntimeError, "gate"):
+            self.check()
+
+    def test_instrumentation_cannot_claim_a_latency_gate(self):
+        self.report["metadata"]["allocation_probe"]={"sha256":"abc"}
+        with self.assertRaisesRegex(RuntimeError,"cannot claim a latency gate"):
             self.check()
 
 

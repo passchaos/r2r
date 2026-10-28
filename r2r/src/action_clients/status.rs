@@ -41,7 +41,7 @@ mod tests {
                 .map(|index| action_msgs::msg::GoalStatus {
                     goal_info: action_msgs::msg::GoalInfo {
                         goal_id: unique_identifier_msgs::msg::UUID {
-                            uuid: uuid::Uuid::from_u128(index as u128 + 1).as_bytes().to_vec(),
+                            uuid: *uuid::Uuid::from_u128(index as u128 + 1).as_bytes(),
                         },
                         stamp: crate::builtin_interfaces::msg::Time {
                             sec: index as i32,

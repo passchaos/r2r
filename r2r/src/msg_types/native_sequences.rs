@@ -6,7 +6,7 @@ fn array(dimensions: usize, elements: usize) -> Int32MultiArray {
         layout: MultiArrayLayout {
             dim: (0..dimensions)
                 .map(|index| MultiArrayDimension {
-                    label: format!("axis_{index}"),
+                    label: format!("axis_{index}").into(),
                     size: elements as u32,
                     stride: elements as u32,
                 })
@@ -80,4 +80,54 @@ fn nested_trajectory_sequences_preserve_hidden_initialized_elements() {
         assert_eq!(unsafe { (*outer).positions.data }, first_positions);
         assert_eq!(JointTrajectory::from_native(&native), message);
     }
+}
+
+#[test]
+fn parameter_string_arrays_reuse_capacity_and_match_native_and_cdr_oracles() {
+    use crate::rcl_interfaces::msg::ParameterValue;
+    let values = |count: usize| ParameterValue {
+        type_: 9,
+        string_array_value: (0..count)
+            .map(|index| format!("joint_{index}_日本語🦀_name").into())
+            .collect(),
+        ..Default::default()
+    };
+    let mut native = WrappedNativeMsg::<ParameterValue>::try_from(&values(4)).unwrap();
+    let outer = native.string_array_value.data;
+    let buffers: Vec<_> = unsafe { std::slice::from_raw_parts(outer, 4) }
+        .iter()
+        .map(|value| value.data)
+        .collect();
+    for count in [1, 0, 2, 4] {
+        let source = values(count);
+        source.try_copy_to_native(&mut native).unwrap();
+        assert_eq!(native.string_array_value.data, outer);
+        assert_eq!(native.string_array_value.capacity, 4);
+        for (index, &buffer) in buffers.iter().enumerate() {
+            assert_eq!(unsafe { (*outer.add(index)).data }, buffer);
+        }
+        assert_eq!(ParameterValue::from_native(&native), source);
+        let bytes = source.to_serialized_bytes().unwrap();
+        assert_eq!(ParameterValue::from_serialized_bytes(&bytes).unwrap(), source);
+    }
+    let grown = values(8);
+    grown.try_copy_to_native(&mut native).unwrap();
+    assert_eq!(ParameterValue::from_native(&native), grown);
+    for (index, &buffer) in buffers.iter().enumerate() {
+        assert_eq!(unsafe { (*native.string_array_value.data.add(index)).data }, buffer);
+    }
+}
+
+#[test]
+fn parameter_string_arrays_preserve_embedded_nul_in_native_storage() {
+    use crate::rcl_interfaces::msg::ParameterValue;
+    let source = ParameterValue {
+        type_: 9,
+        string_array_value: vec!["head\0tail".into(), "日本語\0🦀".into()],
+        ..Default::default()
+    };
+    let native = WrappedNativeMsg::<ParameterValue>::try_from(&source).unwrap();
+    assert_eq!(ParameterValue::from_native(&native), source);
+    // CDR is a separate middleware boundary. The baseline/candidate reproducer records
+    // embedded-NUL truncation under both Jazzy RMWs; native storage must preserve all bytes.
 }

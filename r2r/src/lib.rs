@@ -186,6 +186,8 @@ pub use nodes::{
 };
 
 pub mod qos;
+mod strings;
+pub use strings::{RosString, RosWString};
 
 #[cfg(r2r__rosgraph_msgs__msg__Clock)]
 mod time_source;

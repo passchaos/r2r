@@ -436,7 +436,7 @@ pub mod msg {
     #[serde(default)]
     pub struct State {
         pub id: u8,
-        pub label: std::string::String,
+        pub label: crate::RosString,
     }
     unsafe impl WrappedTypesupport for State {
         type CStruct = lifecycle_msgs__msg__State;
@@ -458,12 +458,12 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> State {
             State {
                 id: msg.id,
-                label: msg.label.to_str().to_owned(),
+                label: crate::RosString::from(msg.label.as_bytes()),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             msg.id = self.id;
-            msg.label.assign(&self.label);
+            msg.label.try_assign_bytes((&self.label).as_bytes());
         }
     }
     impl Default for State {
@@ -490,7 +490,7 @@ pub mod msg {
     #[serde(default)]
     pub struct Transition {
         pub id: u8,
-        pub label: std::string::String,
+        pub label: crate::RosString,
     }
     unsafe impl WrappedTypesupport for Transition {
         type CStruct = lifecycle_msgs__msg__Transition;
@@ -512,12 +512,12 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Transition {
             Transition {
                 id: msg.id,
-                label: msg.label.to_str().to_owned(),
+                label: crate::RosString::from(msg.label.as_bytes()),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             msg.id = self.id;
-            msg.label.assign(&self.label);
+            msg.label.try_assign_bytes((&self.label).as_bytes());
         }
     }
     impl Default for Transition {

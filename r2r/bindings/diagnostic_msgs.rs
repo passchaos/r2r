@@ -16,7 +16,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Request {
-            pub load_namespace: std::string::String,
+            pub load_namespace: crate::RosString,
         }
         unsafe impl WrappedTypesupport for Request {
             type CStruct = diagnostic_msgs__srv__AddDiagnostics_Request;
@@ -41,11 +41,11 @@ pub mod srv {
             }
             fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Request {
                 Request {
-                    load_namespace: msg.load_namespace.to_str().to_owned(),
+                    load_namespace: crate::RosString::from(msg.load_namespace.as_bytes()),
                 }
             }
             fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                msg.load_namespace.assign(&self.load_namespace);
+                msg.load_namespace.try_assign_bytes((&self.load_namespace).as_bytes());
             }
         }
         impl Default for Request {
@@ -58,7 +58,7 @@ pub mod srv {
         #[serde(default)]
         pub struct Response {
             pub success: bool,
-            pub message: std::string::String,
+            pub message: crate::RosString,
         }
         unsafe impl WrappedTypesupport for Response {
             type CStruct = diagnostic_msgs__srv__AddDiagnostics_Response;
@@ -84,12 +84,12 @@ pub mod srv {
             fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Response {
                 Response {
                     success: msg.success,
-                    message: msg.message.to_str().to_owned(),
+                    message: crate::RosString::from(msg.message.as_bytes()),
                 }
             }
             fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
                 msg.success = self.success;
-                msg.message.assign(&self.message);
+                msg.message.try_assign_bytes((&self.message).as_bytes());
             }
         }
         impl Default for Response {
@@ -149,7 +149,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Response {
-            pub id: std::string::String,
+            pub id: crate::RosString,
             pub passed: u8,
             pub status: Vec<diagnostic_msgs::msg::DiagnosticStatus>,
         }
@@ -174,7 +174,7 @@ pub mod srv {
             }
             fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Response {
                 Response {
-                    id: msg.id.to_str().to_owned(),
+                    id: crate::RosString::from(msg.id.as_bytes()),
                     passed: msg.passed,
                     status: {
                         let mut temp = Vec::with_capacity(msg.status.size);
@@ -191,7 +191,7 @@ pub mod srv {
                 }
             }
             fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                msg.id.assign(&self.id);
+                msg.id.try_assign_bytes((&self.id).as_bytes());
                 msg.passed = self.passed;
                 unsafe {
                     diagnostic_msgs__msg__DiagnosticStatus__Sequence__fini(
@@ -290,9 +290,9 @@ pub mod msg {
     #[serde(default)]
     pub struct DiagnosticStatus {
         pub level: u8,
-        pub name: std::string::String,
-        pub message: std::string::String,
-        pub hardware_id: std::string::String,
+        pub name: crate::RosString,
+        pub message: crate::RosString,
+        pub hardware_id: crate::RosString,
         pub values: Vec<diagnostic_msgs::msg::KeyValue>,
     }
     unsafe impl WrappedTypesupport for DiagnosticStatus {
@@ -316,9 +316,9 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> DiagnosticStatus {
             DiagnosticStatus {
                 level: msg.level,
-                name: msg.name.to_str().to_owned(),
-                message: msg.message.to_str().to_owned(),
-                hardware_id: msg.hardware_id.to_str().to_owned(),
+                name: crate::RosString::from(msg.name.as_bytes()),
+                message: crate::RosString::from(msg.message.as_bytes()),
+                hardware_id: crate::RosString::from(msg.hardware_id.as_bytes()),
                 values: {
                     let mut temp = Vec::with_capacity(msg.values.size);
                     let slice = unsafe {
@@ -333,9 +333,9 @@ pub mod msg {
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             msg.level = self.level;
-            msg.name.assign(&self.name);
-            msg.message.assign(&self.message);
-            msg.hardware_id.assign(&self.hardware_id);
+            msg.name.try_assign_bytes((&self.name).as_bytes());
+            msg.message.try_assign_bytes((&self.message).as_bytes());
+            msg.hardware_id.try_assign_bytes((&self.hardware_id).as_bytes());
             unsafe {
                 diagnostic_msgs__msg__KeyValue__Sequence__fini(&mut msg.values);
                 diagnostic_msgs__msg__KeyValue__Sequence__init(
@@ -368,8 +368,8 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct KeyValue {
-        pub key: std::string::String,
-        pub value: std::string::String,
+        pub key: crate::RosString,
+        pub value: crate::RosString,
     }
     unsafe impl WrappedTypesupport for KeyValue {
         type CStruct = diagnostic_msgs__msg__KeyValue;
@@ -390,13 +390,13 @@ pub mod msg {
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> KeyValue {
             KeyValue {
-                key: msg.key.to_str().to_owned(),
-                value: msg.value.to_str().to_owned(),
+                key: crate::RosString::from(msg.key.as_bytes()),
+                value: crate::RosString::from(msg.value.as_bytes()),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.key.assign(&self.key);
-            msg.value.assign(&self.value);
+            msg.key.try_assign_bytes((&self.key).as_bytes());
+            msg.value.try_assign_bytes((&self.value).as_bytes());
         }
     }
     impl Default for KeyValue {

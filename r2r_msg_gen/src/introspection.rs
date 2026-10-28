@@ -233,8 +233,8 @@ impl MemberType {
             MemberType::F64 => quote! { f64 },
             MemberType::Char => quote! { std::ffi::c_char },
             MemberType::WChar => quote! { u16 },
-            MemberType::String => quote! { std::string::String },
-            MemberType::WString => quote! { std::string::String },
+            MemberType::String => quote! { crate::RosString },
+            MemberType::WString => quote! { crate::RosWString },
             MemberType::Message => quote! { message },
         }
     }

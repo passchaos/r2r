@@ -74,6 +74,10 @@ name = "ros_comparison"
 harness = false
 
 [[bench]]
+name = "string_sequences"
+harness = false
+
+[[bench]]
 name = "pubsub_roundtrip"
 harness = false
 

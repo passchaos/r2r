@@ -4,7 +4,7 @@ pub mod msg {
     #[serde(default)]
     pub struct ImageMarker {
         pub header: std_msgs::msg::Header,
-        pub ns: std::string::String,
+        pub ns: crate::RosString,
         pub id: i32,
         #[serde(rename = "type")]
         pub type_: i32,
@@ -39,7 +39,7 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> ImageMarker {
             ImageMarker {
                 header: std_msgs::msg::Header::from_native(&msg.header),
-                ns: msg.ns.to_str().to_owned(),
+                ns: crate::RosString::from(msg.ns.as_bytes()),
                 id: msg.id,
                 type_: msg.type_,
                 action: msg.action,
@@ -76,7 +76,7 @@ pub mod msg {
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.header.copy_to_native(&mut msg.header);
-            msg.ns.assign(&self.ns);
+            msg.ns.try_assign_bytes((&self.ns).as_bytes());
             msg.id = self.id;
             msg.type_ = self.type_;
             msg.action = self.action;
@@ -137,8 +137,8 @@ pub mod msg {
     pub struct InteractiveMarker {
         pub header: std_msgs::msg::Header,
         pub pose: geometry_msgs::msg::Pose,
-        pub name: std::string::String,
-        pub description: std::string::String,
+        pub name: crate::RosString,
+        pub description: crate::RosString,
         pub scale: f32,
         pub menu_entries: Vec<visualization_msgs::msg::MenuEntry>,
         pub controls: Vec<visualization_msgs::msg::InteractiveMarkerControl>,
@@ -166,8 +166,8 @@ pub mod msg {
             InteractiveMarker {
                 header: std_msgs::msg::Header::from_native(&msg.header),
                 pose: geometry_msgs::msg::Pose::from_native(&msg.pose),
-                name: msg.name.to_str().to_owned(),
-                description: msg.description.to_str().to_owned(),
+                name: crate::RosString::from(msg.name.as_bytes()),
+                description: crate::RosString::from(msg.description.as_bytes()),
                 scale: msg.scale,
                 menu_entries: {
                     let mut temp = Vec::with_capacity(msg.menu_entries.size);
@@ -201,8 +201,8 @@ pub mod msg {
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.header.copy_to_native(&mut msg.header);
             self.pose.copy_to_native(&mut msg.pose);
-            msg.name.assign(&self.name);
-            msg.description.assign(&self.description);
+            msg.name.try_assign_bytes((&self.name).as_bytes());
+            msg.description.try_assign_bytes((&self.description).as_bytes());
             msg.scale = self.scale;
             unsafe {
                 visualization_msgs__msg__MenuEntry__Sequence__fini(
@@ -247,14 +247,14 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct InteractiveMarkerControl {
-        pub name: std::string::String,
+        pub name: crate::RosString,
         pub orientation: geometry_msgs::msg::Quaternion,
         pub orientation_mode: u8,
         pub interaction_mode: u8,
         pub always_visible: bool,
         pub markers: Vec<visualization_msgs::msg::Marker>,
         pub independent_marker_orientation: bool,
-        pub description: std::string::String,
+        pub description: crate::RosString,
     }
     unsafe impl WrappedTypesupport for InteractiveMarkerControl {
         type CStruct = visualization_msgs__msg__InteractiveMarkerControl;
@@ -282,7 +282,7 @@ pub mod msg {
             msg: &Self::CStruct,
         ) -> InteractiveMarkerControl {
             InteractiveMarkerControl {
-                name: msg.name.to_str().to_owned(),
+                name: crate::RosString::from(msg.name.as_bytes()),
                 orientation: geometry_msgs::msg::Quaternion::from_native(
                     &msg.orientation,
                 ),
@@ -300,11 +300,11 @@ pub mod msg {
                     temp
                 },
                 independent_marker_orientation: msg.independent_marker_orientation,
-                description: msg.description.to_str().to_owned(),
+                description: crate::RosString::from(msg.description.as_bytes()),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.name.assign(&self.name);
+            msg.name.try_assign_bytes((&self.name).as_bytes());
             self.orientation.copy_to_native(&mut msg.orientation);
             msg.orientation_mode = self.orientation_mode;
             msg.interaction_mode = self.interaction_mode;
@@ -324,7 +324,7 @@ pub mod msg {
                 }
             }
             msg.independent_marker_orientation = self.independent_marker_orientation;
-            msg.description.assign(&self.description);
+            msg.description.try_assign_bytes((&self.description).as_bytes());
         }
     }
     impl Default for InteractiveMarkerControl {
@@ -353,9 +353,9 @@ pub mod msg {
     #[serde(default)]
     pub struct InteractiveMarkerFeedback {
         pub header: std_msgs::msg::Header,
-        pub client_id: std::string::String,
-        pub marker_name: std::string::String,
-        pub control_name: std::string::String,
+        pub client_id: crate::RosString,
+        pub marker_name: crate::RosString,
+        pub control_name: crate::RosString,
         pub event_type: u8,
         pub pose: geometry_msgs::msg::Pose,
         pub menu_entry_id: u32,
@@ -389,9 +389,9 @@ pub mod msg {
         ) -> InteractiveMarkerFeedback {
             InteractiveMarkerFeedback {
                 header: std_msgs::msg::Header::from_native(&msg.header),
-                client_id: msg.client_id.to_str().to_owned(),
-                marker_name: msg.marker_name.to_str().to_owned(),
-                control_name: msg.control_name.to_str().to_owned(),
+                client_id: crate::RosString::from(msg.client_id.as_bytes()),
+                marker_name: crate::RosString::from(msg.marker_name.as_bytes()),
+                control_name: crate::RosString::from(msg.control_name.as_bytes()),
                 event_type: msg.event_type,
                 pose: geometry_msgs::msg::Pose::from_native(&msg.pose),
                 menu_entry_id: msg.menu_entry_id,
@@ -401,9 +401,9 @@ pub mod msg {
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.header.copy_to_native(&mut msg.header);
-            msg.client_id.assign(&self.client_id);
-            msg.marker_name.assign(&self.marker_name);
-            msg.control_name.assign(&self.control_name);
+            msg.client_id.try_assign_bytes((&self.client_id).as_bytes());
+            msg.marker_name.try_assign_bytes((&self.marker_name).as_bytes());
+            msg.control_name.try_assign_bytes((&self.control_name).as_bytes());
             msg.event_type = self.event_type;
             self.pose.copy_to_native(&mut msg.pose);
             msg.menu_entry_id = self.menu_entry_id;
@@ -429,7 +429,7 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct InteractiveMarkerInit {
-        pub server_id: std::string::String,
+        pub server_id: crate::RosString,
         pub seq_num: u64,
         pub markers: Vec<visualization_msgs::msg::InteractiveMarker>,
     }
@@ -454,7 +454,7 @@ pub mod msg {
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> InteractiveMarkerInit {
             InteractiveMarkerInit {
-                server_id: msg.server_id.to_str().to_owned(),
+                server_id: crate::RosString::from(msg.server_id.as_bytes()),
                 seq_num: msg.seq_num,
                 markers: {
                     let mut temp = Vec::with_capacity(msg.markers.size);
@@ -471,7 +471,7 @@ pub mod msg {
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.server_id.assign(&self.server_id);
+            msg.server_id.try_assign_bytes((&self.server_id).as_bytes());
             msg.seq_num = self.seq_num;
             unsafe {
                 visualization_msgs__msg__InteractiveMarker__Sequence__fini(
@@ -502,7 +502,7 @@ pub mod msg {
     pub struct InteractiveMarkerPose {
         pub header: std_msgs::msg::Header,
         pub pose: geometry_msgs::msg::Pose,
-        pub name: std::string::String,
+        pub name: crate::RosString,
     }
     unsafe impl WrappedTypesupport for InteractiveMarkerPose {
         type CStruct = visualization_msgs__msg__InteractiveMarkerPose;
@@ -527,13 +527,13 @@ pub mod msg {
             InteractiveMarkerPose {
                 header: std_msgs::msg::Header::from_native(&msg.header),
                 pose: geometry_msgs::msg::Pose::from_native(&msg.pose),
-                name: msg.name.to_str().to_owned(),
+                name: crate::RosString::from(msg.name.as_bytes()),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.header.copy_to_native(&mut msg.header);
             self.pose.copy_to_native(&mut msg.pose);
-            msg.name.assign(&self.name);
+            msg.name.try_assign_bytes((&self.name).as_bytes());
         }
     }
     impl Default for InteractiveMarkerPose {
@@ -545,13 +545,13 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct InteractiveMarkerUpdate {
-        pub server_id: std::string::String,
+        pub server_id: crate::RosString,
         pub seq_num: u64,
         #[serde(rename = "type")]
         pub type_: u8,
         pub markers: Vec<visualization_msgs::msg::InteractiveMarker>,
         pub poses: Vec<visualization_msgs::msg::InteractiveMarkerPose>,
-        pub erases: Vec<std::string::String>,
+        pub erases: Vec<crate::RosString>,
     }
     unsafe impl WrappedTypesupport for InteractiveMarkerUpdate {
         type CStruct = visualization_msgs__msg__InteractiveMarkerUpdate;
@@ -576,7 +576,7 @@ pub mod msg {
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> InteractiveMarkerUpdate {
             InteractiveMarkerUpdate {
-                server_id: msg.server_id.to_str().to_owned(),
+                server_id: crate::RosString::from(msg.server_id.as_bytes()),
                 seq_num: msg.seq_num,
                 type_: msg.type_,
                 markers: {
@@ -605,11 +605,11 @@ pub mod msg {
                     }
                     temp
                 },
-                erases: msg.erases.to_vec(),
+                erases: msg.erases.to_bytes_vec::<crate::RosString>(),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.server_id.assign(&self.server_id);
+            msg.server_id.try_assign_bytes((&self.server_id).as_bytes());
             msg.seq_num = self.seq_num;
             msg.type_ = self.type_;
             unsafe {
@@ -644,7 +644,7 @@ pub mod msg {
                     s.copy_to_native(t);
                 }
             }
-            msg.erases.update(&self.erases);
+            msg.erases.try_update_bytes(&self.erases);
         }
     }
     impl Default for InteractiveMarkerUpdate {
@@ -662,7 +662,7 @@ pub mod msg {
     #[serde(default)]
     pub struct Marker {
         pub header: std_msgs::msg::Header,
-        pub ns: std::string::String,
+        pub ns: crate::RosString,
         pub id: i32,
         #[serde(rename = "type")]
         pub type_: i32,
@@ -674,11 +674,11 @@ pub mod msg {
         pub frame_locked: bool,
         pub points: Vec<geometry_msgs::msg::Point>,
         pub colors: Vec<std_msgs::msg::ColorRGBA>,
-        pub texture_resource: std::string::String,
+        pub texture_resource: crate::RosString,
         pub texture: sensor_msgs::msg::CompressedImage,
         pub uv_coordinates: Vec<visualization_msgs::msg::UVCoordinate>,
-        pub text: std::string::String,
-        pub mesh_resource: std::string::String,
+        pub text: crate::RosString,
+        pub mesh_resource: crate::RosString,
         pub mesh_file: visualization_msgs::msg::MeshFile,
         pub mesh_use_embedded_materials: bool,
     }
@@ -702,7 +702,7 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Marker {
             Marker {
                 header: std_msgs::msg::Header::from_native(&msg.header),
-                ns: msg.ns.to_str().to_owned(),
+                ns: crate::RosString::from(msg.ns.as_bytes()),
                 id: msg.id,
                 type_: msg.type_,
                 action: msg.action,
@@ -731,7 +731,9 @@ pub mod msg {
                     }
                     temp
                 },
-                texture_resource: msg.texture_resource.to_str().to_owned(),
+                texture_resource: crate::RosString::from(
+                    msg.texture_resource.as_bytes(),
+                ),
                 texture: sensor_msgs::msg::CompressedImage::from_native(&msg.texture),
                 uv_coordinates: {
                     let mut temp = Vec::with_capacity(msg.uv_coordinates.size);
@@ -746,8 +748,8 @@ pub mod msg {
                     }
                     temp
                 },
-                text: msg.text.to_str().to_owned(),
-                mesh_resource: msg.mesh_resource.to_str().to_owned(),
+                text: crate::RosString::from(msg.text.as_bytes()),
+                mesh_resource: crate::RosString::from(msg.mesh_resource.as_bytes()),
                 mesh_file: visualization_msgs::msg::MeshFile::from_native(
                     &msg.mesh_file,
                 ),
@@ -756,7 +758,7 @@ pub mod msg {
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.header.copy_to_native(&mut msg.header);
-            msg.ns.assign(&self.ns);
+            msg.ns.try_assign_bytes((&self.ns).as_bytes());
             msg.id = self.id;
             msg.type_ = self.type_;
             msg.action = self.action;
@@ -793,7 +795,7 @@ pub mod msg {
                     s.copy_to_native(t);
                 }
             }
-            msg.texture_resource.assign(&self.texture_resource);
+            msg.texture_resource.try_assign_bytes((&self.texture_resource).as_bytes());
             self.texture.copy_to_native(&mut msg.texture);
             unsafe {
                 visualization_msgs__msg__UVCoordinate__Sequence__fini(
@@ -811,8 +813,8 @@ pub mod msg {
                     s.copy_to_native(t);
                 }
             }
-            msg.text.assign(&self.text);
-            msg.mesh_resource.assign(&self.mesh_resource);
+            msg.text.try_assign_bytes((&self.text).as_bytes());
+            msg.mesh_resource.try_assign_bytes((&self.mesh_resource).as_bytes());
             self.mesh_file.copy_to_native(&mut msg.mesh_file);
             msg.mesh_use_embedded_materials = self.mesh_use_embedded_materials;
         }
@@ -907,8 +909,8 @@ pub mod msg {
     pub struct MenuEntry {
         pub id: u32,
         pub parent_id: u32,
-        pub title: std::string::String,
-        pub command: std::string::String,
+        pub title: crate::RosString,
+        pub command: crate::RosString,
         pub command_type: u8,
     }
     unsafe impl WrappedTypesupport for MenuEntry {
@@ -932,16 +934,16 @@ pub mod msg {
             MenuEntry {
                 id: msg.id,
                 parent_id: msg.parent_id,
-                title: msg.title.to_str().to_owned(),
-                command: msg.command.to_str().to_owned(),
+                title: crate::RosString::from(msg.title.as_bytes()),
+                command: crate::RosString::from(msg.command.as_bytes()),
                 command_type: msg.command_type,
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             msg.id = self.id;
             msg.parent_id = self.parent_id;
-            msg.title.assign(&self.title);
-            msg.command.assign(&self.command);
+            msg.title.try_assign_bytes((&self.title).as_bytes());
+            msg.command.try_assign_bytes((&self.command).as_bytes());
             msg.command_type = self.command_type;
         }
     }
@@ -960,7 +962,7 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct MeshFile {
-        pub filename: std::string::String,
+        pub filename: crate::RosString,
         pub data: Vec<u8>,
     }
     unsafe impl WrappedTypesupport for MeshFile {
@@ -982,12 +984,12 @@ pub mod msg {
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> MeshFile {
             MeshFile {
-                filename: msg.filename.to_str().to_owned(),
+                filename: crate::RosString::from(msg.filename.as_bytes()),
                 data: msg.data.to_vec(),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.filename.assign(&self.filename);
+            msg.filename.try_assign_bytes((&self.filename).as_bytes());
             msg.data.update(&self.data);
         }
     }

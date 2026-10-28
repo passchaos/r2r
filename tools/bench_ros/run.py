@@ -18,7 +18,19 @@ def run(command, env):
     return subprocess.run(command, env=env, check=True, text=True, capture_output=True, timeout=120).stdout.strip()
 
 
-def validate_result(result, rmw, mode, size, iterations, wire_bytes, wire_hash):
+def validate_result(result, rmw, mode, size, iterations, wire_bytes, wire_hash, fixture="int32_array", probe_enabled=False):
+    if fixture not in {"int32_array", "string_array"} or result.get("fixture", "int32_array") != fixture:
+        raise RuntimeError("benchmark message fixture mismatch")
+    frame=result.get("allocation_frame")
+    if probe_enabled != (frame is not None):
+        raise RuntimeError("codec allocation probe mode mismatch")
+    if frame is not None:
+        for key in ["malloc_calls","calloc_calls","realloc_calls","free_calls","aligned_calls",
+                    "failed_allocations","requested_bytes","size_overflows","counter_overflows"]:
+            if type(frame.get(key)) is not int or not 0<=frame[key]<2**64:
+                raise RuntimeError("invalid codec allocation counter")
+        if frame["failed_allocations"] or frame["size_overflows"] or frame["counter_overflows"]:
+            raise RuntimeError("failed or overflowed codec allocation frame")
     if (result["rmw"], result["mode"], result["elements"], result["iterations"]) != (rmw, mode, size, iterations):
         raise RuntimeError("benchmark identity mismatch")
     if (result["wire_bytes"], result["wire_hash"]) != (wire_bytes, wire_hash):
@@ -40,6 +52,8 @@ def main():
     parser.add_argument("--cpp", type=Path, required=True)
     parser.add_argument("--cpu", type=int, required=True)
     parser.add_argument("--rmw", default="rmw_cyclonedds_cpp")
+    parser.add_argument("--fixture", choices=["int32_array", "string_array"], default="int32_array")
+    parser.add_argument("--probe", type=Path, help="count allocations with the optional Linux/glibc preload probe; timing cannot pass a performance gate")
     parser.add_argument("--sizes", default="0,32,4096")
     parser.add_argument("--modes", default="copy_reuse,serialize_owned,deserialize_owned")
     parser.add_argument("--iterations", type=int, default=100_000)
@@ -49,6 +63,8 @@ def main():
     parser.add_argument("--build-manifest", type=Path)
     parser.add_argument("--max-regression", type=float, help="Maximum candidate/baseline median ratio; requires those labels")
     args = parser.parse_args()
+    if args.probe and args.max_regression is not None:
+        parser.error("instrumented codec runs cannot pass a latency regression gate")
     if args.cpu not in os.sched_getaffinity(0):
         parser.error("CPU is outside the allowed affinity mask")
     if args.iterations <= 0 or args.repetitions < 3:
@@ -72,11 +88,16 @@ def main():
         parser.error("a regression gate requires baseline/candidate labels and a ratio at least one")
     env = os.environ.copy()
     env["RMW_IMPLEMENTATION"] = args.rmw
+    env.pop("LD_PRELOAD",None)
+    if args.probe:
+        env["LD_PRELOAD"]=str(args.probe.resolve())
     # This comparison uses the middleware codec and does not create a DDS domain.
     env.pop("CYCLONEDDS_URI", None)
     metadata = {
         "started_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "cpu": args.cpu, "rmw": args.rmw, "ros_distro": env.get("ROS_DISTRO"),
+        "fixture": args.fixture,
+        "allocation_probe": {"sha256":hashlib.sha256(args.probe.read_bytes()).hexdigest()} if args.probe else None,
         "platform": platform.platform(),
         "cpu_model": next((line.split(":", 1)[1].strip() for line in Path("/proc/cpuinfo").read_text().splitlines() if line.startswith("model name")), "unknown"),
         "rustc": run(["rustc", "--version"], env),
@@ -84,11 +105,11 @@ def main():
         "git_head": run(["git", "rev-parse", "HEAD"], env),
         "working_tree_dirty": bool(run(["git", "status", "--porcelain"], env)),
         "binary_sha256": {label: hashlib.sha256(path.read_bytes()).hexdigest() for label, path in binaries.items()},
-        "source_sha256": {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in [Path("r2r/benches/ros_comparison.rs"), Path("tools/bench_ros/comparison.cpp")]},
+        "source_sha256": {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in [Path("r2r/benches/string_sequences.rs" if args.fixture=="string_array" else "r2r/benches/ros_comparison.rs"), Path("tools/bench_ros/string_sequences.cpp" if args.fixture=="string_array" else "tools/bench_ros/comparison.cpp"),Path("r2r/benches/support/codec.rs"),Path("tools/bench_ros/codec_support/run.hpp")]},
         "build_settings": {"rust": "cargo --release (opt-level 3)", "cxx": "-O3 -DNDEBUG C++17", "target_cpu": "compiler default; no target-native override"},
         "rustflags": env.get("RUSTFLAGS", ""),
         "cargo_release_opt_level": env.get("CARGO_PROFILE_RELEASE_OPT_LEVEL", "3"),
-        "semantics": "same Int32MultiArray fixture; full payload and wire-byte oracle; copy into reused destination; serialize_owned returns freshly owned bytes; serialize_reuse consumes a borrowed result when MessageSerializer exists (historical owned-byte fallback otherwise); serialize_owned_reuse copies that result to fresh owned bytes; deserialization returns freshly owned message",
+        "semantics": ("ParameterValue Unicode string array" if args.fixture=="string_array" else "Int32MultiArray") + " fixture; full payload and wire-byte oracle; copy into reused destination; serialize_owned returns freshly owned bytes; serialize_reuse consumes a borrowed result when MessageSerializer exists (historical owned-byte fallback otherwise); serialize_owned_reuse copies that result to fresh owned bytes; deserialization returns freshly owned message",
         "latency_samples": "batch elapsed time divided by batch operation count; not individual-message tail latency",
         "minimum_iterations": args.iterations,
         "minimum_run_ms": args.minimum_run_ms,
@@ -99,7 +120,7 @@ def main():
     prefix = Path("/opt/ros") / env.get("ROS_DISTRO", "unknown") / "share"
     if args.build_manifest:
         metadata["build_manifest"] = json.loads(args.build_manifest.read_text())
-    metadata["ros_packages"] = {name: ET.parse(prefix / name / "package.xml").findtext("version") for name in ["rclcpp", "rcl", "rmw", "std_msgs", args.rmw]}
+    metadata["ros_packages"] = {name: ET.parse(prefix / name / "package.xml").findtext("version") for name in ["rclcpp", "rcl", "rmw", "rcl_interfaces" if args.fixture=="string_array" else "std_msgs", args.rmw]}
     records = []
     with tempfile.TemporaryDirectory(prefix="r2r-ros-comparison-") as directory:
         for size in sizes:
@@ -109,6 +130,7 @@ def main():
                 fixture = Path(directory) / f"{label}-{size}.cdr"
                 result = json.loads(run(["taskset", "-c", str(args.cpu), str(binary), "copy_reuse", str(size), "1", str(fixture)], env))
                 wire = fixture.read_bytes()
+                validate_result(result, args.rmw, "copy_reuse", size, 1, len(wire), result["wire_hash"], args.fixture,bool(args.probe))
                 if expected is not None and wire != expected:
                     raise RuntimeError(f"wire oracle mismatch: {label}, size {size}")
                 if result["rmw"] != args.rmw:
@@ -125,7 +147,7 @@ def main():
                     order = list(binaries) if repetition % 2 == 0 else list(reversed(binaries))
                     for label in order:
                         result = json.loads(run(["taskset", "-c", str(args.cpu), str(binaries[label]), mode, str(size), str(iterations)], env))
-                        validate_result(result, args.rmw, mode, size, iterations, len(expected), wire_hash)
+                        validate_result(result, args.rmw, mode, size, iterations, len(expected), wire_hash, args.fixture,bool(args.probe))
                         if expected_checksum is not None and result["checksum"] != expected_checksum:
                             raise RuntimeError(f"result oracle mismatch: {label}, {mode}, {size}")
                         expected_checksum = result["checksum"]

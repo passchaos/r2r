@@ -228,7 +228,7 @@ impl ParameterEventChanges {
             return;
         }
         let parameter = rcl_interfaces::msg::Parameter {
-            name: name.to_owned(),
+            name: name.to_owned().into(),
             value: value.clone().into_parameter_value_msg(),
         };
         match (previous, value) {
@@ -259,7 +259,7 @@ impl ParameterEventChanges {
         };
         let event = rcl_interfaces::msg::ParameterEvent {
             stamp,
-            node: node_name.to_owned(),
+            node: node_name.to_owned().into(),
             new_parameters: self.new_parameters,
             changed_parameters: self.changed_parameters,
             deleted_parameters: self.deleted_parameters,
@@ -506,22 +506,41 @@ fn parameter_value_changed(previous: Option<&ParameterValue>, value: &ParameterV
     previous != Some(value) && !(previous.is_none() && matches!(value, ParameterValue::NotSet))
 }
 
-fn parameter_name_matches(name: &str, prefixes: &[String], depth: u64) -> bool {
+fn parameter_name_matches(name: &str, prefixes: &[impl AsRef<[u8]>], depth: u64) -> bool {
     let recursive = depth == rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE as u64;
-    let within_depth = |suffix: &str| (suffix.matches('.').count() as u64) < depth;
-
+    let within_depth =
+        |suffix: &[u8]| (suffix.iter().filter(|&&byte| byte == b'.').count() as u64) < depth;
+    let name = name.as_bytes();
     (prefixes.is_empty() && (recursive || within_depth(name)))
         || prefixes.iter().any(|prefix| {
+            let prefix = prefix.as_ref();
             name == prefix
                 || name
                     .strip_prefix(prefix)
-                    .and_then(|suffix| suffix.strip_prefix('.'))
+                    .and_then(|suffix| suffix.strip_prefix(b"."))
                     .is_some_and(|suffix| recursive || within_depth(suffix))
         })
 }
 
+fn require_declared_names(
+    names: &[impl AsRef<[u8]>], params: &IndexMap<String, Parameter>,
+) -> Result<()> {
+    for name in names {
+        let name = std::str::from_utf8(name.as_ref()).map_err(|error| Error::InvalidUtf8 {
+            context: "parameter name",
+            err: error.to_string(),
+        })?;
+        if !params.contains_key(name) {
+            return Err(Error::ParameterNotDeclared {
+                name: name.to_owned(),
+            });
+        }
+    }
+    Ok(())
+}
+
 fn read_parameter_values(
-    names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
+    names: &[impl AsRef<[u8]>], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
     provider: Option<&ParameterProviderState>,
 ) -> Vec<ParameterValue> {
     read_parameter_values_impl(names, params, provider, true, false)
@@ -529,31 +548,28 @@ fn read_parameter_values(
 }
 
 fn read_parameter_values_with_policy(
-    names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
+    names: &[impl AsRef<[u8]>], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
     provider: Option<&ParameterProviderState>, allow_undeclared_parameters: bool,
 ) -> Result<Vec<ParameterValue>> {
     read_parameter_values_impl(names, params, provider, allow_undeclared_parameters, true)
 }
 
 fn read_parameter_values_impl(
-    names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
+    names: &[impl AsRef<[u8]>], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
     provider: Option<&ParameterProviderState>, allow_undeclared_parameters: bool,
     propagate_provider_errors: bool,
 ) -> Result<Vec<ParameterValue>> {
     let mut values = {
         let params = params.lock();
         if !allow_undeclared_parameters {
-            if let Some(name) = names.iter().find(|name| !params.contains_key(*name)) {
-                return Err(Error::ParameterNotDeclared {
-                    name: name.to_owned(),
-                });
-            }
+            require_declared_names(names, &params)?;
         }
         names
             .iter()
             .map(|name| {
-                params
-                    .get(name)
+                std::str::from_utf8(name.as_ref())
+                    .ok()
+                    .and_then(|name| params.get(name))
                     .map(|parameter| parameter.value.clone())
                     .unwrap_or(ParameterValue::NotSet)
             })
@@ -566,7 +582,10 @@ fn read_parameter_values_impl(
     let parameter_names = provider.parameter_names();
     let mut implementation = provider.provider.lock();
     for (index, name) in names.iter().enumerate() {
-        if !parameter_names.contains(name) {
+        let Ok(name) = std::str::from_utf8(name.as_ref()) else {
+            continue;
+        };
+        if !parameter_names.iter().any(|value| value == name) {
             continue;
         }
         match implementation.get_parameter(name) {
@@ -582,7 +601,7 @@ fn read_parameter_values_impl(
 }
 
 fn list_parameter_values(
-    params: &IndexMap<String, Parameter>, prefixes: &[String], depth: u64,
+    params: &IndexMap<String, Parameter>, prefixes: &[impl AsRef<[u8]>], depth: u64,
 ) -> rcl_interfaces::msg::ListParametersResult {
     let mut result = rcl_interfaces::msg::ListParametersResult::default();
     let mut seen_prefixes = HashSet::new();
@@ -590,11 +609,11 @@ fn list_parameter_values(
         .keys()
         .filter(|name| parameter_name_matches(name, prefixes, depth))
     {
-        result.names.push(name.clone());
+        result.names.push(name.clone().into());
         if let Some(last_separator) = name.rfind('.') {
             let prefix = &name[..last_separator];
             if seen_prefixes.insert(prefix) {
-                result.prefixes.push(prefix.to_owned());
+                result.prefixes.push(prefix.into());
             }
         }
     }
@@ -602,34 +621,39 @@ fn list_parameter_values(
 }
 
 fn read_list_parameter_values(
-    params: &Arc<Mutex<IndexMap<String, Parameter>>>, prefixes: &[String], depth: u64,
+    params: &Arc<Mutex<IndexMap<String, Parameter>>>, prefixes: &[impl AsRef<[u8]>], depth: u64,
 ) -> rcl_interfaces::msg::ListParametersResult {
     let params = params.lock();
     list_parameter_values(&params, prefixes, depth)
 }
 
 fn describe_parameter_values(
-    names: &[String], params: &IndexMap<String, Parameter>,
+    names: &[impl AsRef<[u8]>], params: &IndexMap<String, Parameter>,
     registered: &IndexMap<String, ParameterDescriptor>,
 ) -> Vec<ParameterDescriptor> {
     names
         .iter()
-        .map(|name| {
-            registered.get(name).cloned().unwrap_or_else(|| {
-                params.get(name).map_or_else(
-                    || ParameterDescriptor {
-                        name: name.clone(),
+        .map(|bytes| {
+            let name = std::str::from_utf8(bytes.as_ref()).ok();
+            name.and_then(|name| registered.get(name))
+                .cloned()
+                .unwrap_or_else(|| {
+                    name.and_then(|name| {
+                        params
+                            .get(name)
+                            .map(|value| Node::default_parameter_descriptor(name, value, true))
+                    })
+                    .unwrap_or_else(|| ParameterDescriptor {
+                        name: crate::RosString::from(bytes.as_ref()),
                         ..Default::default()
-                    },
-                    |parameter| Node::default_parameter_descriptor(name, parameter, true),
-                )
-            })
+                    })
+                })
         })
         .collect()
 }
 
 fn read_parameter_descriptors(
-    names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
+    names: &[impl AsRef<[u8]>], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
     registered: &Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
 ) -> Vec<ParameterDescriptor> {
     read_parameter_descriptors_with_policy(names, params, registered, true)
@@ -637,51 +661,46 @@ fn read_parameter_descriptors(
 }
 
 fn read_parameter_descriptors_with_policy(
-    names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
+    names: &[impl AsRef<[u8]>], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
     registered: &Arc<Mutex<IndexMap<String, ParameterDescriptor>>>,
     allow_undeclared_parameters: bool,
 ) -> Result<Vec<ParameterDescriptor>> {
     let params = params.lock();
     if !allow_undeclared_parameters {
-        if let Some(name) = names.iter().find(|name| !params.contains_key(*name)) {
-            return Err(Error::ParameterNotDeclared {
-                name: name.to_owned(),
-            });
-        }
+        require_declared_names(names, &params)?;
     }
     let registered = registered.lock();
     Ok(describe_parameter_values(names, &params, &registered))
 }
 
-fn parameter_types(names: &[String], params: &IndexMap<String, Parameter>) -> Vec<ParameterType> {
+fn parameter_types(
+    names: &[impl AsRef<[u8]>], params: &IndexMap<String, Parameter>,
+) -> Vec<ParameterType> {
     names
         .iter()
         .map(|name| {
-            params
-                .get(name)
+            std::str::from_utf8(name.as_ref())
+                .ok()
+                .and_then(|name| params.get(name))
                 .map_or(ParameterType::NotSet, |parameter| parameter.value.parameter_type())
         })
         .collect()
 }
 
 fn read_parameter_types(
-    names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
+    names: &[impl AsRef<[u8]>], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
 ) -> Vec<ParameterType> {
     read_parameter_types_with_policy(names, params, true)
         .expect("permissive parameter type reads cannot reject an undeclared name")
 }
 
 fn read_parameter_types_with_policy(
-    names: &[String], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
+    names: &[impl AsRef<[u8]>], params: &Arc<Mutex<IndexMap<String, Parameter>>>,
     allow_undeclared_parameters: bool,
 ) -> Result<Vec<ParameterType>> {
     let params = params.lock();
     if !allow_undeclared_parameters {
-        if let Some(name) = names.iter().find(|name| !params.contains_key(*name)) {
-            return Err(Error::ParameterNotDeclared {
-                name: name.to_owned(),
-            });
-        }
+        require_declared_names(names, &params)?;
     }
     Ok(parameter_types(names, &params))
 }
@@ -1900,7 +1919,7 @@ impl Node {
             if !names.insert(name.clone()) || descriptors.contains_key(&name) {
                 return Err(Error::ParameterAlreadyDeclared { name });
             }
-            descriptor.name = name.clone();
+            descriptor.name = name.clone().into();
             descriptor.type_ = default_value.parameter_type().into();
             validate_parameter_descriptor(&name, &descriptor)?;
 
@@ -1918,7 +1937,7 @@ impl Node {
             validate_parameter_update(&name, &value, &descriptor, false)?;
             if descriptor.description.is_empty() {
                 if let Some(parameter) = existing_override {
-                    descriptor.description = parameter.description.to_owned();
+                    descriptor.description = parameter.description.into();
                 }
             }
             if descriptor.dynamic_typing {
@@ -2001,7 +2020,7 @@ impl Node {
                 reason: "a read-only parameter's descriptor cannot be replaced".into(),
             });
         }
-        descriptor.name = name.clone();
+        descriptor.name = name.clone().into();
         descriptor.type_ = value.parameter_type().into();
         validate_parameter_descriptor(&name, &descriptor)?;
         validate_parameter_update(&name, &value, &descriptor, false)?;
@@ -2178,13 +2197,25 @@ impl Node {
                                         result.results.push(
                                             rcl_interfaces::msg::SetParametersResult {
                                                 successful: false,
-                                                reason: err.to_string(),
+                                                reason: err.to_string().into(),
                                             },
                                         );
                                         continue;
                                     }
                                 };
-                            let update = vec![(p.name.clone(), val)];
+                            let name = match p.name.clone().into_text("parameter name") {
+                                Ok(name) => name,
+                                Err(error) => {
+                                    result
+                                        .results
+                                        .push(rcl_interfaces::msg::SetParametersResult {
+                                            successful: false,
+                                            reason: error.to_string().into(),
+                                        });
+                                    continue;
+                                }
+                            };
+                            let update = vec![(name, val)];
                             let mut transaction =
                                 match lock_parameter_transaction(&parameter_transaction) {
                                     Ok(transaction) => transaction,
@@ -2192,7 +2223,7 @@ impl Node {
                                         result.results.push(
                                             rcl_interfaces::msg::SetParametersResult {
                                                 successful: false,
-                                                reason: err.to_string(),
+                                                reason: err.to_string().into(),
                                             },
                                         );
                                         continue;
@@ -2224,7 +2255,7 @@ impl Node {
                                         .results
                                         .push(rcl_interfaces::msg::SetParametersResult {
                                             successful: true,
-                                            reason: String::new(),
+                                            reason: Default::default(),
                                         });
                                 }
                                 Err(err) => {
@@ -2232,7 +2263,7 @@ impl Node {
                                         .results
                                         .push(rcl_interfaces::msg::SetParametersResult {
                                             successful: false,
-                                            reason: err.to_string(),
+                                            reason: err.to_string().into(),
                                         });
                                 }
                             }
@@ -2366,7 +2397,7 @@ impl Node {
                             .iter()
                             .map(|parameter| {
                                 Ok((
-                                    parameter.name.clone(),
+                                    parameter.name.clone().into_text("parameter name")?,
                                     ParameterValue::try_from_parameter_value_msg(
                                         parameter.value.clone(),
                                     )?,
@@ -2378,7 +2409,7 @@ impl Node {
                             Err(err) => {
                                 result.result.successful = false;
                                 result.result.reason =
-                                    format!("Can't set parameters atomically: {err}");
+                                    format!("Can't set parameters atomically: {err}").into();
                                 if let Err(err) = req.respond(result) {
                                     log::warn!(
                                     "could not send reply to atomic set parameter request: {err}"
@@ -2393,7 +2424,7 @@ impl Node {
                                 Err(err) => {
                                     result.result.successful = false;
                                     result.result.reason =
-                                        format!("Can't set parameters atomically: {err}");
+                                        format!("Can't set parameters atomically: {err}").into();
                                     if let Err(err) = req.respond(result) {
                                         log::warn!(
                                     "could not send reply to atomic set parameter request: {err}"
@@ -2430,7 +2461,7 @@ impl Node {
                             Err(err) => {
                                 result.result.successful = false;
                                 result.result.reason =
-                                    format!("Can't set parameters atomically: {err}");
+                                    format!("Can't set parameters atomically: {err}").into();
                             }
                         }
                         drop(transaction);
@@ -2554,9 +2585,9 @@ impl Node {
         name: &str, parameter: &Parameter, dynamic_typing: bool,
     ) -> ParameterDescriptor {
         ParameterDescriptor {
-            name: name.to_owned(),
+            name: name.to_owned().into(),
             type_: parameter.value.parameter_type().into(),
-            description: parameter.description.to_owned(),
+            description: parameter.description.into(),
             dynamic_typing,
             ..Default::default()
         }
@@ -2573,13 +2604,13 @@ impl Node {
                     dynamic_typing && name != "use_sim_time",
                 )
             });
-            descriptor.name = name.clone();
+            descriptor.name = name.clone().into();
             descriptor.type_ = parameter.value.parameter_type().into();
             if name == "use_sim_time" {
                 descriptor.dynamic_typing = false;
             }
             if descriptor.description.is_empty() {
-                descriptor.description = parameter.description.to_owned();
+                descriptor.description = parameter.description.into();
             }
             validate_parameter_descriptor(name, descriptor)?;
             validate_parameter_update(name, &parameter.value, descriptor, false)?;
@@ -2603,7 +2634,7 @@ impl Node {
             descriptors.insert(
                 name.to_owned(),
                 ParameterDescriptor {
-                    name: name.to_owned(),
+                    name: name.to_owned().into(),
                     type_: value.parameter_type().into(),
                     dynamic_typing,
                     ..Default::default()
@@ -5752,9 +5783,9 @@ mod tests {
         assert!(parameter_name_matches("robot.motor.speed", &prefix, 0));
         assert!(!parameter_name_matches("robotic.speed", &prefix, 0));
 
-        assert!(parameter_name_matches("top", &[], 1));
-        assert!(!parameter_name_matches("top.child", &[], 1));
-        assert!(parameter_name_matches("top.child", &[], 0));
+        assert!(parameter_name_matches("top", &[] as &[String], 1));
+        assert!(!parameter_name_matches("top.child", &[] as &[String], 1));
+        assert!(parameter_name_matches("top.child", &[] as &[String], 0));
     }
 
     #[test]
@@ -5790,7 +5821,7 @@ mod tests {
             ("robot.sensor.range".to_owned(), Parameter::new(ParameterValue::Integer(4))),
         ]);
 
-        let result = list_parameter_values(&params, &[], 0);
+        let result = list_parameter_values(&params, &[] as &[String], 0);
 
         assert_eq!(result.prefixes, vec!["robot.motor", "camera", "robot.sensor"]);
         assert_eq!(result.names, params.keys().cloned().collect::<Vec<_>>());
@@ -5830,7 +5861,7 @@ mod tests {
         let names = vec!["robot.speed".to_owned()];
 
         assert_eq!(read_parameter_types(&names, &params), vec![ParameterType::Integer]);
-        assert_eq!(read_list_parameter_values(&params, &["robot".into()], 1).names, names);
+        assert_eq!(read_list_parameter_values(&params, &["robot".to_owned()], 1).names, names);
         assert_eq!(
             read_parameter_descriptors(&names, &params, &descriptors)[0].description,
             "wheel speed"
@@ -5987,7 +6018,7 @@ mod tests {
             &mut node,
             &mut pool,
             get.request(&GetParameters::Request {
-                names: names.clone(),
+                names: names.iter().map(Into::into).collect(),
             })
             .unwrap(),
         )
@@ -6001,7 +6032,7 @@ mod tests {
             &mut pool,
             get_types
                 .request(&GetParameterTypes::Request {
-                    names: names.clone(),
+                    names: names.iter().map(Into::into).collect(),
                 })
                 .unwrap(),
         )
@@ -6015,7 +6046,7 @@ mod tests {
             &mut pool,
             describe
                 .request(&DescribeParameters::Request {
-                    names: names.clone(),
+                    names: names.iter().map(Into::into).collect(),
                 })
                 .unwrap(),
         )
@@ -7318,7 +7349,7 @@ mod tests {
                 rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE as u64,
             )
             .names
-            .contains(&"pending".to_owned()));
+            .contains(&"pending".into()));
         assert_eq!(node.parameter_overrides().get("pending"), Some(&ParameterValue::Integer(41)));
 
         assert_eq!(node.declare_parameter("pending", 1_i64).unwrap(), ParameterValue::Integer(41));
@@ -7556,7 +7587,7 @@ mod tests {
         assert_eq!(
             received
                 .iter()
-                .map(|event| (event.kind, event.name.as_str(), event.value.clone()))
+                .map(|event| (event.kind, event.name.try_to_str().unwrap(), event.value.clone()))
                 .collect::<Vec<_>>(),
             [
                 (ParameterEventKind::New, "runtime.first", ParameterValue::Integer(1)),
@@ -10340,6 +10371,8 @@ mod tests {
         assert!(!response.results[0].successful);
         assert!(response.results[0]
             .reason
+            .try_to_str()
+            .unwrap()
             .contains("Unknown ROS parameter type"));
         assert_eq!(node.get_parameter::<i64>("count").unwrap(), 8);
 
@@ -10378,6 +10411,8 @@ mod tests {
         assert!(response
             .result
             .reason
+            .try_to_str()
+            .unwrap()
             .contains("Unknown ROS parameter type"));
         assert_eq!(node.get_parameter::<i64>("count").unwrap(), 8);
         assert_eq!(node.get_parameter::<f64>("ratio").unwrap(), 0.2);

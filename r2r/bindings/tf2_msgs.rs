@@ -83,12 +83,12 @@ pub mod action {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Goal {
-            pub target_frame: std::string::String,
-            pub source_frame: std::string::String,
+            pub target_frame: crate::RosString,
+            pub source_frame: crate::RosString,
             pub source_time: builtin_interfaces::msg::Time,
             pub timeout: builtin_interfaces::msg::Duration,
             pub target_time: builtin_interfaces::msg::Time,
-            pub fixed_frame: std::string::String,
+            pub fixed_frame: crate::RosString,
             pub advanced: bool,
         }
         unsafe impl WrappedTypesupport for Goal {
@@ -112,8 +112,8 @@ pub mod action {
             }
             fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Goal {
                 Goal {
-                    target_frame: msg.target_frame.to_str().to_owned(),
-                    source_frame: msg.source_frame.to_str().to_owned(),
+                    target_frame: crate::RosString::from(msg.target_frame.as_bytes()),
+                    source_frame: crate::RosString::from(msg.source_frame.as_bytes()),
                     source_time: builtin_interfaces::msg::Time::from_native(
                         &msg.source_time,
                     ),
@@ -123,17 +123,17 @@ pub mod action {
                     target_time: builtin_interfaces::msg::Time::from_native(
                         &msg.target_time,
                     ),
-                    fixed_frame: msg.fixed_frame.to_str().to_owned(),
+                    fixed_frame: crate::RosString::from(msg.fixed_frame.as_bytes()),
                     advanced: msg.advanced,
                 }
             }
             fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                msg.target_frame.assign(&self.target_frame);
-                msg.source_frame.assign(&self.source_frame);
+                msg.target_frame.try_assign_bytes((&self.target_frame).as_bytes());
+                msg.source_frame.try_assign_bytes((&self.source_frame).as_bytes());
                 self.source_time.copy_to_native(&mut msg.source_time);
                 self.timeout.copy_to_native(&mut msg.timeout);
                 self.target_time.copy_to_native(&mut msg.target_time);
-                msg.fixed_frame.assign(&self.fixed_frame);
+                msg.fixed_frame.try_assign_bytes((&self.fixed_frame).as_bytes());
                 msg.advanced = self.advanced;
             }
         }
@@ -551,7 +551,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Response {
-            pub frame_yaml: std::string::String,
+            pub frame_yaml: crate::RosString,
         }
         unsafe impl WrappedTypesupport for Response {
             type CStruct = tf2_msgs__srv__FrameGraph_Response;
@@ -573,11 +573,11 @@ pub mod srv {
             }
             fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Response {
                 Response {
-                    frame_yaml: msg.frame_yaml.to_str().to_owned(),
+                    frame_yaml: crate::RosString::from(msg.frame_yaml.as_bytes()),
                 }
             }
             fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                msg.frame_yaml.assign(&self.frame_yaml);
+                msg.frame_yaml.try_assign_bytes((&self.frame_yaml).as_bytes());
             }
         }
         impl Default for Response {
@@ -594,7 +594,7 @@ pub mod msg {
     #[serde(default)]
     pub struct TF2Error {
         pub error: u8,
-        pub error_string: std::string::String,
+        pub error_string: crate::RosString,
     }
     unsafe impl WrappedTypesupport for TF2Error {
         type CStruct = tf2_msgs__msg__TF2Error;
@@ -616,12 +616,12 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> TF2Error {
             TF2Error {
                 error: msg.error,
-                error_string: msg.error_string.to_str().to_owned(),
+                error_string: crate::RosString::from(msg.error_string.as_bytes()),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             msg.error = self.error;
-            msg.error_string.assign(&self.error_string);
+            msg.error_string.try_assign_bytes((&self.error_string).as_bytes());
         }
     }
     impl Default for TF2Error {

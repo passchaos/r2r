@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for _ in 1..10 {
         timer.tick().await?;
         let msg = r2r::std_msgs::msg::String {
-            data: "hello from r2r".to_string(),
+            data: "hello from r2r".into(),
         };
         publisher.publish(&msg)?;
     }

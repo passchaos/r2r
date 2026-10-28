@@ -91,8 +91,8 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct ListParametersResult {
-        pub names: Vec<std::string::String>,
-        pub prefixes: Vec<std::string::String>,
+        pub names: Vec<crate::RosString>,
+        pub prefixes: Vec<crate::RosString>,
     }
     unsafe impl WrappedTypesupport for ListParametersResult {
         type CStruct = rcl_interfaces__msg__ListParametersResult;
@@ -115,13 +115,13 @@ pub mod msg {
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> ListParametersResult {
             ListParametersResult {
-                names: msg.names.to_vec(),
-                prefixes: msg.prefixes.to_vec(),
+                names: msg.names.to_bytes_vec::<crate::RosString>(),
+                prefixes: msg.prefixes.to_bytes_vec::<crate::RosString>(),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.names.update(&self.names);
-            msg.prefixes.update(&self.prefixes);
+            msg.names.try_update_bytes(&self.names);
+            msg.prefixes.try_update_bytes(&self.prefixes);
         }
     }
     impl Default for ListParametersResult {
@@ -135,10 +135,10 @@ pub mod msg {
     pub struct Log {
         pub stamp: builtin_interfaces::msg::Time,
         pub level: u8,
-        pub name: std::string::String,
-        pub msg: std::string::String,
-        pub file: std::string::String,
-        pub function: std::string::String,
+        pub name: crate::RosString,
+        pub msg: crate::RosString,
+        pub file: crate::RosString,
+        pub function: crate::RosString,
         pub line: u32,
     }
     unsafe impl WrappedTypesupport for Log {
@@ -162,20 +162,20 @@ pub mod msg {
             Log {
                 stamp: builtin_interfaces::msg::Time::from_native(&msg.stamp),
                 level: msg.level,
-                name: msg.name.to_str().to_owned(),
-                msg: msg.msg.to_str().to_owned(),
-                file: msg.file.to_str().to_owned(),
-                function: msg.function.to_str().to_owned(),
+                name: crate::RosString::from(msg.name.as_bytes()),
+                msg: crate::RosString::from(msg.msg.as_bytes()),
+                file: crate::RosString::from(msg.file.as_bytes()),
+                function: crate::RosString::from(msg.function.as_bytes()),
                 line: msg.line,
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.stamp.copy_to_native(&mut msg.stamp);
             msg.level = self.level;
-            msg.name.assign(&self.name);
-            msg.msg.assign(&self.msg);
-            msg.file.assign(&self.file);
-            msg.function.assign(&self.function);
+            msg.name.try_assign_bytes((&self.name).as_bytes());
+            msg.msg.try_assign_bytes((&self.msg).as_bytes());
+            msg.file.try_assign_bytes((&self.file).as_bytes());
+            msg.function.try_assign_bytes((&self.function).as_bytes());
             msg.line = self.line;
         }
     }
@@ -196,7 +196,7 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct Parameter {
-        pub name: std::string::String,
+        pub name: crate::RosString,
         pub value: rcl_interfaces::msg::ParameterValue,
     }
     unsafe impl WrappedTypesupport for Parameter {
@@ -218,12 +218,12 @@ pub mod msg {
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Parameter {
             Parameter {
-                name: msg.name.to_str().to_owned(),
+                name: crate::RosString::from(msg.name.as_bytes()),
                 value: rcl_interfaces::msg::ParameterValue::from_native(&msg.value),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.name.assign(&self.name);
+            msg.name.try_assign_bytes((&self.name).as_bytes());
             self.value.copy_to_native(&mut msg.value);
         }
     }
@@ -236,11 +236,11 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct ParameterDescriptor {
-        pub name: std::string::String,
+        pub name: crate::RosString,
         #[serde(rename = "type")]
         pub type_: u8,
-        pub description: std::string::String,
-        pub additional_constraints: std::string::String,
+        pub description: crate::RosString,
+        pub additional_constraints: crate::RosString,
         pub read_only: bool,
         pub dynamic_typing: bool,
         pub floating_point_range: Vec<rcl_interfaces::msg::FloatingPointRange>,
@@ -267,10 +267,12 @@ pub mod msg {
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> ParameterDescriptor {
             ParameterDescriptor {
-                name: msg.name.to_str().to_owned(),
+                name: crate::RosString::from(msg.name.as_bytes()),
                 type_: msg.type_,
-                description: msg.description.to_str().to_owned(),
-                additional_constraints: msg.additional_constraints.to_str().to_owned(),
+                description: crate::RosString::from(msg.description.as_bytes()),
+                additional_constraints: crate::RosString::from(
+                    msg.additional_constraints.as_bytes(),
+                ),
                 read_only: msg.read_only,
                 dynamic_typing: msg.dynamic_typing,
                 floating_point_range: {
@@ -304,10 +306,11 @@ pub mod msg {
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-            msg.name.assign(&self.name);
+            msg.name.try_assign_bytes((&self.name).as_bytes());
             msg.type_ = self.type_;
-            msg.description.assign(&self.description);
-            msg.additional_constraints.assign(&self.additional_constraints);
+            msg.description.try_assign_bytes((&self.description).as_bytes());
+            msg.additional_constraints
+                .try_assign_bytes((&self.additional_constraints).as_bytes());
             msg.read_only = self.read_only;
             msg.dynamic_typing = self.dynamic_typing;
             unsafe {
@@ -354,7 +357,7 @@ pub mod msg {
     #[serde(default)]
     pub struct ParameterEvent {
         pub stamp: builtin_interfaces::msg::Time,
-        pub node: std::string::String,
+        pub node: crate::RosString,
         pub new_parameters: Vec<rcl_interfaces::msg::Parameter>,
         pub changed_parameters: Vec<rcl_interfaces::msg::Parameter>,
         pub deleted_parameters: Vec<rcl_interfaces::msg::Parameter>,
@@ -380,7 +383,7 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> ParameterEvent {
             ParameterEvent {
                 stamp: builtin_interfaces::msg::Time::from_native(&msg.stamp),
-                node: msg.node.to_str().to_owned(),
+                node: crate::RosString::from(msg.node.as_bytes()),
                 new_parameters: {
                     let mut temp = Vec::with_capacity(msg.new_parameters.size);
                     let slice = unsafe {
@@ -424,7 +427,7 @@ pub mod msg {
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.stamp.copy_to_native(&mut msg.stamp);
-            msg.node.assign(&self.node);
+            msg.node.try_assign_bytes((&self.node).as_bytes());
             unsafe {
                 rcl_interfaces__msg__Parameter__Sequence__fini(&mut msg.new_parameters);
                 rcl_interfaces__msg__Parameter__Sequence__init(
@@ -666,12 +669,12 @@ pub mod msg {
         pub bool_value: bool,
         pub integer_value: i64,
         pub double_value: f64,
-        pub string_value: std::string::String,
+        pub string_value: crate::RosString,
         pub byte_array_value: Vec<u8>,
         pub bool_array_value: Vec<bool>,
         pub integer_array_value: Vec<i64>,
         pub double_array_value: Vec<f64>,
-        pub string_array_value: Vec<std::string::String>,
+        pub string_array_value: Vec<crate::RosString>,
     }
     unsafe impl WrappedTypesupport for ParameterValue {
         type CStruct = rcl_interfaces__msg__ParameterValue;
@@ -697,12 +700,14 @@ pub mod msg {
                 bool_value: msg.bool_value,
                 integer_value: msg.integer_value,
                 double_value: msg.double_value,
-                string_value: msg.string_value.to_str().to_owned(),
+                string_value: crate::RosString::from(msg.string_value.as_bytes()),
                 byte_array_value: msg.byte_array_value.to_vec(),
                 bool_array_value: msg.bool_array_value.to_vec(),
                 integer_array_value: msg.integer_array_value.to_vec(),
                 double_array_value: msg.double_array_value.to_vec(),
-                string_array_value: msg.string_array_value.to_vec(),
+                string_array_value: msg
+                    .string_array_value
+                    .to_bytes_vec::<crate::RosString>(),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
@@ -710,12 +715,12 @@ pub mod msg {
             msg.bool_value = self.bool_value;
             msg.integer_value = self.integer_value;
             msg.double_value = self.double_value;
-            msg.string_value.assign(&self.string_value);
+            msg.string_value.try_assign_bytes((&self.string_value).as_bytes());
             msg.byte_array_value.update(&self.byte_array_value);
             msg.bool_array_value.update(&self.bool_array_value);
             msg.integer_array_value.update(&self.integer_array_value);
             msg.double_array_value.update(&self.double_array_value);
-            msg.string_array_value.update(&self.string_array_value);
+            msg.string_array_value.try_update_bytes(&self.string_array_value);
         }
     }
     impl Default for ParameterValue {
@@ -728,7 +733,7 @@ pub mod msg {
     #[serde(default)]
     pub struct SetParametersResult {
         pub successful: bool,
-        pub reason: std::string::String,
+        pub reason: crate::RosString,
     }
     unsafe impl WrappedTypesupport for SetParametersResult {
         type CStruct = rcl_interfaces__msg__SetParametersResult;
@@ -752,12 +757,12 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> SetParametersResult {
             SetParametersResult {
                 successful: msg.successful,
-                reason: msg.reason.to_str().to_owned(),
+                reason: crate::RosString::from(msg.reason.as_bytes()),
             }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             msg.successful = self.successful;
-            msg.reason.assign(&self.reason);
+            msg.reason.try_assign_bytes((&self.reason).as_bytes());
         }
     }
     impl Default for SetParametersResult {
@@ -785,7 +790,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Request {
-            pub names: Vec<std::string::String>,
+            pub names: Vec<crate::RosString>,
         }
         unsafe impl WrappedTypesupport for Request {
             type CStruct = rcl_interfaces__srv__DescribeParameters_Request;
@@ -810,11 +815,11 @@ pub mod srv {
             }
             fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Request {
                 Request {
-                    names: msg.names.to_vec(),
+                    names: msg.names.to_bytes_vec::<crate::RosString>(),
                 }
             }
             fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                msg.names.update(&self.names);
+                msg.names.try_update_bytes(&self.names);
             }
         }
         impl Default for Request {
@@ -913,7 +918,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Request {
-            pub names: Vec<std::string::String>,
+            pub names: Vec<crate::RosString>,
         }
         unsafe impl WrappedTypesupport for Request {
             type CStruct = rcl_interfaces__srv__GetParameterTypes_Request;
@@ -938,11 +943,11 @@ pub mod srv {
             }
             fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Request {
                 Request {
-                    names: msg.names.to_vec(),
+                    names: msg.names.to_bytes_vec::<crate::RosString>(),
                 }
             }
             fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                msg.names.update(&self.names);
+                msg.names.try_update_bytes(&self.names);
             }
         }
         impl Default for Request {
@@ -1010,7 +1015,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Request {
-            pub names: Vec<std::string::String>,
+            pub names: Vec<crate::RosString>,
         }
         unsafe impl WrappedTypesupport for Request {
             type CStruct = rcl_interfaces__srv__GetParameters_Request;
@@ -1033,11 +1038,11 @@ pub mod srv {
             }
             fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Request {
                 Request {
-                    names: msg.names.to_vec(),
+                    names: msg.names.to_bytes_vec::<crate::RosString>(),
                 }
             }
             fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                msg.names.update(&self.names);
+                msg.names.try_update_bytes(&self.names);
             }
         }
         impl Default for Request {
@@ -1127,7 +1132,7 @@ pub mod srv {
         #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
         #[serde(default)]
         pub struct Request {
-            pub prefixes: Vec<std::string::String>,
+            pub prefixes: Vec<crate::RosString>,
             pub depth: u64,
         }
         unsafe impl WrappedTypesupport for Request {
@@ -1151,12 +1156,12 @@ pub mod srv {
             }
             fn from_native(#[allow(unused)] msg: &Self::CStruct) -> Request {
                 Request {
-                    prefixes: msg.prefixes.to_vec(),
+                    prefixes: msg.prefixes.to_bytes_vec::<crate::RosString>(),
                     depth: msg.depth,
                 }
             }
             fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
-                msg.prefixes.update(&self.prefixes);
+                msg.prefixes.try_update_bytes(&self.prefixes);
                 msg.depth = self.depth;
             }
         }

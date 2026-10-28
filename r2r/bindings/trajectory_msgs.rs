@@ -4,7 +4,7 @@ pub mod msg {
     #[serde(default)]
     pub struct JointTrajectory {
         pub header: std_msgs::msg::Header,
-        pub joint_names: Vec<std::string::String>,
+        pub joint_names: Vec<crate::RosString>,
         pub points: Vec<trajectory_msgs::msg::JointTrajectoryPoint>,
     }
     unsafe impl WrappedTypesupport for JointTrajectory {
@@ -28,7 +28,7 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> JointTrajectory {
             JointTrajectory {
                 header: std_msgs::msg::Header::from_native(&msg.header),
-                joint_names: msg.joint_names.to_vec(),
+                joint_names: msg.joint_names.to_bytes_vec::<crate::RosString>(),
                 points: {
                     let mut temp = Vec::with_capacity(msg.points.size);
                     let slice = unsafe {
@@ -45,7 +45,7 @@ pub mod msg {
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.header.copy_to_native(&mut msg.header);
-            msg.joint_names.update(&self.joint_names);
+            msg.joint_names.try_update_bytes(&self.joint_names);
             unsafe {
                 trajectory_msgs__msg__JointTrajectoryPoint__Sequence__fini(
                     &mut msg.points,
@@ -127,7 +127,7 @@ pub mod msg {
     #[serde(default)]
     pub struct MultiDOFJointTrajectory {
         pub header: std_msgs::msg::Header,
-        pub joint_names: Vec<std::string::String>,
+        pub joint_names: Vec<crate::RosString>,
         pub points: Vec<trajectory_msgs::msg::MultiDOFJointTrajectoryPoint>,
     }
     unsafe impl WrappedTypesupport for MultiDOFJointTrajectory {
@@ -152,7 +152,7 @@ pub mod msg {
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> MultiDOFJointTrajectory {
             MultiDOFJointTrajectory {
                 header: std_msgs::msg::Header::from_native(&msg.header),
-                joint_names: msg.joint_names.to_vec(),
+                joint_names: msg.joint_names.to_bytes_vec::<crate::RosString>(),
                 points: {
                     let mut temp = Vec::with_capacity(msg.points.size);
                     let slice = unsafe {
@@ -171,7 +171,7 @@ pub mod msg {
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             self.header.copy_to_native(&mut msg.header);
-            msg.joint_names.update(&self.joint_names);
+            msg.joint_names.try_update_bytes(&self.joint_names);
             unsafe {
                 trajectory_msgs__msg__MultiDOFJointTrajectoryPoint__Sequence__fini(
                     &mut msg.points,

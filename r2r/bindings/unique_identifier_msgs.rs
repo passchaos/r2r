@@ -3,7 +3,8 @@ pub mod msg {
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
     pub struct UUID {
-        pub uuid: Vec<u8>,
+        #[serde(with = "crate::msg_types::fixed_array")]
+        pub uuid: [u8; 16usize],
     }
     unsafe impl WrappedTypesupport for UUID {
         type CStruct = unique_identifier_msgs__msg__UUID;
@@ -23,12 +24,15 @@ pub mod msg {
             #[cfg(feature = "doc-only")] unique_identifier_msgs__msg__UUID__destroy(msg)
         }
         fn from_native(#[allow(unused)] msg: &Self::CStruct) -> UUID {
-            UUID { uuid: msg.uuid.to_vec() }
+            UUID { uuid: msg.uuid }
         }
         fn copy_to_native(&self, #[allow(unused)] msg: &mut Self::CStruct) {
             assert_eq!(
-                self.uuid.len(), 16usize, "Field {} is fixed size of {}!", "uuid",
-                16usize
+                self.uuid.len(),
+                16usize,
+                "Field {} is fixed size of {}!",
+                "uuid",
+                16usize,
             );
             msg.uuid.copy_from_slice(&self.uuid[..16usize]);
         }

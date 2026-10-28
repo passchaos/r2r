@@ -29,44 +29,9 @@ pub(crate) fn uuid_msg_to_uuid(msg: &unique_identifier_msgs::msg::UUID) -> Resul
     })
 }
 
-pub(crate) struct SerializedMessageBuffer(rcl_serialized_message_t);
-
-impl SerializedMessageBuffer {
-    pub(crate) fn with_capacity(capacity: usize) -> std::result::Result<Self, i32> {
-        let mut buffer = unsafe { r2r_rcl::rcutils_get_zero_initialized_uint8_array() };
-        let result = unsafe {
-            r2r_rcl::rcutils_uint8_array_init(
-                &mut buffer,
-                capacity,
-                &r2r_rcl::rcutils_get_default_allocator(),
-            )
-        };
-        if result == r2r_rcl::RCL_RET_OK as i32 {
-            Ok(Self(buffer))
-        } else {
-            Err(result)
-        }
-    }
-
-    pub(crate) fn capacity(&self) -> usize {
-        self.0.buffer_capacity
-    }
-
-    pub(crate) fn serialize<T: WrappedTypesupport>(
-        &mut self, message: &WrappedNativeMsg<T>,
-    ) -> Result<&[u8]> {
-        let result =
-            unsafe { r2r_rcl::rmw_serialize(message.void_ptr(), T::get_ts(), &mut self.0) };
-        if result != r2r_rcl::RCL_RET_OK as i32 {
-            return Err(Error::from_rcl_error(result));
-        }
-        unsafe { serialized_message_bytes(&self.0) }
-    }
-}
-
-// SAFETY: the buffer is exclusively owned and uses process-lifetime default allocator callbacks.
-// Moving it does not move its allocation or permit concurrent access.
-unsafe impl Send for SerializedMessageBuffer {}
+mod serialized_buffer;
+pub(crate) use serialized_buffer::SerializedMessageBuffer;
+mod fixed_array;
 
 pub(crate) unsafe fn serialized_message_bytes(msg: &rcl_serialized_message_t) -> Result<&[u8]> {
     if msg.buffer_length == 0 {
@@ -78,16 +43,6 @@ pub(crate) unsafe fn serialized_message_bytes(msg: &rcl_serialized_message_t) ->
     Ok(std::slice::from_raw_parts(msg.buffer, msg.buffer_length))
 }
 
-impl Drop for SerializedMessageBuffer {
-    fn drop(&mut self) {
-        let ret = unsafe { r2r_rcl::rcutils_uint8_array_fini(&mut self.0) };
-        if ret != r2r_rcl::RCL_RET_OK as i32 {
-            log::error!("could not finalize serialized message buffer: {}", ret);
-        }
-    }
-}
-
-// Keep one reusable serialization buffer per thread.
 thread_local! {
     static SERIALIZED_MESSAGE_CACHE: std::result::Result<RefCell<SerializedMessageBuffer>, i32> =
         SerializedMessageBuffer::with_capacity(0).map(RefCell::new);
@@ -695,19 +650,12 @@ mod tests {
     }
 
     #[test]
-    fn action_uuid_conversion_rejects_wrong_lengths() {
-        let short = unique_identifier_msgs::msg::UUID { uuid: vec![0; 15] };
-        let long = unique_identifier_msgs::msg::UUID { uuid: vec![0; 17] };
-        assert!(matches!(
-            uuid_msg_to_uuid(&short),
-            Err(Error::InvalidActionUuidLength { actual: 15 })
-        ));
-        assert!(matches!(
-            uuid_msg_to_uuid(&long),
-            Err(Error::InvalidActionUuidLength { actual: 17 })
-        ));
-
-        let valid = unique_identifier_msgs::msg::UUID { uuid: vec![7; 16] };
+    fn action_uuid_json_rejects_wrong_fixed_array_lengths() {
+        for count in [0, 15, 17] {
+            let value = serde_json::json!({"uuid": vec![0; count]});
+            assert!(serde_json::from_value::<unique_identifier_msgs::msg::UUID>(value).is_err());
+        }
+        let valid = unique_identifier_msgs::msg::UUID { uuid: [7; 16] };
         assert_eq!(uuid_msg_to_uuid(&valid).unwrap().as_bytes(), &[7; 16]);
     }
 
@@ -774,30 +722,22 @@ mod tests {
     }
 
     #[test]
-    #[should_panic] // we are testing that we cannot have to many elements in a fixed sized field
-    fn test_fixedsizearray() {
-        unsafe {
-            let x = rosidl_typesupport_introspection_c__get_message_type_support_handle__geometry_msgs__msg__AccelWithCovariance();
-            let members = (*x).data as *const rosidl_typesupport_introspection_c__MessageMembers;
-            println!("{:#?}", *members);
-
-            let memberslice =
-                std::slice::from_raw_parts((*members).members_, (*members).member_count_ as usize);
-            for member in memberslice {
-                println!("member: {:#?}", *member);
-            }
-
-            let msg_native = WrappedNativeMsg::<geometry_msgs::msg::AccelWithCovariance>::new();
-            let mut msg = geometry_msgs::msg::AccelWithCovariance::from_native(&msg_native);
-            println!("{:#?}", msg);
-            msg.covariance[0] = 10.0;
-            msg.covariance[10] = 10.0;
-            msg.covariance[35] = 99.0;
-            msg.covariance.push(4444.0);
-            let msg_native2 =
-                WrappedNativeMsg::<geometry_msgs::msg::AccelWithCovariance>::from(&msg);
-            let msg2 = geometry_msgs::msg::AccelWithCovariance::from_native(&msg_native2);
-            println!("{:#?}", msg2);
+    fn fixed_array_native_cdr_and_json_roundtrip() {
+        use geometry_msgs::msg::AccelWithCovariance;
+        let message = AccelWithCovariance {
+            covariance: std::array::from_fn(|index| index as f64 * 0.25),
+            ..Default::default()
+        };
+        let _: &[f64; 36] = &message.covariance;
+        let native = WrappedNativeMsg::<AccelWithCovariance>::try_from(&message).unwrap();
+        assert_eq!(AccelWithCovariance::from_native(&native), message);
+        let bytes = message.to_serialized_bytes().unwrap();
+        assert_eq!(AccelWithCovariance::from_serialized_bytes(&bytes).unwrap(), message);
+        let value = serde_json::to_value(&message).unwrap();
+        assert_eq!(serde_json::from_value::<AccelWithCovariance>(value).unwrap(), message);
+        for length in [0, 35, 37] {
+            let value = serde_json::json!({"covariance":vec![0.0;length]});
+            assert!(serde_json::from_value::<AccelWithCovariance>(value).is_err());
         }
     }
 
@@ -1011,7 +951,7 @@ mod tests {
     fn test_test_msgs_array() {
         let mut msg = test_msgs::msg::Arrays::default();
         println!("msg: {:?}", msg.string_values);
-        msg.string_values = vec!["hej".to_string(), "hopp".to_string(), "stropp".to_string()];
+        msg.string_values = ["hej".into(), "hopp".into(), "stropp".into()];
 
         let msg_native = WrappedNativeMsg::<test_msgs::msg::Arrays>::from(&msg);
         let msg2 = test_msgs::msg::Arrays::from_native(&msg_native);
@@ -1021,12 +961,9 @@ mod tests {
 
     #[cfg(r2r__test_msgs__msg__Arrays)]
     #[test]
-    #[should_panic]
     fn test_test_msgs_array_too_few_elems() {
-        let mut msg = test_msgs::msg::Arrays::default();
-        println!("msg: {:?}", msg.string_values);
-        msg.string_values = vec!["hej".to_string(), "hopp".to_string()];
-        let _msg_native = WrappedNativeMsg::<test_msgs::msg::Arrays>::from(&msg);
+        let value = serde_json::json!({"string_values":["hej","hopp"]});
+        assert!(serde_json::from_value::<test_msgs::msg::Arrays>(value).is_err());
     }
 
     #[cfg(r2r__test_msgs__msg__WStrings)]
@@ -1034,7 +971,7 @@ mod tests {
     fn test_test_msgs_wstring() {
         let mut msg = test_msgs::msg::WStrings::default();
         let rust_str = "ハローワールド";
-        msg.wstring_value = rust_str.to_string();
+        msg.wstring_value = rust_str.into();
         let native = WrappedNativeMsg::<test_msgs::msg::WStrings>::from(&msg);
         println!("msg: {:?}", msg);
         let msg2 = test_msgs::msg::WStrings::from_native(&native);
@@ -1119,7 +1056,7 @@ mod tests {
         use example_interfaces::action::Fibonacci;
 
         let ts = UntypedActionSupport::new_from("example_interfaces/action/Fibonacci").unwrap();
-        let uuid = unique_identifier_msgs::msg::UUID { uuid: vec![7; 16] };
+        let uuid = unique_identifier_msgs::msg::UUID { uuid: [7; 16] };
         let goal = Fibonacci::Goal { order: 5 };
         let json_goal = serde_json::to_value(&goal).unwrap();
         let json_request = (ts.make_goal_request_msg)(uuid.clone(), json_goal)
@@ -1146,7 +1083,7 @@ mod tests {
             .and_then(|value| value.parse::<usize>().ok())
             .unwrap_or(200_000);
         let ts = UntypedActionSupport::new_from("example_interfaces/action/Fibonacci").unwrap();
-        let uuid = unique_identifier_msgs::msg::UUID { uuid: vec![7; 16] };
+        let uuid = unique_identifier_msgs::msg::UUID { uuid: [7; 16] };
         let goal = serde_json::json!({ "order": 21 });
         let start = std::time::Instant::now();
         for _ in 0..iterations {

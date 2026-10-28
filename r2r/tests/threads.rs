@@ -40,7 +40,7 @@ fn doesnt_crash() -> Result<(), Box<dyn std::error::Error>> {
                                     )
                                     .unwrap();
                                 let to_send = r2r::std_msgs::msg::String {
-                                    data: format!("[node{}]: {}", i_node, c),
+                                    data: format!("[node{}]: {}", i_node, c).into(),
                                 };
 
                                 // move publisher to its own thread and publish as fast as we can
