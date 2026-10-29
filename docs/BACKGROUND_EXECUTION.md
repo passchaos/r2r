@@ -1,5 +1,8 @@
 # Async runtime integration through an owned native executor task
 
+[ParallelExecutor](PARALLEL_EXECUTION.md) composes these tasks across explicitly
+placed Node groups when callbacks need independent native worker progress.
+
 [Background cleanup](BACKGROUND_CLEANUP.md) describes automatic native endpoint
 release after public handles are dropped, final-operation cancellation and
 action-server decision/backpressure notifications.

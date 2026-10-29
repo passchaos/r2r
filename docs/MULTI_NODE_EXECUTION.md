@@ -1,5 +1,10 @@
 # Driving multiple ROS nodes
 
+For independent Node groups that must progress during another group's long
+synchronous callback, [ParallelExecutor](PARALLEL_EXECUTION.md) supplies a fixed
+native worker budget. Nodes within each group retain this serial Executor's
+ownership and shared-wait behavior.
+
 For an independently driven async runtime, [`Executor::spawn`](BACKGROUND_EXECUTION.md)
 returns an awaitable owned task. ROS nodes use one native wait thread while the
 runtime processes I/O and application futures; `task.stop().await` returns the

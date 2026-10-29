@@ -5,6 +5,33 @@ test profile. The Jazzy quality job runs the complete library suite with `cargo 
 Version-specific and middleware integration gates still cover the supported Humble-and-newer
 matrix.
 
+## Parallel native Node groups (2026-10-30)
+
+[`ParallelExecutor`](PARALLEL_EXECUTION.md) composes owned background executors
+over a fixed, explicitly configured native worker budget. Each group owns its
+Nodes, wait set and wake guard exclusively. Long synchronous callbacks remain
+serial within a group while other groups make native progress. Stop returns
+stable Node IDs and placement; errors/panics cancel peers before application
+polling and collect their cleanup before returning a configured worker index.
+
+Thirteen focused tests establish native progress/thread identities, distinct
+reused wait/guard storage, stable ownership, pre-start cancellation, skipped
+empty groups, response identities, error/drop/panic cleanup, empty/populated
+shutdown and standard lifecycle services plus native simulated-time deadlines.
+The current-thread example validates 32 control RPCs during a blocked callback
+and subsequent Node reuse. [Recorded gates](validation/parallel-executor-2026-10-30/README.md)
+track debug/release, native distribution/RMW, public Rustdoc ownership examples,
+no-ROS documentation and necessary full-library/workspace validation separately
+from the remaining isolated multithreaded performance matrix.
+
+Final Jazzy debug workspace and both optimized RMW library suites pass 722
+main-library tests each, with eight existing manual measurements ignored and
+22 Rustdoc cases passing. Native Humble/Fast DDS and Kilted/CycloneDDS plus
+Fast DDS each pass 13 optimized parallel cases, 92/93 executor-family cases,
+the complete example, ownership Rustdoc and all-target Clippy. The no-ROS gate
+verifies 46 public documentation artifacts and 150 methods. Iron, Lyrical and
+Rolling remain supported CI entries without new local runtime evidence here.
+
 ## Release-only registration failure fixed on 2026-10-27
 
 The first optimized, independent-process pub/sub roundtrip probe failed while querying the

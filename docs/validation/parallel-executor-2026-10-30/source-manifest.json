@@ -1,0 +1,29 @@
+{
+  "parent_commit": "4b3b3683e6820a3acc1eafec1440cc67d0767013",
+  "source_sha256": {
+    "r2r/src/lib.rs": "cc4f84854b0ec5b7c78ce0ae3002297f134d722c64fa59ba566dc976a2f1f117",
+    "r2r/src/nodes.rs": "b89a2e2dd25e9763464614d39108485e86fe847714d6d7d8b4dbafe33a64cd97",
+    "r2r/src/nodes/executor.rs": "5e3275f5f85d6e4fcf8a713022d3cbbb532c27949fdca431cc7f79035cdb3654",
+    "r2r/src/nodes/executor/background.rs": "0b6d1c0984455c079ef226f1f525b7d9d689c86af4f5c72c5210dbb3965690db",
+    "r2r/src/nodes/parallel_executor.rs": "ebfcef08dfb31fec8a7bdb33227ffa4df63edda3933e01bcb2bc23bb04d0d2db",
+    "r2r/examples/parallel_executor.rs": "f0b82670a7d9c49f4b7e39364166da8c2fe94feabbd4ba8e5ca76dfb76109a6d",
+    "tests/check_documentation.py": "662e53201e8d9386fd6a98309a1322e7a400d533820f6942bf9dc0eb1975ee46",
+    "r2r/src/nodes/parallel_executor/task.rs": "e213d663a55d635a8351e2c100a273c29df7d3737237852f01b728b53d8a94f4",
+    "r2r/src/nodes/parallel_executor/tests/errors.rs": "f8f389357df0592f11f8c833dbec2a719d38f462c53b5f7932ddb7d60fc3064c",
+    "r2r/src/nodes/parallel_executor/tests/ownership.rs": "29ed6b5503a7069cba19de1f90cf2695fcf142e11996f6639b6f98ac91dd8582",
+    "r2r/src/nodes/parallel_executor/tests/workflows.rs": "eb04a29a632c3e0bd3e0ac6353b6878587048e6f46c40d3e1e679197af8ea5cb",
+    "r2r/src/nodes/parallel_executor/tests.rs": "567060791c25d6e4e53ec849a02e1dfaaf26629f2bc40134bc0bf0c228c3f500",
+    "docs/validation/parallel-executor-2026-10-30/run-isolation-preflight.py": "3b59a6d3f569cf64ac437fc8c5f0c0f636ce7d93c399885d3460ba357cef5740",
+    "docs/validation/parallel-executor-2026-10-30/run-parallel-compat.bash": "7d370ad08c57dd3d6aa609a029dc6ab3070d8a41fe6d7995a8c6d0eab36b6f7b",
+    "docs/validation/parallel-executor-2026-10-30/run-parallel-jazzy.bash": "0601dbe5920c443ae9b65a87a8ccdf86fa6fb3e3403a1e652284a6defe83e249"
+  },
+  "native_wait_contract": {
+    "path": "/opt/ros/jazzy/include/rcl/rcl/wait.h",
+    "sha256": "51b82cdc3be7be46c5c142a0698e5bfce0bcd4aaf6db86cff7e9ee33c68e9f21",
+    "lines": [
+      455,
+      459
+    ],
+    "requirement": "rcl_wait is thread-safe for unique wait sets with unique contents; shared guard conditions across wait sets are undefined behavior"
+  }
+}

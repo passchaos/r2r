@@ -197,9 +197,11 @@ mod nodes;
 pub use nodes::TimerCallInfo;
 pub use nodes::{
     CallbackTimer, CallbackTimerOptions, Executor, ExecutorHandle, ExecutorNodeId, ExecutorTask,
-    ExecutorTaskError, FutureExecutionOptions, Node, NodeOptions, ParameterCallbackHandle,
-    ParameterHandlerOptions, ParameterPostSetCallbackHandle, ParameterPreSetCallbackHandle, Timer,
-    TimerOptions, TopicEndpointInfo, TopicEndpointType, TopicTypeHash,
+    ExecutorTaskError, FutureExecutionOptions, Node, NodeOptions, ParallelExecutor,
+    ParallelExecutorHandle, ParallelExecutorTask, ParallelExecutorTaskError,
+    ParameterCallbackHandle, ParameterHandlerOptions, ParameterPostSetCallbackHandle,
+    ParameterPreSetCallbackHandle, Timer, TimerOptions, TopicEndpointInfo, TopicEndpointType,
+    TopicTypeHash,
 };
 
 mod lifecycle;

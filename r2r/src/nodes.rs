@@ -47,8 +47,12 @@ mod future_executor;
 mod graph;
 mod observer_notifications;
 mod options;
+mod parallel_executor;
 pub(crate) use options::NodeOptionsNative;
 pub use options::{NodeOptions, ParameterHandlerOptions};
+pub use parallel_executor::{
+    ParallelExecutor, ParallelExecutorHandle, ParallelExecutorTask, ParallelExecutorTaskError,
+};
 mod creation;
 mod parameter_api;
 mod parameter_handler;

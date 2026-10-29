@@ -35,6 +35,10 @@ REQUIRED_DOCUMENTATION = (
     "struct.Executor.html",
     "struct.ExecutorTask.html",
     "enum.ExecutorTaskError.html",
+    "struct.ParallelExecutor.html",
+    "struct.ParallelExecutorHandle.html",
+    "struct.ParallelExecutorTask.html",
+    "enum.ParallelExecutorTaskError.html",
     "enum.FeedbackOverflowPolicy.html",
     "struct.ActionClientOptions.html",
     "struct.ActionServerGoal.html",
@@ -75,6 +79,9 @@ REQUIRED_METHODS = {
     "struct.LifecycleCallbackTimer.html": ("clock_type", "is_steady", "is_valid", "cancel", "reset", "is_canceled", "is_ready", "period", "set_period", "time_until_next_call_ns", "time_since_last_call_ns", "next_call_time_ns", "destroy"),
     "struct.Executor.html": ("spawn",),
     "struct.ExecutorTask.html": ("handle", "cancel", "is_finished", "stop"),
+    "struct.ParallelExecutor.html": ("new", "worker_count", "len", "is_empty", "add_node", "add_node_to_worker", "node_mut", "remove_node", "handle", "is_cancelled", "reset_cancel", "spawn"),
+    "struct.ParallelExecutorHandle.html": ("cancel", "is_cancelled"),
+    "struct.ParallelExecutorTask.html": ("worker_count", "handle", "cancel", "is_finished", "stop"),
     "struct.ActionClientOptions.html": ("feedback_overflow_policy",),
     "struct.ActionServerGoal.html": ("execute_batch", "succeed_batch", "abort_batch", "cancel_batch"),
     "struct.ActionServerGoalRequest.html": ("accept_batch", "accept_deferred_batch"),
@@ -124,6 +131,7 @@ def check(environment=None):
         ["cargo", "test", "-p", "r2r", "--doc", "--features", "doc-only", "NativeMessageRef"],
         ["cargo", "test", "-p", "r2r", "--doc", "--features", "doc-only", "create_service_native_callback"],
         ["cargo", "test", "-p", "r2r", "--doc", "--features", "doc-only", "create_wall_timer_callback"],
+        ["cargo", "test", "-p", "r2r", "--doc", "--features", "doc-only", "ParallelExecutor"],
         ["cargo", "doc", "-p", "r2r", "--no-deps", "--features", "doc-only"],
     )
     for command in commands:

@@ -133,7 +133,13 @@ impl Executor {
     /// Thread creation is fallible. Normal cancellation returns the owned executor;
     /// native errors and callback panics release nodes before reporting failure.
     /// No periodic spin timer or per-node worker is created.
-    pub fn spawn(mut self) -> std::result::Result<ExecutorTask, ExecutorTaskError> {
+    pub fn spawn(self) -> std::result::Result<ExecutorTask, ExecutorTaskError> {
+        self.spawn_with_failure_notify(|| {})
+    }
+
+    pub(in crate::nodes) fn spawn_with_failure_notify(
+        mut self, failed: impl FnOnce() + Send + 'static,
+    ) -> std::result::Result<ExecutorTask, ExecutorTaskError> {
         if !self.context.is_valid() {
             return Err(Error::RCL_RET_NOT_INIT.into());
         }
@@ -155,6 +161,9 @@ impl Executor {
             .name("r2r-executor".into())
             .spawn(move || {
                 let result = catch_unwind(AssertUnwindSafe(|| self.spin()));
+                if !matches!(&result, Ok(Ok(()))) {
+                    failed();
+                }
                 // A failed send drops returned ownership on this native thread.
                 complete(self, sender, result);
             })

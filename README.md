@@ -19,6 +19,8 @@ Managed ROS/wall timers pause outside the active lifecycle state and restart wit
 
 To compose ROS with Tokio or another independently driven runtime, `Executor::spawn()` returns an awaitable native execution task. `task.stop().await` recovers the executor and nodes; dropping a pending task requests cancellation. Run `cargo run -p r2r --example tokio_executor` for a current-thread TCP/ROS workflow with explicit stop and node reuse. [Background execution](docs/BACKGROUND_EXECUTION.md) describes ownership, late observers and cleanup.
 
+To isolate long synchronous callbacks, `ParallelExecutor::new(context, workers)` assigns independent Node groups to a fixed native worker budget. `add_node_to_worker` controls placement; Nodes within a group dispatch serially. Run `cargo run -p r2r --example parallel_executor` for control RPC progress during a blocked callback followed by stop and Node reuse. [Parallel execution](docs/PARALLEL_EXECUTION.md) describes cancellation, failure cleanup and the remaining same-Node concurrency scope.
+
 Dropped endpoint handles and canceled final operations wake the background native executor for targeted cleanup. Delayed action cancellation decisions and full cancel streams also notify native maintenance when work becomes ready. [Background cleanup](docs/BACKGROUND_CLEANUP.md) describes the resource and cancellation contracts.
 
 Canceled action observers continue cleanup across sixteen-entry maintenance batches. The current batch reports unexamined work directly to native waiting, so large result/cancel/feedback-observer backlogs can drain without unrelated ROS traffic. [Cancellation backlog cleanup](docs/ACTION_CANCELLATION_BACKLOG.md) describes batching, live-observer checks and retry behavior.

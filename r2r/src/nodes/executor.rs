@@ -38,6 +38,16 @@ pub struct Executor {
 unsafe impl Send for Executor {}
 
 impl Executor {
+    #[cfg(all(test, not(feature = "doc-only")))]
+    pub(in crate::nodes) fn native_wait_identity(&self) -> (usize, usize) {
+        (
+            self.wait_set.handle.impl_ as usize,
+            self.future_wake_guard
+                .as_ref()
+                .map_or(0, |guard| guard.handle() as usize),
+        )
+    }
+
     pub fn new(context: Context) -> Self {
         Self {
             control: None,
