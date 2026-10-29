@@ -861,17 +861,26 @@ reports and profile are retained under
 
 ## Batched action goal state snapshots (2026-10-29)
 
-Typed action servers now accept, defer/execute and terminally complete explicit goal slices while
+Typed and runtime-typed action servers now accept, defer/execute and terminally complete explicit goal slices while
 publishing one reliable complete status array per slice. Requests/results are prepared before the
 server lock; slices reject foreign servers, duplicate UUIDs and result-count mismatches. Changed
 prefixes still publish after a later transition failure, and result/status/expiry cleanup preserves
-first-error reporting. Existing single-goal methods are unchanged.
+first-error reporting. Runtime-typed slices additionally reject mixed generated action types and
+decode all JSON results before native preparation or state transitions. Existing single-goal methods
+are unchanged.
 
 A three-goal real-RCL oracle verifies Executing state, 128-element feedback, exact results and
 terminal stream closure under both Jazzy RMWs. The four-goal wake-driven example passes under
 Jazzy/both RMWs, Humble/Fast DDS and Kilted/both RMWs. Humble and Kilted also pass the four focused
-optimized cases and all-target warning-denied Clippy. No-ROS validation checks 17 API pages and 35
-methods, including all six batch entry points.
+optimized cases and all-target warning-denied Clippy. The runtime-typed wake-driven example uses a
+typed client against a JSON server. No-ROS validation checks 19 API pages and 41 methods, including
+all twelve typed/runtime-typed batch entry points.
+
+The runtime-typed extension has two real-RCL cases under each Jazzy RMW: erased-type mismatch and
+empty/count boundaries, plus deferred execute, JSON failure rollback, 128-element feedback,
+success/abort/cancel and stream closure. Humble/Fast DDS and Kilted/both RMWs run the same cases and
+four-goal example with all-target warning-denied Clippy. The complete Jazzy main library passes
+600/8 in debug and release under both RMWs.
 
 Independent `dc4e1c4` baseline/candidate matrices use 1000 measured eight-goal batches, five
 repetitions, 4096-element feedback, four feedback messages per goal, status slice two and one-second
@@ -884,4 +893,11 @@ lifecycle p50/p95/p99 is 20–29% lower than rclcpp/rclcpp and completion rate i
 Fast DDS, 42% higher under CycloneDDS. Ten-second retention with the same slice passes Fast DDS
 but fails CycloneDDS feedback p99 by 25%; it is archived as a rejected configuration boundary.
 See [batched action evidence](benchmarks/action-goal-batching-2026-10-29/README.md).
+
+An independent `fe938e4` same-batched-path guard protects the typed hot path after the runtime
+adapter refactor. Each RMW report contains 10 records and 10000 raw batch samples with identical
+4096×8×4 input, slice two, one-second retention and CPUs 24/25. Both pass the unchanged 1.05 gate.
+CycloneDDS lifecycle p99 is 1.7% lower and batch rate 3.0% higher; Fast DDS lifecycle p50/p95/p99
+are 0.5%/1.3%/0.4% lower and batch rate is 0.4% higher. See
+[runtime-typed batch evidence](benchmarks/action-goal-batching-untyped-2026-10-29/README.md).
 

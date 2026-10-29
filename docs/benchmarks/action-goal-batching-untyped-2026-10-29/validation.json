@@ -1,0 +1,190 @@
+{
+  "date_utc": "2026-10-29T10:26:14Z",
+  "parent_ref": "fe938e4151a01623209103199a7675a4ef2a19f9",
+  "goal_status": "active",
+  "scope": "runtime-typed action goal batching, typed-path regression protection and action-server module boundaries",
+  "source_identity": {
+    "manifest": "performance/build-manifest.json",
+    "manifest_sha256": "17de5452bf8d75937f904fde5746f4afe874ff3be8d5d7112ec75a62e13fb12e",
+    "candidate_files": 82,
+    "missing": [],
+    "mismatches": [],
+    "candidate_binary_sha256": "fe9f4e0690833424b6914ccacefd407eed1019e9c0434f188f8c9462577111a7",
+    "baseline_binary_sha256": "d80508f89f275d86af82504b61d1ba72538a3f5435a0d8235612c3350ea8de8c"
+  },
+  "validation": {
+    "performance": {
+      "exit_code": 0,
+      "observed": "two reports; each 10 records and 10000 batch samples; both recorded 1.05 gates passed",
+      "log": "logs/performance.log.gz",
+      "sha256": "52e0cc00ffe9ac145f95181de7cfb13ec9c5a2368db5fbefc141e24aa04ebccf"
+    },
+    "source-identity": {
+      "exit_code": 0,
+      "observed": "82 candidate files, 0 missing and 0 mismatches",
+      "log": "logs/source-identity.log.gz",
+      "sha256": "e2ff55703cb55932d35afb5d493b24b3243b7191ae7ba9d9e0752e69cc63b792"
+    },
+    "jazzy-focused-both-rmw": {
+      "exit_code": 0,
+      "observed": "2 passed per RMW; 606 filtered out",
+      "log": "logs/jazzy-focused.log.gz",
+      "sha256": "ece89c0611315dabe92ec42a24560e43b0d07a23f56e6a2bff05988276d20b1d"
+    },
+    "jazzy-example-both-rmw": {
+      "exit_code": 0,
+      "observed": "four typed client goals completed through a runtime-typed server per RMW",
+      "log": "logs/jazzy-example.log.gz",
+      "sha256": "579593e098cb325270c34fb3adfd3e57b37713da456e718fa806e882b8bb9387"
+    },
+    "workspace-jazzy-cyclonedds": {
+      "exit_code": 0,
+      "main_library_result": "600 passed; 0 failed; 8 ignored",
+      "additional_boundaries": "context 7; threads 1; tokio raw 2; tokio 1; common 6; macros 2; generator 2; rcl 27; workspace doc-tests",
+      "log": "logs/workspace.log.gz",
+      "sha256": "e0b2502e8bfc61e566855f8cc66383e2a5e3fda6774aa255e83e17025ab113e5"
+    },
+    "debug-jazzy-fastdds": {
+      "exit_code": 0,
+      "observed": "600 passed; 0 failed; 8 ignored",
+      "log": "logs/debug-fastdds.log.gz",
+      "sha256": "871ab9fbbd8c8456d1b0dae680c10ad516138e52bf8d76ca1e2cef55607938f6"
+    },
+    "release-jazzy-both-rmw": {
+      "exit_code": 0,
+      "observed": "600 passed; 0 failed; 8 ignored per RMW",
+      "log": "logs/release.log.gz",
+      "sha256": "6513d0857dfb082def260ac5d99f94b83ef7f19c738d5d22ad5a24942e97f0a8"
+    },
+    "humble-fastdds": {
+      "exit_code": 0,
+      "observed": "2 focused cases, four-goal example and all-target warning-denied Clippy passed",
+      "log": "logs/humble.log.gz",
+      "sha256": "58fc00757350d95e0ffbf7d3fdab5b146cd05808a0b9b1b2b6c73723bf5bd4a3"
+    },
+    "kilted-both-rmw": {
+      "exit_code": 0,
+      "observed": "per RMW: 2 focused cases and four-goal example passed; all-target warning-denied Clippy passed",
+      "log": "logs/kilted.log.gz",
+      "sha256": "dfc24b894e8a18dd00c859c6c8f00d43808cefcc100cee00c1afed244d69ba87"
+    },
+    "no-ros": {
+      "exit_code": 0,
+      "observed": "container without ROS: 4 snapshot tests, all-target compilation, 6 common tests, 2 generator tests, 19 API pages and 41 methods",
+      "log": "logs/no-ros.log.gz",
+      "sha256": "96bf95bb937c181b294ed4a6caf8b0967704e4cdcee82516683dd26adfdae0e3"
+    },
+    "clippy-jazzy-all-targets": {
+      "exit_code": 0,
+      "log": "logs/clippy.log.gz",
+      "sha256": "339b09ac9af0bd3251db7a0481a8e24a87b418e6e4c0fdcb16ca1cce439a30b7"
+    },
+    "markdown-links": {
+      "exit_code": 0,
+      "observed": "6 Markdown files, 99 local links, 0 missing",
+      "log": "logs/markdown-links.log.gz",
+      "sha256": "870131c2e7dbc8eab4b229bd1d708d248fda788b74b289b6ca60c39d1604241b"
+    },
+    "format": {
+      "exit_code": 0,
+      "log": "logs/format.log.gz",
+      "sha256": "59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2"
+    },
+    "diff-check": {
+      "exit_code": 0,
+      "log": "logs/diff-check.log.gz",
+      "sha256": "59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2"
+    }
+  },
+  "performance": {
+    "configuration": {
+      "payload_elements": 4096,
+      "goal_window": 8,
+      "feedback_per_goal": 4,
+      "status_batch_size": 2,
+      "result_timeout_ms": 1000,
+      "measured_batches_per_record": 1000,
+      "warmup_batches_per_record": 50,
+      "repetitions": 5,
+      "cpu_ping": 24,
+      "cpu_echo": 25,
+      "status_sync": "required",
+      "status_paths": {"candidate": "batched", "baseline": "batched"},
+      "maximum_regression_ratio": 1.05
+    },
+    "cyclonedds": {
+      "report": "performance/cyclonedds.json",
+      "report_sha256": "9a1a6a684f9d5d52b1fedf8b14ec0c65a7a5fdc45f2c1e5c65af72f2cce350de",
+      "samples": "performance/cyclonedds.samples.json.gz",
+      "samples_sha256": "bf758e706501d9ea14110ca0020c869cf793e544f99d97cc5a1900ed6e2a59c2",
+      "records": 10,
+      "batch_samples": 10000,
+      "gate": {"maximum_ratio": 1.05, "passed": true, "failures": []},
+      "ratios": {
+        "lifecycle_p50": 1.0074709332983747,
+        "lifecycle_p95": 0.9935668679389964,
+        "lifecycle_p99": 0.9831903129539533,
+        "feedback_p50": 0.994108846678239,
+        "feedback_p95": 0.9975860385817428,
+        "feedback_p99": 0.9814051666747853,
+        "inverse_throughput": 0.9709250313452048
+      }
+    },
+    "fastdds": {
+      "report": "performance/fastdds.json",
+      "report_sha256": "cd987618e610a8dfe835613aa35c30b5ed17ee2a42ecaf988c78abd77a6097b4",
+      "samples": "performance/fastdds.samples.json.gz",
+      "samples_sha256": "c4b5e120736d029e4f8b3e9f0a8fb5c35ef151f5097a47f840e7db84b14bc66d",
+      "records": 10,
+      "batch_samples": 10000,
+      "gate": {"maximum_ratio": 1.05, "passed": true, "failures": []},
+      "ratios": {
+        "lifecycle_p50": 0.9948045566787024,
+        "lifecycle_p95": 0.9867813746651712,
+        "lifecycle_p99": 0.9959815746685694,
+        "feedback_p50": 0.9950759621293338,
+        "feedback_p95": 1.0042958847984345,
+        "feedback_p99": 1.001189300418899,
+        "inverse_throughput": 0.9957888005951151
+      }
+    }
+  },
+  "api_contract": {
+    "request_methods": ["accept_batch", "accept_deferred_batch"],
+    "goal_methods": ["execute_batch", "succeed_batch", "abort_batch", "cancel_batch"],
+    "pre_native_validation": ["same generated action type", "same native server", "unique UUIDs", "exact result count", "all JSON result decodes"],
+    "payload_clone_on_batch_dispatch": false
+  },
+  "module_structure": {
+    "nodes_rs_lines_before": 8940,
+    "nodes_rs_lines_after": 8761,
+    "nodes_test_module_line": 477,
+    "action_servers_rs_lines": 3665,
+    "action_server_factory_module": "r2r/src/nodes/action_server_api.rs",
+    "runtime_type_adapter_module": "r2r/src/action_servers/untyped.rs",
+    "batch_module": "r2r/src/action_servers/batch.rs"
+  },
+  "compatibility_images": {
+    "humble": "sha256:4e346fcaeb5f64690213fadce5dd27980d6cc3a0eb47ca9419d5a2427f70af41",
+    "kilted_both_rmw": "sha256:5217474d9be62dcc995ff45e8743525620ea59f49cef33c0d3402a6427aa2c20",
+    "no_ros": "sha256:3f3ae1e14bc9d9f61515515027b47f5b8dcf16c79f689c81c045cf29dcce2926"
+  },
+  "retained_environment_failures": {
+    "humble-unwritable-log-dir": {
+      "log": "logs/rejected/humble-log-dir.log.gz",
+      "sha256": "d839a406eb9c3ea3b26c8b8018ea87beab125d364cd28967bc676b942d5b5de4",
+      "observed": "existing action test failed during Context logging initialization as unprivileged UID",
+      "resolution": "set ROS_LOG_DIR to a writable /tmp directory"
+    },
+    "kilted-image-missing-cyclonedds": {
+      "log": "logs/rejected/kilted-image.log.gz",
+      "sha256": "e0f379e26d02570af764d1218f0e412a120686d3c4c3f8e6791fa05d18bc7339",
+      "observed": "r2r_kilted_validation lacks librmw_cyclonedds_cpp.so",
+      "resolution": "use the recorded dual-RMW Kilted image"
+    }
+  },
+  "measurement_identity_note": "A first passing A/B was not archived after a test-only source edit changed the manifest hash; the retained reports use rebuilt final-source binaries.",
+  "documentation_sha256": {
+    "README.md": "1de775825e3c2c8c2898e2306c40482a49b4826991d460ac00d2421f3dd64002"
+  }
+}

@@ -20,6 +20,20 @@ let results = goals.iter().map(|goal| make_result(&goal.goal)).collect();
 r2r::ActionServerGoal::succeed_batch(&mut goals, results)?;
 ```
 
+Runtime-selected action types use the same transaction boundary with JSON payloads:
+
+```rust
+let accepted = r2r::ActionServerGoalRequestUntyped::accept_deferred_batch(requests)?;
+let (mut goals, _cancel_streams): (Vec<_>, Vec<_>) = accepted.into_iter().unzip();
+r2r::ActionServerGoalUntyped::execute_batch(&goals)?;
+
+let results = goals
+    .iter()
+    .map(|goal| make_json_result(&goal.goal))
+    .collect();
+r2r::ActionServerGoalUntyped::succeed_batch(&mut goals, results)?;
+```
+
 `accept_batch` accepts and starts all requests, then publishes one Executing snapshot.
 `accept_deferred_batch` publishes one Accepted snapshot; `execute_batch` later publishes one
 Executing snapshot. `succeed_batch`, `abort_batch` and `cancel_batch` prepare every result before
@@ -27,11 +41,13 @@ locking the server, transition the group, retain and deliver every per-goal resu
 terminal snapshot and notify the native expiry timer once.
 
 Every slice must contain unique UUIDs from one server, and terminal result counts must match the
-goal count. Empty slices are no-ops. If a native transition fails after a prefix changed state,
-the changed prefix still gets a final status snapshot before the first error is returned. Result,
-status and expiry-notification errors retain first-error reporting while later required cleanup is
-still attempted. Existing `accept`, `accept_deferred`, `execute`, `succeed`, `abort` and `cancel`
-keep their source and runtime behavior.
+goal count. Runtime-typed slices must also contain one generated action type. JSON results are all
+decoded after these structural checks and before native result preparation or state changes, so a
+malformed payload leaves every goal recoverable. Empty slices are no-ops. If a native transition
+fails after a prefix changed state, the changed prefix still gets a final status snapshot before
+the first error is returned. Result, status and expiry-notification errors retain first-error
+reporting while later required cleanup is still attempted. Existing `accept`, `accept_deferred`,
+`execute`, `succeed`, `abort` and `cancel` keep their source and runtime behavior.
 
 ## Choosing a slice size
 
@@ -51,8 +67,10 @@ Run the complete local example without a hand-written spin loop:
 
 ```sh
 cargo run -p r2r --example action_goal_batch
+cargo run -p r2r --example action_goal_batch_untyped
 ```
 
 The [saved benchmark evidence](benchmarks/action-goal-batching-2026-10-29/README.md) includes raw
 stage/lifecycle samples, all Rust/C++ directions, independent baseline gates and configuration
-counterexamples.
+counterexamples. The [runtime-typed extension evidence](benchmarks/action-goal-batching-untyped-2026-10-29/README.md)
+retains its cross-distribution oracles and same-batched-path regression guard.

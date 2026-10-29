@@ -27,6 +27,8 @@ REQUIRED_DOCUMENTATION = (
     "struct.ActionClientOptions.html",
     "struct.ActionServerGoal.html",
     "struct.ActionServerGoalRequest.html",
+    "struct.ActionServerGoalUntyped.html",
+    "struct.ActionServerGoalRequestUntyped.html",
     "example_interfaces/srv/AddTwoInts/struct.Event.html",
     "example_interfaces/action/Fibonacci/SendGoal/struct.Event.html",
     "service_msgs/msg/struct.ServiceEventInfo.html",
@@ -44,6 +46,8 @@ REQUIRED_METHODS = {
     "struct.ActionClientOptions.html": ("feedback_overflow_policy",),
     "struct.ActionServerGoal.html": ("execute_batch", "succeed_batch", "abort_batch", "cancel_batch"),
     "struct.ActionServerGoalRequest.html": ("accept_batch", "accept_deferred_batch"),
+    "struct.ActionServerGoalUntyped.html": ("execute_batch", "succeed_batch", "abort_batch", "cancel_batch"),
+    "struct.ActionServerGoalRequestUntyped.html": ("accept_batch", "accept_deferred_batch"),
 }
 
 

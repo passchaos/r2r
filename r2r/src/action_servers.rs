@@ -5,6 +5,7 @@ use futures::{
 };
 use parking_lot::Mutex;
 use std::{
+    any::Any,
     collections::{HashMap, HashSet, VecDeque},
     ffi::{CStr, CString},
     future::Future,
@@ -36,6 +37,7 @@ mod batch;
 use batch::{complete_goal_batch, execute_goal_batch};
 mod cancel;
 pub(crate) mod notifications;
+mod untyped;
 pub use cancel::ActiveCancelRequest;
 #[cfg(test)]
 use cancel::{poll_bounded_queue, poll_cancel_decisions, poll_cancel_decisions_with_wake};
@@ -425,39 +427,15 @@ where
 
 trait ErasedGoalRequest: Send {
     fn action_name(&self) -> Result<String>;
+    fn into_any(self: Box<Self>) -> Box<dyn Any + Send>;
     fn accept(
         self: Box<Self>, execute: bool, goal: Result<serde_json::Value>,
     ) -> Result<(ActionServerGoalUntyped, ActionServerCancelStreamUntyped)>;
-    fn reject(self: Box<Self>) -> Result<()>;
-}
-
-impl<T> ErasedGoalRequest for ActionServerGoalRequest<T>
-where
-    T: 'static + WrappedActionTypeSupport,
-{
-    fn action_name(&self) -> Result<String> {
-        ActionServerGoalRequest::action_name(self)
-    }
-
-    fn accept(
+    fn accept_batch(
         self: Box<Self>, execute: bool, goal: Result<serde_json::Value>,
-    ) -> Result<(ActionServerGoalUntyped, ActionServerCancelStreamUntyped)> {
-        let (server_goal, cancel_requests) = (*self).accept_with_execution(execute)?;
-        Ok((
-            ActionServerGoalUntyped {
-                uuid: server_goal.uuid,
-                goal,
-                inner: Box::new(server_goal),
-            },
-            ActionServerCancelStreamUntyped {
-                inner: Box::pin(cancel_requests),
-            },
-        ))
-    }
-
-    fn reject(self: Box<Self>) -> Result<()> {
-        (*self).reject()
-    }
+        rest: Vec<ActionServerGoalRequestUntyped>,
+    ) -> Result<Vec<(ActionServerGoalUntyped, ActionServerCancelStreamUntyped)>>;
+    fn reject(self: Box<Self>) -> Result<()>;
 }
 
 /// Runtime-typed action goal request with a JSON payload.
@@ -499,74 +477,62 @@ impl ActionServerGoalRequestUntyped {
         inner.accept(false, goal)
     }
 
+    /// Accept several runtime-typed requests and publish one final Executing snapshot.
+    ///
+    /// Requests must have the same runtime action type, belong to one server, and use unique
+    /// UUIDs. Their JSON goal payloads retain any conversion errors for application inspection.
+    pub fn accept_batch(
+        requests: Vec<Self>,
+    ) -> Result<Vec<(ActionServerGoalUntyped, ActionServerCancelStreamUntyped)>> {
+        Self::accept_batch_with_execution(requests, true)
+    }
+
+    /// Accept several runtime-typed requests and publish one final Accepted snapshot.
+    pub fn accept_deferred_batch(
+        requests: Vec<Self>,
+    ) -> Result<Vec<(ActionServerGoalUntyped, ActionServerCancelStreamUntyped)>> {
+        Self::accept_batch_with_execution(requests, false)
+    }
+
+    fn accept_batch_with_execution(
+        requests: Vec<Self>, execute: bool,
+    ) -> Result<Vec<(ActionServerGoalUntyped, ActionServerCancelStreamUntyped)>> {
+        let mut requests = requests.into_iter();
+        let Some(first) = requests.next() else {
+            return Ok(Vec::new());
+        };
+        let Self { goal, inner, .. } = first;
+        inner.accept_batch(execute, goal, requests.collect())
+    }
+
     pub fn reject(self) -> Result<()> {
         self.inner.reject()
     }
 }
 
-trait ErasedServerGoal: Send {
+#[derive(Clone, Copy)]
+enum ErasedTerminalState {
+    Canceled,
+    Aborted,
+    Succeeded,
+}
+
+trait ErasedServerGoal: Any + Send {
     fn clone_box(&self) -> Box<dyn ErasedServerGoal>;
+    fn as_any(&self) -> &dyn Any;
     fn action_name(&self) -> Result<String>;
     fn get_status(&self) -> Result<GoalStatus>;
     fn execute(&self) -> Result<()>;
+    fn execute_batch(&self, rest: &[&dyn ErasedServerGoal]) -> Result<()>;
     fn is_cancelling(&self) -> Result<bool>;
     fn publish_feedback(&self, msg: serde_json::Value) -> Result<()>;
     fn cancel(&mut self, msg: serde_json::Value) -> Result<()>;
     fn abort(&mut self, msg: serde_json::Value) -> Result<()>;
     fn succeed(&mut self, msg: serde_json::Value) -> Result<()>;
-}
-
-impl<T> ErasedServerGoal for ActionServerGoal<T>
-where
-    T: 'static + WrappedActionTypeSupport,
-{
-    fn clone_box(&self) -> Box<dyn ErasedServerGoal> {
-        Box::new(self.clone())
-    }
-
-    fn action_name(&self) -> Result<String> {
-        ActionServerGoal::action_name(self)
-    }
-
-    fn get_status(&self) -> Result<GoalStatus> {
-        ActionServerGoal::get_status(self)
-    }
-
-    fn execute(&self) -> Result<()> {
-        ActionServerGoal::execute(self)
-    }
-
-    fn is_cancelling(&self) -> Result<bool> {
-        ActionServerGoal::is_cancelling(self)
-    }
-
-    fn publish_feedback(&self, msg: serde_json::Value) -> Result<()> {
-        let msg = serde_json::from_value(msg).map_err(|err| Error::SerdeError {
-            err: err.to_string(),
-        })?;
-        ActionServerGoal::publish_feedback(self, msg)
-    }
-
-    fn cancel(&mut self, msg: serde_json::Value) -> Result<()> {
-        let msg = serde_json::from_value(msg).map_err(|err| Error::SerdeError {
-            err: err.to_string(),
-        })?;
-        ActionServerGoal::cancel(self, msg)
-    }
-
-    fn abort(&mut self, msg: serde_json::Value) -> Result<()> {
-        let msg = serde_json::from_value(msg).map_err(|err| Error::SerdeError {
-            err: err.to_string(),
-        })?;
-        ActionServerGoal::abort(self, msg)
-    }
-
-    fn succeed(&mut self, msg: serde_json::Value) -> Result<()> {
-        let msg = serde_json::from_value(msg).map_err(|err| Error::SerdeError {
-            err: err.to_string(),
-        })?;
-        ActionServerGoal::succeed(self, msg)
-    }
+    fn complete_batch(
+        &self, rest: &[&dyn ErasedServerGoal], results: Vec<serde_json::Value>,
+        terminal: ErasedTerminalState,
+    ) -> Result<()>;
 }
 
 /// Handle to an accepted runtime-typed action goal.
@@ -599,6 +565,18 @@ impl ActionServerGoalUntyped {
         self.inner.execute()
     }
 
+    /// Starts several deferred runtime-typed goals with one final status snapshot.
+    pub fn execute_batch(goals: &[Self]) -> Result<()> {
+        let Some((first, rest)) = goals.split_first() else {
+            return Ok(());
+        };
+        let rest = rest
+            .iter()
+            .map(|goal| goal.inner.as_ref())
+            .collect::<Vec<_>>();
+        first.inner.execute_batch(&rest)
+    }
+
     pub fn is_cancelling(&self) -> Result<bool> {
         self.inner.is_cancelling()
     }
@@ -617,6 +595,37 @@ impl ActionServerGoalUntyped {
 
     pub fn succeed(&mut self, msg: serde_json::Value) -> Result<()> {
         self.inner.succeed(msg)
+    }
+
+    /// Cancels several runtime-typed goals with one final status snapshot.
+    pub fn cancel_batch(goals: &mut [Self], results: Vec<serde_json::Value>) -> Result<()> {
+        Self::complete_batch(goals, results, ErasedTerminalState::Canceled)
+    }
+
+    /// Aborts several runtime-typed goals with one final status snapshot.
+    pub fn abort_batch(goals: &mut [Self], results: Vec<serde_json::Value>) -> Result<()> {
+        Self::complete_batch(goals, results, ErasedTerminalState::Aborted)
+    }
+
+    /// Succeeds several runtime-typed goals with one final status snapshot.
+    pub fn succeed_batch(goals: &mut [Self], results: Vec<serde_json::Value>) -> Result<()> {
+        Self::complete_batch(goals, results, ErasedTerminalState::Succeeded)
+    }
+
+    fn complete_batch(
+        goals: &mut [Self], results: Vec<serde_json::Value>, terminal: ErasedTerminalState,
+    ) -> Result<()> {
+        if goals.len() != results.len() {
+            return Err(Error::RCL_RET_INVALID_ARGUMENT);
+        }
+        let Some((first, rest)) = goals.split_first() else {
+            return Ok(());
+        };
+        let rest = rest
+            .iter()
+            .map(|goal| goal.inner.as_ref())
+            .collect::<Vec<_>>();
+        first.inner.complete_batch(&rest, results, terminal)
     }
 }
 
