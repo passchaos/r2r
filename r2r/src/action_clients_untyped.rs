@@ -996,6 +996,21 @@ impl ActionClient_ for WrappedActionClientUntyped {
         let ret =
             unsafe { rcl_action_take_feedback(&self.rcl_handle, feedback_msg.void_ptr_mut()) };
         if action_client_take_succeeded(ret)? {
+            if let Some(id) = (self.action_type_support.native_feedback_uuid)(&feedback_msg) {
+                let uuid = uuid::Uuid::from_bytes(id);
+                let destructure = self.action_type_support.destructure_feedback_msg;
+                completions.push(native_feedback::completion(
+                    feedback_msg,
+                    self.feedback_senders.get(&uuid).cloned(),
+                    Arc::clone(&self.pending_feedback_goals),
+                    uuid,
+                    move |feedback_msg| {
+                        let (id, feedback) = destructure(feedback_msg);
+                        Ok((uuid_msg_to_uuid(&id)?, feedback))
+                    },
+                ));
+                return Ok(ActionClientTakeResult::Taken);
+            }
             let destructure = self.action_type_support.destructure_feedback_msg;
             completions.push(action_feedback_decode_completion(
                 client,
@@ -1160,6 +1175,10 @@ impl IsAvailablePollable for ActionClientUntyped {
         Error::RCL_RET_ACTION_CLIENT_INVALID
     }
 }
+
+#[cfg(test)]
+#[cfg(r2r__example_interfaces__action__Fibonacci)]
+mod native_feedback_tests;
 
 #[cfg(test)]
 mod tests {

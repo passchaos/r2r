@@ -6,15 +6,22 @@ use crate::{
 };
 
 fn typed_client() -> Arc<Mutex<dyn ActionClient_>> {
+    typed_state(HashMap::new(), Arc::new(Mutex::new(Default::default())))
+}
+
+pub(super) fn typed_state(
+    feedback_senders: HashMap<uuid::Uuid, FeedbackSender<Fibonacci::Feedback>>,
+    pending: Arc<Mutex<PendingFeedbackQueue>>,
+) -> Arc<Mutex<dyn ActionClient_>> {
     Arc::new(Mutex::new(WrappedActionClient::<Fibonacci::Action> {
         rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
         goal_response_channels: HashMap::new(),
         goal_response_sequences: HashMap::new(),
         cancel_response_channels: HashMap::new(),
         canceled_cancel_requests: Arc::new(Mutex::new(Default::default())),
-        feedback_senders: HashMap::new(),
+        feedback_senders,
         canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
-        pending_feedback_goals: Arc::new(Mutex::new(Default::default())),
+        pending_feedback_goals: pending,
         result_requests: HashMap::new(),
         result_request_sequences: HashMap::new(),
         result_senders: HashMap::new(),

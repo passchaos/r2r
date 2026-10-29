@@ -1,0 +1,167 @@
+{
+  "date_utc": "2026-10-29T03:15:51Z",
+  "parent_ref": "e73254f6c456e8b0644f936252c9352a002a1807",
+  "goal_status": "active",
+  "scope": "generated native action-feedback identity, skipped unobserved conversion and direct typed delivery",
+  "validation": {
+    "performance-report-integrity": {
+      "exit_code": 0,
+      "log": "logs/performance-verify-final.log.gz",
+      "sha256": "bc455e84f13667835799cb5b0cbb6328b700b4bf192b5cce0e9444cab8addaef",
+      "observed_result": "both reports: 70 records and 70000 RTT samples verified with passing recorded gates"
+    },
+    "feedback-jazzy-cyclonedds": {
+      "exit_code": 0,
+      "log": "logs/feedback-jazzy-cyclonedds.log.gz",
+      "sha256": "5abd713e0c8ee265cbacd7313db4272c9b6ca86fad605df5dbf46a7eab7831cb",
+      "observed_test_result": "55 passed; 0 failed; 3 ignored; 534 filtered out"
+    },
+    "feedback-jazzy-fastdds": {
+      "exit_code": 0,
+      "log": "logs/feedback-jazzy-fastdds.log.gz",
+      "sha256": "47c6dc3a18b23f688e76059bd2c1b0e839e022842e591b2483ad8513d2712479",
+      "observed_test_result": "55 passed; 0 failed; 3 ignored; 534 filtered out"
+    },
+    "workspace-jazzy-cyclonedds": {
+      "exit_code": 0,
+      "log": "logs/workspace-jazzy-cyclonedds-final.log.gz",
+      "sha256": "6bb53a1cd377b9fdb649e09ee47e78e3ac35db004a568da9fd8bbe45cb2e2184",
+      "main_library_result": "586 passed; 0 failed; 6 ignored",
+      "additional_boundaries": "context 7; threads 1; tokio raw 2; tokio 1; common 6; macros 2; generator 2; rcl 27; workspace doc-tests"
+    },
+    "release-jazzy-cyclonedds": {
+      "exit_code": 0,
+      "log": "logs/release-jazzy-cyclonedds.log.gz",
+      "sha256": "b8b4da97a87a7e65bbfbeb8c1ef857a346cc4e1ac5e2373bb28a1ab8d69dc0c3",
+      "main_library_result": "586 passed; 0 failed; 6 ignored"
+    },
+    "release-jazzy-fastdds": {
+      "exit_code": 0,
+      "log": "logs/release-jazzy-fastdds.log.gz",
+      "sha256": "e762eec5f0264049966ced4b9b9f712d068c5e7c97fc146de79462fcd926372f",
+      "main_library_result": "586 passed; 0 failed; 6 ignored"
+    },
+    "clippy-jazzy-all-targets": {
+      "exit_code": 0,
+      "log": "logs/clippy-jazzy-all-targets.log.gz",
+      "sha256": "ddcf17b1472d822f7ba3b685363ca615cb4e33ecb74fed91670bb32e96ff2dbe"
+    },
+    "format": {
+      "exit_code": 0,
+      "log": "logs/format.log.gz",
+      "sha256": "59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2"
+    },
+    "humble-fastdds": {
+      "exit_code": 0,
+      "log": "logs/humble-fastdds-final.log.gz",
+      "sha256": "c9da3f917ac32bb971df9edde2556cc7e76eedf3cca9608120739721786e672c",
+      "observed_test_result": "55 passed; 0 failed; 3 ignored; 524 filtered out",
+      "clippy_all_targets": "passed"
+    },
+    "kilted-both-rmw": {
+      "exit_code": 0,
+      "log": "logs/kilted-both-rmw-final.log.gz",
+      "sha256": "2cd4d751ccc6406236e053cfa2822ea37a7548102faac6e11cada32bc486d101",
+      "cyclonedds_result": "55 passed; 0 failed; 3 ignored; 538 filtered out",
+      "fastdds_result": "55 passed; 0 failed; 3 ignored; 538 filtered out",
+      "clippy_all_targets": "passed"
+    },
+    "no-ros": {
+      "exit_code": 0,
+      "log": "logs/no-ros-final.log.gz",
+      "sha256": "dc5a954f94d1102e40d269bb19b50ad7beb015a4c62df57c4e2b993d5722210e",
+      "snapshot_transaction_tests": 4,
+      "common_tests": 6,
+      "generator_tests": 2,
+      "api_artifacts": 15,
+      "documented_methods": 29,
+      "workspace_all_targets_check": "passed"
+    },
+    "allocation-stage": {
+      "exit_code": 0,
+      "log": "logs/allocation-stage-final.log.gz",
+      "sha256": "ff03665e866b3806fe98620bf1a55ee9abfa29ba6116d093000ce631ddc1542e",
+      "runs": 5,
+      "observed_test_results": 5
+    }
+  },
+  "performance": {
+    "baseline_ref": "e73254f6c456e8b0644f936252c9352a002a1807",
+    "cyclonedds": {
+      "report": "action/cyclonedds.json",
+      "report_sha256": "7c689b2639433ca0d227b3f92956abf07468b014f49d897d5e887c0897539374",
+      "samples": "action/cyclonedds-final.samples.json.gz",
+      "samples_sha256": "d552a4358a02e3a1660f5b6aba5b97a2201113e8172739d5d81fd05ab657acd7",
+      "records": 70,
+      "rtt_samples": 70000,
+      "gate": {"maximum_ratio": 1.05, "passed": true, "failures": []},
+      "success_ratios": {"p50": 0.9884354804754036, "p95": 0.9975924801004384, "p99": 0.9998086417390639, "inverse_throughput": 0.9940414014965254},
+      "cancellation_ratios": {"p50": 1.00105620128075, "p95": 0.9971882973135224, "p99": 1.003772769031424, "inverse_throughput": 1.0001392520273382}
+    },
+    "fastdds": {
+      "report": "action/fastdds.json",
+      "report_sha256": "1215962fd4bcba57c8836a39b7005035b7f567fadf267ba7271e01a426fe4587",
+      "samples": "action/fastdds-final.samples.json.gz",
+      "samples_sha256": "2243a5031cfa8d7dd5a7da37534ffbe4f17c2d8e054a713bcd6472d3715d6537",
+      "records": 70,
+      "rtt_samples": 70000,
+      "gate": {"maximum_ratio": 1.05, "passed": true, "failures": []},
+      "success_ratios": {"p50": 1.0008071271775618, "p95": 1.0069575019624308, "p99": 1.02186117980565, "inverse_throughput": 1.0002889935567179},
+      "cancellation_ratios": {"p50": 0.9964921966844833, "p95": 0.9869988149585777, "p99": 1.002199513511535, "inverse_throughput": 0.9996336193049171}
+    },
+    "binary_sha256": {
+      "candidate": "44dd1fcefe22933e312898dedb69f61bd17d254c09d2564977a3a58bf631e782",
+      "baseline": "096cb96b6ee2623a94bb32dc63be2e0856d3ee2b38df6c5115e4a70ba551e319",
+      "rclcpp": "547677f0aa734ed161bc087407a044ba9f5a972ea93a902dbca3f3e6c3ead30f"
+    },
+    "mixed_direction_boundary": {
+      "minimum_p99_ratio": 0.9905673563152482,
+      "maximum_p99_ratio": 1.0094994737122966,
+      "maximum_any_metric_ratio": 1.0260866386019158,
+      "preselected_gate": false,
+      "new_same_binary_calibration": false
+    }
+  },
+  "allocation_stage": {
+    "report": "stage/report.json",
+    "sha256": "6a4d2bd8f266f562e28b815256c864707e426a1466fb92a5bbc8d334c8802890",
+    "records": 20,
+    "messages": 2000000,
+    "iterations_per_record": 100000,
+    "cpu": 24,
+    "binary_sha256": "19acbc0865ebbd58918715fb17ec5c8d146b2ba8c2134bffe30b579fd024cd91",
+    "probe_sha256": "7602fb54d07cf65818e4e5da8bab16034cbe181fa2d896e61b7a48bc07fe1592",
+    "allocation_reduction_per_message": 1,
+    "unobserved_direct_decodes": 0,
+    "median_ns_per_message": {
+      "unobserved_legacy": 199.96949,
+      "unobserved_direct": 131.82583,
+      "observed_legacy": 475.64305,
+      "observed_direct": 406.34317
+    }
+  },
+  "source_identity": {
+    "manifest": "action/build-manifest.json",
+    "manifest_sha256": "26c5643f9e51353aa61ad2d1d163f663f632c7e84e6b6cf9b2e5a70797236844",
+    "candidate_files": 78,
+    "mismatches": []
+  },
+  "compatibility_images": {
+    "humble": "sha256:4e346fcaeb5f64690213fadce5dd27980d6cc3a0eb47ca9419d5a2427f70af41",
+    "kilted_both_rmw": "sha256:5217474d9be62dcc995ff45e8743525620ea59f49cef33c0d3402a6427aa2c20",
+    "kilted_dockerfile": "compat/Dockerfile.kilted",
+    "kilted_dockerfile_sha256": "8971c29b910b14d5f09ff967a3326c4504f627d08268478bf7ab567593949c65",
+    "kilted_build_log": "logs/kilted-image-build.log.gz",
+    "kilted_build_log_sha256": "120d960b0cea6c5a23566ad8e696318cd3efdfd751d522580cf5284aa5d0bda4",
+    "no_ros": "sha256:3f3ae1e14bc9d9f61515515027b47f5b8dcf16c79f689c81c045cf29dcce2926"
+  },
+  "retained_failures": {
+    "duplicate-module-humble": {"log": "logs/rejected/duplicate-module-humble.log.gz", "sha256": "56292456549a9c03719b88f6d76fe2bfcebb4bd1efc85a591cdff77173dea6c6", "resolved_by": "one shared allocation probe test module"},
+    "duplicate-module-kilted": {"log": "logs/rejected/duplicate-module-kilted.log.gz", "sha256": "8bd7d4c5499c86b9e232548a8d79d7dd47f9d2a03dc390eda370dd3baabf95d8", "resolved_by": "one shared allocation probe test module"},
+    "all-targets-runtime-bench": {"log": "logs/rejected/all-targets-runtime-bench.log.gz", "sha256": "2d2b9a59935400b1201185295582bf0487147374e296a603e8640549dc04e4cf", "resolved_by": "workspace tests plus warning-denied all-target compilation"},
+    "humble-cache-permission": {"log": "logs/rejected/humble-cache-permission.log.gz", "sha256": "cebc47d72e4cdb545111a616490d2e49bcedd665b3a4b194561f3ab487cc5dd7", "resolved_by": "fresh user-owned compatibility target"}
+  },
+  "documentation_sha256": {
+    "README.md": "0b7d13c3d27f100d158710e7ad74778d8abf3aa4d2ed07e28e4ce6fa55d0909c"
+  }
+}

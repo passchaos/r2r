@@ -34,6 +34,7 @@ use r2r_rcl::*;
 mod cancellation;
 mod feedback;
 pub(crate) mod feedback_routing;
+pub(crate) mod native_feedback;
 pub(crate) use feedback::{
     close_feedback_completion, feedback_completion_with_queue,
     take_ready_pending_feedback_with_progress, FeedbackChannel, FeedbackSender,
@@ -1694,6 +1695,21 @@ where
         let ret =
             unsafe { rcl_action_take_feedback(&self.rcl_handle, feedback_msg.void_ptr_mut()) };
         if action_client_take_succeeded(ret)? {
+            if let Some(id) = T::native_feedback_uuid(&feedback_msg) {
+                let uuid = uuid::Uuid::from_bytes(id);
+                completions.push(native_feedback::completion(
+                    feedback_msg,
+                    self.feedback_senders.get(&uuid).cloned(),
+                    Arc::clone(&self.pending_feedback_goals),
+                    uuid,
+                    |feedback_msg| {
+                        let message = T::FeedbackMessage::from_native(&feedback_msg);
+                        let (id, feedback) = T::destructure_feedback_msg(message);
+                        Ok((uuid_msg_to_uuid(&id)?, feedback))
+                    },
+                ));
+                return Ok(ActionClientTakeResult::Taken);
+            }
             completions.push(action_feedback_decode_completion(
                 client,
                 feedback_msg,

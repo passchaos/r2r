@@ -76,8 +76,9 @@ the channel/readiness locks. This introduces no native guard, timer or worker.
 The implementation keeps overflow semantics separate from native decoding and
 payload storage. Future native-storage reuse or deferred decoding can replace
 those private paths while preserving the public item/retention contract and
-bounded per-goal state. Coalescing currently decodes each taken native sample;
-allocation and complete transport profiling remain additional work.
+bounded per-goal state. Tracked feedback still decodes each taken native sample;
+retained native storage and complete large-payload transport profiling remain
+additional work.
 
 Native dispatch keeps an optional erased payload slot while client routing
 borrows it. Matching routes consume the slot into the existing delivery
@@ -87,6 +88,37 @@ clients share this private routing helper; classification copies neither the
 payload nor its allocation. The original owned routing hook remains available,
 and the new borrowed hook supplies a default adapter for custom implementations.
 Built-in clients preserve caller ownership for every rejected/unmapped value.
+
+## Native identity before payload conversion
+
+Generated action bindings expose a private native feedback UUID accessor. Typed
+and untyped clients read the initialized `goal_id.uuid` immediately after the
+RCL take, while still holding the client state needed to select the corresponding
+feedback channel. Payload conversion runs later in a completion after unlocking.
+If the UUID has no observer, that completion drops the native message without
+constructing the Rust feedback payload. If it has an observer, conversion feeds
+the typed channel directly and bypasses the intermediate `Box<dyn Any>` route.
+A channel already closed before completion also skips conversion.
+
+`WrappedActionTypeSupport::native_feedback_uuid` defaults to `None`, so custom
+action wrappers retain complete decode plus erased routing without source
+changes. Because the trait is unsafe, an override must read only initialized
+identity fields and agree with the subsequently destructured goal ID. Runtime
+disagreement is rejected rather than misrouting feedback. Generated bindings
+read the fixed `[u8; 16]` field directly.
+
+The real untyped RCL oracle publishes eight 4096-element samples to an
+unobserved goal, requires all eight native packets to be taken and permits zero
+payload decodes, including while another goal remains observed. Its fallback
+variant disables the accessor and requires all eight legacy decodes. Typed and
+untyped accessors also match full conversion across empty through 65536-element
+feedback. Closure and identity-mismatch tests protect the direct channel path.
+
+The fixed-CPU allocation stage removes one allocation per message for observed
+and unobserved feedback; unobserved direct feedback also records zero decodes.
+Both ordinary action regression matrices pass the unchanged 1.05 same-language
+gate. The complete evidence and limitations are in the
+[native identity report](benchmarks/native-feedback-identity-2026-10-29/README.md).
 
 The complete `action_feedback_coalesce` application leaves one goal unconsumed,
 publishes thirty-two updates and verifies another goal's feedback first. It then
@@ -121,6 +153,7 @@ Focused gates:
 ```sh
 env -u CYCLONEDDS_URI cargo test -p r2r --lib feedback_tests:: -- --test-threads=1
 env -u CYCLONEDDS_URI cargo test -p r2r --lib feedback_capacity_recovery -- --test-threads=1
+env -u CYCLONEDDS_URI cargo test -p r2r --lib native_feedback -- --test-threads=1
 ```
 
 The unit oracles cover finite scans, UUID selection, notification coalescing,

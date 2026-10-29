@@ -156,6 +156,8 @@ pub unsafe trait WrappedServiceTypeSupport: Debug + Clone + Send + Sync {
 ///
 /// `get_ts` and every associated service/message type must describe the same action, and
 /// the construction/destructuring methods must preserve their generated wire layouts.
+/// A native feedback UUID accessor, when provided, must agree with the destructured goal ID
+/// and access only the initialized native message's identity fields.
 pub unsafe trait WrappedActionTypeSupport: Debug + Clone + Send + Sync {
     type Goal: WrappedTypesupport;
     type Result: WrappedTypesupport;
@@ -192,6 +194,13 @@ pub unsafe trait WrappedActionTypeSupport: Debug + Clone + Send + Sync {
     fn destructure_feedback_msg(
         msg: Self::FeedbackMessage,
     ) -> (unique_identifier_msgs::msg::UUID, Self::Feedback);
+    /// Reads feedback identity without constructing the Rust payload. Custom action wrappers
+    /// may retain the default to use complete decoding and routing instead.
+    fn native_feedback_uuid(
+        _msg: &<Self::FeedbackMessage as WrappedTypesupport>::CStruct,
+    ) -> Option<[u8; 16]> {
+        None
+    }
     fn destructure_result_response_msg(
         msg: <<Self as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
     ) -> (i8, Self::Result);
@@ -269,6 +278,7 @@ pub struct UntypedActionSupport {
         fn(WrappedNativeMsgUntyped) -> (bool, builtin_interfaces::msg::Time),
 
     pub(crate) make_feedback_msg: fn() -> Result<WrappedNativeMsgUntyped>,
+    pub(crate) native_feedback_uuid: fn(&WrappedNativeMsgUntyped) -> Option<[u8; 16]>,
     pub(crate) destructure_feedback_msg:
         fn(
             WrappedNativeMsgUntyped,
@@ -336,6 +346,15 @@ where
     (uuid, json)
 }
 
+fn native_action_feedback_uuid<T: WrappedActionTypeSupport>(
+    msg: &WrappedNativeMsgUntyped,
+) -> Option<[u8; 16]> {
+    // The constructor and this accessor are installed together for the same action type.
+    let native =
+        unsafe { &*(msg.msg as *const <T::FeedbackMessage as WrappedTypesupport>::CStruct) };
+    T::native_feedback_uuid(native)
+}
+
 fn make_action_result_request<T>(
     goal_id: unique_identifier_msgs::msg::UUID,
 ) -> Result<WrappedNativeMsgUntyped>
@@ -386,6 +405,7 @@ impl UntypedActionSupport {
             make_goal_response_msg: make_action_goal_response::<T>,
             destructure_goal_response_msg: destructure_action_goal_response::<T>,
             make_feedback_msg: WrappedNativeMsgUntyped::try_new::<T::FeedbackMessage>,
+            native_feedback_uuid: native_action_feedback_uuid::<T>,
             destructure_feedback_msg: destructure_action_feedback::<T>,
             make_result_request_msg: make_action_result_request::<T>,
             make_result_response_msg: make_action_result_response::<T>,

@@ -267,6 +267,10 @@ pub fn generate_rust_action(module_: &str, prefix_: &str, name_: &str) -> proc_m
                 (msg.goal_id, msg.feedback)
             }
 
+            fn native_feedback_uuid(msg: &<FeedbackMessage as WrappedTypesupport>::CStruct) -> Option<[u8; 16]> {
+                Some(msg.goal_id.uuid)
+            }
+
             fn destructure_result_response_msg(msg: GetResult::Response) -> (i8, Result) {
                 (msg.status, msg.result)
             }

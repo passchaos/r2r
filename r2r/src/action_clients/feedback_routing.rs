@@ -4,7 +4,7 @@ use super::*;
 
 #[cfg(test)]
 #[path = "../../benches/support/allocation_probe.rs"]
-mod allocation_probe;
+pub(super) mod allocation_probe;
 
 // Keep the ownership boundary in the typed caller; forwarding adds no independent work.
 #[inline(always)]

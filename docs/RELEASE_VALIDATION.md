@@ -674,3 +674,57 @@ Iron, Lyrical and Rolling have no new local runtime evidence. Eager feedback
 conversion, native buffer reuse, multigoal allocation/scaling and qualified
 Rust/C++ application tails remain requirements toward the full goal.
 
+## Native feedback identity routing (2026-10-29)
+
+Generated action bindings now read native feedback `goal_id.uuid` before full
+payload conversion. Built-in typed/untyped clients capture the matching typed
+feedback channel under the client lock, then unlock before conversion and
+delivery. An unobserved goal drops its native packet without conversion; an
+observed goal decodes once and bypasses the intermediate erased Box. Closed
+channels skip conversion, identity disagreement is rejected and custom unsafe
+action support retains the old complete-decode path through a default `None`
+accessor.
+
+Seven direct correctness cases cover typed/untyped native identity against full
+conversion from empty through 65536-element feedback, no-observer destruction,
+one-decode direct delivery, closure before/during decode, UUID disagreement and
+legacy fallback. The untyped RCL counterexample takes eight 4096-element samples
+with zero decodes for an unobserved goal, including while another goal remains
+observed; disabling the accessor requires eight legacy decodes.
+
+The [fixed-CPU stage and complete reports](benchmarks/native-feedback-identity-2026-10-29/README.md)
+use the final source and optimized binary. Across five 100000-message repetitions,
+native identity removes exactly one allocation per message for both observed and
+unobserved completion. The direct unobserved path records zero decodes. This
+empty-payload local boundary excludes RCL take, DDS and application scaling.
+
+Independent optimized `e73254f` baseline/candidate ordinary action matrices
+retain identical sources, inputs, native QoS, CPUs 24/25 and the original 1.05
+same-language p50/p95/p99/inverse-throughput limit. Both Jazzy RMWs pass success
+and cancellation: 140 records and 140000 individual RTT samples. The maximum
+candidate/baseline gated ratio is Fast DDS success p99 at 1.021861. Final mixed
+direction ratios stay within 2.61%, but they are outside this gate and have no
+new same-binary calibration. The workload observes one small feedback item, so
+it is regression evidence rather than an end-to-end measurement of skipped
+large-payload conversion or general rclcpp leadership.
+
+The final Jazzy workspace passes; its main library has 586 passed and six
+ignored cases, with all integration, package and doc tests also green. Complete
+optimized main-library suites pass the same 586/6 under CycloneDDS and Fast DDS.
+Each RMW executes 55 feedback cases with three manual measurements ignored.
+Formatting and warning-denied all-target Clippy pass. Humble/Fast DDS and
+Kilted/both RMWs each pass the same 55/3 feedback boundary and all-target Clippy.
+The Kilted image explicitly installs both RMW packages. A fresh no-ROS target
+passes snapshot transactions, all-target compilation, six common and two
+generator tests, Rustdoc and fifteen-page/twenty-nine-method API verification.
+
+Initial Humble/Kilted Clippy failures from loading the allocation-probe source as
+two modules, an invalid all-target runtime invocation of a harness-free benchmark,
+and an old target-directory permission failure are preserved with the final
+logs. They were fixed by sharing one test module, using the workspace test gate
+plus all-target Clippy, and allocating fresh user-owned compatibility targets.
+All 78 candidate source hashes match the archived final build manifest. Iron,
+Lyrical and Rolling have no new local runtime evidence. Retained native feedback
+storage, borrowed delivery, bursty large payloads and qualified multi-goal
+Rust/rclcpp scaling remain open.
+

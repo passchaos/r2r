@@ -1,0 +1,9 @@
+FROM ros:kilted-ros-base
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libclang-dev \
+    ros-kilted-example-interfaces \
+    ros-kilted-rmw-cyclonedds-cpp \
+    ros-kilted-rmw-fastrtps-cpp \
+    ros-kilted-test-msgs \
+    && rm -rf /var/lib/apt/lists/*

@@ -1,0 +1,228 @@
+{
+  "cpu": 24,
+  "boundary": "optimized native-identity completion/erased routing with empty Fibonacci feedback; no ROS ingress",
+  "binary_sha256": "19acbc0865ebbd58918715fb17ec5c8d146b2ba8c2134bffe30b579fd024cd91",
+  "probe_sha256": "7602fb54d07cf65818e4e5da8bab16034cbe181fa2d896e61b7a48bc07fe1592",
+  "records": [
+    {
+      "allocations": 300000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 100000,
+      "direct": false,
+      "elapsed_ns": 19996949,
+      "iterations": 100000,
+      "observed": false,
+      "requested_bytes": 11200000,
+      "repetition": 0
+    },
+    {
+      "allocations": 200000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 0,
+      "direct": true,
+      "elapsed_ns": 13166121,
+      "iterations": 100000,
+      "observed": false,
+      "requested_bytes": 8000000,
+      "repetition": 0
+    },
+    {
+      "allocations": 600000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 100000,
+      "direct": false,
+      "elapsed_ns": 47149591,
+      "iterations": 100000,
+      "observed": true,
+      "requested_bytes": 21600000,
+      "repetition": 0
+    },
+    {
+      "allocations": 500000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 100000,
+      "direct": true,
+      "elapsed_ns": 40651692,
+      "iterations": 100000,
+      "observed": true,
+      "requested_bytes": 20800000,
+      "repetition": 0
+    },
+    {
+      "allocations": 300000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 100000,
+      "direct": false,
+      "elapsed_ns": 20113137,
+      "iterations": 100000,
+      "observed": false,
+      "requested_bytes": 11200000,
+      "repetition": 1
+    },
+    {
+      "allocations": 200000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 0,
+      "direct": true,
+      "elapsed_ns": 13165871,
+      "iterations": 100000,
+      "observed": false,
+      "requested_bytes": 8000000,
+      "repetition": 1
+    },
+    {
+      "allocations": 600000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 100000,
+      "direct": false,
+      "elapsed_ns": 47550602,
+      "iterations": 100000,
+      "observed": true,
+      "requested_bytes": 21600000,
+      "repetition": 1
+    },
+    {
+      "allocations": 500000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 100000,
+      "direct": true,
+      "elapsed_ns": 40574352,
+      "iterations": 100000,
+      "observed": true,
+      "requested_bytes": 20800000,
+      "repetition": 1
+    },
+    {
+      "allocations": 300000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 100000,
+      "direct": false,
+      "elapsed_ns": 19981147,
+      "iterations": 100000,
+      "observed": false,
+      "requested_bytes": 11200000,
+      "repetition": 2
+    },
+    {
+      "allocations": 200000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 0,
+      "direct": true,
+      "elapsed_ns": 13204081,
+      "iterations": 100000,
+      "observed": false,
+      "requested_bytes": 8000000,
+      "repetition": 2
+    },
+    {
+      "allocations": 600000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 100000,
+      "direct": false,
+      "elapsed_ns": 47644726,
+      "iterations": 100000,
+      "observed": true,
+      "requested_bytes": 21600000,
+      "repetition": 2
+    },
+    {
+      "allocations": 500000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 100000,
+      "direct": true,
+      "elapsed_ns": 40600599,
+      "iterations": 100000,
+      "observed": true,
+      "requested_bytes": 20800000,
+      "repetition": 2
+    },
+    {
+      "allocations": 300000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 100000,
+      "direct": false,
+      "elapsed_ns": 19976191,
+      "iterations": 100000,
+      "observed": false,
+      "requested_bytes": 11200000,
+      "repetition": 3
+    },
+    {
+      "allocations": 200000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 0,
+      "direct": true,
+      "elapsed_ns": 13233231,
+      "iterations": 100000,
+      "observed": false,
+      "requested_bytes": 8000000,
+      "repetition": 3
+    },
+    {
+      "allocations": 600000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 100000,
+      "direct": false,
+      "elapsed_ns": 47682787,
+      "iterations": 100000,
+      "observed": true,
+      "requested_bytes": 21600000,
+      "repetition": 3
+    },
+    {
+      "allocations": 500000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 100000,
+      "direct": true,
+      "elapsed_ns": 40696345,
+      "iterations": 100000,
+      "observed": true,
+      "requested_bytes": 20800000,
+      "repetition": 3
+    },
+    {
+      "allocations": 300000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 100000,
+      "direct": false,
+      "elapsed_ns": 20022920,
+      "iterations": 100000,
+      "observed": false,
+      "requested_bytes": 11200000,
+      "repetition": 4
+    },
+    {
+      "allocations": 200000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 0,
+      "direct": true,
+      "elapsed_ns": 13182583,
+      "iterations": 100000,
+      "observed": false,
+      "requested_bytes": 8000000,
+      "repetition": 4
+    },
+    {
+      "allocations": 600000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 100000,
+      "direct": false,
+      "elapsed_ns": 47564305,
+      "iterations": 100000,
+      "observed": true,
+      "requested_bytes": 21600000,
+      "repetition": 4
+    },
+    {
+      "allocations": 500000,
+      "boundary": "native identity completion versus erased decode/route; empty Fibonacci payload; no ROS transport",
+      "decodes": 100000,
+      "direct": true,
+      "elapsed_ns": 40634317,
+      "iterations": 100000,
+      "observed": true,
+      "requested_bytes": 20800000,
+      "repetition": 4
+    }
+  ]
+}
