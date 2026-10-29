@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import statistics
 
-from action_feedback import matrix_pairs, regression_failures, validate_endpoint
+from action_feedback import SERVER_STAGES, matrix_pairs, regression_failures, validate_endpoint
 
 
 def verify(path, require_performance_pass=False):
@@ -29,6 +29,48 @@ def verify(path, require_performance_pass=False):
             or type(instrumentation.get("enabled")) is not bool
             or instrumentation.get("latency_evidence") is not (not instrumentation["enabled"])):
         raise RuntimeError("invalid action feedback instrumentation metadata")
+    server_stages = "server_stage_labels" in metadata
+    if server_stages and metadata["server_stage_labels"] != list(SERVER_STAGES):
+        raise RuntimeError("invalid action feedback server stage metadata")
+    status_qos = metadata.get("status_qos")
+    if status_qos is not None and status_qos not in {
+        "default", "reliable_volatile", "best_effort_volatile"
+    }:
+        raise RuntimeError("invalid action feedback status QoS metadata")
+    result_timeout_ms = metadata.get("result_timeout_ms")
+    if result_timeout_ms is not None and (
+        type(result_timeout_ms) is not int or not 1 <= result_timeout_ms <= 600_000
+    ):
+        raise RuntimeError("invalid action feedback result timeout metadata")
+    if status_qos is not None and result_timeout_ms is not None:
+        expected_qos = (
+            "goal/result/cancel/feedback reliable volatile "
+            "KeepLast(max(16, goal_window*feedback_per_goal)); "
+            f"status {status_qos}; result retention {result_timeout_ms} ms"
+        )
+        if metadata.get("qos") != expected_qos:
+            raise RuntimeError("action feedback QoS description mismatch")
+    status_batch_size = metadata.get("status_batch_size")
+    if status_batch_size is not None and (
+        type(status_batch_size) is not int
+        or not 1 <= status_batch_size <= min(windows)
+    ):
+        raise RuntimeError("invalid action feedback status batch metadata")
+    pairs = matrix_pairs(
+        "baseline" in metadata.get("binary_sha256", {}), metadata.get("matrix_scope", "full")
+    )
+    status_paths = metadata.get("status_paths")
+    if status_paths is not None:
+        expected_languages = {language for pair in pairs for language in pair}
+        binary_languages = set(metadata.get("binary_sha256", {}))
+        if (set(status_paths) != binary_languages
+                or not expected_languages <= binary_languages
+                or any(path not in {"per_goal", "batched"} for path in status_paths.values())
+                or status_paths.get("cpp", "per_goal") != "per_goal"):
+            raise RuntimeError("invalid action feedback status path metadata")
+    status_sync = metadata.get("status_sync")
+    if status_sync is not None and status_sync not in {"required", "none"}:
+        raise RuntimeError("invalid action feedback status sync metadata")
     artifact = metadata["samples_artifact"]
     compressed = (path.parent / artifact["file"]).read_bytes()
     if hashlib.sha256(compressed).hexdigest() != artifact["sha256"]:
@@ -53,16 +95,17 @@ def verify(path, require_performance_pass=False):
             if role == "ping":
                 endpoint["samples_ns"] = trace["samples_ns"]
                 endpoint["feedback_samples_ns"] = trace["feedback_samples_ns"]
+            elif server_stages:
+                endpoint["server_stage_samples_ns"] = trace.get("server_stage_samples_ns")
             language = record[f"{role}_language"]
             if language not in {"rust", "cpp", "baseline"}:
                 raise RuntimeError("unknown action feedback endpoint language")
             validate_endpoint(
                 endpoint, role, metadata["rmw"], record["elements"], record["goal_window"],
                 feedback_per_goal, metadata["iterations"], metadata["warmup"],
-                "rclcpp" if language == "cpp" else "r2r", instrumentation["enabled"])
-    pairs = matrix_pairs(
-        "baseline" in metadata.get("binary_sha256", {}), metadata.get("matrix_scope", "full")
-    )
+                "rclcpp" if language == "cpp" else "r2r", instrumentation["enabled"],
+                server_stages, status_qos, result_timeout_ms, status_batch_size,
+                None if status_paths is None else status_paths[language], status_sync)
     expected = {(elements, window, ping, echo, repetition)
                 for elements in sizes for window in windows for ping, echo in pairs
                 for repetition in range(metadata["repetitions"])}
@@ -84,6 +127,17 @@ def verify(path, require_performance_pass=False):
         for field in fields:
             if row.get(field) != statistics.median(record[field] for record in group):
                 raise RuntimeError("action feedback summary median mismatch")
+        if server_stages:
+            echo_group = [record["echo"] for record in records
+                          if (record["elements"], record["goal_window"], record["ping_language"], record["echo_language"]) == identity]
+            for percent in [50, 95, 99]:
+                field = f"server_stage_ns_p{percent}"
+                expected = {
+                    stage: statistics.median(record[field][stage] for record in echo_group)
+                    for stage in SERVER_STAGES
+                }
+                if row.get(field) != expected:
+                    raise RuntimeError("action feedback server stage summary mismatch")
     actual_rows = {(elements, window, ping, echo)
                    for elements in sizes for window in windows for ping, echo in pairs}
     if expected_rows != actual_rows:

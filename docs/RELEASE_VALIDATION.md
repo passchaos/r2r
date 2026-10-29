@@ -859,3 +859,29 @@ preselected 1.05 p50/p95/p99/inverse-throughput gate; production is unchanged. T
 reports and profile are retained under
 [action feedback scaling evidence](benchmarks/action-feedback-scaling-2026-10-29/README.md).
 
+## Batched action goal state snapshots (2026-10-29)
+
+Typed action servers now accept, defer/execute and terminally complete explicit goal slices while
+publishing one reliable complete status array per slice. Requests/results are prepared before the
+server lock; slices reject foreign servers, duplicate UUIDs and result-count mismatches. Changed
+prefixes still publish after a later transition failure, and result/status/expiry cleanup preserves
+first-error reporting. Existing single-goal methods are unchanged.
+
+A three-goal real-RCL oracle verifies Executing state, 128-element feedback, exact results and
+terminal stream closure under both Jazzy RMWs. The four-goal wake-driven example passes under
+Jazzy/both RMWs, Humble/Fast DDS and Kilted/both RMWs. Humble and Kilted also pass the four focused
+optimized cases and all-target warning-denied Clippy. No-ROS validation checks 17 API pages and 35
+methods, including all six batch entry points.
+
+Independent `dc4e1c4` baseline/candidate matrices use 1000 measured eight-goal batches, five
+repetitions, 4096-element feedback, four feedback messages per goal, status slice two and one-second
+result retention. Clients observe all Executing states before isolated feedback timing. Both RMWs
+pass the unchanged 1.05 p50/p95/p99/feedback/inverse-throughput gate. Ordinary single-goal
+success/cancellation matrices also pass under both RMWs: 140 records and 140000 RTT samples.
+
+The full four-direction matrices retain actual status/feedback competition. Rust/Rust complete
+lifecycle p50/p95/p99 is 20–29% lower than rclcpp/rclcpp and completion rate is 39% higher under
+Fast DDS, 42% higher under CycloneDDS. Ten-second retention with the same slice passes Fast DDS
+but fails CycloneDDS feedback p99 by 25%; it is archived as a rejected configuration boundary.
+See [batched action evidence](benchmarks/action-goal-batching-2026-10-29/README.md).
+

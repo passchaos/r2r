@@ -157,9 +157,9 @@ pub use action_clients_untyped::{
 
 mod action_servers;
 pub use action_servers::{
-    ActionServer, ActionServerCancelRequest, ActionServerCancelStreamUntyped, ActionServerGoal,
-    ActionServerGoalRequest, ActionServerGoalRequestUntyped, ActionServerGoalUntyped,
-    ActionServerUntyped,
+    ActionServer, ActionServerCancelRequest, ActionServerCancelStream,
+    ActionServerCancelStreamUntyped, ActionServerGoal, ActionServerGoalRequest,
+    ActionServerGoalRequestUntyped, ActionServerGoalUntyped, ActionServerUntyped,
 };
 
 mod context;

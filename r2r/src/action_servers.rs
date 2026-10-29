@@ -31,6 +31,9 @@ use r2r_rcl::*;
 pub(crate) type ActionServerCompletion = Box<dyn FnOnce() -> Result<()>>;
 
 const MAX_ACTION_SERVER_REQUESTS_PER_SPIN: usize = 16;
+mod batch;
+#[cfg(test)]
+use batch::{complete_goal_batch, execute_goal_batch};
 mod cancel;
 pub(crate) mod notifications;
 pub use cancel::ActiveCancelRequest;
@@ -271,6 +274,16 @@ pub trait ActionServer_ {
     fn set_goal_state(
         &mut self, uuid: &uuid::Uuid, new_state: rcl_action_goal_event_t,
     ) -> Result<()>;
+    fn set_goal_states(
+        &mut self, uuids: &[uuid::Uuid], new_state: rcl_action_goal_event_t,
+    ) -> (usize, Result<()>) {
+        for (index, uuid) in uuids.iter().enumerate() {
+            if let Err(err) = self.set_goal_state(uuid, new_state) {
+                return (index, Err(err));
+            }
+        }
+        (uuids.len(), Ok(()))
+    }
     fn notify_goal_done(&self) -> Result<()>;
     fn add_result(&mut self, uuid: uuid::Uuid, msg: Box<dyn VoidPtr>) -> Result<()>;
     fn cancel_goal(&mut self, uuid: &uuid::Uuid) -> Result<()>;
@@ -618,6 +631,9 @@ where
     cancel_requests: mpsc::Receiver<ActionServerCancelRequest>,
     response: GoalRequestResponseGuard,
 }
+
+/// Cancel-request stream returned for one accepted typed action goal.
+pub type ActionServerCancelStream = mpsc::Receiver<ActionServerCancelRequest>;
 
 struct GoalRequestResponseGuard {
     server: Weak<Mutex<dyn ActionServer_>>,
@@ -1357,6 +1373,21 @@ where
         } else {
             Err(Error::RCL_RET_ACTION_GOAL_HANDLE_INVALID)
         }
+    }
+
+    fn set_goal_states(
+        &mut self, uuids: &[uuid::Uuid], new_state: rcl_action_goal_event_t,
+    ) -> (usize, Result<()>) {
+        for (index, uuid) in uuids.iter().enumerate() {
+            let Some(handle) = self.goals.get_mut(uuid) else {
+                return (index, Err(Error::RCL_RET_ACTION_GOAL_HANDLE_INVALID));
+            };
+            let ret = unsafe { rcl_action_update_goal_state(handle.as_mut_ptr(), new_state) };
+            if ret != RCL_RET_OK as i32 {
+                return (index, Err(Error::from_rcl_error(ret)));
+            }
+        }
+        (uuids.len(), Ok(()))
     }
 
     fn notify_goal_done(&self) -> Result<()> {
@@ -2352,7 +2383,7 @@ mod tests {
         }
 
         fn get_goal_status(&self, _uuid: &uuid::Uuid) -> Result<GoalStatus> {
-            unreachable!()
+            Ok(GoalStatus::Unknown)
         }
 
         fn is_cancelling(&self, _uuid: &uuid::Uuid) -> Result<bool> {
@@ -2798,6 +2829,108 @@ mod tests {
 
         assert!(matches!(result, Err(Error::RCL_RET_ACTION_GOAL_EVENT_INVALID)));
         assert_eq!(*server.calls.lock(), ["state"]);
+    }
+
+    #[test]
+    fn batched_execute_and_terminal_completion_publish_one_status_snapshot() {
+        let uuids = [
+            uuid::Uuid::from_u128(1),
+            uuid::Uuid::from_u128(2),
+            uuid::Uuid::from_u128(3),
+        ];
+        let mut server = CompletionTestServer::new(false, false, false, false);
+        execute_goal_batch(&mut server, &uuids).unwrap();
+        assert_eq!(*server.calls.lock(), ["state", "state", "state", "status"]);
+
+        server.calls.lock().clear();
+        complete_goal_batch(
+            &mut server,
+            uuids
+                .iter()
+                .copied()
+                .map(|uuid| (uuid, Box::new(DummyResult) as Box<dyn VoidPtr>))
+                .collect(),
+            rcl_action_goal_event_t::GOAL_EVENT_SUCCEED,
+        )
+        .unwrap();
+        assert_eq!(
+            *server.calls.lock(),
+            ["state", "state", "state", "result", "result", "result", "status", "notify",]
+        );
+    }
+
+    #[test]
+    fn batched_terminal_completion_attempts_post_transition_work_after_result_errors() {
+        let mut server = CompletionTestServer::new(false, true, true, true);
+        let result = complete_goal_batch(
+            &mut server,
+            [uuid::Uuid::from_u128(1), uuid::Uuid::from_u128(2)]
+                .into_iter()
+                .map(|uuid| (uuid, Box::new(DummyResult) as Box<dyn VoidPtr>))
+                .collect(),
+            rcl_action_goal_event_t::GOAL_EVENT_SUCCEED,
+        );
+        assert!(matches!(result, Err(Error::RCL_RET_BAD_ALLOC)));
+        assert_eq!(
+            *server.calls.lock(),
+            ["state", "state", "result", "result", "status", "notify"]
+        );
+    }
+
+    fn batch_test_goal<T>(
+        server: &Arc<Mutex<dyn ActionServer_>>, uuid: uuid::Uuid, goal: T::Goal,
+    ) -> ActionServerGoal<T>
+    where
+        T: WrappedActionTypeSupport,
+    {
+        ActionServerGoal {
+            uuid,
+            goal,
+            lifecycle: Arc::new(ServerGoalLifecycle {
+                server: Arc::downgrade(server),
+                uuid,
+                action_type: PhantomData,
+            }),
+        }
+    }
+
+    #[test]
+    fn public_goal_batches_require_one_server_unique_ids_and_matching_results() {
+        let server: Arc<Mutex<dyn ActionServer_>> =
+            Arc::new(Mutex::new(CompletionTestServer::new(false, false, false, false)));
+        let other: Arc<Mutex<dyn ActionServer_>> =
+            Arc::new(Mutex::new(CompletionTestServer::new(false, false, false, false)));
+        let goal = || Fibonacci::Goal { order: 1 };
+        let first = batch_test_goal::<Fibonacci::Action>(&server, uuid::Uuid::from_u128(1), goal());
+        let second =
+            batch_test_goal::<Fibonacci::Action>(&server, uuid::Uuid::from_u128(2), goal());
+        let duplicate = batch_test_goal::<Fibonacci::Action>(&server, first.uuid, goal());
+        let foreign =
+            batch_test_goal::<Fibonacci::Action>(&other, uuid::Uuid::from_u128(3), goal());
+
+        assert!(ActionServerGoal::<Fibonacci::Action>::execute_batch(&[]).is_ok());
+        assert!(matches!(
+            ActionServerGoal::execute_batch(&[first.clone(), duplicate]),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        assert!(matches!(
+            ActionServerGoal::execute_batch(&[first.clone(), foreign]),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        let mut goals = [first, second];
+        assert!(matches!(
+            ActionServerGoal::succeed_batch(&mut goals, Vec::new()),
+            Err(Error::RCL_RET_INVALID_ARGUMENT)
+        ));
+        ActionServerGoal::execute_batch(&goals).unwrap();
+        ActionServerGoal::succeed_batch(
+            &mut goals,
+            vec![
+                Fibonacci::Result { sequence: vec![1] },
+                Fibonacci::Result { sequence: vec![2] },
+            ],
+        )
+        .unwrap();
     }
 
     #[test]
@@ -3374,6 +3507,99 @@ mod tests {
             }
         }
         panic!("client did not receive the deferred goal result");
+    }
+
+    #[test]
+    fn batched_goals_preserve_feedback_results_and_terminal_stream_closure() {
+        let context = Context::create().unwrap();
+        let mut node = Node::create(context, "batched_action_test", "").unwrap();
+        let name = format!("/batched_action_{}", uuid::Uuid::new_v4().simple());
+        let mut requests = node
+            .create_action_server::<Fibonacci::Action>(&name)
+            .unwrap();
+        let client = node
+            .create_action_client::<Fibonacci::Action>(&name)
+            .unwrap();
+        for _ in 0..100 {
+            node.try_spin_once(Duration::from_millis(10)).unwrap();
+            if client.is_available(&node).unwrap() {
+                break;
+            }
+        }
+        assert!(client.is_available(&node).unwrap());
+
+        let mut responses = (1..=3)
+            .map(|order| Box::pin(client.send_goal_request(Fibonacci::Goal { order }).unwrap()))
+            .collect::<Vec<_>>();
+        let mut incoming = Vec::new();
+        while incoming.len() != 3 {
+            node.try_spin_once(Duration::from_millis(20)).unwrap();
+            while let Some(request) = requests.next().now_or_never().flatten() {
+                incoming.push(request);
+            }
+        }
+        let mut server_goals = ActionServerGoalRequest::accept_batch(incoming)
+            .unwrap()
+            .into_iter()
+            .map(|(goal, _)| goal)
+            .collect::<Vec<_>>();
+        assert!(server_goals
+            .iter()
+            .all(|goal| goal.get_status().unwrap() == GoalStatus::Executing));
+
+        let mut observations = Vec::new();
+        for response in &mut responses {
+            loop {
+                node.try_spin_once(Duration::from_millis(20)).unwrap();
+                if let Some(response) = response.as_mut().now_or_never() {
+                    observations.push(response.unwrap());
+                    break;
+                }
+            }
+        }
+        for (index, goal) in server_goals.iter().enumerate() {
+            goal.publish_feedback(Fibonacci::Feedback {
+                sequence: vec![index as i32 + 1; 128],
+            })
+            .unwrap();
+        }
+        for (index, (_, _, feedback)) in observations.iter_mut().enumerate() {
+            loop {
+                node.try_spin_once(Duration::from_millis(20)).unwrap();
+                if let Some(message) = feedback.next().now_or_never().flatten() {
+                    assert_eq!(message.sequence, vec![index as i32 + 1; 128]);
+                    break;
+                }
+            }
+        }
+
+        ActionServerGoal::succeed_batch(
+            &mut server_goals,
+            (1..=3)
+                .map(|order| Fibonacci::Result {
+                    sequence: vec![order],
+                })
+                .collect(),
+        )
+        .unwrap();
+        for (index, (_, result, feedback)) in observations.iter_mut().enumerate() {
+            loop {
+                node.try_spin_once(Duration::from_millis(20)).unwrap();
+                if let Some(result) = result.now_or_never() {
+                    let (status, result) = result.unwrap();
+                    assert_eq!(status, GoalStatus::Succeeded);
+                    assert_eq!(result.sequence, [index as i32 + 1]);
+                    break;
+                }
+            }
+            for _ in 0..100 {
+                node.try_spin_once(Duration::from_millis(10)).unwrap();
+                if matches!(feedback.next().now_or_never(), Some(None)) {
+                    break;
+                }
+            }
+            assert!(matches!(feedback.next().now_or_never(), Some(None)));
+        }
     }
 
     #[test]

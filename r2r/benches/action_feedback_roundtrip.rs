@@ -1,16 +1,25 @@
-use std::time::{Duration, Instant};
+use std::{
+    pin::Pin,
+    time::{Duration, Instant},
+};
 
 use futures::{FutureExt, StreamExt};
 use r2r::{
     example_interfaces::{action::Fibonacci, srv::AddTwoInts},
-    ActionClientOptions, ActionGoalOptions, ActionServerOptions, Context, GoalStatus, Node,
-    NodeOptions, QosProfile,
+    ActionClientOptions, ActionGoalOptions, ActionServerCancelRequest, ActionServerGoal,
+    ActionServerOptions, Context, GoalStatus, Node, NodeOptions, QosProfile,
 };
 
 #[path = "support/action_driver.rs"]
 mod driver;
 
 const DEADLINE: Duration = Duration::from_secs(30);
+type BenchmarkCancelStream =
+    Pin<Box<dyn futures::Stream<Item = ActionServerCancelRequest> + Unpin>>;
+#[cfg(r2r_bench_action_batches)]
+const STATUS_PATH: &str = "batched";
+#[cfg(not(r2r_bench_action_batches))]
+const STATUS_PATH: &str = "per_goal";
 
 struct Config<'a> {
     elements: usize,
@@ -19,6 +28,113 @@ struct Config<'a> {
     iterations: usize,
     warmup: usize,
     name: &'a str,
+    status_batch_size: usize,
+    status_sync: bool,
+}
+
+fn status_qos_override() -> Result<(&'static str, Option<QosProfile>), &'static str> {
+    match std::env::var("R2R_ACTION_FEEDBACK_STATUS_QOS").as_deref() {
+        Err(std::env::VarError::NotPresent) | Ok("default") => Ok(("default", None)),
+        Ok("reliable_volatile") => {
+            Ok(("reliable_volatile", Some(QosProfile::default().keep_last(1).volatile())))
+        }
+        Ok("best_effort_volatile") => Ok((
+            "best_effort_volatile",
+            Some(QosProfile::default().keep_last(1).best_effort().volatile()),
+        )),
+        _ => Err("invalid R2R_ACTION_FEEDBACK_STATUS_QOS"),
+    }
+}
+
+fn result_timeout_override() -> Result<(u64, Duration), &'static str> {
+    let milliseconds = match std::env::var("R2R_ACTION_FEEDBACK_RESULT_TIMEOUT_MS") {
+        Err(std::env::VarError::NotPresent) => 10_000,
+        Ok(value) => value.parse().map_err(|_| "invalid result timeout")?,
+        Err(_) => return Err("invalid result timeout"),
+    };
+    if milliseconds == 0 || milliseconds > 600_000 {
+        return Err("invalid result timeout");
+    }
+    Ok((milliseconds, Duration::from_millis(milliseconds)))
+}
+
+fn status_batch_size_override(goal_window: usize) -> Result<usize, &'static str> {
+    let size = match std::env::var("R2R_ACTION_FEEDBACK_STATUS_BATCH_SIZE") {
+        Err(std::env::VarError::NotPresent) => goal_window,
+        Ok(value) => value.parse().map_err(|_| "invalid status batch size")?,
+        Err(_) => return Err("invalid status batch size"),
+    };
+    if size == 0 || size > goal_window {
+        return Err("invalid status batch size");
+    }
+    Ok(size)
+}
+
+fn status_sync_override() -> Result<bool, &'static str> {
+    match std::env::var("R2R_ACTION_FEEDBACK_STATUS_SYNC").as_deref() {
+        Err(std::env::VarError::NotPresent) | Ok("required") => Ok(true),
+        Ok("none") => Ok(false),
+        _ => Err("invalid R2R_ACTION_FEEDBACK_STATUS_SYNC"),
+    }
+}
+
+struct ServerStageRecord {
+    accept: u64,
+    start_wait: u64,
+    execute: u64,
+    feedback_publish: u64,
+    feedback_wait: u64,
+    terminal: u64,
+}
+
+struct ServerStageSamples {
+    accept: Vec<u64>,
+    start_wait: Vec<u64>,
+    execute: Vec<u64>,
+    feedback_publish: Vec<u64>,
+    feedback_wait: Vec<u64>,
+    terminal: Vec<u64>,
+}
+
+impl ServerStageSamples {
+    fn with_capacity(capacity: usize) -> Self {
+        Self {
+            accept: Vec::with_capacity(capacity),
+            start_wait: Vec::with_capacity(capacity),
+            execute: Vec::with_capacity(capacity),
+            feedback_publish: Vec::with_capacity(capacity),
+            feedback_wait: Vec::with_capacity(capacity),
+            terminal: Vec::with_capacity(capacity),
+        }
+    }
+
+    fn push(&mut self, record: ServerStageRecord) {
+        self.accept.push(record.accept);
+        self.start_wait.push(record.start_wait);
+        self.execute.push(record.execute);
+        self.feedback_publish.push(record.feedback_publish);
+        self.feedback_wait.push(record.feedback_wait);
+        self.terminal.push(record.terminal);
+    }
+
+    fn percentiles(&self, percent: usize) -> serde_json::Value {
+        serde_json::json!({
+            "accept":percentile(&self.accept,percent),
+            "start_wait":percentile(&self.start_wait,percent),
+            "execute":percentile(&self.execute,percent),
+            "feedback_publish":percentile(&self.feedback_publish,percent),
+            "feedback_wait":percentile(&self.feedback_wait,percent),
+            "terminal":percentile(&self.terminal,percent)
+        })
+    }
+
+    fn samples(&self) -> serde_json::Value {
+        serde_json::json!({
+            "accept":&self.accept,"start_wait":&self.start_wait,"execute":&self.execute,
+            "feedback_publish":&self.feedback_publish,"feedback_wait":&self.feedback_wait,
+            "terminal":&self.terminal
+        })
+    }
 }
 
 fn percentile(samples: &[u64], percent: usize) -> u64 {
@@ -47,6 +163,30 @@ fn validate_payload(values: &[i32], order: i32, update: usize, elements: usize) 
     }
 }
 
+#[cfg(r2r_bench_action_batches)]
+fn succeed_goals(
+    goals: &mut [ActionServerGoal<Fibonacci::Action>], results: Vec<Fibonacci::Result>,
+    status_batch_size: usize,
+) -> r2r::Result<()> {
+    let mut results = results.into_iter();
+    for goals in goals.chunks_mut(status_batch_size) {
+        let chunk = results.by_ref().take(goals.len()).collect();
+        ActionServerGoal::succeed_batch(goals, chunk)?;
+    }
+    Ok(())
+}
+
+#[cfg(not(r2r_bench_action_batches))]
+fn succeed_goals(
+    goals: &mut [ActionServerGoal<Fibonacci::Action>], results: Vec<Fibonacci::Result>,
+    _status_batch_size: usize,
+) -> r2r::Result<()> {
+    for (goal, result) in goals.iter_mut().zip(results) {
+        goal.succeed(result)?;
+    }
+    Ok(())
+}
+
 fn wait_for_server(
     node: &mut Node, driver: &mut driver::Driver, client: &r2r::ActionClient<Fibonacci::Action>,
     ready: &r2r::Client<AddTwoInts::Service>,
@@ -71,6 +211,8 @@ fn run(
         iterations,
         warmup,
         name,
+        status_batch_size,
+        status_sync,
     } = config;
     let total = iterations + warmup;
     let total_goals = total
@@ -84,6 +226,8 @@ fn run(
         .ok_or("history depth overflow")?
         .max(16);
     let qos = QosProfile::services_default().keep_last(depth);
+    let (status_qos_label, status_qos) = status_qos_override()?;
+    let (result_timeout_ms, result_timeout) = result_timeout_override()?;
     let rmw = unsafe { std::ffi::CStr::from_ptr(r2r_rcl::rmw_get_implementation_identifier()) }
         .to_str()?;
     let mut driver = driver::Driver::new()?;
@@ -91,22 +235,27 @@ fn run(
     let mut goal_checksum = 0_u64;
 
     if role == "echo" {
-        let options = ActionServerOptions::default()
+        let mut options = ActionServerOptions::default()
             .goal_service_qos(qos.clone())
             .result_service_qos(qos.clone())
             .cancel_service_qos(qos.clone())
             .feedback_topic_qos(qos.clone())
             .goal_request_channel_capacity(goal_window)
-            .result_timeout(Duration::from_secs(10));
+            .result_timeout(result_timeout);
+        if let Some(status_qos) = status_qos.clone() {
+            options = options.status_topic_qos(status_qos);
+        }
         let mut requests =
             node.create_action_server_with_options::<Fibonacci::Action>(name, options)?;
         let mut ready =
             node.create_service::<AddTwoInts::Service>(&format!("{name}/ready"), qos)?;
+        let mut stages = ServerStageSamples::with_capacity(iterations);
         for batch in 0..total {
             if batch == warmup {
                 driver.begin()?;
             }
-            let mut goals = Vec::with_capacity(goal_window);
+            let accept_before = Instant::now();
+            let mut requests_batch = Vec::with_capacity(goal_window);
             for goal_index in 0..goal_window {
                 let request = driver.drive(node, async {
                     requests
@@ -116,19 +265,28 @@ fn run(
                 })?;
                 let order = (batch * goal_window + goal_index + 1) as i32;
                 assert_eq!(request.goal.order, order);
-                goals.push(request.accept_deferred()?);
+                requests_batch.push(request);
             }
+            let goals = accept_requests(requests_batch, status_batch_size)?;
+            let accept = accept_before.elapsed().as_nanos() as u64;
+            let start_wait_before = Instant::now();
             let start = driver.drive(node, async {
                 ready
                     .next()
                     .await
                     .ok_or(r2r::Error::RCL_RET_SERVICE_INVALID)
             })?;
+            let start_wait = start_wait_before.elapsed().as_nanos() as u64;
             assert_eq!((start.message.a, start.message.b), (batch as i64, 0));
-            for (goal, _) in &mut goals {
-                goal.execute()?;
-            }
             start.respond(AddTwoInts::Response { sum: batch as i64 })?;
+            let mut batch_goals = goals
+                .iter()
+                .map(|(goal, _)| goal.clone())
+                .collect::<Vec<_>>();
+            let execute_before = Instant::now();
+            // Immediate batch acceptance has already transitioned every goal to Executing.
+            let execute = execute_before.elapsed().as_nanos() as u64;
+            let feedback_publish_before = Instant::now();
             for update in 0..feedback_per_goal {
                 for (goal_index, (goal, _)) in goals.iter().enumerate() {
                     let order = (batch * goal_window + goal_index + 1) as i32;
@@ -137,24 +295,42 @@ fn run(
                     })?;
                 }
             }
+            let feedback_publish = feedback_publish_before.elapsed().as_nanos() as u64;
+            let feedback_wait_before = Instant::now();
             let acknowledged = driver.drive(node, async {
                 ready
                     .next()
                     .await
                     .ok_or(r2r::Error::RCL_RET_SERVICE_INVALID)
             })?;
+            let feedback_wait = feedback_wait_before.elapsed().as_nanos() as u64;
             assert_eq!((acknowledged.message.a, acknowledged.message.b), (batch as i64, 1));
             acknowledged.respond(AddTwoInts::Response {
                 sum: batch as i64 + 1,
             })?;
-            for (goal_index, (mut goal, _)) in goals.into_iter().enumerate() {
+            let terminal_before = Instant::now();
+            let mut results = Vec::with_capacity(goal_window);
+            for goal_index in 0..goal_window {
                 let order = (batch * goal_window + goal_index + 1) as i32;
-                goal.succeed(Fibonacci::Result {
+                results.push(Fibonacci::Result {
                     sequence: vec![order],
-                })?;
+                });
                 goal_checksum = goal_checksum.wrapping_add(order as u64);
             }
+            succeed_goals(&mut batch_goals, results, status_batch_size)?;
+            drop(goals);
+            let terminal = terminal_before.elapsed().as_nanos() as u64;
             batch_checksum = batch_checksum.wrapping_add(batch as u64);
+            if batch >= warmup {
+                stages.push(ServerStageRecord {
+                    accept,
+                    start_wait,
+                    execute,
+                    feedback_publish,
+                    feedback_wait,
+                    terminal,
+                });
+            }
         }
         let probe = driver.end()?;
         let control = driver.drive(node, async {
@@ -169,20 +345,32 @@ fn run(
         node.destroy_service(ready);
         return Ok(serde_json::json!({
             "implementation":"r2r","role":role,"rmw":rmw,"elements":elements,
+            "status_path":STATUS_PATH,
+            "status_qos":status_qos_label,
+            "result_timeout_ms":result_timeout_ms,
+            "status_batch_size":status_batch_size,
+            "status_sync":if status_sync {"required"} else {"none"},
             "goal_window":goal_window,"feedback_per_goal":feedback_per_goal,
             "iterations":iterations,"warmup":warmup,"received":total,
             "batch_checksum":batch_checksum,"goal_checksum":goal_checksum,
             "accepted":total_goals,"feedback":feedback_count,"results":total_goals,
+            "server_stage_ns_p50":stages.percentiles(50),
+            "server_stage_ns_p95":stages.percentiles(95),
+            "server_stage_ns_p99":stages.percentiles(99),
+            "server_stage_samples_ns":stages.samples(),
             "probe":probe
         }));
     }
 
-    let options = ActionClientOptions::default()
+    let mut options = ActionClientOptions::default()
         .goal_service_qos(qos.clone())
         .result_service_qos(qos.clone())
         .cancel_service_qos(qos.clone())
         .feedback_topic_qos(qos.clone())
         .feedback_channel_capacity(feedback_per_goal);
+    if let Some(status_qos) = status_qos {
+        options = options.status_topic_qos(status_qos);
+    }
     let client = node.create_action_client_with_options::<Fibonacci::Action>(name, options)?;
     let ready = node.create_client::<AddTwoInts::Service>(&format!("{name}/ready"), qos)?;
     wait_for_server(node, &mut driver, &client, &ready)?;
@@ -195,11 +383,26 @@ fn run(
             measured_start = Instant::now();
         }
         let before = Instant::now();
-        let mut observations = Vec::with_capacity(goal_window);
+        let mut responses = Vec::with_capacity(goal_window);
         for goal_index in 0..goal_window {
             let order = (batch * goal_window + goal_index + 1) as i32;
-            let response = client.send_goal_request(Fibonacci::Goal { order })?;
+            responses.push(client.send_goal_request(Fibonacci::Goal { order })?);
+        }
+        let mut observations = Vec::with_capacity(goal_window);
+        for response in responses {
             observations.push(driver.drive(node, response)?);
+        }
+        if status_sync {
+            let status_deadline = Instant::now() + DEADLINE;
+            while !observations
+                .iter()
+                .all(|(goal, _, _)| matches!(goal.get_status(), Ok(GoalStatus::Executing)))
+            {
+                if Instant::now() >= status_deadline {
+                    return Err("executing status deadline expired".into());
+                }
+                driver.spin(node, Duration::from_millis(100))?;
+            }
         }
         let feedback_before = Instant::now();
         let start = ready.request(&AddTwoInts::Request {
@@ -253,6 +456,11 @@ fn run(
     let measured_feedback = iterations * goal_window * feedback_per_goal;
     Ok(serde_json::json!({
         "implementation":"r2r","role":role,"rmw":rmw,"elements":elements,
+        "status_path":STATUS_PATH,
+        "status_qos":status_qos_label,
+        "result_timeout_ms":result_timeout_ms,
+        "status_batch_size":status_batch_size,
+        "status_sync":if status_sync {"required"} else {"none"},
         "goal_window":goal_window,"feedback_per_goal":feedback_per_goal,
         "iterations":iterations,"warmup":warmup,"received":total,
         "batch_checksum":batch_checksum,"goal_checksum":goal_checksum,
@@ -266,6 +474,37 @@ fn run(
         "feedback_ns_p99":percentile(&feedback_samples,99),
         "samples_ns":samples,"feedback_samples_ns":feedback_samples,"probe":probe
     }))
+}
+
+#[cfg(r2r_bench_action_batches)]
+fn accept_requests(
+    mut requests: Vec<r2r::ActionServerGoalRequest<Fibonacci::Action>>, status_batch_size: usize,
+) -> r2r::Result<Vec<(ActionServerGoal<Fibonacci::Action>, BenchmarkCancelStream)>> {
+    let mut accepted = Vec::with_capacity(requests.len());
+    while !requests.is_empty() {
+        let tail = requests.split_off(requests.len().min(status_batch_size));
+        accepted.extend(
+            r2r::ActionServerGoalRequest::accept_batch(requests)?
+                .into_iter()
+                .map(|(goal, cancels)| (goal, Box::pin(cancels) as BenchmarkCancelStream)),
+        );
+        requests = tail;
+    }
+    Ok(accepted)
+}
+
+#[cfg(not(r2r_bench_action_batches))]
+fn accept_requests(
+    requests: Vec<r2r::ActionServerGoalRequest<Fibonacci::Action>>, _status_batch_size: usize,
+) -> r2r::Result<Vec<(ActionServerGoal<Fibonacci::Action>, BenchmarkCancelStream)>> {
+    requests
+        .into_iter()
+        .map(|request| {
+            request
+                .accept()
+                .map(|(goal, cancels)| (goal, Box::pin(cancels) as BenchmarkCancelStream))
+        })
+        .collect()
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -283,6 +522,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .checked_add(warmup)
         .and_then(|value| value.checked_mul(goal_window))
         .ok_or("goal count overflow")?;
+    let status_batch_size = status_batch_size_override(goal_window)?;
+    let status_sync = status_sync_override()?;
     if !matches!(role.as_str(), "ping" | "echo")
         || elements > 1_000_000
         || !(1..=64).contains(&goal_window)
@@ -312,6 +553,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 iterations,
                 warmup,
                 name: &args[6],
+                status_batch_size,
+                status_sync,
             },
         )?
     );

@@ -54,6 +54,12 @@ def rust_binary(source, target, destination, env, workload="codec"):
         if (source / "r2r/src/serialization.rs").exists():
             flags += " --cfg r2r_bench_serializer"
         build_env["RUSTFLAGS"] = flags.strip()
+    if workload == "action_feedback":
+        flags = build_env.get("RUSTFLAGS", "") + " --check-cfg=cfg(r2r_bench_action_batches)"
+        batch_source = source / "r2r/src/action_servers/batch.rs"
+        if batch_source.exists() and "pub fn execute_batch" in batch_source.read_text():
+            flags += " --cfg r2r_bench_action_batches"
+        build_env["RUSTFLAGS"] = flags.strip()
     output = command(["cargo", "build", "--locked", "--release", "-p", "r2r", "--bench", benchmark, "--message-format=json"], source, build_env)
     artifacts = [json.loads(line) for line in output.splitlines() if line.startswith("{")]
     executable = next(item["executable"] for item in artifacts if item.get("reason") == "compiler-artifact" and item.get("target", {}).get("name") == benchmark and item.get("executable"))
@@ -124,6 +130,9 @@ def main():
     if args.workload in {"codec", "codec_strings"}:
         manifests["serializer_api_detection"] = "r2r/src/serialization.rs present: reusable API; absent: historical owned-byte API fallback for serialize_reuse modes"
         manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_serializer); --cfg r2r_bench_serializer only when serializer API exists"
+    if args.workload == "action_feedback":
+        manifests["batch_api_detection"] = "action_servers/batch.rs contains public execute_batch: use batched accept/execute/terminal status snapshots; absent: identical harness falls back to per-goal operations"
+        manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_action_batches); --cfg enables batched status snapshots only where the public API exists"
     benchmark = BENCHMARKS[args.workload]
     manifests["candidate"] = rust_binary(root, output / "candidate-cargo", output / "r2r-candidate", env, args.workload)
     if args.baseline_ref:

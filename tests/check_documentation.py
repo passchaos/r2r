@@ -25,6 +25,8 @@ REQUIRED_DOCUMENTATION = (
     "enum.ExecutorTaskError.html",
     "enum.FeedbackOverflowPolicy.html",
     "struct.ActionClientOptions.html",
+    "struct.ActionServerGoal.html",
+    "struct.ActionServerGoalRequest.html",
     "example_interfaces/srv/AddTwoInts/struct.Event.html",
     "example_interfaces/action/Fibonacci/SendGoal/struct.Event.html",
     "service_msgs/msg/struct.ServiceEventInfo.html",
@@ -40,6 +42,8 @@ REQUIRED_METHODS = {
     "struct.Executor.html": ("spawn",),
     "struct.ExecutorTask.html": ("handle", "cancel", "is_finished", "stop"),
     "struct.ActionClientOptions.html": ("feedback_overflow_policy",),
+    "struct.ActionServerGoal.html": ("execute_batch", "succeed_batch", "abort_batch", "cancel_batch"),
+    "struct.ActionServerGoalRequest.html": ("accept_batch", "accept_deferred_batch"),
 }
 
 

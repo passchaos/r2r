@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <cstdint>
 #include <deque>
 #include <iomanip>
@@ -56,6 +57,35 @@ void render_array(const std::vector<uint64_t> &values) {
   }
   std::cout << ']';
 }
+struct ServerStageSamples {
+  std::vector<uint64_t> accept,start_wait,execute,feedback_publish,feedback_wait,terminal;
+  void reserve(size_t count) {
+    accept.reserve(count);start_wait.reserve(count);execute.reserve(count);
+    feedback_publish.reserve(count);feedback_wait.reserve(count);terminal.reserve(count);
+  }
+  void push(uint64_t accept_ns,uint64_t start_wait_ns,uint64_t execute_ns,
+            uint64_t feedback_publish_ns,uint64_t feedback_wait_ns,uint64_t terminal_ns) {
+    accept.push_back(accept_ns);start_wait.push_back(start_wait_ns);execute.push_back(execute_ns);
+    feedback_publish.push_back(feedback_publish_ns);feedback_wait.push_back(feedback_wait_ns);
+    terminal.push_back(terminal_ns);
+  }
+  void render_percentiles(size_t percent) const {
+    std::cout << "{\"accept\":" << percentile(accept,percent)
+      << ",\"start_wait\":" << percentile(start_wait,percent)
+      << ",\"execute\":" << percentile(execute,percent)
+      << ",\"feedback_publish\":" << percentile(feedback_publish,percent)
+      << ",\"feedback_wait\":" << percentile(feedback_wait,percent)
+      << ",\"terminal\":" << percentile(terminal,percent) << '}';
+  }
+  void render_samples() const {
+    std::cout << "{\"accept\":";render_array(accept);
+    std::cout << ",\"start_wait\":";render_array(start_wait);
+    std::cout << ",\"execute\":";render_array(execute);
+    std::cout << ",\"feedback_publish\":";render_array(feedback_publish);
+    std::cout << ",\"feedback_wait\":";render_array(feedback_wait);
+    std::cout << ",\"terminal\":";render_array(terminal);std::cout << '}';
+  }
+};
 
 int main(int argc,char **argv) {
   try {
@@ -71,6 +101,28 @@ int main(int argc,char **argv) {
       throw std::invalid_argument("invalid action feedback configuration");
     const size_t total=iterations+warmup,total_goals=total*goal_window;
     const size_t feedback_count=total_goals*feedback_per_goal,depth=std::max<size_t>(16,goal_window*feedback_per_goal);
+    const char * status_batch_environment=std::getenv("R2R_ACTION_FEEDBACK_STATUS_BATCH_SIZE");
+    const size_t status_batch_size=status_batch_environment ? std::stoull(status_batch_environment) : goal_window;
+    if (!status_batch_size || status_batch_size>goal_window)
+      throw std::invalid_argument("invalid R2R_ACTION_FEEDBACK_STATUS_BATCH_SIZE");
+    const char * status_sync_environment=std::getenv("R2R_ACTION_FEEDBACK_STATUS_SYNC");
+    const std::string status_sync=status_sync_environment ? status_sync_environment : "required";
+    if (status_sync!="required" && status_sync!="none")
+      throw std::invalid_argument("invalid R2R_ACTION_FEEDBACK_STATUS_SYNC");
+    const char * status_qos_environment=std::getenv("R2R_ACTION_FEEDBACK_STATUS_QOS");
+    const std::string status_qos=status_qos_environment ? status_qos_environment : "default";
+    if (status_qos!="default" && status_qos!="reliable_volatile" && status_qos!="best_effort_volatile")
+      throw std::invalid_argument("invalid R2R_ACTION_FEEDBACK_STATUS_QOS");
+    std::optional<rmw_qos_profile_t> status_qos_profile;
+    if (status_qos!="default") {
+      auto configured=rclcpp::QoS(rclcpp::KeepLast(1)).durability_volatile();
+      if (status_qos=="best_effort_volatile") configured.best_effort(); else configured.reliable();
+      status_qos_profile=configured.get_rmw_qos_profile();
+    }
+    const char * result_timeout_environment=std::getenv("R2R_ACTION_FEEDBACK_RESULT_TIMEOUT_MS");
+    const uint64_t result_timeout_ms=result_timeout_environment ? std::stoull(result_timeout_environment) : 10000;
+    if (!result_timeout_ms || result_timeout_ms>600000 || result_timeout_ms>static_cast<uint64_t>(INT64_MAX)/1000000u)
+      throw std::invalid_argument("invalid R2R_ACTION_FEEDBACK_RESULT_TIMEOUT_MS");
     rclcpp::init(argc,argv);
     rclcpp::NodeOptions node_options;
     node_options.enable_rosout(false).start_parameter_services(false).start_parameter_event_publisher(false).use_intra_process_comms(false);
@@ -87,6 +139,7 @@ int main(int argc,char **argv) {
     uint64_t batch_checksum=0,goal_checksum=0;
     std::optional<action_bench::ProbeFrame> probe;
     std::vector<uint64_t> samples,feedback_samples;
+    ServerStageSamples server_stages;
     uint64_t elapsed=0;
     if (role=="echo") {
       std::vector<std::shared_ptr<ServerGoal>> accepted;
@@ -107,32 +160,41 @@ int main(int argc,char **argv) {
       server_options.result_service_qos=qos;
       server_options.cancel_service_qos=qos;
       server_options.feedback_topic_qos=qos;
-      server_options.result_timeout.nanoseconds=10000000000LL;
+      if (status_qos_profile) server_options.status_topic_qos=*status_qos_profile;
+      server_options.result_timeout.nanoseconds=static_cast<int64_t>(result_timeout_ms*1000000u);
       auto server=rclcpp_action::create_server<Action>(node,name,
         [&](const rclcpp_action::GoalUUID &,std::shared_ptr<const Action::Goal> goal) {
           if (next_order<=total_goals) {
             if (goal->order!=static_cast<int32_t>(next_order)) throw std::runtime_error("goal order mismatch");
             ++next_order;
-            return rclcpp_action::GoalResponse::ACCEPT_AND_DEFER;
+            return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
           }
           if (goal->order!=-1 || control_count++) throw std::runtime_error("completion control mismatch");
           return rclcpp_action::GoalResponse::REJECT;
         },
         [](std::shared_ptr<ServerGoal>) { return rclcpp_action::CancelResponse::REJECT; },
         [&](std::shared_ptr<ServerGoal> goal) { accepted.push_back(std::move(goal)); },server_options);
+      server_stages.reserve(iterations);
       for (size_t batch=0; batch<total; ++batch) {
         if (batch==warmup) driver.begin();
+        const auto accept_before=Clock::now();
         auto deadline=Clock::now()+30s;
         while (accepted.size()!=goal_window) {
           if (Clock::now()>=deadline) throw std::runtime_error("goal window deadline expired");
           driver.spin(executor,100ms);
         }
+        const uint64_t accept_ns=elapsed_ns(accept_before);
+        const auto start_wait_before=Clock::now();
         deadline=Clock::now()+30s;
         while (!started) {
           if (Clock::now()>=deadline) throw std::runtime_error("start handshake deadline expired");
           driver.spin(executor,100ms);
         }
-        for (auto &goal:accepted) goal->execute();
+        const uint64_t start_wait_ns=elapsed_ns(start_wait_before);
+        const auto execute_before=Clock::now();
+        // Immediate acceptance has already transitioned every goal to Executing.
+        const uint64_t execute_ns=elapsed_ns(execute_before);
+        const auto feedback_publish_before=Clock::now();
         for (size_t update=0; update<feedback_per_goal; ++update) {
           for (size_t goal_index=0; goal_index<goal_window; ++goal_index) {
             const int32_t order=static_cast<int32_t>(batch*goal_window+goal_index+1);
@@ -141,11 +203,15 @@ int main(int argc,char **argv) {
             accepted[goal_index]->publish_feedback(feedback);
           }
         }
+        const uint64_t feedback_publish_ns=elapsed_ns(feedback_publish_before);
+        const auto feedback_wait_before=Clock::now();
         deadline=Clock::now()+30s;
         while (!acknowledged) {
           if (Clock::now()>=deadline) throw std::runtime_error("feedback acknowledgement deadline expired");
           driver.spin(executor,100ms);
         }
+        const uint64_t feedback_wait_ns=elapsed_ns(feedback_wait_before);
+        const auto terminal_before=Clock::now();
         for (size_t goal_index=0; goal_index<goal_window; ++goal_index) {
           const int32_t order=static_cast<int32_t>(batch*goal_window+goal_index+1);
           auto result=std::make_shared<Action::Result>();
@@ -153,7 +219,10 @@ int main(int argc,char **argv) {
           accepted[goal_index]->succeed(result);
           goal_checksum+=static_cast<uint64_t>(order);
         }
+        const uint64_t terminal_ns=elapsed_ns(terminal_before);
         batch_checksum+=batch;
+        if (batch>=warmup)
+          server_stages.push(accept_ns,start_wait_ns,execute_ns,feedback_publish_ns,feedback_wait_ns,terminal_ns);
         accepted.clear();
         started=acknowledged=false;
       }
@@ -169,6 +238,7 @@ int main(int argc,char **argv) {
       client_options.result_service_qos=qos;
       client_options.cancel_service_qos=qos;
       client_options.feedback_topic_qos=qos;
+      if (status_qos_profile) client_options.status_topic_qos=*status_qos_profile;
       auto client=rclcpp_action::create_client<Action>(node,name,nullptr,client_options);
       auto ready=node->create_client<Ready>(name+"/ready",ready_qos);
       auto deadline=Clock::now()+30s;
@@ -199,7 +269,9 @@ int main(int argc,char **argv) {
         std::vector<ClientGoal::SharedPtr> goals;
         std::vector<std::shared_future<ClientGoal::WrappedResult>> results;
         std::vector<std::deque<std::vector<int32_t>>> feedbacks(goal_window);
+        std::vector<std::shared_future<ClientGoal::SharedPtr>> goal_responses;
         goals.reserve(goal_window);results.reserve(goal_window);
+        goal_responses.reserve(goal_window);
         for (size_t goal_index=0; goal_index<goal_window; ++goal_index) {
           Action::Goal goal;
           goal.order=static_cast<int32_t>(batch*goal_window+goal_index+1);
@@ -207,11 +279,22 @@ int main(int argc,char **argv) {
           options.feedback_callback=[&,goal_index](ClientGoal::SharedPtr,const std::shared_ptr<const Action::Feedback> feedback) {
             feedbacks[goal_index].push_back(feedback->sequence);
           };
-          auto response=client->async_send_goal(goal,options);
+          goal_responses.push_back(client->async_send_goal(goal,options));
+        }
+        for (auto &response:goal_responses) {
           auto handle=drive(response);
           if (!handle) throw std::runtime_error("goal unexpectedly rejected");
           results.push_back(client->async_get_result(handle));
           goals.push_back(std::move(handle));
+        }
+        if (status_sync=="required") {
+          deadline=Clock::now()+30s;
+          while (!std::all_of(goals.begin(),goals.end(),[](const auto &goal) {
+            return goal->get_status()==action_msgs::msg::GoalStatus::STATUS_EXECUTING;
+          })) {
+            if (Clock::now()>=deadline) throw std::runtime_error("executing status deadline expired");
+            driver.spin(executor,100ms);
+          }
         }
         const auto feedback_before=Clock::now();
         handshake(batch,0);
@@ -249,10 +332,21 @@ int main(int argc,char **argv) {
     }
     std::cout << std::setprecision(17) << "{\"implementation\":\"rclcpp\",\"role\":\"" << role
       << "\",\"rmw\":\"" << rmw_get_implementation_identifier() << "\",\"elements\":" << elements
+      << ",\"status_path\":\"per_goal\""
+      << ",\"status_qos\":\"" << status_qos << "\""
+      << ",\"result_timeout_ms\":" << result_timeout_ms
+      << ",\"status_batch_size\":" << status_batch_size
+      << ",\"status_sync\":\"" << status_sync << "\""
       << ",\"goal_window\":" << goal_window << ",\"feedback_per_goal\":" << feedback_per_goal
       << ",\"iterations\":" << iterations << ",\"warmup\":" << warmup << ",\"received\":" << total
       << ",\"batch_checksum\":" << batch_checksum << ",\"goal_checksum\":" << goal_checksum
       << ",\"accepted\":" << total_goals << ",\"feedback\":" << feedback_count << ",\"results\":" << total_goals;
+    if (role=="echo") {
+      std::cout << ",\"server_stage_ns_p50\":";server_stages.render_percentiles(50);
+      std::cout << ",\"server_stage_ns_p95\":";server_stages.render_percentiles(95);
+      std::cout << ",\"server_stage_ns_p99\":";server_stages.render_percentiles(99);
+      std::cout << ",\"server_stage_samples_ns\":";server_stages.render_samples();
+    }
     if (role=="ping") {
       const double seconds=elapsed*1e-9;
       std::cout << ",\"elapsed_ns\":" << elapsed << ",\"roundtrips_per_second\":" << iterations/seconds

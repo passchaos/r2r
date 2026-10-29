@@ -1,0 +1,256 @@
+{
+  "date_utc": "2026-10-29T09:10:13Z",
+  "parent_ref": "dc4e1c43115df9331336a9a1c140a1b9fa365880",
+  "goal_status": "active",
+  "scope": "explicit batched action-server status snapshots with ordinary API compatibility and dual-RMW rclcpp comparison",
+  "source_identity": {
+    "action_feedback_manifest": "action-feedback/build-manifest.json",
+    "action_feedback_manifest_sha256": "8972cbea9d1f35fa61b1e696b7b6392640ee59ccf3ee09ed9bba694603ce073a",
+    "ordinary_manifest": "ordinary/build-manifest.json",
+    "ordinary_manifest_sha256": "06ae99ef40ef10529d94497e77c10b151de89edfefdc8940fd4a33a2f7b80386",
+    "candidate_files": 80,
+    "missing": [],
+    "mismatches": [],
+    "action_feedback_runner_sha256": "8c279c8a212c25b808b62aed2ee2d0c32d44544568acdd737b854e77d39b9446",
+    "batch_api_detection": "action_servers/batch.rs contains public execute_batch: use batched accept/execute/terminal status snapshots; absent: identical harness falls back to per-goal operations"
+  },
+  "binary_sha256": {
+    "action_feedback_candidate": "6e989d83e9a2ba85c0322d99cbb8a0e21efcf59ca15933d1a8caf66e1c8c04d6",
+    "action_feedback_baseline": "8281c832e9bfa1fbd0742bdc9fb3f9c5b04eb660782688ba4ca6c2a23b7776d7",
+    "action_feedback_rclcpp": "011797434128b583430513af51cf0d088db1a88c4c3b452c039a90c0136fb3ca",
+    "action_feedback_probe": "7602fb54d07cf65818e4e5da8bab16034cbe181fa2d896e61b7a48bc07fe1592",
+    "ordinary_candidate": "291ee8bc48f28ed864f5f7f1e90ac519992db9167da766e81b50f8f8b7df8407",
+    "ordinary_baseline": "a303861c5e136effcc8823a621cca476b8e198febbb28e6a2b44ee5fafa4fed0",
+    "ordinary_rclcpp": "547677f0aa734ed161bc087407a044ba9f5a972ea93a902dbca3f3e6c3ead30f"
+  },
+  "validation": {
+    "action-feedback-regression": {
+      "exit_code": 0,
+      "observed": "two reports; each 10 records and 10000 batch samples; both recorded 1.05 gates passed",
+      "log": "logs/action-feedback-ab.log.gz",
+      "sha256": "57584c3d33a083fb32f9c7b4bdae1605e3d097fd8dd595dc3993f4b99e2eb7ec"
+    },
+    "action-feedback-rclcpp": {
+      "exit_code": 0,
+      "observed": "two reports; each 20 records and 20000 batch samples",
+      "log": "logs/action-feedback-full.log.gz",
+      "sha256": "9b6a0db906f53bbbb97c1bcad56adefb3c04ab0f756badf48e4ca4cd0d86a357"
+    },
+    "ordinary-action": {
+      "exit_code": 0,
+      "observed": "two reports; each 70 records and 70000 RTT samples; both recorded 1.05 gates passed",
+      "log": "logs/ordinary.log.gz",
+      "sha256": "65b920e5fd9a8155099be440d47db1e3405b66c971dc76b6774d33238b02248b"
+    },
+    "diagnosis": {
+      "exit_code": 0,
+      "observed": "four reports; 12 records and 12000 batch samples",
+      "log": "logs/diagnosis.log.gz",
+      "sha256": "4735f38cfa9b107577f02c1a83580ef333eb392d091fc66f881f26b932dffe98"
+    },
+    "rejected-boundary": {
+      "exit_code": 0,
+      "observed": "10 records and 10000 batch samples verified; recorded 1.05 gate intentionally failed",
+      "log": "logs/action-feedback-rejected.log.gz",
+      "sha256": "99ca15b615daa3e121fac49fdf9e186ba0288804911d20d93710820d8701dee0"
+    },
+    "retention-boundary-fastdds": {
+      "exit_code": 0,
+      "observed": "10 records and 10000 batch samples verified; recorded 1.05 gate passed",
+      "log": "logs/retention-boundary-fastdds.log.gz",
+      "sha256": "9967769c58cb771dd3c5ff2155ee6fc195d9406a933b4f9fc3b3902781c60ab1"
+    },
+    "python-tests": {
+      "exit_code": 0,
+      "observed": "8 passed",
+      "log": "logs/python-tests.log.gz",
+      "sha256": "80ab81bc03ab6c44e4a054ab7a939c7ad291914637ddfb13f89ecf041e19649e"
+    },
+    "source-identity": {
+      "exit_code": 0,
+      "observed": "both archived manifests match final build manifests; 80 candidate files, 0 missing and 0 mismatches; four final reports match the current runner hash",
+      "log": "logs/source-identity.log.gz",
+      "sha256": "34ed4024fd4259357337572b2f24702e9de0079fce2901329d79220485b31066"
+    },
+    "markdown-links": {
+      "exit_code": 0,
+      "observed": "7 Markdown files, 97 local links, 0 missing",
+      "log": "logs/markdown-links.log.gz",
+      "sha256": "e9d3bb5a8fa413656fe40d51fb7e696a8f4282262a0f84cf8531265bec68de97"
+    },
+    "documentation": {
+      "exit_code": 0,
+      "observed": "4 snapshot tests, 6 common tests, 2 generator tests, 17 public API artifacts and 35 documented methods",
+      "log": "logs/documentation.log.gz",
+      "sha256": "282880bf6e0ec15b6fe0ceebde82bc69ba9fc0130f02e106c6915eeabd0d81ea"
+    },
+    "format": {
+      "exit_code": 0,
+      "log": "logs/format.log.gz",
+      "sha256": "59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2"
+    },
+    "diff-check": {
+      "exit_code": 0,
+      "log": "logs/diff-check.log.gz",
+      "sha256": "59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2"
+    }
+  },
+  "correctness_and_compatibility": {
+    "jazzy_action_server_both_rmw": "51 passed per RMW",
+    "jazzy_workspace_single_thread": "main r2r library 598 passed, 8 ignored",
+    "jazzy_release_both_rmw": "main r2r library 598 passed, 8 ignored per RMW",
+    "humble_fastdds": "3 batch-focused cases, 1 parameter boundary, action_goal_batch example and all-target warning-denied Clippy passed",
+    "kilted_both_rmw": "per RMW: 3 batch-focused cases, 1 parameter boundary and action_goal_batch example passed; all-target warning-denied Clippy passed",
+    "no_ros": "4 snapshot transaction tests, all-target compilation, 6 common tests, 2 generator tests, 17 API pages and 35 methods passed",
+    "example_matrix": "action_goal_batch passed under Jazzy/CycloneDDS, Jazzy/Fast DDS, Humble/Fast DDS, Kilted/CycloneDDS and Kilted/Fast DDS"
+  },
+  "performance": {
+    "configuration": {
+      "payload_elements": 4096,
+      "goal_window": 8,
+      "feedback_per_goal": 4,
+      "status_batch_size": 2,
+      "result_timeout_ms": 1000,
+      "measured_batches_per_record": 1000,
+      "warmup_batches_per_record": 50,
+      "repetitions": 5,
+      "cpu_ping": 24,
+      "cpu_echo": 25,
+      "maximum_regression_ratio": 1.05
+    },
+    "regression": {
+      "cyclonedds": {
+        "report": "action-feedback/cyclonedds-ab.json",
+        "report_sha256": "6830ef4a45aa9b023f8ef0524fb23c208cb25af3e66265eeacbb8617514d7ea6",
+        "samples": "action-feedback/cyclonedds-ab.samples.json.gz",
+        "samples_sha256": "5b3893201056e7caa69200be5e318e4b2847159de0a9c6c9c15652c605513d99",
+        "records": 10,
+        "batch_samples": 10000,
+        "status_sync": "required",
+        "status_paths": {"rust": "batched", "baseline": "per_goal", "cpp": "per_goal"},
+        "gate": {"maximum_ratio": 1.05, "passed": true, "failures": []}
+      },
+      "fastdds": {
+        "report": "action-feedback/fastdds-ab.json",
+        "report_sha256": "d98e7ec2c9ec1aff6daf17307775c470132a92e980a1cc0fa924cdb1e40f176d",
+        "samples": "action-feedback/fastdds-ab.samples.json.gz",
+        "samples_sha256": "859100b9deda51250f8796801cccad22a366544f9952b827b61b21a0a4ed51b9",
+        "records": 10,
+        "batch_samples": 10000,
+        "status_sync": "required",
+        "status_paths": {"rust": "batched", "baseline": "per_goal", "cpp": "per_goal"},
+        "gate": {"maximum_ratio": 1.05, "passed": true, "failures": []}
+      }
+    },
+    "rclcpp_comparison": {
+      "cyclonedds": {
+        "report": "action-feedback/cyclonedds-rclcpp.json",
+        "report_sha256": "f6dbae03f69c9793b64dabe66cf0daad5c45ebc3acd7a05a03b1d0aa6bdbfad0",
+        "samples": "action-feedback/cyclonedds-rclcpp.samples.json.gz",
+        "samples_sha256": "231bf51fb94f6f4ac68d3594e60fdee1bfb6e60ff70e1f235cad459c3dfc03be",
+        "records": 20,
+        "batch_samples": 20000,
+        "status_sync": "none",
+        "r2r_lifecycle_ms": {"p50": 4.747681, "p95": 5.406673, "p99": 5.920734},
+        "rclcpp_lifecycle_ms": {"p50": 6.575170, "p95": 7.206123, "p99": 8.336155},
+        "r2r_batches_per_second": 218.02342887005014,
+        "rclcpp_batches_per_second": 153.6348267547039
+      },
+      "fastdds": {
+        "report": "action-feedback/fastdds-rclcpp.json",
+        "report_sha256": "ee382894223884c5a83c8ed121241bffdeea9a15d91b7d17465de8b12a3676ed",
+        "samples": "action-feedback/fastdds-rclcpp.samples.json.gz",
+        "samples_sha256": "9c307a74f0068b90a16a6a359e72aa03e0b4fdc22c9b0562caa94201bd0e57ef",
+        "records": 20,
+        "batch_samples": 20000,
+        "status_sync": "none",
+        "r2r_lifecycle_ms": {"p50": 2.809257, "p95": 3.449584, "p99": 3.967488},
+        "rclcpp_lifecycle_ms": {"p50": 3.913066, "p95": 4.499242, "p99": 4.977248},
+        "r2r_batches_per_second": 368.8947106442125,
+        "rclcpp_batches_per_second": 264.63830754487054
+      }
+    },
+    "ordinary_api": {
+      "cyclonedds": {
+        "report": "ordinary/cyclonedds.json",
+        "report_sha256": "398d3121a6bef21f611c939dbe417349e0194e4181ca2e2b6cae0281a553f368",
+        "samples": "ordinary/cyclonedds.samples.json.gz",
+        "samples_sha256": "95003bf3d7d2e3f9c81bcd2d73e9863b8828645355d49f16a0fb9d05b196cb36",
+        "records": 70,
+        "rtt_samples": 70000,
+        "gate": {"maximum_ratio": 1.05, "passed": true, "failures": []}
+      },
+      "fastdds": {
+        "report": "ordinary/fastdds.json",
+        "report_sha256": "ffe32f5a985a3d777d0fa8abed549c457548eb556f628a855685def013e9d59b",
+        "samples": "ordinary/fastdds.samples.json.gz",
+        "samples_sha256": "be2d5c3db686a02ca509369e527ac048f159e5a08f50b5a1bbf40fa668090481",
+        "records": 70,
+        "rtt_samples": 70000,
+        "gate": {"maximum_ratio": 1.05, "passed": true, "failures": []}
+      }
+    }
+  },
+  "diagnosis": {
+    "fastdds_ten_second_retention": {
+      "report": "diagnosis/fastdds-10s.json",
+      "report_sha256": "11a87a0e32f3df3f423d0abd9810bba810399317f48409821bdd96c8bc7e5df6",
+      "samples": "diagnosis/fastdds-10s-final.samples.json.gz",
+      "samples_sha256": "eebaeb452fdf4739d7c27f3e5326b85467df05e939dfdc69e300133703dc90f2",
+      "gate": {"maximum_ratio": 1.05, "passed": true, "failures": []}
+    },
+    "fastdds_server_stages": {
+      "report": "diagnosis/fastdds-server-long.json",
+      "report_sha256": "604b1e3ba395ca4153dddb0c9fb931755ef87f51ce5437d6b394f5388dd98dfb",
+      "samples": "diagnosis/fastdds-server-long.samples.json.gz",
+      "samples_sha256": "f7e676e6dc31315591de8701371991091ffcdc2ec695f2d4a9bd4274f28b2469"
+    },
+    "fastdds_best_effort_volatile": {
+      "report": "diagnosis/fastdds-status-best-effort-volatile.json",
+      "report_sha256": "f844c2174c1f7c1c3d6a4aa51c3d0d11c083c34d0abcd1698eeb0d47ec5eb347",
+      "samples": "diagnosis/fastdds-status-best-effort-volatile.samples.json.gz",
+      "samples_sha256": "7bdcfe486b93a70c9304d306884b83ff4e2e4ccd6bc2e1dae1a7964833e0d395"
+    },
+    "fastdds_reliable_volatile": {
+      "report": "diagnosis/fastdds-status-reliable-volatile.json",
+      "report_sha256": "6f763343eab1eb3be07d326bb8cc0b73d60ed1a5bd90c05aa0b5ac60d6c84de8",
+      "samples": "diagnosis/fastdds-status-reliable-volatile.samples.json.gz",
+      "samples_sha256": "8f1045d4d9e56ac11bf7e0c1b3ed342082095258fe8a7389bcc9d954c8e4a8f2"
+    },
+    "fastdds_one_second_retention": {
+      "report": "diagnosis/fastdds-result-timeout-1000.json",
+      "report_sha256": "85383b61d4259546796605649e9b61a23ef31b0cecfc800ef77521373de3650e",
+      "samples": "diagnosis/fastdds-result-timeout-1000.samples.json.gz",
+      "samples_sha256": "5e3f3962a6a641bfd6ef7a99d99614981ac3be65ba72e4128a2e93ceab3dfce5"
+    }
+  },
+  "rejected_configuration": {
+    "report": "rejected/cyclonedds-10s.json",
+    "report_sha256": "d4ee5f427c0250654a1770e4c585ba390d25573f5173b7939729e68c001647a3",
+    "samples": "rejected/cyclonedds-10s-final.samples.json.gz",
+    "samples_sha256": "6fab5517b248d5f0a6073f397f269144ff09f76a94b8a07be73d11ea2a975d2b",
+    "result_timeout_ms": 10000,
+    "status_batch_size": 2,
+    "records": 10,
+    "batch_samples": 10000,
+    "gate": {
+      "maximum_ratio": 1.05,
+      "passed": false,
+      "feedback_p99_ratio": 1.2501314070767695
+    }
+  },
+  "retained_validation_incident": {
+    "observed": "the first parallel workspace run reported two global Context lifecycle failures",
+    "resolution": "both exact tests passed when rerun single-threaded, and the complete single-threaded workspace run passed",
+    "classification": "parallel-process global Context interference; not a product failure"
+  },
+  "report_metadata_correction": {
+    "scope": "the four final action-feedback reports, one retention diagnosis, both ten-second retention boundaries and runner source identity",
+    "change": "derive the descriptive qos field from status_qos and result_timeout_ms; reports now express their structured status QoS and retention exactly",
+    "unchanged": "raw samples, endpoint records, summaries, recorded gates and all binary identities",
+    "verification": "the offline verifier now rejects a descriptive QoS string that disagrees with the structured fields"
+  },
+  "documentation_sha256": {
+    "README.md": "2f6be6e17dc53f4218076cfa4c4363f4d00c9dfe9c9e901dfd5e023e94464de6"
+  }
+}

@@ -1,6 +1,6 @@
 import unittest
 
-from action_feedback import matrix_pairs, regression_failures, validate_endpoint
+from action_feedback import SERVER_STAGES, matrix_pairs, regression_failures, validate_endpoint
 
 
 class ActionFeedbackValidationTests(unittest.TestCase):
@@ -11,6 +11,7 @@ class ActionFeedbackValidationTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(RuntimeError, "independent baseline"):
             matrix_pairs(False, "regression")
+        self.assertEqual(matrix_pairs(False, "server"), [("cpp", "cpp"), ("cpp", "rust")])
 
     def endpoint(self, role="ping"):
         result = {
@@ -32,6 +33,81 @@ class ActionFeedbackValidationTests(unittest.TestCase):
     def test_complete_endpoint_oracle(self):
         validate_endpoint(self.endpoint(), "ping", "rmw_test", 4, 2, 3, 2, 1, "r2r", False)
         validate_endpoint(self.endpoint("echo"), "echo", "rmw_test", 4, 2, 3, 2, 1, "r2r", False)
+
+    def test_server_stage_samples_and_percentiles_are_complete(self):
+        result = self.endpoint("echo")
+        result["server_stage_samples_ns"] = {stage: [10, 20] for stage in SERVER_STAGES}
+        for percent in [50, 95, 99]:
+            result[f"server_stage_ns_p{percent}"] = {stage: 20 for stage in SERVER_STAGES}
+        validate_endpoint(
+            result, "echo", "rmw_test", 4, 2, 3, 2, 1, "r2r", False, True
+        )
+        result["server_stage_samples_ns"]["terminal"].pop()
+        with self.assertRaisesRegex(RuntimeError, "server stage samples"):
+            validate_endpoint(result, "echo", "rmw_test", 4, 2, 3, 2, 1, server_stages=True)
+
+    def test_declared_status_path_must_match_the_endpoint(self):
+        result = self.endpoint()
+        result["status_path"] = "batched"
+        validate_endpoint(
+            result, "ping", "rmw_test", 4, 2, 3, 2, 1, status_path="batched"
+        )
+        with self.assertRaisesRegex(RuntimeError, "status path mismatch"):
+            validate_endpoint(
+                result, "ping", "rmw_test", 4, 2, 3, 2, 1, status_path="per_goal"
+            )
+
+    def test_declared_status_sync_must_match_the_endpoint(self):
+        result = self.endpoint()
+        result["status_sync"] = "required"
+        validate_endpoint(
+            result, "ping", "rmw_test", 4, 2, 3, 2, 1, status_sync="required"
+        )
+        with self.assertRaisesRegex(RuntimeError, "status sync mismatch"):
+            validate_endpoint(
+                result, "ping", "rmw_test", 4, 2, 3, 2, 1, status_sync="none"
+            )
+
+    def test_report_qos_description_matches_structured_configuration(self):
+        from pathlib import Path
+        import gzip
+        import hashlib
+        import json
+        import tempfile
+
+        from verify_action_feedback import verify
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            samples = gzip.compress(b"[]", mtime=0)
+            (root / "samples.json.gz").write_bytes(samples)
+            report = {
+                "metadata": {
+                    "workload": "action_feedback",
+                    "payload_sizes": [4],
+                    "goal_windows": [2],
+                    "feedback_per_goal": 3,
+                    "instrumentation": {"enabled": False, "latency_evidence": True},
+                    "binary_sha256": {},
+                    "matrix_scope": "full",
+                    "status_qos": "default",
+                    "result_timeout_ms": 1000,
+                    "qos": ("goal/result/cancel/feedback reliable volatile "
+                            "KeepLast(max(16, goal_window*feedback_per_goal)); "
+                            "status native defaults; result retention 10 s"),
+                    "samples_artifact": {
+                        "file": "samples.json.gz",
+                        "sha256": hashlib.sha256(samples).hexdigest(),
+                        "record_count": 0,
+                    },
+                },
+                "records": [],
+                "summary": [],
+            }
+            path = root / "report.json"
+            path.write_text(json.dumps(report))
+            with self.assertRaisesRegex(RuntimeError, "QoS description mismatch"):
+                verify(path)
 
     def test_payload_count_and_timing_corruption_fail(self):
         result = self.endpoint()
