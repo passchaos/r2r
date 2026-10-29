@@ -25,6 +25,8 @@ Canceled action observers continue cleanup across sixteen-entry maintenance batc
 
 Action feedback retries follow channel capacity notifications. Blocked goals leave the runnable queue; consuming a sample wakes retry delivery without another ROS message. Run `cargo run -p r2r --example action_feedback_backpressure` for a slow-consumer workflow with ordered feedback and a terminal result. [Feedback progress](docs/ACTION_FEEDBACK_PROGRESS.md) describes bounded retries and ownership.
 
+For progress snapshots, select `ActionClientOptions::feedback_overflow_policy(FeedbackOverflowPolicy::Coalesce)`. Already-buffered samples remain ordered, each goal retains its newest pending item, and other goals continue receiving feedback. Run `cargo run -p r2r --example action_feedback_coalesce` for a two-goal workflow with bounded retention and checked terminal results. The default `Backpressure` policy retains its existing behavior.
+
 Action servers continue large cancellation delivery and decision batches through ready queues. Full streams wait for capacity, and cached notifications follow the node after executor transfer. Run `cargo run -p r2r --example action_cancel_group` for a forty-goal `cancel_all()` workflow with partial acceptance and checked terminal results. [Server cancellation progress](docs/ACTION_SERVER_CANCELLATION_PROGRESS.md) describes batching, ownership and buffering.
 
 Cancellation maintenance follows ready server identities, so blocked servers avoid repeated polling during unrelated ROS traffic. External decisions wake the existing foreground, shared or background executor guard, including after node transfer. [Action-server scheduling](docs/ACTION_SERVER_SCHEDULING.md) describes the bounded queue and saved correctness/performance evidence.

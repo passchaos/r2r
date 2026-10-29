@@ -84,6 +84,8 @@ use wait_set::{
 mod action_cancel_tests;
 #[cfg(test)]
 mod action_server_scheduling_tests;
+#[cfg(all(test, r2r__example_interfaces__action__Fibonacci))]
+mod feedback_overflow_tests;
 
 /// A ROS Node.
 ///

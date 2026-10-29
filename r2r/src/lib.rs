@@ -139,7 +139,9 @@ mod parameter_clients;
 pub use parameter_clients::ParameterClient;
 
 mod action_common;
-pub use action_common::{ActionClientOptions, ActionGoalOptions, ActionServerOptions, GoalStatus};
+pub use action_common::{
+    ActionClientOptions, ActionGoalOptions, ActionServerOptions, FeedbackOverflowPolicy, GoalStatus,
+};
 
 mod action_clients;
 pub use action_clients::{

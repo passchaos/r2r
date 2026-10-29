@@ -138,9 +138,12 @@ impl Node {
             canceled_feedback_goals: Arc::new(Mutex::new(ActionClientMaintenanceQueue::new(
                 Arc::clone(&maintenance_notifier),
             ))),
-            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::new(Arc::clone(
-                &maintenance_notifier,
-            )))),
+            pending_feedback_goals: Arc::new(Mutex::new(
+                PendingFeedbackQueue::with_overflow_policy(
+                    Arc::clone(&maintenance_notifier),
+                    options.feedback_overflow_policy,
+                ),
+            )),
             result_senders: HashMap::new(),
             canceled_result_goals: Arc::new(Mutex::new(ActionClientMaintenanceQueue::new(
                 Arc::clone(&maintenance_notifier),
@@ -225,9 +228,12 @@ impl Node {
             canceled_feedback_goals: Arc::new(Mutex::new(ActionClientMaintenanceQueue::new(
                 Arc::clone(&maintenance_notifier),
             ))),
-            pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::new(Arc::clone(
-                &maintenance_notifier,
-            )))),
+            pending_feedback_goals: Arc::new(Mutex::new(
+                PendingFeedbackQueue::with_overflow_policy(
+                    Arc::clone(&maintenance_notifier),
+                    options.feedback_overflow_policy,
+                ),
+            )),
             result_senders: HashMap::new(),
             canceled_result_goals: Arc::new(Mutex::new(ActionClientMaintenanceQueue::new(
                 Arc::clone(&maintenance_notifier),

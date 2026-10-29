@@ -25,10 +25,10 @@ python3 tests/check_documentation.py
 It removes ROS discovery, middleware and library-path variables for its child
 processes, then runs snapshot transaction tests, workspace compilation with all
 targets, common-library tests, the two pure message-path generator tests and
-Rustdoc. It checks thirteen public documentation pages and twenty-eight specific methods,
+Rustdoc. It checks fifteen public documentation pages and twenty-nine specific methods,
 including lifecycle native/loaned publication and destruction, configurable
 managed publishers/timers, service introspection, simulated-time controls and
-owned background task completion/cancellation/errors.
+owned background task completion/cancellation/errors and action feedback overflow policy.
 
 The `docs_no_ros` CI job runs this same gate in Ubuntu 24.04 with the
 repository-pinned Rust 1.85 toolchain and no ROS installation. The refreshed

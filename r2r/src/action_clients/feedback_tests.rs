@@ -1,5 +1,8 @@
 //! Native retry notifications must follow feedback capacity recovery.
 
+#[cfg(test)]
+mod overflow;
+
 use super::*;
 use futures::{
     task::{waker, ArcWake},
@@ -97,7 +100,7 @@ fn forty_blocked_goals_park_after_bounded_scans_and_only_ready_goal_retries() {
         assert!(!continuation);
     }
     assert_eq!(count.0.load(Ordering::Relaxed), before);
-    assert_eq!(queue.lock().blocked, 40);
+    assert_eq!(queue.lock().blocked_count(), 40);
     assert!(queue.lock().goals.is_empty());
     assert_eq!(receivers[39].next().now_or_never(), Some(Some(0)));
     assert_eq!(
@@ -112,7 +115,7 @@ fn forty_blocked_goals_park_after_bounded_scans_and_only_ready_goal_retries() {
     assert!(!continuation);
     (ready.notify)().unwrap();
     assert_eq!(receivers[39].next().now_or_never(), Some(Some(40)));
-    assert_eq!(queue.lock().blocked, 39);
+    assert_eq!(queue.lock().blocked_count(), 39);
     assert!(channels[&uuid::Uuid::from_u128(1)].lock().pending.is_some());
 }
 
@@ -122,11 +125,17 @@ fn detached_sender_restoration_preserves_and_reschedules_reentrant_feedback() {
     let queue = Arc::new(Mutex::new(PendingFeedbackQueue::default()));
     let (sender, mut receiver) = mpsc::channel(1);
     let channel = Arc::new(Mutex::new(FeedbackChannel::new(sender)));
-    let first =
-        feedback_completion_with_queue(channel.clone(), 1, Some((uuid, queue.clone()))).unwrap();
-    assert!(
-        feedback_completion_with_queue(channel.clone(), 2, Some((uuid, queue.clone()))).is_none()
+    let sender = channel.lock().sender.take().unwrap();
+    let first = feedback::detached_feedback_completion(
+        channel.clone(),
+        sender,
+        1,
+        Some((uuid, queue.clone())),
     );
+    (feedback_completion_with_queue(channel.clone(), 2, Some((uuid, queue.clone())))
+        .unwrap()
+        .notify)()
+    .unwrap();
     let channels = HashMap::from([(uuid, channel.clone())]);
     let _ = take_ready_pending_feedback(&queue, &channels);
     assert!(queue.lock().is_empty());

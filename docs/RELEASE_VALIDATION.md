@@ -569,3 +569,58 @@ no new latency/throughput claim. Broader payloads, event QoS combinations,
 distributed diagnostic applications and the remaining runtime matrix remain
 requirements toward the full goal.
 
+## Explicit per-goal feedback coalescing (2026-10-29)
+
+`ActionClientOptions::feedback_overflow_policy(FeedbackOverflowPolicy::Coalesce)`
+adds bounded snapshot delivery for typed/untyped action clients. It retains
+already-queued samples in order and one newest pending item per goal, permitting
+shared native ingress to continue while a goal consumer is blocked. Default
+Backpressure retains its prior behavior. Native DDS QoS remains independent.
+[Feedback contracts](ACTION_FEEDBACK_PROGRESS.md) document intermediate-item
+omission, reserved channel capacity, observer cleanup and replaceable native
+decoding/storage boundaries.
+
+The original two-goal counterexample timed out after 250 ms while waiting for
+the healthy goal behind a blocked stream. Typed/untyped foreground tests now
+compare both policies using the same thirty-two-sample native input: default
+delivery checks every sample, while Coalesce checks the queued prefix and newest
+pending sample after observing the other goal first. Background tests stop and
+unbind the node, recover capacity without triggering the old guard, transfer
+ownership and require pending delivery without another ROS message. Both exact
+result payloads and stream closure remain required. Native feedback history is
+KeepLast(64), preventing middleware truncation from weakening these oracles.
+
+Six nearby policy/layout/count cases cover thousands of replacements, capacities
+0/1/8, reentrant arrivals during detached successful/failed sends, payload
+retirement after releasing client/channel/readiness locks, stale weak wakes and
+checked count boundaries. Policy uses existing count storage and channel padding;
+legacy queue and typed/JSON channel header sizes remain unchanged for the pinned
+toolchain. Delivery construction now defers channel work until the client lock
+is released, and both normal delivery and retries share sender restoration.
+
+[Independent default-path A/B](benchmarks/feedback-overflow-2026-10-29/README.md)
+compares safe `b7af300` with independent optimized candidate binaries on CPUs
+24/25, identical inputs/QoS and both Jazzy RMWs. The unchanged same-language
+1.05 p50/p95/p99/inverse-throughput gates pass in success and cancellation:
+140 application records and 140000 individual RTT samples. All seven language
+pairs and protocol counts remain checked. Mixed-direction p99 stays within 5%
+of matching baseline pairs. Source inventories are byte-identical to measured
+candidates. This does not establish calibrated tail improvement or C++ leadership.
+The separate fixed-CPU local stage characterizes two million u32 completions per
+run; it excludes ROS ingress, native conversion, transport and tail distributions.
+
+The complete Jazzy workspace and both complete optimized library suites pass
+574 cases with four manual benchmarks ignored. Both RMWs pass 43 relevant
+feedback cases, including the four new native cases, and run the complete
+optimized `action_feedback_coalesce` application. Formatting and all-target
+workspace Clippy pass. Native Humble/Fast DDS and Kilted/both RMWs each pass
+the 43 feedback cases, optimized application and all-target Clippy. The no-ROS
+container compiles all targets, passes six snapshot/two generator cases and
+verifies 15 API artifacts and 29 methods. Iron, Lyrical and Rolling retain
+supported CI entries without new local runtime evidence.
+
+This closes explicit snapshot overflow semantics and per-goal progress under
+bounded retention. Eager native feedback conversion, allocation/resource
+accounting, larger payloads, fanout and full multi-goal Rust/C++ application
+scaling remain additional requirements toward the original goal.
+

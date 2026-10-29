@@ -23,6 +23,8 @@ REQUIRED_DOCUMENTATION = (
     "struct.Executor.html",
     "struct.ExecutorTask.html",
     "enum.ExecutorTaskError.html",
+    "enum.FeedbackOverflowPolicy.html",
+    "struct.ActionClientOptions.html",
     "example_interfaces/srv/AddTwoInts/struct.Event.html",
     "example_interfaces/action/Fibonacci/SendGoal/struct.Event.html",
     "service_msgs/msg/struct.ServiceEventInfo.html",
@@ -37,6 +39,7 @@ REQUIRED_METHODS = {
     "struct.LifecycleTimer.html": ("tick", "tick_with_info", "cancel", "reset", "destroy"),
     "struct.Executor.html": ("spawn",),
     "struct.ExecutorTask.html": ("handle", "cancel", "is_finished", "stop"),
+    "struct.ActionClientOptions.html": ("feedback_overflow_policy",),
 }
 
 

@@ -1,0 +1,63 @@
+{
+  "boundary": "optimized lib-test feedback completion with u32 payload; no ROS ingress, transport or tail evidence",
+  "cpu": 24,
+  "command": [
+    "taskset",
+    "-c",
+    "24",
+    "/home/passchaos/Work/r2r/target/release/deps/r2r-7ab250a8ced0801f",
+    "--exact",
+    "action_clients::feedback_tests::overflow::benchmark_feedback_overflow_delivery_stage",
+    "--ignored",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "binary_sha256": "30f98e36c54afebc5ec71aa11acf294ca6b8bbff53513c66adfc78b24a09b0a9",
+  "records": [
+    {
+      "boundary": "feedback completion only; u32 payloads; no ROS ingress or application transport",
+      "channel_bytes": 40,
+      "coalesce_ns_per_call": 41.2157696078848,
+      "default_ns_per_call": 144.7619655,
+      "iterations": 2000000,
+      "queue_bytes": 96,
+      "repetition": 0
+    },
+    {
+      "boundary": "feedback completion only; u32 payloads; no ROS ingress or application transport",
+      "channel_bytes": 40,
+      "coalesce_ns_per_call": 41.13947706973853,
+      "default_ns_per_call": 144.749035,
+      "iterations": 2000000,
+      "queue_bytes": 96,
+      "repetition": 1
+    },
+    {
+      "boundary": "feedback completion only; u32 payloads; no ROS ingress or application transport",
+      "channel_bytes": 40,
+      "coalesce_ns_per_call": 41.49337374668687,
+      "default_ns_per_call": 145.173339,
+      "iterations": 2000000,
+      "queue_bytes": 96,
+      "repetition": 2
+    },
+    {
+      "boundary": "feedback completion only; u32 payloads; no ROS ingress or application transport",
+      "channel_bytes": 40,
+      "coalesce_ns_per_call": 41.381522190761096,
+      "default_ns_per_call": 145.06575,
+      "iterations": 2000000,
+      "queue_bytes": 96,
+      "repetition": 3
+    },
+    {
+      "boundary": "feedback completion only; u32 payloads; no ROS ingress or application transport",
+      "channel_bytes": 40,
+      "coalesce_ns_per_call": 41.38440269220135,
+      "default_ns_per_call": 145.2573185,
+      "iterations": 2000000,
+      "queue_bytes": 96,
+      "repetition": 4
+    }
+  ]
+}

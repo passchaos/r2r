@@ -390,9 +390,11 @@ impl ActionClientUntyped {
                     let (sender, receiver) = mpsc::channel::<Result<serde_json::Value>>(
                         client.feedback_channel_capacity,
                     );
-                    client
-                        .feedback_senders
-                        .insert(uuid, Arc::new(Mutex::new(FeedbackChannel::new(sender))));
+                    let policy = client.pending_feedback_goals.lock().overflow_policy();
+                    client.feedback_senders.insert(
+                        uuid,
+                        Arc::new(Mutex::new(FeedbackChannel::with_overflow_policy(sender, policy))),
+                    );
                     ActionFeedbackStreamUntyped {
                         receiver,
                         registration: FeedbackStreamRegistration::new(
@@ -980,7 +982,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
             PendingFeedbackAction::Backpressured => {
                 return Ok(ActionClientTakeResult::Backpressured);
             }
-            PendingFeedbackAction::None => {}
+            PendingFeedbackAction::None | PendingFeedbackAction::Continue => {}
         }
         let mut feedback_msg = (self.action_type_support.make_feedback_msg)()?;
         let ret =
@@ -1539,6 +1541,7 @@ mod tests {
                         sender: Some(target_feedback),
                         pending: Some(Ok(serde_json::json!({ "sequence": [1] }))),
                         closing: false,
+                        overflow_policy: crate::FeedbackOverflowPolicy::Backpressure,
                     })),
                 ),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),
@@ -1606,6 +1609,7 @@ mod tests {
                         sender: Some(target_feedback),
                         pending: Some(Ok(serde_json::json!({ "sequence": [1] }))),
                         closing: false,
+                        overflow_policy: crate::FeedbackOverflowPolicy::Backpressure,
                     })),
                 ),
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),

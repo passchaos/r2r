@@ -3,9 +3,47 @@
 use super::*;
 use std::task::Waker;
 
+const COALESCE_FLAG: usize = 1 << (usize::BITS - 1);
+const BLOCKED_COUNT_MASK: usize = COALESCE_FLAG - 1;
+
+#[cfg(test)]
+#[test]
+fn overflow_packed_count_boundaries_preserve_policy_after_empty_and_rejected_updates() {
+    let mut queue = PendingFeedbackQueue {
+        blocked_and_policy: COALESCE_FLAG,
+        ..Default::default()
+    };
+    assert!(queue.is_empty());
+    for _ in 0..3 {
+        queue.register_blocked();
+    }
+    assert_eq!(queue.blocked_count(), 3);
+    for _ in 0..3 {
+        queue.unregister_blocked();
+    }
+    assert!(queue.is_empty());
+    assert_eq!(queue.overflow_policy(), FeedbackOverflowPolicy::Coalesce);
+    for word in [BLOCKED_COUNT_MASK, usize::MAX] {
+        queue.blocked_and_policy = word;
+        assert!(std::panic::catch_unwind(
+            std::panic::AssertUnwindSafe(|| queue.register_blocked())
+        )
+        .is_err());
+        assert_eq!(queue.blocked_and_policy, word);
+    }
+    queue.blocked_and_policy = COALESCE_FLAG;
+    assert!(
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| queue.unregister_blocked()))
+            .is_err()
+    );
+    assert_eq!(queue.blocked_and_policy, COALESCE_FLAG);
+}
+
 pub(crate) enum PendingFeedbackAction {
     None,
     Backpressured,
+    /// Pending retries are blocked, but their policy permits continued native ingress.
+    Continue,
     Deliver(ActionClientCompletion),
 }
 
@@ -14,17 +52,55 @@ pub(crate) struct PendingFeedbackQueue {
     pub(super) goals: VecDeque<uuid::Uuid>,
     pub(super) queued: HashSet<uuid::Uuid>,
     maintenance_notifier: Option<Arc<ActionClientMaintenanceNotifier>>,
-    pub(super) blocked: usize,
+    // The policy occupies the unused high bit of the bounded registration count,
+    // preserving the common queue header. Registration checks the count boundary.
+    blocked_and_policy: usize,
 }
 
 impl PendingFeedbackQueue {
+    #[cfg(test)]
     pub(crate) fn new(notifier: Arc<ActionClientMaintenanceNotifier>) -> Self {
+        Self::with_overflow_policy(notifier, FeedbackOverflowPolicy::Backpressure)
+    }
+
+    pub(crate) fn with_overflow_policy(
+        notifier: Arc<ActionClientMaintenanceNotifier>, overflow_policy: FeedbackOverflowPolicy,
+    ) -> Self {
         Self {
             goals: VecDeque::new(),
             queued: HashSet::new(),
             maintenance_notifier: Some(notifier),
-            blocked: 0,
+            blocked_and_policy: if overflow_policy == FeedbackOverflowPolicy::Coalesce {
+                COALESCE_FLAG
+            } else {
+                0
+            },
         }
+    }
+
+    pub(crate) fn overflow_policy(&self) -> FeedbackOverflowPolicy {
+        if self.blocked_and_policy & COALESCE_FLAG != 0 {
+            FeedbackOverflowPolicy::Coalesce
+        } else {
+            FeedbackOverflowPolicy::Backpressure
+        }
+    }
+
+    pub(super) fn blocked_count(&self) -> usize {
+        self.blocked_and_policy & BLOCKED_COUNT_MASK
+    }
+
+    fn register_blocked(&mut self) {
+        assert!(
+            self.blocked_count() < BLOCKED_COUNT_MASK,
+            "feedback registration count overflow"
+        );
+        self.blocked_and_policy += 1;
+    }
+
+    fn unregister_blocked(&mut self) {
+        assert!(self.blocked_count() > 0, "feedback registration count underflow");
+        self.blocked_and_policy -= 1;
     }
 
     // Only runnable identities are queued. Registered sender wakers own
@@ -39,7 +115,7 @@ impl PendingFeedbackQueue {
     }
 
     pub(crate) fn is_empty(&self) -> bool {
-        self.queued.is_empty() && self.blocked == 0
+        self.queued.is_empty() && self.blocked_count() == 0
     }
 }
 
@@ -78,7 +154,7 @@ impl std::task::Wake for FeedbackReady {
         };
         let notifier = {
             let mut queue = queue.lock();
-            queue.blocked -= 1;
+            queue.unregister_blocked();
             if queue.push(self.uuid) {
                 queue.maintenance_notifier.clone()
             } else {
@@ -97,7 +173,7 @@ impl Drop for FeedbackReady {
         // waker. Release that registration without retaining an abandoned UUID.
         if !self.notified.swap(true, Ordering::AcqRel) {
             if let Some(queue) = self.queue.upgrade() {
-                queue.lock().blocked -= 1;
+                queue.lock().unregister_blocked();
             }
         }
     }
@@ -107,6 +183,7 @@ pub(crate) struct FeedbackChannel<T> {
     pub(crate) sender: Option<mpsc::Sender<T>>,
     pub(crate) pending: Option<T>,
     pub(crate) closing: bool,
+    pub(crate) overflow_policy: FeedbackOverflowPolicy,
 }
 
 pub(crate) type FeedbackSender<T> = Arc<Mutex<FeedbackChannel<T>>>;
@@ -117,6 +194,15 @@ impl<T> FeedbackChannel<T> {
             sender: Some(sender),
             pending: None,
             closing: false,
+            overflow_policy: FeedbackOverflowPolicy::Backpressure,
+        }
+    }
+    pub(crate) fn with_overflow_policy(
+        sender: mpsc::Sender<T>, overflow_policy: FeedbackOverflowPolicy,
+    ) -> Self {
+        Self {
+            overflow_policy,
+            ..Self::new(sender)
         }
     }
     pub(crate) fn is_closed(&self) -> bool {
@@ -135,20 +221,46 @@ pub(crate) fn feedback_completion_with_queue<T: Send + 'static>(
     channel: FeedbackSender<T>, feedback: T,
     pending_queue: Option<(uuid::Uuid, Arc<Mutex<PendingFeedbackQueue>>)>,
 ) -> Option<ActionClientCompletion> {
-    let mut locked = channel.lock();
-    let Some(sender) = locked.sender.take() else {
-        let queued = locked.pending.is_none();
-        locked.pending.get_or_insert(feedback);
-        drop(locked);
-        if queued {
-            if let Some((uuid, queue)) = pending_queue {
-                enqueue(&queue, uuid);
+    // Construction runs under the native client lock; all delivery and payload
+    // retirement happen when the completion runs after that lock is released.
+    Some(ActionClientCompletion {
+        notify: Box::new(move || {
+            let mut locked = channel.lock();
+            if locked.closing {
+                drop(locked);
+                drop(feedback);
+                return Ok(true);
             }
-        }
-        return None;
-    };
-    drop(locked);
-    Some(detached_feedback_completion(channel, sender, feedback, pending_queue))
+            if locked.overflow_policy == FeedbackOverflowPolicy::Coalesce
+                && locked.pending.is_some()
+            {
+                let retired = locked.pending.replace(feedback);
+                drop(locked);
+                drop(retired);
+                return Ok(true);
+            }
+            let Some(sender) = locked.sender.take() else {
+                let queued = locked.pending.is_none();
+                let retired = if queued {
+                    locked.pending = Some(feedback);
+                    None
+                } else {
+                    Some(feedback)
+                };
+                drop(locked);
+                drop(retired);
+                if queued {
+                    if let Some((uuid, queue)) = pending_queue {
+                        enqueue(&queue, uuid);
+                    }
+                }
+                return Ok(true);
+            };
+            drop(locked);
+            send_feedback(channel, sender, feedback, pending_queue)
+        }),
+        cleanup_goal_on_failure: None,
+    })
 }
 
 #[cfg(test)]
@@ -186,7 +298,7 @@ pub(crate) fn take_ready_pending_feedback_with_progress<T: Send + 'static>(
             queue.lock().queued.remove(&uuid);
             continue;
         };
-        queue.lock().blocked += 1;
+        queue.lock().register_blocked();
         let waker = Waker::from(Arc::new(FeedbackReady {
             queue: Arc::downgrade(queue),
             uuid,
@@ -212,8 +324,11 @@ pub(crate) fn take_ready_pending_feedback_with_progress<T: Send + 'static>(
         );
     }
     let continuation = continue_ready(queue);
-    let action = if queue.lock().is_empty() {
+    let queue = queue.lock();
+    let action = if queue.is_empty() {
         PendingFeedbackAction::None
+    } else if queue.overflow_policy() == FeedbackOverflowPolicy::Coalesce {
+        PendingFeedbackAction::Continue
     } else {
         PendingFeedbackAction::Backpressured
     };
@@ -232,41 +347,51 @@ fn continue_ready(queue: &Arc<Mutex<PendingFeedbackQueue>>) -> bool {
     more
 }
 
-fn detached_feedback_completion<T: Send + 'static>(
-    channel: FeedbackSender<T>, mut sender: mpsc::Sender<T>, feedback: T,
+pub(super) fn detached_feedback_completion<T: Send + 'static>(
+    channel: FeedbackSender<T>, sender: mpsc::Sender<T>, feedback: T,
     pending_queue: Option<(uuid::Uuid, Arc<Mutex<PendingFeedbackQueue>>)>,
 ) -> ActionClientCompletion {
     ActionClientCompletion {
-        notify: Box::new(move || {
-            let pending = match sender.try_send(feedback) {
-                Ok(()) => None,
-                Err(error) if error.is_full() => Some(error.into_inner()),
-                Err(_) => None,
-            };
-            let mut locked = channel.lock();
-            if locked.closing {
-                drop(locked);
-                drop(sender);
-                drop(pending);
-            } else {
-                locked.sender = Some(sender);
-                // A reentrant arrival while the sender was detached may have
-                // left one payload. A successful send must not erase it.
-                if pending.is_some() {
-                    locked.pending = pending;
-                }
-                let queued = locked.pending.is_some();
-                drop(locked);
-                if queued {
-                    if let Some((uuid, queue)) = pending_queue {
-                        enqueue(&queue, uuid);
-                    }
-                }
-            }
-            Ok(true)
-        }),
+        notify: Box::new(move || send_feedback(channel, sender, feedback, pending_queue)),
         cleanup_goal_on_failure: None,
     }
+}
+
+fn send_feedback<T: Send + 'static>(
+    channel: FeedbackSender<T>, mut sender: mpsc::Sender<T>, feedback: T,
+    pending_queue: Option<(uuid::Uuid, Arc<Mutex<PendingFeedbackQueue>>)>,
+) -> Result<bool> {
+    let pending = match sender.try_send(feedback) {
+        Ok(()) => None,
+        Err(error) if error.is_full() => Some(error.into_inner()),
+        Err(_) => None,
+    };
+    let mut locked = channel.lock();
+    if locked.closing {
+        drop(locked);
+        drop(sender);
+        drop(pending);
+    } else {
+        locked.sender = Some(sender);
+        let retired = pending.and_then(|payload| {
+            if locked.overflow_policy == FeedbackOverflowPolicy::Coalesce
+                && locked.pending.is_some()
+            {
+                Some(payload)
+            } else {
+                locked.pending.replace(payload)
+            }
+        });
+        let queued = locked.pending.is_some();
+        drop(locked);
+        drop(retired);
+        if queued {
+            if let Some((uuid, queue)) = pending_queue {
+                enqueue(&queue, uuid);
+            }
+        }
+    }
+    Ok(true)
 }
 
 pub(crate) fn close_feedback_completion<T: Send + 'static>(
@@ -317,7 +442,7 @@ fn readiness_notifications_unlock_queue_and_coalesce_per_registration() {
         count: AtomicUsize::new(0),
     });
     active.lock().set_wake(Some(Waker::from(count.clone())));
-    queue.lock().blocked = 1;
+    queue.lock().register_blocked();
     let ready = Arc::new(FeedbackReady {
         queue: Arc::downgrade(&queue),
         uuid: uuid::Uuid::nil(),
@@ -327,8 +452,8 @@ fn readiness_notifications_unlock_queue_and_coalesce_per_registration() {
     wake.wake_by_ref();
     wake.wake_by_ref();
     assert_eq!(count.count.load(Ordering::Relaxed), 1);
-    assert_eq!(queue.lock().blocked, 0);
+    assert_eq!(queue.lock().blocked_count(), 0);
     drop(wake);
     drop(ready);
-    assert_eq!(queue.lock().blocked, 0);
+    assert_eq!(queue.lock().blocked_count(), 0);
 }

@@ -46,6 +46,18 @@ impl ActionGoalOptions {
     }
 }
 
+/// Behavior when an accepted goal's feedback stream cannot accept another sample.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum FeedbackOverflowPolicy {
+    /// Retain one pending sample and pause native feedback ingress until capacity recovers.
+    /// A blocked goal can consequently delay feedback for other goals on the same client.
+    #[default]
+    Backpressure,
+    /// Keep already-buffered samples and replace each goal's pending sample with the newest.
+    /// Native ingress continues for other goals. Intermediate pending samples may be omitted.
+    Coalesce,
+}
+
 /// Optional QoS overrides for an action client. Unset fields retain the ROS distribution's
 /// native defaults.
 #[derive(Clone, Debug)]
@@ -57,6 +69,8 @@ pub struct ActionClientOptions {
     pub status_topic_qos: Option<QosProfile>,
     /// Rust-side buffer for each accepted goal's feedback stream.
     pub feedback_channel_capacity: usize,
+    /// Per-goal overflow semantics for Rust feedback delivery; native DDS QoS is independent.
+    pub feedback_overflow_policy: FeedbackOverflowPolicy,
 }
 
 impl Default for ActionClientOptions {
@@ -68,6 +82,7 @@ impl Default for ActionClientOptions {
             feedback_topic_qos: None,
             status_topic_qos: None,
             feedback_channel_capacity: 10,
+            feedback_overflow_policy: FeedbackOverflowPolicy::Backpressure,
         }
     }
 }
@@ -100,6 +115,15 @@ impl ActionClientOptions {
 
     pub fn feedback_channel_capacity(mut self, capacity: usize) -> Self {
         self.feedback_channel_capacity = capacity;
+        self
+    }
+
+    /// Selects how a full goal feedback stream handles newly received samples.
+    ///
+    /// Coalescing retains existing channel contents and at most one latest pending sample per
+    /// goal. It applies to typed and untyped feedback and does not alter native transport QoS.
+    pub fn feedback_overflow_policy(mut self, policy: FeedbackOverflowPolicy) -> Self {
+        self.feedback_overflow_policy = policy;
         self
     }
 

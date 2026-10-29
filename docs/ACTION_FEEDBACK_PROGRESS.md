@@ -34,6 +34,68 @@ retry progress; it does not provide an unlimited lossless queue or independently
 scheduled native feedback subscription for each goal. Middleware feedback
 traffic and larger payload/fanout scaling remain separate evidence.
 
+## Choosing feedback overflow behavior
+
+`ActionClientOptions::feedback_overflow_policy` selects Rust-side buffering
+semantics for every goal on that client. The default `Backpressure` retains a
+pending sample and pauses shared native feedback ingress until channel capacity
+recovers. A slow goal can therefore delay other goals on the same action client.
+The native feedback topic is shared; separate per-goal Rust queues cannot provide
+unlimited independent retention behind that shared finite native queue.
+
+Applications that need current progress can select `FeedbackOverflowPolicy::Coalesce`:
+
+```rust
+let client = node.create_action_client_with_options::<MyAction>(
+    "work",
+    r2r::ActionClientOptions::default()
+        .feedback_channel_capacity(0)
+        .feedback_overflow_policy(r2r::FeedbackOverflowPolicy::Coalesce),
+)?;
+```
+
+Coalescing keeps samples already in the goal's channel in FIFO order and retains
+one latest pending item. A subsequent arrival replaces that pending item while
+native ingress continues for other goals. Intermediate pending items can be
+omitted; untyped JSON-conversion errors follow the same item policy. Native DDS
+QoS and history remain separately configurable. With one futures-mpsc sender,
+the channel holds its configured capacity plus one reserved slot; together with
+the pending item, Rust retains at most `feedback_channel_capacity + 2` items per
+tracked goal. Closing the feedback observer or completing a goal retains the
+existing stream-cleanup behavior, including disposal of unsent pending items.
+
+The selected policy fits in the private blocked-registration count's high bit;
+registration checks its numeric boundary. Channel policy uses existing padding.
+Layout oracles compare queue/channel headers against their former shapes for
+ordinary typed and JSON feedback. Delivery, replacement and payload retirement
+run in completions after releasing the client lock. The sender remains detached
+during `try_send`, and its restoration preserves a newer reentrant item if an
+older attempted send fails. Superseded payloads are destroyed after releasing
+the channel/readiness locks. This introduces no native guard, timer or worker.
+
+The implementation keeps overflow semantics separate from native decoding and
+payload storage. Future native-storage reuse or deferred decoding can replace
+those private paths while preserving the public item/retention contract and
+bounded per-goal state. Coalescing currently decodes each taken native sample;
+allocation and complete transport profiling remain additional work.
+
+The complete `action_feedback_coalesce` application leaves one goal unconsumed,
+publishes thirty-two updates and verifies another goal's feedback first. It then
+checks the queued sample 0, latest pending sample 31, both distinct terminal
+results and explicit executor stop:
+
+```sh
+env -u CYCLONEDDS_URI cargo run -p r2r --example action_feedback_coalesce
+```
+
+Native typed/untyped cases compare both policies with the same thirty-two-sample
+input: Backpressure delivers all samples after capacity recovery; Coalesce
+delivers the queued prefix and newest pending sample while the other goal
+progresses. Background cases stop the node, release capacity while unbound,
+transfer it and require the latest sample without another ROS message. Nearby
+oracles cover thousands of replacements, capacity 0/1/8, detached success/failure,
+payload destructor reentry, weak stale wakes and packed-count boundaries.
+
 Run a complete slow-consumer application:
 
 ```sh
