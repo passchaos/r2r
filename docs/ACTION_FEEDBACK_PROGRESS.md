@@ -79,6 +79,15 @@ those private paths while preserving the public item/retention contract and
 bounded per-goal state. Coalescing currently decodes each taken native sample;
 allocation and complete transport profiling remain additional work.
 
+Native dispatch keeps an optional erased payload slot while client routing
+borrows it. Matching routes consume the slot into the existing delivery
+completion. Unknown goals and rejected payload types return the original Box,
+which dispatch releases after the client guard is gone. Typed and untyped
+clients share this private routing helper; classification copies neither the
+payload nor its allocation. The original owned routing hook remains available,
+and the new borrowed hook supplies a default adapter for custom implementations.
+Built-in clients preserve caller ownership for every rejected/unmapped value.
+
 The complete `action_feedback_coalesce` application leaves one goal unconsumed,
 publishes thirty-two updates and verifies another goal's feedback first. It then
 checks the queued sample 0, latest pending sample 31, both distinct terminal

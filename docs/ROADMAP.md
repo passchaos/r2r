@@ -42,6 +42,11 @@ goal's newest pending item while native ingress continues for other goals.
 checks typed/untyped thirty-two-sample inputs, current executor binding and
 payload retirement outside delivery locks. Default Backpressure semantics and
 the original double-RMW 5% ordinary action gates remain enforced.
+[Caller-owned feedback routing](benchmarks/feedback-routing-2026-10-29/README.md)
+now preserves rejected/unmapped payloads until the client lock is released,
+without a retirement allocation. Native reentry oracles and twenty-million-route
+allocation checks pass. The final same-language A/B gates pass under both RMWs;
+initial failures and mixed-success p99/calibration gaps remain explicitly archived.
 [Server cancellation progress](ACTION_SERVER_CANCELLATION_PROGRESS.md) now uses
 indexed request/goal queues for large cancellation work and follows current
 executor bindings for both large and ordinary cancel streams. The complete

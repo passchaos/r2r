@@ -1,0 +1,225 @@
+baseline/baseline scenario=0 repetition=1/5: p50=652113 ns p99=1332415 ns
+rust/rust scenario=0 repetition=1/5: p50=628662 ns p99=1099404 ns
+cpp/cpp scenario=0 repetition=1/5: p50=598772 ns p99=1146456 ns
+rust/cpp scenario=0 repetition=1/5: p50=647719 ns p99=1070773 ns
+cpp/rust scenario=0 repetition=1/5: p50=628574 ns p99=1243699 ns
+baseline/cpp scenario=0 repetition=1/5: p50=666639 ns p99=1051288 ns
+cpp/baseline scenario=0 repetition=1/5: p50=630230 ns p99=1512056 ns
+cpp/baseline scenario=0 repetition=2/5: p50=685574 ns p99=1930938 ns
+baseline/cpp scenario=0 repetition=2/5: p50=646561 ns p99=1400672 ns
+cpp/rust scenario=0 repetition=2/5: p50=667703 ns p99=3356723 ns
+rust/cpp scenario=0 repetition=2/5: p50=635130 ns p99=1545773 ns
+cpp/cpp scenario=0 repetition=2/5: p50=625341 ns p99=1439820 ns
+rust/rust scenario=0 repetition=2/5: p50=668709 ns p99=2121873 ns
+baseline/baseline scenario=0 repetition=2/5: p50=691403 ns p99=3647847 ns
+baseline/baseline scenario=0 repetition=3/5: p50=629644 ns p99=2721234 ns
+rust/rust scenario=0 repetition=3/5: p50=642037 ns p99=1745526 ns
+cpp/cpp scenario=0 repetition=3/5: p50=599958 ns p99=1011127 ns
+rust/cpp scenario=0 repetition=3/5: p50=707617 ns p99=3446477 ns
+cpp/rust scenario=0 repetition=3/5: p50=643246 ns p99=1514031 ns
+baseline/cpp scenario=0 repetition=3/5: p50=685112 ns p99=1313605 ns
+cpp/baseline scenario=0 repetition=3/5: p50=618596 ns p99=1021749 ns
+cpp/baseline scenario=0 repetition=4/5: p50=623887 ns p99=1024116 ns
+baseline/cpp scenario=0 repetition=4/5: p50=663622 ns p99=1382423 ns
+cpp/rust scenario=0 repetition=4/5: p50=629824 ns p99=1304070 ns
+rust/cpp scenario=0 repetition=4/5: p50=691168 ns p99=1353699 ns
+cpp/cpp scenario=0 repetition=4/5: p50=622910 ns p99=1033933 ns
+rust/rust scenario=0 repetition=4/5: p50=627889 ns p99=1012890 ns
+baseline/baseline scenario=0 repetition=4/5: p50=629441 ns p99=1006368 ns
+baseline/baseline scenario=0 repetition=5/5: p50=620250 ns p99=1132652 ns
+rust/rust scenario=0 repetition=5/5: p50=632791 ns p99=1255452 ns
+cpp/cpp scenario=0 repetition=5/5: p50=600267 ns p99=997856 ns
+rust/cpp scenario=0 repetition=5/5: p50=642337 ns p99=1119067 ns
+cpp/rust scenario=0 repetition=5/5: p50=718061 ns p99=2518753 ns
+baseline/cpp scenario=0 repetition=5/5: p50=648015 ns p99=1221294 ns
+cpp/baseline scenario=0 repetition=5/5: p50=628872 ns p99=1036478 ns
+baseline/baseline scenario=1 repetition=1/5: p50=837219 ns p99=1361641 ns
+rust/rust scenario=1 repetition=1/5: p50=848199 ns p99=2516876 ns
+cpp/cpp scenario=1 repetition=1/5: p50=742699 ns p99=1242013 ns
+rust/cpp scenario=1 repetition=1/5: p50=778133 ns p99=1310177 ns
+cpp/rust scenario=1 repetition=1/5: p50=787504 ns p99=1264954 ns
+baseline/cpp scenario=1 repetition=1/5: p50=784154 ns p99=1371394 ns
+cpp/baseline scenario=1 repetition=1/5: p50=819422 ns p99=1325884 ns
+cpp/baseline scenario=1 repetition=2/5: p50=959705 ns p99=2950218 ns
+baseline/cpp scenario=1 repetition=2/5: p50=776400 ns p99=1507018 ns
+cpp/rust scenario=1 repetition=2/5: p50=931268 ns p99=3842977 ns
+rust/cpp scenario=1 repetition=2/5: p50=807498 ns p99=1660462 ns
+cpp/cpp scenario=1 repetition=2/5: p50=759331 ns p99=1337004 ns
+rust/rust scenario=1 repetition=2/5: p50=843257 ns p99=1529046 ns
+baseline/baseline scenario=1 repetition=2/5: p50=835350 ns p99=1422595 ns
+baseline/baseline scenario=1 repetition=3/5: p50=825488 ns p99=1344841 ns
+rust/rust scenario=1 repetition=3/5: p50=850108 ns p99=2073854 ns
+cpp/cpp scenario=1 repetition=3/5: p50=791863 ns p99=1890623 ns
+rust/cpp scenario=1 repetition=3/5: p50=812257 ns p99=4300755 ns
+cpp/rust scenario=1 repetition=3/5: p50=927688 ns p99=4751954 ns
+baseline/cpp scenario=1 repetition=3/5: p50=810441 ns p99=1630702 ns
+cpp/baseline scenario=1 repetition=3/5: p50=848481 ns p99=3655298 ns
+cpp/baseline scenario=1 repetition=4/5: p50=883987 ns p99=3350776 ns
+baseline/cpp scenario=1 repetition=4/5: p50=815524 ns p99=2447682 ns
+cpp/rust scenario=1 repetition=4/5: p50=835001 ns p99=1560560 ns
+rust/cpp scenario=1 repetition=4/5: p50=827347 ns p99=3688530 ns
+cpp/cpp scenario=1 repetition=4/5: p50=849968 ns p99=1848807 ns
+rust/rust scenario=1 repetition=4/5: p50=934036 ns p99=4746708 ns
+baseline/baseline scenario=1 repetition=4/5: p50=880377 ns p99=2318031 ns
+baseline/baseline scenario=1 repetition=5/5: p50=897311 ns p99=1555003 ns
+rust/rust scenario=1 repetition=5/5: p50=851967 ns p99=3020025 ns
+cpp/cpp scenario=1 repetition=5/5: p50=749461 ns p99=1337019 ns
+rust/cpp scenario=1 repetition=5/5: p50=798284 ns p99=1454537 ns
+cpp/rust scenario=1 repetition=5/5: p50=826998 ns p99=1352823 ns
+baseline/cpp scenario=1 repetition=5/5: p50=802233 ns p99=2120826 ns
+cpp/baseline scenario=1 repetition=5/5: p50=829528 ns p99=1526242 ns
+[
+  {
+    "scenario": 0,
+    "ping_language": "baseline",
+    "echo_language": "baseline",
+    "rtt_ns_p50": 629644,
+    "rtt_ns_p95": 995792,
+    "rtt_ns_p99": 1332415,
+    "roundtrips_per_second": 1551.5411930338926,
+    "acceptance_ns_p50": 220296
+  },
+  {
+    "scenario": 0,
+    "ping_language": "rust",
+    "echo_language": "rust",
+    "rtt_ns_p50": 632791,
+    "rtt_ns_p95": 1006121,
+    "rtt_ns_p99": 1255452,
+    "roundtrips_per_second": 1581.2688408577706,
+    "acceptance_ns_p50": 217020
+  },
+  {
+    "scenario": 0,
+    "ping_language": "cpp",
+    "echo_language": "cpp",
+    "rtt_ns_p50": 600267,
+    "rtt_ns_p95": 958932,
+    "rtt_ns_p99": 1033933,
+    "roundtrips_per_second": 1632.08,
+    "acceptance_ns_p50": 203844
+  },
+  {
+    "scenario": 0,
+    "ping_language": "rust",
+    "echo_language": "cpp",
+    "rtt_ns_p50": 647719,
+    "rtt_ns_p95": 1065811,
+    "rtt_ns_p99": 1353699,
+    "roundtrips_per_second": 1503.6595781116762,
+    "acceptance_ns_p50": 221413
+  },
+  {
+    "scenario": 0,
+    "ping_language": "cpp",
+    "echo_language": "rust",
+    "rtt_ns_p50": 643246,
+    "rtt_ns_p95": 1027140,
+    "rtt_ns_p99": 1514031,
+    "roundtrips_per_second": 1543.23,
+    "acceptance_ns_p50": 209011
+  },
+  {
+    "scenario": 0,
+    "ping_language": "baseline",
+    "echo_language": "cpp",
+    "rtt_ns_p50": 663622,
+    "rtt_ns_p95": 1022704,
+    "rtt_ns_p99": 1313605,
+    "roundtrips_per_second": 1529.509668979678,
+    "acceptance_ns_p50": 224453
+  },
+  {
+    "scenario": 0,
+    "ping_language": "cpp",
+    "echo_language": "baseline",
+    "rtt_ns_p50": 628872,
+    "rtt_ns_p95": 984476,
+    "rtt_ns_p99": 1036478,
+    "roundtrips_per_second": 1603.59,
+    "acceptance_ns_p50": 200609
+  },
+  {
+    "scenario": 1,
+    "ping_language": "baseline",
+    "echo_language": "baseline",
+    "rtt_ns_p50": 837219,
+    "rtt_ns_p95": 1311491,
+    "rtt_ns_p99": 1422595,
+    "roundtrips_per_second": 1210.1864657484762,
+    "acceptance_ns_p50": 214349,
+    "cancellation_ns_p50": 247122
+  },
+  {
+    "scenario": 1,
+    "ping_language": "rust",
+    "echo_language": "rust",
+    "rtt_ns_p50": 850108,
+    "rtt_ns_p95": 1367647,
+    "rtt_ns_p99": 2516876,
+    "roundtrips_per_second": 1149.3780241392947,
+    "acceptance_ns_p50": 212856,
+    "cancellation_ns_p50": 250681
+  },
+  {
+    "scenario": 1,
+    "ping_language": "cpp",
+    "echo_language": "cpp",
+    "rtt_ns_p50": 759331,
+    "rtt_ns_p95": 1241763,
+    "rtt_ns_p99": 1337019,
+    "roundtrips_per_second": 1294.78,
+    "acceptance_ns_p50": 173567,
+    "cancellation_ns_p50": 247787
+  },
+  {
+    "scenario": 1,
+    "ping_language": "rust",
+    "echo_language": "cpp",
+    "rtt_ns_p50": 807498,
+    "rtt_ns_p95": 1297540,
+    "rtt_ns_p99": 1660462,
+    "roundtrips_per_second": 1236.341867125787,
+    "acceptance_ns_p50": 175463,
+    "cancellation_ns_p50": 253023
+  },
+  {
+    "scenario": 1,
+    "ping_language": "cpp",
+    "echo_language": "rust",
+    "rtt_ns_p50": 835001,
+    "rtt_ns_p95": 1306108,
+    "rtt_ns_p99": 1560560,
+    "roundtrips_per_second": 1205.71,
+    "acceptance_ns_p50": 200932,
+    "cancellation_ns_p50": 239520
+  },
+  {
+    "scenario": 1,
+    "ping_language": "baseline",
+    "echo_language": "cpp",
+    "rtt_ns_p50": 802233,
+    "rtt_ns_p95": 1292433,
+    "rtt_ns_p99": 1630702,
+    "roundtrips_per_second": 1235.8380177371746,
+    "acceptance_ns_p50": 176940,
+    "cancellation_ns_p50": 254330
+  },
+  {
+    "scenario": 1,
+    "ping_language": "cpp",
+    "echo_language": "baseline",
+    "rtt_ns_p50": 848481,
+    "rtt_ns_p95": 1472836,
+    "rtt_ns_p99": 2950218,
+    "roundtrips_per_second": 1108.64,
+    "acceptance_ns_p50": 203463,
+    "cancellation_ns_p50": 243147
+  }
+]
+Traceback (most recent call last):
+  File "/home/passchaos/Work/r2r/tools/bench_ros/transport.py", line 328, in <module>
+    main()
+  File "/home/passchaos/Work/r2r/tools/bench_ros/transport.py", line 324, in main
+    raise RuntimeError(f"transport regression gate failed: {regressions}")
+RuntimeError: transport regression gate failed: [{'scenario': 1, 'ratios': {'rtt_ns_p50': 1.015395016118841, 'rtt_ns_p95': 1.0428184409957826, 'rtt_ns_p99': 1.7692147097381896, 'inverse_throughput': 1.0529055196219865}}]

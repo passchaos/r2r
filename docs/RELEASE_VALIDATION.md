@@ -624,3 +624,53 @@ bounded retention. Eager native feedback conversion, allocation/resource
 accounting, larger payloads, fanout and full multi-goal Rust/C++ application
 scaling remain additional requirements toward the original goal.
 
+## Borrowed feedback route ownership (2026-10-29)
+
+Native feedback dispatch borrows a caller-owned erased payload slot from
+typed/untyped client routing. Matching values move into the existing delivery
+completion; unknown goals and rejected types retain their original Box until
+the client guard is released. Two injected native-client tests originally
+destroyed a rejected payload under that guard and failed a destructor reentry
+oracle. Both now require exactly one destruction after unlock. Three adjacent
+cases cover original allocation identity, wrong-type/empty-slot behavior and
+successful delivery. The original owned hook remains available through a
+default borrowed adapter; in-built clients share one private routing helper.
+
+[Saved routing evidence](benchmarks/feedback-routing-2026-10-29/README.md) retains
+the original failure, candidate patch, resource measurements, calibration and
+final comparisons. The initial CycloneDDS cancellation p99/inverse-throughput
+ratios 1.769215/1.052906 failed the unchanged 1.05 gate. Promotion stopped while
+same-baseline cancellation A/A and resource probes were run. Allocation, polling
+and CPU counts were similar; this did not explain the large tail difference.
+Disassembly found an additional non-inlined forwarding call. Inlining removes
+that call, and final independent binaries pass the original same-language
+success/cancellation p50/p95/p99/inverse-throughput gates under both Jazzy RMWs:
+140 records and 140000 raw RTT samples. This does not attribute the initial
+77% tail change to the forwarding call or establish general C++ superiority.
+
+Mixed success p99 controls retain unresolved 6.346% CycloneDDS Rust/C++ and
+11.020% Fast DDS C++/Rust increases relative to corresponding baseline-language
+pairs, outside the preselected same-language gate. Success A/A under both RMWs
+passes same-language calibration; the Fast DDS identical-binary C++/Rust p99
+comparison still differs by 7.479%, outside symmetric 5%. Qualified mixed-tail
+precision remains open. The underlying records and derived control ratios are
+retained rather than treating every passing same-language gate as a full matrix
+performance claim.
+
+An optimized CPU-24 allocation stage repeats twenty million unknown-goal/type
+rejection routes over ten records. Original input Boxes remain unchanged, with
+zero measured allocation/free calls and requested bytes. The native Linux/glibc
+probe's content/alignment/failure/epoch/thread/reset and dynamic-TLS oracles pass.
+The stage excludes native decoding, input allocation and complete ROS transport.
+
+Jazzy workspace and both complete optimized library suites pass 579 cases,
+with five manual measurements ignored. Both RMWs pass 48 feedback cases,
+including legacy-adapter, backpressure/coalescing, transfer and new ownership
+boundaries. Formatting and all-target workspace Clippy pass. Native Humble/Fast
+DDS and Kilted/both RMWs pass the same 48 cases and all-target Clippy. The no-ROS
+container compiles every target and verifies 15 API artifacts/29 methods.
+Delivered code remains byte-identical to final measured source inventories.
+Iron, Lyrical and Rolling have no new local runtime evidence. Eager feedback
+conversion, native buffer reuse, multigoal allocation/scaling and qualified
+Rust/C++ application tails remain requirements toward the full goal.
+

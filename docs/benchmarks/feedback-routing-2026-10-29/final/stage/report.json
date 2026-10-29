@@ -1,0 +1,108 @@
+{
+  "cpu": 24,
+  "boundary": "optimized borrowed erased-feedback route and caller mutex; input boxes allocated before measured window; no ROS transport",
+  "binary_sha256": "c781db59cb19f7a3122ce8c31d5d13fbc50dcbb3551b6007a05bdadf99bf4fbb",
+  "probe_sha256": "7602fb54d07cf65818e4e5da8bab16034cbe181fa2d896e61b7a48bc07fe1592",
+  "records": [
+    {
+      "allocations": 0,
+      "boundary": "borrowed erased feedback routing and uncontended caller mutex; no decoding or ROS transport",
+      "elapsed_ns": 23264900,
+      "frees": 0,
+      "iterations": 2000000,
+      "rejected": false,
+      "requested_bytes": 0,
+      "repetition": 0
+    },
+    {
+      "allocations": 0,
+      "boundary": "borrowed erased feedback routing and uncontended caller mutex; no decoding or ROS transport",
+      "elapsed_ns": 25063124,
+      "frees": 0,
+      "iterations": 2000000,
+      "rejected": true,
+      "requested_bytes": 0,
+      "repetition": 0
+    },
+    {
+      "allocations": 0,
+      "boundary": "borrowed erased feedback routing and uncontended caller mutex; no decoding or ROS transport",
+      "elapsed_ns": 23217374,
+      "frees": 0,
+      "iterations": 2000000,
+      "rejected": false,
+      "requested_bytes": 0,
+      "repetition": 1
+    },
+    {
+      "allocations": 0,
+      "boundary": "borrowed erased feedback routing and uncontended caller mutex; no decoding or ROS transport",
+      "elapsed_ns": 25107905,
+      "frees": 0,
+      "iterations": 2000000,
+      "rejected": true,
+      "requested_bytes": 0,
+      "repetition": 1
+    },
+    {
+      "allocations": 0,
+      "boundary": "borrowed erased feedback routing and uncontended caller mutex; no decoding or ROS transport",
+      "elapsed_ns": 23279260,
+      "frees": 0,
+      "iterations": 2000000,
+      "rejected": false,
+      "requested_bytes": 0,
+      "repetition": 2
+    },
+    {
+      "allocations": 0,
+      "boundary": "borrowed erased feedback routing and uncontended caller mutex; no decoding or ROS transport",
+      "elapsed_ns": 25047333,
+      "frees": 0,
+      "iterations": 2000000,
+      "rejected": true,
+      "requested_bytes": 0,
+      "repetition": 2
+    },
+    {
+      "allocations": 0,
+      "boundary": "borrowed erased feedback routing and uncontended caller mutex; no decoding or ROS transport",
+      "elapsed_ns": 23282583,
+      "frees": 0,
+      "iterations": 2000000,
+      "rejected": false,
+      "requested_bytes": 0,
+      "repetition": 3
+    },
+    {
+      "allocations": 0,
+      "boundary": "borrowed erased feedback routing and uncontended caller mutex; no decoding or ROS transport",
+      "elapsed_ns": 25167540,
+      "frees": 0,
+      "iterations": 2000000,
+      "rejected": true,
+      "requested_bytes": 0,
+      "repetition": 3
+    },
+    {
+      "allocations": 0,
+      "boundary": "borrowed erased feedback routing and uncontended caller mutex; no decoding or ROS transport",
+      "elapsed_ns": 23277298,
+      "frees": 0,
+      "iterations": 2000000,
+      "rejected": false,
+      "requested_bytes": 0,
+      "repetition": 4
+    },
+    {
+      "allocations": 0,
+      "boundary": "borrowed erased feedback routing and uncontended caller mutex; no decoding or ROS transport",
+      "elapsed_ns": 25134702,
+      "frees": 0,
+      "iterations": 2000000,
+      "rejected": true,
+      "requested_bytes": 0,
+      "repetition": 4
+    }
+  ]
+}

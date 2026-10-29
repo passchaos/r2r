@@ -33,6 +33,7 @@ use r2r_rcl::*;
 
 mod cancellation;
 mod feedback;
+pub(crate) mod feedback_routing;
 pub(crate) use feedback::{
     close_feedback_completion, feedback_completion_with_queue,
     take_ready_pending_feedback_with_progress, FeedbackChannel, FeedbackSender,
@@ -40,6 +41,8 @@ pub(crate) use feedback::{
 };
 #[cfg(test)]
 use feedback::{feedback_completion, take_ready_pending_feedback};
+#[cfg(all(test, r2r__example_interfaces__action__Fibonacci))]
+mod feedback_routing_tests;
 #[cfg(test)]
 mod feedback_tests;
 mod status;
@@ -503,7 +506,11 @@ where
     ActionClientCompletion {
         notify: Box::new(move || {
             let (uuid, feedback) = decode(native)?;
-            let completion = { client.lock().route_feedback(&uuid, feedback)? };
+            let mut feedback = Some(feedback);
+            let routed = { client.lock().route_feedback_borrowed(&uuid, &mut feedback) };
+            let completion = routed?;
+            // Unmapped or rejected values stay caller-owned until the client guard is gone.
+            drop(feedback);
             if let Some(completion) = completion {
                 (completion.notify)()
             } else {
@@ -1243,6 +1250,19 @@ pub trait ActionClient_ {
     fn route_feedback(
         &mut self, uuid: &uuid::Uuid, feedback: Box<dyn Any>,
     ) -> Result<Option<ActionClientCompletion>>;
+    /// Routes from a caller-owned payload slot. Native dispatch releases remaining payloads
+    /// after unlocking; built-in clients consume the slot only for scheduled delivery.
+    /// The default adapter preserves custom implementations of the original owned method.
+    fn route_feedback_borrowed(
+        &mut self, uuid: &uuid::Uuid, feedback: &mut Option<Box<dyn Any>>,
+    ) -> Result<Option<ActionClientCompletion>> {
+        self.route_feedback(
+            uuid,
+            feedback
+                .take()
+                .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?,
+        )
+    }
 
     fn handle_goal_response(
         &mut self, client: Arc<Mutex<dyn ActionClient_>>,
@@ -1400,16 +1420,13 @@ where
     fn route_feedback(
         &mut self, uuid: &uuid::Uuid, feedback: Box<dyn Any>,
     ) -> Result<Option<ActionClientCompletion>> {
-        let feedback = feedback
-            .downcast::<T::Feedback>()
-            .map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID)?;
-        Ok(self.feedback_senders.get(uuid).and_then(|channel| {
-            feedback_completion_with_queue(
-                Arc::clone(channel),
-                *feedback,
-                Some((*uuid, Arc::clone(&self.pending_feedback_goals))),
-            )
-        }))
+        let mut feedback = Some(feedback);
+        feedback_routing::route(
+            &self.feedback_senders,
+            &self.pending_feedback_goals,
+            uuid,
+            &mut feedback,
+        )
     }
 
     #[cfg(test)]
@@ -1557,6 +1574,17 @@ where
         &mut self, uuid: &uuid::Uuid, feedback: Box<dyn Any>,
     ) -> Result<Option<ActionClientCompletion>> {
         WrappedActionClient::route_feedback(self, uuid, feedback)
+    }
+
+    fn route_feedback_borrowed(
+        &mut self, uuid: &uuid::Uuid, feedback: &mut Option<Box<dyn Any>>,
+    ) -> Result<Option<ActionClientCompletion>> {
+        feedback_routing::route(
+            &self.feedback_senders,
+            &self.pending_feedback_goals,
+            uuid,
+            feedback,
+        )
     }
 
     fn handle_goal_response(

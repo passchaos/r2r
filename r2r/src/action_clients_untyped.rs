@@ -735,16 +735,13 @@ impl WrappedActionClientUntyped {
     fn route_feedback(
         &mut self, uuid: &uuid::Uuid, feedback: Box<dyn Any>,
     ) -> Result<Option<ActionClientCompletion>> {
-        let feedback = feedback
-            .downcast::<Result<serde_json::Value>>()
-            .map_err(|_| Error::RCL_RET_ACTION_CLIENT_INVALID)?;
-        Ok(self.feedback_senders.get(uuid).and_then(|channel| {
-            feedback_completion_with_queue(
-                Arc::clone(channel),
-                *feedback,
-                Some((*uuid, Arc::clone(&self.pending_feedback_goals))),
-            )
-        }))
+        let mut feedback = Some(feedback);
+        super::action_clients::feedback_routing::route(
+            &self.feedback_senders,
+            &self.pending_feedback_goals,
+            uuid,
+            &mut feedback,
+        )
     }
 
     fn prune_canceled_requests_with_progress(&mut self) -> (Vec<ActionClientCompletion>, bool) {
@@ -881,6 +878,17 @@ impl ActionClient_ for WrappedActionClientUntyped {
         &mut self, uuid: &uuid::Uuid, feedback: Box<dyn Any>,
     ) -> Result<Option<ActionClientCompletion>> {
         WrappedActionClientUntyped::route_feedback(self, uuid, feedback)
+    }
+
+    fn route_feedback_borrowed(
+        &mut self, uuid: &uuid::Uuid, feedback: &mut Option<Box<dyn Any>>,
+    ) -> Result<Option<ActionClientCompletion>> {
+        super::action_clients::feedback_routing::route(
+            &self.feedback_senders,
+            &self.pending_feedback_goals,
+            uuid,
+            feedback,
+        )
     }
 
     fn handle_goal_response(
