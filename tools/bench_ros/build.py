@@ -10,9 +10,9 @@ import shutil
 import subprocess
 import tempfile
 
-BENCHMARKS = {"codec": "ros_comparison", "codec_strings": "string_sequences", "transport": "pubsub_roundtrip", "native_views": "pubsub_view_roundtrip", "executor": "multi_node_service", "service": "service_roundtrip", "action": "action_roundtrip", "future": "future_execution"}
-CPP_BINARIES = {"codec": "rclcpp_comparison", "codec_strings": "rclcpp_string_sequences", "transport": "rclcpp_roundtrip", "native_views": "rclcpp_roundtrip", "executor": "rclcpp_multi_node_service", "service": "rclcpp_service", "action": "rclcpp_action_roundtrip"}
-CPP_SOURCES = {"codec": "comparison.cpp", "codec_strings": "string_sequences.cpp", "transport": "roundtrip.cpp", "native_views": "roundtrip.cpp", "executor": "multi_node_service.cpp", "service": "service.cpp", "action": "action.cpp"}
+BENCHMARKS = {"codec": "ros_comparison", "codec_strings": "string_sequences", "transport": "pubsub_roundtrip", "native_views": "pubsub_view_roundtrip", "executor": "multi_node_service", "service": "service_roundtrip", "action": "action_roundtrip", "action_feedback": "action_feedback_roundtrip", "future": "future_execution"}
+CPP_BINARIES = {"codec": "rclcpp_comparison", "codec_strings": "rclcpp_string_sequences", "transport": "rclcpp_roundtrip", "native_views": "rclcpp_roundtrip", "executor": "rclcpp_multi_node_service", "service": "rclcpp_service", "action": "rclcpp_action_roundtrip", "action_feedback": "rclcpp_action_feedback_roundtrip"}
+CPP_SOURCES = {"codec": "comparison.cpp", "codec_strings": "string_sequences.cpp", "transport": "roundtrip.cpp", "native_views": "roundtrip.cpp", "executor": "multi_node_service.cpp", "service": "service.cpp", "action": "action.cpp", "action_feedback": "action_feedback.cpp"}
 
 
 def command(arguments, cwd, env):
@@ -58,7 +58,7 @@ def rust_binary(source, target, destination, env, workload="codec"):
     artifacts = [json.loads(line) for line in output.splitlines() if line.startswith("{")]
     executable = next(item["executable"] for item in artifacts if item.get("reason") == "compiler-artifact" and item.get("target", {}).get("name") == benchmark and item.get("executable"))
     shutil.copy2(executable, destination)
-    sources = [source / f"r2r/benches/{benchmark}.rs", source / "r2r/src/msg_types.rs", source / "r2r/src/nodes.rs", source / "r2r/src/subscribers.rs", source / "r2r/src/publishers.rs", source / "r2r/src/clients.rs", source / "r2r/src/services.rs", source / "r2r_rcl/src/lib.rs", source / "r2r_msg_gen/src/lib.rs", source / "Cargo.lock"]
+    sources = [source / f"r2r/benches/{benchmark}.rs", source / "r2r/Cargo.toml", source / "r2r/src/msg_types.rs", source / "r2r/src/nodes.rs", source / "r2r/src/subscribers.rs", source / "r2r/src/publishers.rs", source / "r2r/src/clients.rs", source / "r2r/src/services.rs", source / "r2r_rcl/src/lib.rs", source / "r2r_msg_gen/src/lib.rs", source / "Cargo.lock"]
     sources.extend(source / f"r2r/src/{name}.rs" for name in ["lib", "error", "availability"])
     if (source / "r2r/src/native_metadata.rs").exists():
         sources.append(source / "r2r/src/native_metadata.rs")
@@ -85,8 +85,7 @@ def rust_binary(source, target, destination, env, workload="codec"):
     if workload == "executor":
         sources.append(source / "r2r/src/context.rs")
         sources.extend(sorted((source / "r2r/src/nodes").rglob("*.rs")))
-        sources.append(source / "r2r/Cargo.toml")
-    if workload == "action":
+    if workload in {"action", "action_feedback"}:
         sources.extend(source / f"r2r/src/{name}.rs" for name in ["action_common", "action_clients", "action_clients_untyped", "action_servers"])
         sources.extend(sorted((source / "r2r/src/action_clients").rglob("*.rs")))
         sources.extend(sorted((source / "r2r/src/action_servers").rglob("*.rs")))
@@ -140,7 +139,7 @@ def main():
                 (source / "r2r/benches/support").mkdir(parents=True, exist_ok=True)
                 shutil.copy2(root / "r2r/benches/support/codec.rs", source / "r2r/benches/support/codec.rs")
                 shutil.copy2(root / "r2r/benches/support/allocation_probe.rs", source / "r2r/benches/support/allocation_probe.rs")
-            if args.workload == "action":
+            if args.workload in {"action", "action_feedback"}:
                 shutil.copytree(root / "r2r/benches/support", source / "r2r/benches/support", dirs_exist_ok=True)
             shutil.copy2(root / "Cargo.lock", source / "Cargo.lock")
             manifest = source / "r2r/Cargo.toml"
@@ -162,14 +161,14 @@ def main():
         print(f"Future execution binaries and source manifest: {output}")
         return
     ros_prefix = f"/opt/ros/{env['ROS_DISTRO']}"
-    command(["cmake", "-S", str(root / "tools/bench_ros"), "-B", str(output / "cpp"), "-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_PREFIX_PATH={ros_prefix}", "-DPython3_EXECUTABLE=/usr/bin/python3", f"-DR2R_BUILD_SERVICE_BENCH={'ON' if args.workload == 'service' else 'OFF'}", f"-DR2R_BUILD_ACTION_BENCH={'ON' if args.workload == 'action' else 'OFF'}", f"-DR2R_BUILD_EXECUTOR_BENCH={'ON' if args.workload == 'executor' else 'OFF'}", f"-DR2R_BUILD_STRING_BENCH={'ON' if args.workload == 'codec_strings' else 'OFF'}", f"-DR2R_BUILD_ALLOCATION_PROBE={'ON' if args.with_probe else 'OFF'}"], root, env)
+    command(["cmake", "-S", str(root / "tools/bench_ros"), "-B", str(output / "cpp"), "-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_PREFIX_PATH={ros_prefix}", "-DPython3_EXECUTABLE=/usr/bin/python3", f"-DR2R_BUILD_SERVICE_BENCH={'ON' if args.workload == 'service' else 'OFF'}", f"-DR2R_BUILD_ACTION_BENCH={'ON' if args.workload == 'action' else 'OFF'}", f"-DR2R_BUILD_ACTION_FEEDBACK_BENCH={'ON' if args.workload == 'action_feedback' else 'OFF'}", f"-DR2R_BUILD_EXECUTOR_BENCH={'ON' if args.workload == 'executor' else 'OFF'}", f"-DR2R_BUILD_STRING_BENCH={'ON' if args.workload == 'codec_strings' else 'OFF'}", f"-DR2R_BUILD_ALLOCATION_PROBE={'ON' if args.with_probe else 'OFF'}"], root, env)
     cpp_binary = CPP_BINARIES[args.workload]
     command(["cmake", "--build", str(output / "cpp"), "--target", cpp_binary, "-j", "4"], root, env)
     shutil.copy2(output / f"cpp/{cpp_binary}", output / "rclcpp-comparison")
     manifests["cpp_source_sha256"] = {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in [root / "tools/bench_ros/CMakeLists.txt", root / "tools/bench_ros" / CPP_SOURCES[args.workload]]}
     if args.workload in {"codec", "codec_strings"}:
         manifests["cpp_source_sha256"].update({str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted((root / "tools/bench_ros/codec_support").glob("*.hpp"))})
-    if args.workload == "action":
+    if args.workload in {"action", "action_feedback"}:
         manifests["cpp_source_sha256"].update({str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted((root / "tools/bench_ros/action_support").rglob("*.hpp"))})
         native_header = root / "tools/bench_ros/probe/probe.h"
         manifests["cpp_source_sha256"][str(native_header.relative_to(root))] = hashlib.sha256(native_header.read_bytes()).hexdigest()

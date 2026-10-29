@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+"""Verify archived concurrent action-feedback matrices and raw samples offline."""
+import argparse
+import gzip
+import hashlib
+import json
+from pathlib import Path
+import statistics
+
+from action_feedback import matrix_pairs, regression_failures, validate_endpoint
+
+
+def verify(path, require_performance_pass=False):
+    report = json.loads(path.read_text())
+    metadata = report["metadata"]
+    if metadata.get("workload") != "action_feedback":
+        raise RuntimeError("unknown action feedback workload")
+    sizes, windows = metadata.get("payload_sizes"), metadata.get("goal_windows")
+    feedback_per_goal = metadata.get("feedback_per_goal")
+    if (not isinstance(sizes, list) or not sizes or len(set(sizes)) != len(sizes)
+            or any(type(value) is not int or not 0 <= value <= 1_000_000 for value in sizes)
+            or not isinstance(windows, list) or not windows or len(set(windows)) != len(windows)
+            or any(type(value) is not int or not 1 <= value <= 64 for value in windows)
+            or type(feedback_per_goal) is not int or not 1 <= feedback_per_goal <= 256
+            or max(windows) * feedback_per_goal > 4096):
+        raise RuntimeError("invalid action feedback metadata dimensions")
+    instrumentation = metadata.get("instrumentation")
+    if (not isinstance(instrumentation, dict)
+            or type(instrumentation.get("enabled")) is not bool
+            or instrumentation.get("latency_evidence") is not (not instrumentation["enabled"])):
+        raise RuntimeError("invalid action feedback instrumentation metadata")
+    artifact = metadata["samples_artifact"]
+    compressed = (path.parent / artifact["file"]).read_bytes()
+    if hashlib.sha256(compressed).hexdigest() != artifact["sha256"]:
+        raise RuntimeError("action feedback sample artifact digest mismatch")
+    traces = json.loads(gzip.decompress(compressed))
+    records = report["records"]
+    if len(traces) != len(records) or artifact.get("record_count") != len(records):
+        raise RuntimeError("action feedback record/sample count mismatch")
+    keys = set()
+    for trace in traces:
+        index = trace.get("record")
+        if type(index) is not int or not 0 <= index < len(records):
+            raise RuntimeError("invalid action feedback trace reference")
+        record = records[index]
+        key = (record["elements"], record["goal_window"], record["ping_language"],
+               record["echo_language"], record["repetition"])
+        if key in keys:
+            raise RuntimeError("duplicate action feedback record")
+        keys.add(key)
+        for role in ["ping", "echo"]:
+            endpoint = dict(record[role])
+            if role == "ping":
+                endpoint["samples_ns"] = trace["samples_ns"]
+                endpoint["feedback_samples_ns"] = trace["feedback_samples_ns"]
+            language = record[f"{role}_language"]
+            if language not in {"rust", "cpp", "baseline"}:
+                raise RuntimeError("unknown action feedback endpoint language")
+            validate_endpoint(
+                endpoint, role, metadata["rmw"], record["elements"], record["goal_window"],
+                feedback_per_goal, metadata["iterations"], metadata["warmup"],
+                "rclcpp" if language == "cpp" else "r2r", instrumentation["enabled"])
+    pairs = matrix_pairs(
+        "baseline" in metadata.get("binary_sha256", {}), metadata.get("matrix_scope", "full")
+    )
+    expected = {(elements, window, ping, echo, repetition)
+                for elements in sizes for window in windows for ping, echo in pairs
+                for repetition in range(metadata["repetitions"])}
+    if keys != expected:
+        raise RuntimeError("incomplete action feedback language/dimension matrix")
+    fields = ["rtt_ns_p50", "rtt_ns_p95", "rtt_ns_p99", "feedback_ns_p50",
+              "feedback_ns_p95", "feedback_ns_p99", "roundtrips_per_second",
+              "feedback_messages_per_second"]
+    expected_rows = set()
+    for row in report["summary"]:
+        identity = (row["elements"], row["goal_window"], row["ping_language"], row["echo_language"])
+        if identity in expected_rows:
+            raise RuntimeError("duplicate action feedback summary row")
+        expected_rows.add(identity)
+        group = [record["ping"] for record in records
+                 if (record["elements"], record["goal_window"], record["ping_language"], record["echo_language"]) == identity]
+        if len(group) != metadata["repetitions"]:
+            raise RuntimeError("missing action feedback repetition")
+        for field in fields:
+            if row.get(field) != statistics.median(record[field] for record in group):
+                raise RuntimeError("action feedback summary median mismatch")
+    actual_rows = {(elements, window, ping, echo)
+                   for elements in sizes for window in windows for ping, echo in pairs}
+    if expected_rows != actual_rows:
+        raise RuntimeError("missing action feedback summary row")
+    if "regression_gate" in metadata:
+        if instrumentation["enabled"]:
+            raise RuntimeError("instrumented action feedback timing cannot pass a regression gate")
+        gate = metadata["regression_gate"]
+        failures = regression_failures(report["summary"], sizes, windows, gate["maximum_ratio"])
+        if gate.get("passed") != (not failures) or gate.get("failures") != failures:
+            raise RuntimeError("recorded action feedback gate does not match measurements")
+    if require_performance_pass and ("regression_gate" not in metadata or not metadata["regression_gate"]["passed"]):
+        raise RuntimeError("a recorded passing action feedback regression gate is required")
+    print(f"{path}: {len(records)} records and {sum(len(trace['samples_ns']) for trace in traces)} batch samples verified")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("report", type=Path, nargs="+")
+    parser.add_argument("--require-performance-pass", action="store_true")
+    args = parser.parse_args()
+    for path in args.report:
+        verify(path, args.require_performance_pass)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,20 @@
+{
+  "workload": "action_feedback",
+  "role": "Rust client against rclcpp server",
+  "rmw": "rmw_cyclonedds_cpp",
+  "elements": 4096,
+  "goal_window": 8,
+  "feedback_per_goal": 4,
+  "iterations": 1000,
+  "warmup": 50,
+  "cpu_client": 24,
+  "cpu_server": 25,
+  "domain_id": 154,
+  "event": "cycles:u",
+  "frequency_hz": 999,
+  "lost_samples": 0,
+  "rust_binary_sha256": "90d9db85132294f4fcfc5ec2c2e05be10269d1c18c63b4d03b576bbb1ca1ba17",
+  "cpp_binary_sha256": "76b3f54b17454b59b0298079942fd80e6904041922937518a4a599797253767f",
+  "perf_data": "rust-client.perf.data.gz",
+  "report": "rust-client-report.txt.gz"
+}

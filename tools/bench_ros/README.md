@@ -11,7 +11,9 @@ includes both cross-language directions, individual RTT percentiles and raw samp
 The [service harness](SERVICE.md) measures native `AddTwoInts` roundtrips with both single-request
 and bounded-concurrency windows using the same archive/verification infrastructure.
 The [action harness](ACTION.md) validates deferred acceptance, observed feedback, successful and
-canceled terminal results, and records complete lifecycle and protocol-stage samples.
+canceled terminal results, and records complete lifecycle and protocol-stage samples. The
+[concurrent action-feedback harness](ACTION_FEEDBACK.md) adds large payloads, multiple active
+goals, round-robin feedback windows and an independent offline verifier.
 
 The stages are:
 

@@ -836,3 +836,26 @@ retained. Iron, Lyrical and Rolling have no new local runtime evidence. Borrowed
 delivered payloads, dynamic RMW storage reuse and full burst/fanout scaling
 remain open.
 
+## Concurrent large-payload action feedback harness (2026-10-29)
+
+The new independent-process action-feedback workload keeps eight goals active, publishes
+four round-robin 4096-element feedback messages per goal, validates every payload element,
+acknowledges complete feedback consumption and checks every terminal result. Rust/Rust,
+C++/C++, Rust/C++ and C++/Rust smoke matrices pass under both Jazzy RMWs. Its offline
+verifier recomputes endpoint counts/checksums, lifecycle and feedback-stage percentiles,
+rates, matrix completeness, compressed-sample identity and recorded regression gates.
+
+Three-repetition, 1000-batch evidence shows current `0a5f829` r2r ahead of same-run rclcpp
+under CycloneDDS: feedback p50/p95/p99 are 1.1–3.5% lower, complete lifecycle percentiles
+are 1.2–3.6% lower and feedback-message rate is 3.7% higher. Instrumented 4096×8×4 runs
+also record fewer Rust client/server allocations and requested bytes than rclcpp. These are
+workload-specific leadership and resource results, not a universal claim.
+
+Fast DDS is an explicit failing boundary. Current r2r feedback p50 is lower, but periodic
+Rust-server/status-reader stalls raise p99 to 2.17 seconds versus rclcpp's 15.2 ms and reduce
+throughput by 66%. Cross-language rows and raw sample positions reproduce the issue. A keyed
+status-interest candidate, a sixteen-snapshot drain and a two-snapshot drain all fail the
+preselected 1.05 p50/p95/p99/inverse-throughput gate; production is unchanged. The rejected
+reports and profile are retained under
+[action feedback scaling evidence](benchmarks/action-feedback-scaling-2026-10-29/README.md).
+
