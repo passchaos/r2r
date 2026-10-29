@@ -1,6 +1,7 @@
 //! Native rcl wait set lifecycle and per-kind entity capacities.
 
 use super::*;
+mod event_layout;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(in crate::nodes) struct WaitSetCapacities {
@@ -9,6 +10,7 @@ pub(in crate::nodes) struct WaitSetCapacities {
     pub(in crate::nodes) timers: usize,
     pub(in crate::nodes) clients: usize,
     pub(in crate::nodes) services: usize,
+    pub(in crate::nodes) events: usize,
 }
 
 impl WaitSetCapacities {
@@ -18,6 +20,7 @@ impl WaitSetCapacities {
         self.timers += other.timers;
         self.clients += other.clients;
         self.services += other.services;
+        self.events += other.events;
     }
 
     pub(in crate::nodes) fn subtract(&mut self, other: Self) {
@@ -26,6 +29,7 @@ impl WaitSetCapacities {
         self.timers -= other.timers;
         self.clients -= other.clients;
         self.services -= other.services;
+        self.events -= other.events;
     }
 }
 
@@ -62,6 +66,9 @@ pub(in crate::nodes) fn action_server_wait_set_capacities(
 pub(in crate::nodes) struct WaitSet {
     pub(in crate::nodes) handle: rcl_wait_set_t,
     pub(in crate::nodes) capacities: Option<WaitSetCapacities>,
+    event_layout: Option<Box<event_layout::EventLayout>>,
+    #[cfg(test)]
+    pub(in crate::nodes) event_layout_rebuilds: usize,
 }
 
 impl WaitSet {
@@ -69,6 +76,9 @@ impl WaitSet {
         Self {
             handle: unsafe { rcl_get_zero_initialized_wait_set() },
             capacities: None,
+            event_layout: None,
+            #[cfg(test)]
+            event_layout_rebuilds: 0,
         }
     }
 
@@ -91,7 +101,7 @@ impl WaitSet {
                     capacities.timers,
                     capacities.clients,
                     capacities.services,
-                    0,
+                    capacities.events,
                     context,
                     rcutils_get_default_allocator(),
                 )
@@ -104,7 +114,7 @@ impl WaitSet {
                     capacities.timers,
                     capacities.clients,
                     capacities.services,
-                    0,
+                    capacities.events,
                 )
             },
             Some(_) => unsafe { rcl_wait_set_clear(&mut self.handle) },

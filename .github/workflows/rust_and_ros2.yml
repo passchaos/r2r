@@ -58,6 +58,25 @@ jobs:
       run: docker run r2r_test cargo test --workspace -- --test-threads=1
     - name: Check service-event oracle rejection cases
       run: docker run r2r_test python3 -m unittest discover -s tools/ros_oracles -p test_service_events.py
+    - name: Check QoS-event oracle rejection cases
+      run: docker run r2r_test python3 -m unittest discover -s tools/ros_oracles -p test_qos_events.py
+    - name: Verify native QoS event streams against C++ endpoints
+      run: |
+        mkdir -p qos-results
+        docker run --rm -v "$PWD/qos-results:/results" r2r_test bash -c '
+          set -e
+          python3 tools/ros_oracles/qos_events.py build --output-dir target/qos-events
+          python3 tools/ros_oracles/qos_events.py run --binaries target/qos-events \
+            --rmw rmw_cyclonedds_cpp --domain-id 146 --output /results/cyclonedds.json
+          python3 tools/ros_oracles/qos_events.py run --binaries target/qos-events \
+            --rmw rmw_fastrtps_cpp --domain-id 148 --output /results/fastdds.json
+        '
+    - name: Save native QoS diagnostic evidence
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: qos-events-${{ matrix.ros_distro }}
+        path: qos-results/
     - name: Verify external Rust and C++ service introspection
       if: matrix.ros_distro != 'humble'
       run: |

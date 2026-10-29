@@ -131,6 +131,7 @@ impl Node {
                 parameter_validation_callbacks: Arc::new(Mutex::new(Default::default())),
                 parameter_post_set_callbacks: Arc::new(Mutex::new(Default::default())),
                 parameter_event_sink: None,
+                qos_events: None,
                 parameter_handler_started: false,
                 node_handle,
                 subscribers: Vec::new(),

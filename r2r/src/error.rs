@@ -18,6 +18,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// not have an analogue in the rcl.
 #[derive(Error, Clone, Debug)]
 pub enum Error {
+    #[error("this endpoint event already has an observer; drop its stream and spin cleanup before taking or observing it again")]
+    QosEventAlreadyObserved,
     #[error("RCL_RET_OK")]
     RCL_RET_OK,
     #[error("RCL_RET_ERROR")]

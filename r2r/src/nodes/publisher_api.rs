@@ -29,6 +29,9 @@ impl Node {
             self.publisher_indexes
                 .insert(Self::publisher_identity(moved), index);
         }
+        if let Some(events) = &mut self.qos_events {
+            events.remove_endpoint(qos_events::EventEndpoint::Publisher(identity));
+        }
         removed.destroy(self.node_handle.as_mut());
         true
     }
@@ -51,6 +54,9 @@ impl Node {
         self.active_wait_publishers
             .lock()
             .retain(|queued| *queued != identity);
+        if let Some(events) = &mut self.qos_events {
+            events.remove_endpoint(qos_events::EventEndpoint::Publisher(identity));
+        }
         removed.destroy(self.node_handle.as_mut());
         true
     }

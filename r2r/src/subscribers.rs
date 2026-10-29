@@ -562,14 +562,18 @@ impl SubscriptionMatchState {
     }
 }
 
-struct SubscriptionEvent {
+pub(crate) struct SubscriptionEvent {
     handle: rcl_event_t,
     event_type: rcl_subscription_event_type_t,
     initialized: bool,
 }
 
 impl SubscriptionEvent {
-    fn uninitialized(event_type: rcl_subscription_event_type_t) -> Self {
+    pub(crate) fn handle(&self) -> &rcl_event_t {
+        &self.handle
+    }
+
+    pub(crate) fn uninitialized(event_type: rcl_subscription_event_type_t) -> Self {
         Self {
             handle: unsafe { rcl_get_zero_initialized_event() },
             event_type,
@@ -577,7 +581,9 @@ impl SubscriptionEvent {
         }
     }
 
-    fn ensure_initialized(&mut self, subscription: *const rcl_subscription_t) -> Result<()> {
+    pub(crate) fn ensure_initialized(
+        &mut self, subscription: *const rcl_subscription_t,
+    ) -> Result<()> {
         if self.initialized {
             return Ok(());
         }
@@ -588,7 +594,9 @@ impl SubscriptionEvent {
         Ok(())
     }
 
-    fn take_requested_incompatible_qos(&self) -> Result<Option<RequestedIncompatibleQosStatus>> {
+    pub(crate) fn take_requested_incompatible_qos(
+        &self,
+    ) -> Result<Option<RequestedIncompatibleQosStatus>> {
         let mut status = MaybeUninit::<rmw_requested_qos_incompatible_event_status_t>::uninit();
         let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
         if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
@@ -606,7 +614,9 @@ impl SubscriptionEvent {
         }))
     }
 
-    fn take_requested_deadline_missed(&self) -> Result<Option<RequestedDeadlineMissedStatus>> {
+    pub(crate) fn take_requested_deadline_missed(
+        &self,
+    ) -> Result<Option<RequestedDeadlineMissedStatus>> {
         let mut status = MaybeUninit::<rmw_requested_deadline_missed_status_t>::uninit();
         let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
         if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
@@ -623,7 +633,7 @@ impl SubscriptionEvent {
         }))
     }
 
-    fn take_liveliness_changed(&self) -> Result<Option<LivelinessChangedStatus>> {
+    pub(crate) fn take_liveliness_changed(&self) -> Result<Option<LivelinessChangedStatus>> {
         let mut status = MaybeUninit::<rmw_liveliness_changed_status_t>::uninit();
         let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
         if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
@@ -642,7 +652,7 @@ impl SubscriptionEvent {
         }))
     }
 
-    fn take_message_lost(&self) -> Result<Option<MessageLostStatus>> {
+    pub(crate) fn take_message_lost(&self) -> Result<Option<MessageLostStatus>> {
         let mut status = MaybeUninit::<rmw_message_lost_status_t>::uninit();
         let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
         if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
@@ -660,7 +670,7 @@ impl SubscriptionEvent {
     }
 
     #[cfg(not(r2r__ros__distro__humble))]
-    fn take_matched(&self) -> Result<Option<MatchedStatus>> {
+    pub(crate) fn take_matched(&self) -> Result<Option<MatchedStatus>> {
         let mut status = MaybeUninit::<rmw_matched_status_t>::uninit();
         let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
         if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
@@ -680,7 +690,7 @@ impl SubscriptionEvent {
     }
 
     #[cfg(not(r2r__ros__distro__humble))]
-    fn take_incompatible_type(&self) -> Result<Option<IncompatibleTypeStatus>> {
+    pub(crate) fn take_incompatible_type(&self) -> Result<Option<IncompatibleTypeStatus>> {
         let mut status = MaybeUninit::<rmw_incompatible_type_status_t>::uninit();
         let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
         if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {

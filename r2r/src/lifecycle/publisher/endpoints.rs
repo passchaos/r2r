@@ -13,6 +13,12 @@ use crate::{
 };
 
 impl<T: WrappedTypesupport> LifecyclePublisher<T> {
+    /// Observe native endpoint status independently of lifecycle publication activation.
+    pub fn qos_events(
+        &self, node: &mut Node, kind: crate::PublisherEventKind,
+    ) -> Result<crate::QosEventStream> {
+        self.publisher.qos_events(node, kind)
+    }
     /// Immediately destroy this publisher's endpoint in its owning node.
     ///
     /// Other clones become stale. Passing another node consumes this clone

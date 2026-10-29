@@ -14,6 +14,10 @@ impl WaitEntities<'_> {
             }
         }
 
+        if let Some(events) = self.qos_events.as_ref() {
+            events.dispatch(ws, offsets.events)?;
+        }
+
         let mut subs_to_remove = HashSet::new();
         let mut subscriber_error = None;
         if !ws.subscriptions.is_null() {
@@ -41,6 +45,11 @@ impl WaitEntities<'_> {
             let node_handle = &mut *self.node_handle;
             self.subscribers.retain_mut(|subscriber| {
                 if subs_to_remove.contains(&(subscriber.handle() as *const rcl_subscription_t)) {
+                    if let (Some(events), Some(state)) =
+                        (self.qos_events.as_mut(), subscriber.match_state())
+                    {
+                        events.remove_endpoint(qos_events::EventEndpoint::Subscription(state.id));
+                    }
                     subscriber.destroy(node_handle);
                     false
                 } else {

@@ -263,6 +263,9 @@ impl FutureDriver for Node {
         self.future_wake_guard.clone()
     }
     fn cache_future_guard(&mut self, guard: Arc<FutureGuard>) {
+        if let Some(events) = &self.qos_events {
+            events.set_wake(Some(guard.observer_waker()));
+        }
         self.future_wake_guard = Some(guard);
     }
     fn set_future_wake(&mut self, wake: Arc<FutureWake>) {

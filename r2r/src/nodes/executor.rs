@@ -169,6 +169,9 @@ impl Executor {
         };
         let mut wait = timeout;
         for entry in &mut self.nodes {
+            if let Some(events) = &entry.node.qos_events {
+                events.set_wake(Some(guard.observer_waker()));
+            }
             let preparation = entry.node.prepare_spin(timeout)?;
             add_capacities(&mut capacities, preparation.capacities)?;
             wait = wait.min(preparation.timeout);
@@ -197,6 +200,7 @@ impl Executor {
             entities.add_actions(&mut self.wait_set.handle)?;
         }
         let timeout_nanos = duration_to_rcl_nanos(wait)?;
+        self.wait_set.refresh_event_layout(&self.context)?;
         self.check_cancellation()?;
         #[cfg(test)]
         guard.before_wait(timeout_nanos);
@@ -318,6 +322,7 @@ fn add_capacities(target: &mut WaitSetCapacities, other: WaitSetCapacities) -> R
         (&mut target.timers, other.timers),
         (&mut target.clients, other.clients),
         (&mut target.services, other.services),
+        (&mut target.events, other.events),
     ] {
         *target = target
             .checked_add(other)

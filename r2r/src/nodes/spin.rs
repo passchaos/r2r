@@ -17,10 +17,12 @@ pub(super) struct EntityOffsets {
     clients: usize,
     services: usize,
     graph_guard: Option<usize>,
+    events: usize,
 }
 
 pub(super) struct WaitEntities<'a> {
     context: &'a Context,
+    qos_events: &'a mut Option<Box<qos_events::QosEvents>>,
     node_handle: &'a mut rcl_node_t,
     subscribers: &'a mut Vec<Box<dyn Subscriber_>>,
     subscription_indexes: &'a mut HashMap<uuid::Uuid, usize>,
@@ -42,6 +44,7 @@ impl Node {
             &mut self.wait_set,
             WaitEntities {
                 context: &self.context,
+                qos_events: &mut self.qos_events,
                 node_handle: &mut self.node_handle,
                 subscribers: &mut self.subscribers,
                 subscription_indexes: &mut self.subscription_indexes,
@@ -116,6 +119,9 @@ impl WaitEntities<'_> {
             Some(index)
         };
 
+        if let Some(events) = self.qos_events.as_ref() {
+            offsets.events = events.add_to_wait_set(ws)?;
+        }
         offsets.graph_guard = graph_guard_index;
         Ok(offsets)
     }
@@ -141,6 +147,7 @@ impl WaitEntities<'_> {
 }
 
 pub(super) fn spin_once(node: &mut Node, timeout: Duration) -> Result<()> {
+    let _event_wait = node.activate_qos_event_guard()?;
     let preparation = node.prepare_spin(timeout)?;
     let (wait_set, mut entities) = node.wait_entities();
     if preparation.capacities == WaitSetCapacities::default() {
@@ -154,6 +161,7 @@ pub(super) fn spin_once(node: &mut Node, timeout: Duration) -> Result<()> {
     }
     let offsets = entities.add_ordinary(&mut wait_set.handle, &preparation)?;
     entities.add_actions(&mut wait_set.handle)?;
+    wait_set.refresh_event_layout(entities.context)?;
     #[cfg(test)]
     if let Some(guard) = &preparation.future_guard {
         guard.before_wait(preparation.timeout_nanos);

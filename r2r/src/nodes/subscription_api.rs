@@ -29,13 +29,16 @@ impl Node {
     pub(in crate::nodes) fn remove_subscription(
         subscribers: &mut Vec<Box<dyn Subscriber_>>,
         subscription_indexes: &mut HashMap<uuid::Uuid, usize>, id: uuid::Uuid,
-        node_handle: &mut rcl_node_t,
+        node_handle: &mut rcl_node_t, qos_events: &mut Option<Box<qos_events::QosEvents>>,
     ) -> bool {
         let Some(index) = subscription_indexes.remove(&id) else {
             return false;
         };
         let mut removed = subscribers.swap_remove(index);
         debug_assert_eq!(removed.match_state().map(|state| state.id), Some(id));
+        if let Some(events) = qos_events {
+            events.remove_endpoint(qos_events::EventEndpoint::Subscription(id));
+        }
         removed.destroy(node_handle);
         if let Some(moved) = subscribers
             .get(index)
@@ -52,6 +55,7 @@ impl Node {
             &mut self.subscription_indexes,
             id,
             self.node_handle.as_mut(),
+            &mut self.qos_events,
         );
         if removed {
             self.subscriptions_with_active_waits.remove(&id);
@@ -595,24 +599,31 @@ impl Node {
     pub(crate) fn take_subscription_requested_incompatible_qos(
         &mut self, id: uuid::Uuid,
     ) -> Result<Option<RequestedIncompatibleQosStatus>> {
+        self.check_subscription_event_observer(id, crate::SubscriptionEventKind::IncompatibleQos)?;
         self.subscriber_mut(id)?.take_requested_incompatible_qos()
     }
 
     pub(crate) fn take_subscription_requested_deadline_missed(
         &mut self, id: uuid::Uuid,
     ) -> Result<Option<RequestedDeadlineMissedStatus>> {
+        self.check_subscription_event_observer(id, crate::SubscriptionEventKind::DeadlineMissed)?;
         self.subscriber_mut(id)?.take_requested_deadline_missed()
     }
 
     pub(crate) fn take_subscription_liveliness_changed(
         &mut self, id: uuid::Uuid,
     ) -> Result<Option<LivelinessChangedStatus>> {
+        self.check_subscription_event_observer(
+            id,
+            crate::SubscriptionEventKind::LivelinessChanged,
+        )?;
         self.subscriber_mut(id)?.take_liveliness_changed()
     }
 
     pub(crate) fn take_subscription_message_lost(
         &mut self, id: uuid::Uuid,
     ) -> Result<Option<MessageLostStatus>> {
+        self.check_subscription_event_observer(id, crate::SubscriptionEventKind::MessageLost)?;
         self.subscriber_mut(id)?.take_message_lost()
     }
 
@@ -620,6 +631,7 @@ impl Node {
     pub(crate) fn take_subscription_matched(
         &mut self, id: uuid::Uuid,
     ) -> Result<Option<MatchedStatus>> {
+        self.check_subscription_event_observer(id, crate::SubscriptionEventKind::Matched)?;
         self.subscriber_mut(id)?.take_matched()
     }
 
@@ -627,6 +639,7 @@ impl Node {
     pub(crate) fn take_subscription_incompatible_type(
         &mut self, id: uuid::Uuid,
     ) -> Result<Option<IncompatibleTypeStatus>> {
+        self.check_subscription_event_observer(id, crate::SubscriptionEventKind::IncompatibleType)?;
         self.subscriber_mut(id)?.take_incompatible_type()
     }
 

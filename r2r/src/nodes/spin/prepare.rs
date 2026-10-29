@@ -25,6 +25,7 @@ impl Node {
                 &mut self.subscription_indexes,
                 id,
                 node_handle,
+                &mut self.qos_events,
             );
         }
 
@@ -298,6 +299,10 @@ impl Node {
             || !self.action_clients_with_active_availability.is_empty()
             || publisher_matching_pending
             || !self.subscriptions_with_active_waits.is_empty();
+        let events = self
+            .qos_events
+            .as_mut()
+            .map_or(0, |events| events.prepare());
         let capacities = WaitSetCapacities {
             subscriptions: self.subscribers.len() + self.action_wait_set_capacities.subscriptions,
             guard_conditions: self.action_wait_set_capacities.guard_conditions
@@ -306,6 +311,7 @@ impl Node {
             timers: self.timers.len() + self.action_wait_set_capacities.timers,
             clients: self.clients.len() + self.action_wait_set_capacities.clients,
             services: self.services.len() + self.action_wait_set_capacities.services,
+            events,
         };
 
         Ok(SpinPreparation {

@@ -954,3 +954,47 @@ methods. Final four-direction protocol smoke passes under both RMWs with a compl
 source manifest. The formal performance preflight failed due to concurrent Zig compilation;
 final-source performance promotion remains pending. Source/log identities and all reports live in
 the [callback evidence archive](benchmarks/pubsub-pipeline-2026-10-29/README.md).
+
+## Native QoS event streams (2026-10-30)
+
+`Publisher`, runtime-typed publishers, ordinary/raw/untyped subscription streams, scoped native
+callback tokens and `LifecyclePublisher` now register `QosEventStream` observers. Native event
+readiness joins Node/shared/background executor wait sets. One taken status is retained; a full
+slot leaves subsequent changes in middleware counters until consumption wakes the current
+executor. Duplicate observers and manual takes are rejected while a stream owns the native
+counter. Endpoint destruction finalizes events first and produces a final endpoint-invalid error
+after any already-taken status. Node teardown and channel notifications release locks before
+waking application observers.
+
+A CycloneDDS counterexample exposed cached event status conditions surviving a changed wait-set
+layout: a full event stream caused repeated immediate native returns. The portable cache boundary
+now rebuilds only when an event-bearing populated layout changes, preserving ordinary/action
+indices; stable layouts reuse native wait storage. Event layouts retain native endpoint identity
+and type as well as pointer identity so allocator address reuse cannot hide a semantic change.
+Nodes without observers retain zero event-array capacity and allocate no event registry or guard.
+
+Twenty-two focused Jazzy cases pass under both RMWs. They cover incompatible QoS, deadline and
+liveliness expiry, connect/disconnect counts, bounded counter recovery without idle spinning,
+manual/duplicate/foreign ownership, automatic and explicit endpoint teardown, context/waker lock
+reentry, runtime-type/native/lifecycle endpoint adapters, same-count membership changes with
+complete action results, background capacity wakes after executor transfer, stable layout reuse
+and every event-kind registration/unsupported rollback. The full Jazzy workspace and both full
+optimized RMW suites pass 629 main-library cases with eight manual measurements ignored, plus
+seventeen Rustdoc examples and warning-denied all-target Clippy.
+
+Independent Rust/rclcpp processes observe exactly one offered and one requested reliability
+incompatibility under each Jazzy RMW. Both processes retain entities until both observations and
+finish controls complete. Build manifests bind source and binary identities; offline verification
+rejects missing endpoints, incorrect counters/policies and current-source drift. CI now requires
+this oracle for every Humble-and-newer distribution and archives both RMW reports. Local
+Iron/Lyrical/Rolling runtime evidence remains unavailable. Formal throughput/tail comparisons
+remain pending the isolated application matrix; native event correctness is not a performance
+leadership claim. See [the stream contract](QOS_EVENT_STREAMS.md) for API and capacity semantics.
+
+Final compatibility after native-layout identity hardening passes 21 QoS cases on Humble/Fast DDS
+(the matching event is unavailable there), 22 on Kilted under each RMW, and 71 executor-related
+cases per environment. Each runs the diagnostic example and warning-denied all-target Clippy.
+The true no-ROS gate passes all targets, four snapshot transactions, twelve pipeline and one QoS
+oracle counterexample test, six common/two generator tests, two ownership compile-fail doctests,
+and 28 public API pages with 60 required methods. Source-addressed reports and compressed logs
+are in [native QoS evidence](interop/qos-event-streams-2026-10-30/README.md).

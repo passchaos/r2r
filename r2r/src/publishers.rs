@@ -395,6 +395,7 @@ mod waiter_tests {
         let publisher = Arc::new(Publisher_ {
             id: uuid::Uuid::from_u128(1),
             handle: Arc::new(Mutex::new(PublisherHandle {
+                observed_events: 0,
                 publisher: Some(unsafe { rcl_get_zero_initialized_publisher() }),
                 offered_incompatible_qos: None,
                 offered_deadline_missed: None,
@@ -439,6 +440,7 @@ mod waiter_tests {
         let publisher = Publisher_ {
             id: uuid::Uuid::from_u128(1),
             handle: Arc::new(Mutex::new(PublisherHandle {
+                observed_events: 0,
                 publisher: Some(unsafe { rcl_get_zero_initialized_publisher() }),
                 offered_incompatible_qos: None,
                 offered_deadline_missed: None,
@@ -475,6 +477,7 @@ mod waiter_tests {
         let publisher = Publisher_ {
             id: uuid::Uuid::nil(),
             handle: Arc::new(Mutex::new(PublisherHandle {
+                observed_events: 0,
                 publisher: Some(unsafe { rcl_get_zero_initialized_publisher() }),
                 offered_incompatible_qos: None,
                 offered_deadline_missed: None,
@@ -507,6 +510,7 @@ mod waiter_tests {
 }
 
 struct PublisherHandle {
+    observed_events: u32,
     publisher: Option<rcl_publisher_t>,
     offered_incompatible_qos: Option<PublisherEvent>,
     offered_deadline_missed: Option<PublisherEvent>,
@@ -517,14 +521,28 @@ struct PublisherHandle {
     incompatible_type: Option<PublisherEvent>,
 }
 
-struct PublisherEvent {
+pub(crate) struct PublisherEvent {
     handle: rcl_event_t,
     event_type: rcl_publisher_event_type_t,
     initialized: bool,
 }
 
 impl PublisherEvent {
-    fn uninitialized(event_type: rcl_publisher_event_type_t) -> Self {
+    pub(crate) fn fini(&mut self) {
+        if !self.initialized {
+            return;
+        }
+        let ret = unsafe { rcl_event_fini(&mut self.handle) };
+        if ret != RCL_RET_OK as i32 {
+            log::error!("could not finalize publisher event: {ret}");
+        }
+        self.initialized = false;
+    }
+    pub(crate) fn handle(&self) -> &rcl_event_t {
+        &self.handle
+    }
+
+    pub(crate) fn uninitialized(event_type: rcl_publisher_event_type_t) -> Self {
         Self {
             handle: unsafe { rcl_get_zero_initialized_event() },
             event_type,
@@ -532,7 +550,7 @@ impl PublisherEvent {
         }
     }
 
-    fn ensure_initialized(&mut self, publisher: *const rcl_publisher_t) -> Result<()> {
+    pub(crate) fn ensure_initialized(&mut self, publisher: *const rcl_publisher_t) -> Result<()> {
         if self.initialized {
             return Ok(());
         }
@@ -542,7 +560,9 @@ impl PublisherEvent {
         Ok(())
     }
 
-    fn take_offered_incompatible_qos(&self) -> Result<Option<OfferedIncompatibleQosStatus>> {
+    pub(crate) fn take_offered_incompatible_qos(
+        &self,
+    ) -> Result<Option<OfferedIncompatibleQosStatus>> {
         let mut status = MaybeUninit::<rmw_offered_qos_incompatible_event_status_t>::uninit();
         let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
         if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
@@ -560,7 +580,9 @@ impl PublisherEvent {
         }))
     }
 
-    fn take_offered_deadline_missed(&self) -> Result<Option<OfferedDeadlineMissedStatus>> {
+    pub(crate) fn take_offered_deadline_missed(
+        &self,
+    ) -> Result<Option<OfferedDeadlineMissedStatus>> {
         let mut status = MaybeUninit::<rmw_offered_deadline_missed_status_t>::uninit();
         let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
         if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
@@ -577,7 +599,7 @@ impl PublisherEvent {
         }))
     }
 
-    fn take_liveliness_lost(&self) -> Result<Option<LivelinessLostStatus>> {
+    pub(crate) fn take_liveliness_lost(&self) -> Result<Option<LivelinessLostStatus>> {
         let mut status = MaybeUninit::<rmw_liveliness_lost_status_t>::uninit();
         let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
         if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
@@ -595,7 +617,7 @@ impl PublisherEvent {
     }
 
     #[cfg(not(r2r__ros__distro__humble))]
-    fn take_matched(&self) -> Result<Option<MatchedStatus>> {
+    pub(crate) fn take_matched(&self) -> Result<Option<MatchedStatus>> {
         let mut status = MaybeUninit::<rmw_matched_status_t>::uninit();
         let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
         if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
@@ -615,7 +637,7 @@ impl PublisherEvent {
     }
 
     #[cfg(not(r2r__ros__distro__humble))]
-    fn take_incompatible_type(&self) -> Result<Option<IncompatibleTypeStatus>> {
+    pub(crate) fn take_incompatible_type(&self) -> Result<Option<IncompatibleTypeStatus>> {
         let mut status = MaybeUninit::<rmw_incompatible_type_status_t>::uninit();
         let ret = unsafe { rcl_take_event(&self.handle, status.as_mut_ptr().cast()) };
         if ret == RCL_RET_EVENT_TAKE_FAILED as i32 {
@@ -632,13 +654,7 @@ impl PublisherEvent {
 
 impl Drop for PublisherEvent {
     fn drop(&mut self) {
-        if !self.initialized {
-            return;
-        }
-        let ret = unsafe { rcl_event_fini(&mut self.handle) };
-        if ret != RCL_RET_OK as i32 {
-            log::error!("could not finalize publisher event: {ret}");
-        }
+        self.fini();
     }
 }
 
@@ -650,6 +666,27 @@ unsafe impl Send for Publisher_ {}
 unsafe impl Sync for Publisher_ {}
 
 impl Publisher_ {
+    pub(crate) fn initialize_qos_event(
+        &self, event: &mut PublisherEvent, kind: rcl_publisher_event_type_t,
+    ) -> Result<()> {
+        let mut state = self.handle.lock();
+        let publisher = state
+            .publisher
+            .as_ref()
+            .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        let bit = 1 << kind as u32;
+        if state.observed_events & bit != 0 {
+            return Err(Error::QosEventAlreadyObserved);
+        }
+        event.ensure_initialized(publisher)?;
+        state.observed_events |= bit;
+        Ok(())
+    }
+
+    pub(crate) fn release_qos_event(&self, kind: rcl_publisher_event_type_t) {
+        self.handle.lock().observed_events &= !(1 << kind as u32);
+    }
+
     fn with_prepared_handle<P, T>(
         &self, prepare: impl FnOnce() -> Result<P>,
         operation: impl FnOnce(&rcl_publisher_t, P) -> Result<T>,
@@ -669,6 +706,12 @@ impl Publisher_ {
 
     fn take_offered_incompatible_qos(&self) -> Result<Option<OfferedIncompatibleQosStatus>> {
         let mut handle = self.handle.lock();
+        if handle.observed_events
+            & (1 << rcl_publisher_event_type_t::RCL_PUBLISHER_OFFERED_INCOMPATIBLE_QOS as u32)
+            != 0
+        {
+            return Err(Error::QosEventAlreadyObserved);
+        }
         let publisher = handle
             .publisher
             .as_ref()
@@ -685,6 +728,12 @@ impl Publisher_ {
 
     fn take_offered_deadline_missed(&self) -> Result<Option<OfferedDeadlineMissedStatus>> {
         let mut handle = self.handle.lock();
+        if handle.observed_events
+            & (1 << rcl_publisher_event_type_t::RCL_PUBLISHER_OFFERED_DEADLINE_MISSED as u32)
+            != 0
+        {
+            return Err(Error::QosEventAlreadyObserved);
+        }
         let publisher = handle
             .publisher
             .as_ref()
@@ -701,6 +750,12 @@ impl Publisher_ {
 
     fn take_liveliness_lost(&self) -> Result<Option<LivelinessLostStatus>> {
         let mut handle = self.handle.lock();
+        if handle.observed_events
+            & (1 << rcl_publisher_event_type_t::RCL_PUBLISHER_LIVELINESS_LOST as u32)
+            != 0
+        {
+            return Err(Error::QosEventAlreadyObserved);
+        }
         let publisher = handle
             .publisher
             .as_ref()
@@ -716,6 +771,11 @@ impl Publisher_ {
     #[cfg(not(r2r__ros__distro__humble))]
     fn take_matched(&self) -> Result<Option<MatchedStatus>> {
         let mut handle = self.handle.lock();
+        if handle.observed_events & (1 << rcl_publisher_event_type_t::RCL_PUBLISHER_MATCHED as u32)
+            != 0
+        {
+            return Err(Error::QosEventAlreadyObserved);
+        }
         let publisher = handle
             .publisher
             .as_ref()
@@ -731,6 +791,12 @@ impl Publisher_ {
     #[cfg(not(r2r__ros__distro__humble))]
     fn take_incompatible_type(&self) -> Result<Option<IncompatibleTypeStatus>> {
         let mut handle = self.handle.lock();
+        if handle.observed_events
+            & (1 << rcl_publisher_event_type_t::RCL_PUBLISHER_INCOMPATIBLE_TYPE as u32)
+            != 0
+        {
+            return Err(Error::QosEventAlreadyObserved);
+        }
         let publisher = handle
             .publisher
             .as_ref()
@@ -1171,6 +1237,7 @@ pub fn create_publisher_helper(
         Ok(Publisher_ {
             id,
             handle: Arc::new(Mutex::new(PublisherHandle {
+                observed_events: 0,
                 publisher: Some(publisher_handle),
                 offered_incompatible_qos: None,
                 offered_deadline_missed: None,

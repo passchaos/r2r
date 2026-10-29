@@ -62,6 +62,7 @@ mod action_server_api;
 mod client_api;
 mod managed_timers;
 mod publisher_api;
+mod qos_events;
 mod service_api;
 mod spin;
 mod subscription_api;
@@ -107,6 +108,7 @@ pub struct Node {
         Arc<Mutex<ParameterCallbackRegistry<ParameterValidationCallback>>>,
     parameter_post_set_callbacks: Arc<Mutex<ParameterCallbackRegistry<ParameterPostSetCallback>>>,
     parameter_event_sink: Option<ParameterEventSink>,
+    qos_events: Option<Box<qos_events::QosEvents>>,
     parameter_handler_started: bool,
     pub(crate) node_handle: Box<rcl_node_t>,
     // the node owns the subscribers
@@ -414,9 +416,15 @@ impl Drop for Node {
     fn drop(&mut self) {
         // Wake managed tick observers even when their native timer is paused.
         self.managed_timers.take();
+        let qos_notifications = self
+            .qos_events
+            .as_mut()
+            .map(|events| events.defer_node_drop_notifications())
+            .unwrap_or_default();
         // fini functions are not thread safe so lock the context.
         let _ctx_handle = self.context.context_handle.lock();
         self.wait_set.fini();
+        self.qos_events.take();
 
         for s in &mut self.subscribers {
             s.destroy(&mut self.node_handle);
@@ -441,6 +449,10 @@ impl Drop for Node {
         }
         unsafe {
             rcl_node_fini(self.node_handle.as_mut());
+        }
+        drop(_ctx_handle);
+        for (channel, error) in qos_notifications {
+            channel.close(error);
         }
     }
 }
@@ -1672,6 +1684,7 @@ mod tests {
             timers: 3,
             clients: 4,
             services: 5,
+            events: 0,
         };
         total.add(WaitSetCapacities {
             subscriptions: 5,
@@ -1679,6 +1692,7 @@ mod tests {
             timers: 3,
             clients: 2,
             services: 1,
+            events: 0,
         });
 
         assert_eq!(
@@ -1689,6 +1703,7 @@ mod tests {
                 timers: 6,
                 clients: 6,
                 services: 6,
+                events: 0,
             }
         );
 
@@ -1698,6 +1713,7 @@ mod tests {
             timers: 3,
             clients: 2,
             services: 1,
+            events: 0,
         });
         assert_eq!(
             total,
@@ -1707,6 +1723,7 @@ mod tests {
                 timers: 3,
                 clients: 4,
                 services: 5,
+                events: 0,
             }
         );
     }

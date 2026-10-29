@@ -100,6 +100,9 @@ pub use subscribers::{
     SubscriptionOptions,
 };
 
+mod qos_events;
+pub use qos_events::{PublisherEventKind, QosEvent, QosEventStream, SubscriptionEventKind};
+
 mod native_metadata;
 mod notifications;
 mod publishers;

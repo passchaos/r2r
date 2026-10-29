@@ -5,6 +5,9 @@ use std::task::Waker;
 
 impl Node {
     pub(in crate::nodes) fn set_background_wake(&mut self, wake: Option<Waker>) {
+        if let Some(events) = &self.qos_events {
+            events.set_wake(wake.clone());
+        }
         self.canceled_subscriptions.lock().set_wake(wake.clone());
         self.canceled_services.lock().set_wake(wake.clone());
         self.dropped_clients.lock().set_wake(wake.clone());
