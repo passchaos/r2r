@@ -108,6 +108,13 @@ scaling, allocation accounting and larger mixed workloads remain open. The archi
 prototype is not used to establish these implementations; qualified tail
 precision remains a separate requirement.
 
+[Idle action dispatch evidence](benchmarks/idle-action-dispatch-2026-10-30/README.md) identifies
+extra completion locks/calls after empty native readiness. An isolated candidate removes those
+calls and passes lock/probe/active-channel/cancellation oracles; dual-RMW independent stage
+records verify zero empty operations across 0/1/8/32/64 typed/untyped endpoint pairs. Two
+isolation preflights failed, so the primary runtime remains unchanged and the candidate is
+archived for qualified calibration, A/B and ordinary action validation before promotion.
+
 1. Complete the remaining service-event distribution evidence after the [Jazzy/Kilted external endpoint matrix](interop/service-introspection-2026-10-29/README.md): the required CI now covers Iron/Lyrical/Rolling too, with a distinct Humble unsupported boundary. Expand diagnostic applications, payloads and QoS without weakening native identity or event-content oracles.
 2. Validate the Humble-and-newer distribution boundaries and update saved documentation bindings, with independent gates for each version-dependent API.
 3. Build representative Rust/C++ application pairs and a reproducible performance matrix. Use these workloads to select allocation, copying, wakeup and scaling optimizations.
