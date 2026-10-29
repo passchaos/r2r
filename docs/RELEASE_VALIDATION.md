@@ -1153,3 +1153,37 @@ counts, source identities, original failures, complete logs and stage samples ar
 [availability cancellation evidence](validation/availability-cancellation-2026-10-30/README.md).
 Iron, Lyrical and Rolling have no new local runtime evidence in this slice. Calibrated
 independent A/B and representative C++ throughput/resource/scaling comparisons remain open.
+
+## Independent ready dispatch after operational errors (2026-10-30)
+
+Two native readiness fixtures failed against `07d936c`: a subscription error skipped a ready
+timer, and a service callback error skipped a ready action request. [Dispatch error handling](DISPATCH_ERRORS.md)
+now attempts other ready entity families and action channels before returning the first
+operational error. Each failing drain stops at its existing channel boundary while independent
+channels retain their own budgets. Ordinary/action dispatch have separate nearby modules and
+one stack-local error outcome; delivery/conversion/retirement retain existing post-lock paths.
+
+Six nearby cases use actual jointly-ready RCL masks, exact service/response sequence identities,
+independent endpoint allocation failure and action-channel error/budget/completion probes.
+The first shared-reply allocation fixture failed Fast DDS because its reader could be ready
+for another client's response. Installed 8.4.4 listener behavior and its tagged take/GUID source
+explain that boundary. The final test uses independent reply topics and verifies native slot
+identities, exact values and retained native ownership; the initial failure remains archived.
+
+The optimized [recovery example](../r2r/examples/dispatch_recovery.rs) reports one callback error
+while preserving a caller-owned pinned application future, then verifies its healthy native
+service response identity and wall timer. Native error and background-task failure contracts
+remain explicit. Jazzy workspace passes 687 main-library cases and 18 Rustdoc examples; both
+RMWs pass six release dispatch cases, complete optimized 687-case suites, both recovery/Tokio
+workflows. Jazzy all-target warning-denied Clippy passes. Eight manual measurement cases remain ignored.
+
+Humble/Fast DDS and Kilted/both-RMW scoped dispatch, callback, executor and action gates,
+optimized recovery examples and all-target Clippy accompany a true no-ROS all-target/39-public-
+artifact documentation check. Exact counts and source/log identities are retained in
+[ready-dispatch evidence](validation/ready-dispatch-2026-10-30/README.md).
+
+Independent parent/candidate/rclcpp native callback pipeline binaries pass seven combinations
+and three configurations per Jazzy RMW: 42 records and 4200 raw RTT samples with current-source,
+receive-path, payload/sequence/count/stop checks. Fixed-CPU short runs are protocol-only because
+the performance isolation preflight failed on competing Zig builds and load. Formal A/B,
+saturated fanout, broad concurrency/scaling and performance-leadership evidence remain open.

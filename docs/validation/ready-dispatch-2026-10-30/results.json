@@ -1,0 +1,318 @@
+{
+  "date": "2026-10-30",
+  "parent_commit": "07d936c60af128bfb077d34fc67034e96b7f0a3b",
+  "toolchain": "Rust 1.85.0",
+  "logs": {
+    "baseline": {
+      "file": "baseline.log.gz",
+      "sha256": "c11601e2cc933ca359de4b07b6aa30da65ce51c46a3ed0681d722c383eb4f49f",
+      "raw_sha256": "d10a4657b15484d4bb34a6eab7a8156d33cb7d9c231bc591d7c23b5166790c69",
+      "test_results": [
+        "test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.03s"
+      ],
+      "rmws": []
+    },
+    "shared-reply-fixture": {
+      "file": "shared-reply-fixture.log.gz",
+      "sha256": "944c36f55a56a35d6a42455866b6bfb90a7b0ad79c9b3b5b1dddbccaaadb70a3",
+      "raw_sha256": "49eccc3618cde6a5fe030a143f6595cc314036fd90310785094ab35e865939b0",
+      "test_results": [
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.03s",
+        "test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.03s"
+      ],
+      "rmws": []
+    },
+    "focused": {
+      "file": "focused.log.gz",
+      "sha256": "073869dbb4cbe1304786e1ed7d49428b0b1f2c78b51e0bd24a6e20eaa1472cb0",
+      "raw_sha256": "0f4a89fdccbcf5e1af6fe68d53967758b80acfe34755d3c7298278087c627b78",
+      "test_results": [
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.02s",
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.03s"
+      ],
+      "rmws": []
+    },
+    "jazzy": {
+      "file": "jazzy.log.gz",
+      "sha256": "83d5c1312678f4a18ce3114f3f8c69109914a147bf73d4d4ff50aefb72ddf5bc",
+      "raw_sha256": "3ac137c018857c16312f2e5534eec081ff3802502ecb572c1dc4e622ac4cd4d2",
+      "test_results": [
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.02s",
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 689 filtered out; finished in 0.10s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 687 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 13.14s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 40.64s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.75s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 41.72s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.02s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.02s",
+        "test result: ok. 687 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 12.28s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.02s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.02s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.02s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.02s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.02s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.02s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 694 filtered out; finished in 0.79s",
+        "test result: ok. 687 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 14.61s"
+      ],
+      "rmws": [
+        "ROS_DISTRO=jazzy RMW_IMPLEMENTATION=rmw_cyclonedds_cpp",
+        "ROS_DISTRO=jazzy RMW_IMPLEMENTATION=rmw_fastrtps_cpp",
+        "ROS_DISTRO=jazzy RMW_IMPLEMENTATION=rmw_cyclonedds_cpp",
+        "ROS_DISTRO=jazzy RMW_IMPLEMENTATION=rmw_fastrtps_cpp"
+      ]
+    },
+    "humble": {
+      "file": "humble.log.gz",
+      "sha256": "e561508eabb13216e7ee040962c1f70b9d42525bc3faa8d7bde59475f580b18a",
+      "raw_sha256": "8077f86b15adca072ecda32f9ced72a56f5d0068c7b0ea0c44671863379036f1",
+      "test_results": [
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 668 filtered out; finished in 0.09s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 673 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 673 filtered out; finished in 0.01s",
+        "test result: ok. 79 passed; 0 failed; 0 ignored; 0 measured; 595 filtered out; finished in 1.64s",
+        "test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 641 filtered out; finished in 0.12s",
+        "test result: ok. 98 passed; 0 failed; 6 ignored; 0 measured; 570 filtered out; finished in 0.10s",
+        "test result: ok. 55 passed; 0 failed; 0 ignored; 0 measured; 619 filtered out; finished in 0.29s"
+      ],
+      "rmws": [
+        "ROS_DISTRO=humble RMW_IMPLEMENTATION=rmw_fastrtps_cpp"
+      ]
+    },
+    "kilted": {
+      "file": "kilted.log.gz",
+      "sha256": "20edecf631a5461c27c994d36db33d595ae4235a3f2882d402600475b495642d",
+      "raw_sha256": "c09cc3f0338b9c29730f46b818da50f774d74b982baf8d1640fd66c56b39692d",
+      "test_results": [
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 693 filtered out; finished in 0.03s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 698 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 698 filtered out; finished in 0.00s",
+        "test result: ok. 80 passed; 0 failed; 0 ignored; 0 measured; 619 filtered out; finished in 1.65s",
+        "test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 665 filtered out; finished in 0.16s",
+        "test result: ok. 98 passed; 0 failed; 6 ignored; 0 measured; 595 filtered out; finished in 0.11s",
+        "test result: ok. 55 passed; 0 failed; 0 ignored; 0 measured; 644 filtered out; finished in 0.30s",
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 693 filtered out; finished in 0.12s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 698 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 698 filtered out; finished in 0.01s",
+        "test result: ok. 80 passed; 0 failed; 0 ignored; 0 measured; 619 filtered out; finished in 1.73s",
+        "test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 665 filtered out; finished in 0.14s",
+        "test result: ok. 98 passed; 0 failed; 6 ignored; 0 measured; 595 filtered out; finished in 0.11s",
+        "test result: ok. 55 passed; 0 failed; 0 ignored; 0 measured; 644 filtered out; finished in 0.29s"
+      ],
+      "rmws": [
+        "ROS_DISTRO=kilted RMW_IMPLEMENTATION=rmw_cyclonedds_cpp",
+        "ROS_DISTRO=kilted RMW_IMPLEMENTATION=rmw_fastrtps_cpp"
+      ]
+    },
+    "no-ros": {
+      "file": "no-ros.log.gz",
+      "sha256": "75bb802e72b3807d85d38d6f9d217bf1831828548057e2a53ead2d043e935bee",
+      "raw_sha256": "1bb4e79fb317489bd33428d713cccf1cacb6bd9c16e49cc30297d4651eff6c0f",
+      "test_results": [
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.11s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 17 filtered out; finished in 0.09s"
+      ],
+      "rmws": []
+    }
+  },
+  "performance_isolation": {
+    "scope": "performance preflight only; no benchmark binaries running",
+    "required_consecutive_samples": 3,
+    "interval_seconds": 1.0,
+    "timeout_seconds": 15.0,
+    "maximum_load1": 2.0,
+    "passed": false,
+    "reason": "performance isolation preflight timed out: {'observed_utc': '2026-10-29T20:48:11.044502+00:00', 'load1': 7.27587890625, 'competing_processes': {'zig': 4}}",
+    "observations": [
+      {
+        "observed_utc": "2026-10-29T20:47:56.888928+00:00",
+        "load1": 8.208984375,
+        "competing_processes": {
+          "zig": 4
+        }
+      },
+      {
+        "observed_utc": "2026-10-29T20:47:57.899347+00:00",
+        "load1": 8.208984375,
+        "competing_processes": {
+          "zig": 4
+        }
+      },
+      {
+        "observed_utc": "2026-10-29T20:47:58.913592+00:00",
+        "load1": 7.87158203125,
+        "competing_processes": {
+          "zig": 4
+        }
+      },
+      {
+        "observed_utc": "2026-10-29T20:47:59.925629+00:00",
+        "load1": 7.87158203125,
+        "competing_processes": {
+          "zig": 3
+        }
+      },
+      {
+        "observed_utc": "2026-10-29T20:48:00.936467+00:00",
+        "load1": 7.87158203125,
+        "competing_processes": {
+          "zig": 3
+        }
+      },
+      {
+        "observed_utc": "2026-10-29T20:48:01.947283+00:00",
+        "load1": 7.87158203125,
+        "competing_processes": {
+          "zig": 3
+        }
+      },
+      {
+        "observed_utc": "2026-10-29T20:48:02.957807+00:00",
+        "load1": 7.87158203125,
+        "competing_processes": {
+          "zig": 3
+        }
+      },
+      {
+        "observed_utc": "2026-10-29T20:48:03.968254+00:00",
+        "load1": 7.5615234375,
+        "competing_processes": {
+          "zig": 3
+        }
+      },
+      {
+        "observed_utc": "2026-10-29T20:48:04.979899+00:00",
+        "load1": 7.5615234375,
+        "competing_processes": {
+          "zig": 3
+        }
+      },
+      {
+        "observed_utc": "2026-10-29T20:48:05.990394+00:00",
+        "load1": 7.5615234375,
+        "competing_processes": {
+          "zig": 3
+        }
+      },
+      {
+        "observed_utc": "2026-10-29T20:48:07.001063+00:00",
+        "load1": 7.5615234375,
+        "competing_processes": {
+          "zig": 3
+        }
+      },
+      {
+        "observed_utc": "2026-10-29T20:48:08.012670+00:00",
+        "load1": 7.5615234375,
+        "competing_processes": {
+          "zig": 4
+        }
+      },
+      {
+        "observed_utc": "2026-10-29T20:48:09.023168+00:00",
+        "load1": 7.27587890625,
+        "competing_processes": {
+          "zig": 4
+        }
+      },
+      {
+        "observed_utc": "2026-10-29T20:48:10.033700+00:00",
+        "load1": 7.27587890625,
+        "competing_processes": {
+          "zig": 4
+        }
+      },
+      {
+        "observed_utc": "2026-10-29T20:48:11.044502+00:00",
+        "load1": 7.27587890625,
+        "competing_processes": {
+          "zig": 4
+        }
+      }
+    ]
+  },
+  "performance_scope": "Protocol validation only; isolation preflight failed; no formal regression or rclcpp performance gate claimed",
+  "rmw_reply_reference": {
+    "installed_package": "ros-jazzy-rmw-fastrtps-shared-cpp 8.4.4-1noble.20260911.095823",
+    "source_url": "https://github.com/ros2/rmw_fastrtps/blob/8.4.4/rmw_fastrtps_shared_cpp/src/rmw_response.cpp",
+    "source_sha256": "421daa2efb70d3b682d3af99325761383ac414a790b0e2aabd855029bf22fa33",
+    "boundary": "Reader readiness counts unread responses; take selects at most one sample and sets taken only for the matching client GUID"
+  },
+  "changed_source_sha256": {
+    "Cargo.lock": "8984d00d89e3a1262d61fd6b329a4039e28495760b7767a2aea45ae7570e3e6f",
+    "Cargo.toml": "64f4d528ca80b3af3d06ce9c69f1c5c79b96730fc75835e924d158485399dc61",
+    "r2r/examples/dispatch_recovery.rs": "a4ac84521bd9ade59e1f33d852bc6fa5ff8afa03a621fb938c147a02290fdabd",
+    "r2r/src/nodes/spin/dispatch.rs": "0556f30d83a7f225061a39b81ef79695ee99372e9dae6583470cdfdcb8b24808",
+    "r2r/src/nodes/spin/dispatch/actions.rs": "b64ecdfce4cf5b6d373b6461f8b0b353fe6f84e81169cbab7234a8e6be13fb6d",
+    "r2r/src/nodes/spin/dispatch/ordinary.rs": "db4bafbaf1eafbbbebaa11fb938adbaf2683560028520d36645a7164b490e153",
+    "r2r/src/nodes/spin/dispatch/tests.rs": "94f1ee0ce94ecb135bd8aeb87555b786d37cc3ddbed2d1ed04bdd341c3fea7b0",
+    "r2r/src/nodes/spin/dispatch/tests/actions.rs": "e467c43a0305236871697ff01d5c2b42d20818b307ea4cd4db4bd3085147d29c",
+    "r2r/src/nodes/spin/dispatch/tests/client_allocation.rs": "0866198539ec7b2b6ef22d6af3ef05bce076c8c837628d07374e4c3d08821c5f",
+    "rust-toolchain.toml": "19fcd7491a66e0653370b3fea22acda83b749c4c541357a4daff7b33d5aab480"
+  },
+  "protocol_artifacts": {
+    "build-manifest.json": {
+      "file": "build-manifest.json.gz",
+      "sha256": "53a559ab3d81b57820547fdc26b301ce97211985b8241defc4bb8487fc28e8db",
+      "raw_sha256": "d869ab92fd05518067df4248502d35190d8f872496e94d1fbe44590017a5f9d1"
+    },
+    "rmw_cyclonedds_cpp-protocol.json": {
+      "file": "rmw_cyclonedds_cpp-protocol.json.gz",
+      "sha256": "a2feeaa7a8f91795b9f76e496784b7f8bcb6c556a5a00e69857590c318052909",
+      "raw_sha256": "84a2e70c0fbb3073ca9b33f98c3895b1163adb36cced75b786553069d7a9a3ed"
+    },
+    "rmw_cyclonedds_cpp-protocol.samples.json.gz": {
+      "file": "rmw_cyclonedds_cpp-protocol.samples.json.gz",
+      "sha256": "56d8bc17c7b1aad28f242e46872cd5740fa079a19ff2c9a24cd509daf202c808",
+      "raw_sha256": "56d8bc17c7b1aad28f242e46872cd5740fa079a19ff2c9a24cd509daf202c808"
+    },
+    "rmw_fastrtps_cpp-protocol.json": {
+      "file": "rmw_fastrtps_cpp-protocol.json.gz",
+      "sha256": "115e209f4dd0b95975123c09f8e9c99140e195f4f2e675257825a360ea2d6c2a",
+      "raw_sha256": "288a6a2db2ad0812dde524285782e5a0f684d3ddc70e45009c348052c4386db4"
+    },
+    "rmw_fastrtps_cpp-protocol.samples.json.gz": {
+      "file": "rmw_fastrtps_cpp-protocol.samples.json.gz",
+      "sha256": "3a0ba1cf594a80da1df79f2f54f60aa69c58b5bf55f2c5e338d66428c8377d23",
+      "raw_sha256": "3a0ba1cf594a80da1df79f2f54f60aa69c58b5bf55f2c5e338d66428c8377d23"
+    }
+  }
+}

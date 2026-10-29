@@ -33,6 +33,9 @@ receive APIs are unchanged.
 Callbacks must be `Send` because their owning node can move between executor threads. They run
 synchronously inside `Node::spin_once`/`Executor` dispatch: do bounded work, do not call a spin
 method recursively, and return an `r2r::Result`. An error is returned by the active spin operation.
+
+[Independent ready dispatch](DISPATCH_ERRORS.md) continues ready timer/service/action work
+after a callback error and reports the first error after that snapshot is dispatched.
 Panics remain normal Rust unwinding and never cross a native callback boundary.
 Native storage is released when a callback returns an error or unwinds. The taken sample is
 consumed; the subscription remains registered and can receive later samples. Failure to allocate

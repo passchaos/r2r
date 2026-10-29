@@ -100,6 +100,8 @@ event dispatch. Single-node and multi-node execution share those responsibilitie
 atomic future-wake implementation. The executor records actual ordinary-entity offsets for
 each node, then appends all action entities. Native action handles retain the returned native
 indices. A callback failure in one node is retained while other ready nodes are dispatched.
+Within each node, [independent ready dispatch](DISPATCH_ERRORS.md) likewise preserves later
+entity families and action channels before reporting the first operational failure.
 
 Graph waits and matching register only the interested node's native graph guard. Generic
 future polling is disabled by `wake_driven`; live reliable ACK observers still cap the shared

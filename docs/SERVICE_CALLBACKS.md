@@ -56,6 +56,10 @@ is retired on success, errors and unwinding; later requests can be handled when 
 A failed response-buffer allocation leaves no native service or registry entry. Partial native
 response updates follow ordinary fallible message-copy semantics and can be overwritten on retry.
 
+[Independent ready dispatch](DISPATCH_ERRORS.md) preserves other ready endpoint/action work
+before returning the first error. The [recovery example](../r2r/examples/dispatch_recovery.rs)
+retains one caller-owned application future across a reported callback error.
+
 The implementation is isolated in `services/callback` and `nodes/service_callbacks`, with nearby
 native storage, identity, fairness, outcome and ownership tests. Nodes without callback services
 allocate no callback registry or extra native guard. The ordinary deferred service path retains
