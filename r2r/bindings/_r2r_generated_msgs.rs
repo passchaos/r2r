@@ -61,6 +61,9 @@ pub mod tf2_msgs {
 pub mod trajectory_msgs {
     include!(concat!(env!("OUT_DIR"), "/trajectory_msgs.rs"));
 }
+pub mod type_description_interfaces {
+    include!(concat!(env!("OUT_DIR"), "/type_description_interfaces.rs"));
+}
 pub mod unique_identifier_msgs {
     include!(concat!(env!("OUT_DIR"), "/unique_identifier_msgs.rs"));
 }

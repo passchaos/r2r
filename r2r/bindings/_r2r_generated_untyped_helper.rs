@@ -1229,6 +1229,52 @@ impl WrappedNativeMsgUntyped {
             >()
         }
         #[allow(non_snake_case)]
+        fn new_wrapped_native_msg_untyped_type_description_interfaces_msg_Field() -> Result<
+            WrappedNativeMsgUntyped,
+        > {
+            WrappedNativeMsgUntyped::try_new::<type_description_interfaces::msg::Field>()
+        }
+        #[allow(non_snake_case)]
+        fn new_wrapped_native_msg_untyped_type_description_interfaces_msg_FieldType() -> Result<
+            WrappedNativeMsgUntyped,
+        > {
+            WrappedNativeMsgUntyped::try_new::<
+                type_description_interfaces::msg::FieldType,
+            >()
+        }
+        #[allow(non_snake_case)]
+        fn new_wrapped_native_msg_untyped_type_description_interfaces_msg_IndividualTypeDescription() -> Result<
+            WrappedNativeMsgUntyped,
+        > {
+            WrappedNativeMsgUntyped::try_new::<
+                type_description_interfaces::msg::IndividualTypeDescription,
+            >()
+        }
+        #[allow(non_snake_case)]
+        fn new_wrapped_native_msg_untyped_type_description_interfaces_msg_KeyValue() -> Result<
+            WrappedNativeMsgUntyped,
+        > {
+            WrappedNativeMsgUntyped::try_new::<
+                type_description_interfaces::msg::KeyValue,
+            >()
+        }
+        #[allow(non_snake_case)]
+        fn new_wrapped_native_msg_untyped_type_description_interfaces_msg_TypeDescription() -> Result<
+            WrappedNativeMsgUntyped,
+        > {
+            WrappedNativeMsgUntyped::try_new::<
+                type_description_interfaces::msg::TypeDescription,
+            >()
+        }
+        #[allow(non_snake_case)]
+        fn new_wrapped_native_msg_untyped_type_description_interfaces_msg_TypeSource() -> Result<
+            WrappedNativeMsgUntyped,
+        > {
+            WrappedNativeMsgUntyped::try_new::<
+                type_description_interfaces::msg::TypeSource,
+            >()
+        }
+        #[allow(non_snake_case)]
         fn new_wrapped_native_msg_untyped_unique_identifier_msgs_msg_UUID() -> Result<
             WrappedNativeMsgUntyped,
         > {
@@ -1688,6 +1734,18 @@ impl WrappedNativeMsgUntyped {
             new_wrapped_native_msg_untyped_trajectory_msgs_msg_MultiDOFJointTrajectory,
             "trajectory_msgs/msg/MultiDOFJointTrajectoryPoint" =>
             new_wrapped_native_msg_untyped_trajectory_msgs_msg_MultiDOFJointTrajectoryPoint,
+            "type_description_interfaces/msg/Field" =>
+            new_wrapped_native_msg_untyped_type_description_interfaces_msg_Field,
+            "type_description_interfaces/msg/FieldType" =>
+            new_wrapped_native_msg_untyped_type_description_interfaces_msg_FieldType,
+            "type_description_interfaces/msg/IndividualTypeDescription" =>
+            new_wrapped_native_msg_untyped_type_description_interfaces_msg_IndividualTypeDescription,
+            "type_description_interfaces/msg/KeyValue" =>
+            new_wrapped_native_msg_untyped_type_description_interfaces_msg_KeyValue,
+            "type_description_interfaces/msg/TypeDescription" =>
+            new_wrapped_native_msg_untyped_type_description_interfaces_msg_TypeDescription,
+            "type_description_interfaces/msg/TypeSource" =>
+            new_wrapped_native_msg_untyped_type_description_interfaces_msg_TypeSource,
             "unique_identifier_msgs/msg/UUID" =>
             new_wrapped_native_msg_untyped_unique_identifier_msgs_msg_UUID,
             "visualization_msgs/msg/ImageMarker" =>

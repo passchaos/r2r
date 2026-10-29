@@ -100,6 +100,14 @@ pub use subscribers::{
     SubscriptionOptions,
 };
 
+mod type_descriptions;
+pub use type_descriptions::{action_type_hash, message_type_hash, service_type_hash};
+#[cfg(all(
+    not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)),
+    r2r__type_description_interfaces__srv__GetTypeDescription
+))]
+pub use type_descriptions::{type_description_hash, TypeDescriptionClient};
+
 mod qos_events;
 pub use qos_events::{PublisherEventKind, QosEvent, QosEventStream, SubscriptionEventKind};
 

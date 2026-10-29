@@ -252,3 +252,110 @@ fn endpoint_info_queries_expand_relative_and_private_topic_names() {
         assert_eq!(node.count_clients("relative_client").unwrap(), 1);
     }
 }
+
+#[test]
+fn discovers_names_and_types_for_a_specific_node() {
+    use crate::example_interfaces::srv::AddTwoInts;
+
+    let context = Context::create().unwrap();
+    let mut target = Node::create(context.clone(), "graph_target", "/graph_ns").unwrap();
+    let mut observer = Node::create(context, "graph_observer", "/graph_ns").unwrap();
+    let _publisher = target
+        .create_publisher::<crate::std_msgs::msg::String>(
+            "/graph_target_output",
+            QosProfile::default(),
+        )
+        .unwrap();
+    let _subscriber = target
+        .subscribe::<crate::std_msgs::msg::Int32>("/graph_target_input", QosProfile::default())
+        .unwrap();
+    let _service = target
+        .create_service::<AddTwoInts::Service>("/graph_target_service", QosProfile::default())
+        .unwrap();
+    let _client = target
+        .create_client::<AddTwoInts::Service>("/graph_target_client", QosProfile::default())
+        .unwrap();
+
+    wait_for_graph_condition(&mut observer, |node| {
+        node.get_publisher_names_and_types_by_node("graph_target", "/graph_ns", false)
+            .is_ok_and(|types| types.contains_key("/graph_target_output"))
+            && node
+                .get_subscription_names_and_types_by_node("graph_target", "/graph_ns", false)
+                .is_ok_and(|types| types.contains_key("/graph_target_input"))
+            && node
+                .get_service_names_and_types_by_node("graph_target", "/graph_ns")
+                .is_ok_and(|types| types.contains_key("/graph_target_service"))
+            && node
+                .get_client_names_and_types_by_node("graph_target", "/graph_ns")
+                .is_ok_and(|types| types.contains_key("/graph_target_client"))
+    });
+    let publishers = observer
+        .get_publisher_names_and_types_by_node("graph_target", "/graph_ns", false)
+        .unwrap();
+    let subscriptions = observer
+        .get_subscription_names_and_types_by_node("graph_target", "/graph_ns", false)
+        .unwrap();
+    let services = observer
+        .get_service_names_and_types_by_node("graph_target", "/graph_ns")
+        .unwrap();
+    let clients = observer
+        .get_client_names_and_types_by_node("graph_target", "/graph_ns")
+        .unwrap();
+
+    assert_eq!(
+        publishers.get("/graph_target_output"),
+        Some(&vec!["std_msgs/msg/String".to_owned()])
+    );
+    assert_eq!(
+        subscriptions.get("/graph_target_input"),
+        Some(&vec!["std_msgs/msg/Int32".to_owned()])
+    );
+    assert_eq!(
+        services.get("/graph_target_service"),
+        Some(&vec!["example_interfaces/srv/AddTwoInts".to_owned()])
+    );
+    assert_eq!(
+        clients.get("/graph_target_client"),
+        Some(&vec!["example_interfaces/srv/AddTwoInts".to_owned()])
+    );
+    assert!(!publishers.contains_key("/graph_target_input"));
+    assert!(matches!(
+        observer.get_publisher_names_and_types_by_node("missing_graph_target", "/graph_ns", false,),
+        Err(Error::RCL_RET_NODE_NAME_NON_EXISTENT)
+    ));
+}
+
+#[test]
+fn discovers_node_names_namespaces_and_enclaves() {
+    let context = Context::create().unwrap();
+    let target = Node::create(context.clone(), "node_graph_target", "/graph_ns").unwrap();
+    let mut observer = Node::create(context, "node_graph_observer", "").unwrap();
+
+    wait_for_graph_condition(&mut observer, |node| {
+        node.get_node_names()
+            .unwrap()
+            .contains(&"/graph_ns/node_graph_target".to_owned())
+            && node
+                .get_node_names_and_namespaces()
+                .unwrap()
+                .contains(&("node_graph_target".to_owned(), "/graph_ns".to_owned()))
+            && node
+                .get_node_names_with_enclaves()
+                .unwrap()
+                .iter()
+                .any(|(name, namespace, _)| name == "node_graph_target" && namespace == "/graph_ns")
+    });
+    let names = observer.get_node_names().unwrap();
+    let names_and_namespaces = observer.get_node_names_and_namespaces().unwrap();
+    let with_enclaves = observer.get_node_names_with_enclaves().unwrap();
+
+    assert!(names.contains(&"/graph_ns/node_graph_target".to_owned()));
+    assert!(names.contains(&"/node_graph_observer".to_owned()));
+    assert!(
+        names_and_namespaces.contains(&("node_graph_target".to_owned(), "/graph_ns".to_owned()))
+    );
+    assert!(with_enclaves
+        .iter()
+        .any(|(name, namespace, _)| { name == "node_graph_target" && namespace == "/graph_ns" }));
+    drop(target);
+}

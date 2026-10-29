@@ -2670,6 +2670,16 @@ pub struct rosidl_action_type_support_t {
     pub get_type_description_sources_func: rosidl_action_get_type_description_sources_function,
 }
 unsafe extern "C" {
+    pub fn type_description_interfaces__srv__GetTypeDescription_Response__init(
+        msg: *mut type_description_interfaces__srv__GetTypeDescription_Response,
+    ) -> bool;
+}
+unsafe extern "C" {
+    pub fn type_description_interfaces__srv__GetTypeDescription_Response__fini(
+        msg: *mut type_description_interfaces__srv__GetTypeDescription_Response,
+    );
+}
+unsafe extern "C" {
     pub fn rosidl_typesupport_c__get_message_type_support_handle__type_description_interfaces__srv__GetTypeDescription_Request()
     -> *const rosidl_message_type_support_t;
 }
@@ -7929,6 +7939,22 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn rcl_service_server_is_available(
         node: *const rcl_node_t, client: *const rcl_client_t, is_available: *mut bool,
+    ) -> rcl_ret_t;
+}
+unsafe extern "C" {
+    pub fn rosidl_typesupport_c__get_message_type_support_handle__type_description_interfaces__msg__TypeDescription()
+    -> *const rosidl_message_type_support_t;
+}
+unsafe extern "C" {
+    pub fn rcl_type_description_to_hashable_json(
+        type_description: *const type_description_interfaces__msg__TypeDescription,
+        output_repr: *mut rcutils_char_array_t,
+    ) -> rcl_ret_t;
+}
+unsafe extern "C" {
+    pub fn rcl_calculate_type_hash(
+        type_description: *const type_description_interfaces__msg__TypeDescription,
+        out_type_hash: *mut rosidl_type_hash_t,
     ) -> rcl_ret_t;
 }
 #[repr(u32)]

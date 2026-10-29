@@ -51,6 +51,7 @@ fn main() {
         "r2r__example_interfaces__srv__AddTwoInts",
         "r2r__std_srvs__srv__Empty",
         "r2r__example_interfaces__action__Fibonacci",
+        "r2r__type_description_interfaces__srv__GetTypeDescription",
     ]);
     r2r_common::print_cargo_ros_distro();
 

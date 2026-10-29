@@ -998,3 +998,48 @@ The true no-ROS gate passes all targets, four snapshot transactions, twelve pipe
 oracle counterexample test, six common/two generator tests, two ownership compile-fail doctests,
 and 28 public API pages with 60 required methods. Source-addressed reports and compressed logs
 are in [native QoS evidence](interop/qos-event-streams-2026-10-30/README.md).
+
+## Native type-description discovery (2026-10-30)
+
+Jazzy and newer nodes can start the standard `~/get_type_description` endpoint through explicit
+Node options, the matching CLI/YAML override or `start_type_description_service`. It answers
+directly from RCL's live type cache in bounded sixteen-request native dispatch passes. A checked
+async `TypeDescriptionClient` verifies type name and canonical RIHS schema hash before returning
+the native response. Message/service/action hash helpers read generated type support without
+constructing payloads. Explicit server/client QoS supports larger concurrent histories; the
+forty-request boundary uses matching reliable KeepLast(64), since default KeepLast(10) cannot
+preserve a larger unattended batch merely by being reliable.
+
+Response ownership is explicit: RCL initializes the response itself, so r2r finalizes any prior
+initialized fields before invoking the native handler and retains only the outer RAII container.
+Repeated source/no-source requests, missing/invalid hashes and endpoint removal preserve cleanup
+and later query progress. Shared types remain discoverable until their last endpoint is removed.
+Stopping/restarting the standard service preserves unrelated endpoint IDs and native remapping.
+
+The exact-source C++ oracle initially failed: generated C metadata stored a NUL in place of the
+installed `.msg` file's trailing newline, and RCL cache conversion removed that byte. Both Rust
+and standard rclcpp services use this cache. Server-side and checked-client recovery now compare
+installed resources against the complete received source prefix and append only missing trailing
+whitespace; changed semantic contents are never substituted. Cached files/lookup keys and spare
+owned buffer capacity avoid repeated lookup allocations. Both Jazzy RMWs pass schema/hash/source
+checks in independent Rust-server/C++-client and C++-server/Rust-client directions, including an
+unchanged strict byte-for-byte source-file gate. The original failure and direct native metadata
+bytes remain archived. Missing resources preserve native metadata and do not imply exact fidelity.
+
+Twelve focused cases cover RIHS parsing/version boundaries, source recovery counterexamples,
+shared message/service/action schemas, invalid/missing identities, source omission, native
+registration lifetime, remapping/options/stop/restart, forged same-name schema rejection,
+background forty-query progress and timeout/foreign ownership. Final debug workspace and both
+optimized Jazzy RMW suites pass 641 main-library cases with eight manual measurements ignored.
+A preexisting per-node graph query race was exposed by the optimized suite; its two tests now
+register graph interest and wait for cache visibility before retaining the original name/type/
+enclave assertions. They live beside the other graph tests and pass both Jazzy RMWs.
+
+Humble/Fast DDS passes three unsupported/hash boundary cases, 53 service cases, the boundary
+example and all-target Clippy. Kilted under both RMWs passes twelve type-description and 64
+service cases, the schema example and all-target Clippy. The documentation snapshot now contains
+24 packages; candidate validation and transactional replacement pass. A true no-ROS gate checks
+all targets, snapshot/harness/common/generator tests, two ownership compile-fail cases and 36
+public pages/functions with 72 specific methods. Independent C++ interoperability is required
+by CI for Jazzy/Kilted/Lyrical/Rolling. Local Iron/Lyrical/Rolling runtime evidence and broader
+network/multithread performance comparisons remain open.

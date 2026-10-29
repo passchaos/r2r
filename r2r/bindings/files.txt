@@ -19,6 +19,7 @@ stereo_msgs.rs
 test_msgs.rs
 tf2_msgs.rs
 trajectory_msgs.rs
+type_description_interfaces.rs
 unique_identifier_msgs.rs
 visualization_msgs.rs
 _r2r_generated_msgs.rs

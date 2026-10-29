@@ -154,13 +154,13 @@ pub mod msg {
     }
     #[allow(non_upper_case_globals)]
     impl ImageMarker {
-        pub const ADD: _bindgen_ty_453 = visualization_msgs__msg__ImageMarker__ADD;
-        pub const CIRCLE: _bindgen_ty_448 = visualization_msgs__msg__ImageMarker__CIRCLE;
-        pub const LINE_LIST: _bindgen_ty_450 = visualization_msgs__msg__ImageMarker__LINE_LIST;
-        pub const LINE_STRIP: _bindgen_ty_449 = visualization_msgs__msg__ImageMarker__LINE_STRIP;
-        pub const POINTS: _bindgen_ty_452 = visualization_msgs__msg__ImageMarker__POINTS;
-        pub const POLYGON: _bindgen_ty_451 = visualization_msgs__msg__ImageMarker__POLYGON;
-        pub const REMOVE: _bindgen_ty_454 = visualization_msgs__msg__ImageMarker__REMOVE;
+        pub const ADD: _bindgen_ty_546 = visualization_msgs__msg__ImageMarker__ADD;
+        pub const CIRCLE: _bindgen_ty_541 = visualization_msgs__msg__ImageMarker__CIRCLE;
+        pub const LINE_LIST: _bindgen_ty_543 = visualization_msgs__msg__ImageMarker__LINE_LIST;
+        pub const LINE_STRIP: _bindgen_ty_542 = visualization_msgs__msg__ImageMarker__LINE_STRIP;
+        pub const POINTS: _bindgen_ty_545 = visualization_msgs__msg__ImageMarker__POINTS;
+        pub const POLYGON: _bindgen_ty_544 = visualization_msgs__msg__ImageMarker__POLYGON;
+        pub const REMOVE: _bindgen_ty_547 = visualization_msgs__msg__ImageMarker__REMOVE;
     }
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
@@ -428,19 +428,19 @@ pub mod msg {
     }
     #[allow(non_upper_case_globals)]
     impl InteractiveMarkerControl {
-        pub const BUTTON: _bindgen_ty_463 = visualization_msgs__msg__InteractiveMarkerControl__BUTTON;
-        pub const FIXED: _bindgen_ty_459 = visualization_msgs__msg__InteractiveMarkerControl__FIXED;
-        pub const INHERIT: _bindgen_ty_458 = visualization_msgs__msg__InteractiveMarkerControl__INHERIT;
-        pub const MENU: _bindgen_ty_462 = visualization_msgs__msg__InteractiveMarkerControl__MENU;
-        pub const MOVE_3D: _bindgen_ty_468 = visualization_msgs__msg__InteractiveMarkerControl__MOVE_3D;
-        pub const MOVE_AXIS: _bindgen_ty_464 = visualization_msgs__msg__InteractiveMarkerControl__MOVE_AXIS;
-        pub const MOVE_PLANE: _bindgen_ty_465 = visualization_msgs__msg__InteractiveMarkerControl__MOVE_PLANE;
-        pub const MOVE_ROTATE: _bindgen_ty_467 = visualization_msgs__msg__InteractiveMarkerControl__MOVE_ROTATE;
-        pub const MOVE_ROTATE_3D: _bindgen_ty_470 = visualization_msgs__msg__InteractiveMarkerControl__MOVE_ROTATE_3D;
-        pub const NONE: _bindgen_ty_461 = visualization_msgs__msg__InteractiveMarkerControl__NONE;
-        pub const ROTATE_3D: _bindgen_ty_469 = visualization_msgs__msg__InteractiveMarkerControl__ROTATE_3D;
-        pub const ROTATE_AXIS: _bindgen_ty_466 = visualization_msgs__msg__InteractiveMarkerControl__ROTATE_AXIS;
-        pub const VIEW_FACING: _bindgen_ty_460 = visualization_msgs__msg__InteractiveMarkerControl__VIEW_FACING;
+        pub const BUTTON: _bindgen_ty_556 = visualization_msgs__msg__InteractiveMarkerControl__BUTTON;
+        pub const FIXED: _bindgen_ty_552 = visualization_msgs__msg__InteractiveMarkerControl__FIXED;
+        pub const INHERIT: _bindgen_ty_551 = visualization_msgs__msg__InteractiveMarkerControl__INHERIT;
+        pub const MENU: _bindgen_ty_555 = visualization_msgs__msg__InteractiveMarkerControl__MENU;
+        pub const MOVE_3D: _bindgen_ty_561 = visualization_msgs__msg__InteractiveMarkerControl__MOVE_3D;
+        pub const MOVE_AXIS: _bindgen_ty_557 = visualization_msgs__msg__InteractiveMarkerControl__MOVE_AXIS;
+        pub const MOVE_PLANE: _bindgen_ty_558 = visualization_msgs__msg__InteractiveMarkerControl__MOVE_PLANE;
+        pub const MOVE_ROTATE: _bindgen_ty_560 = visualization_msgs__msg__InteractiveMarkerControl__MOVE_ROTATE;
+        pub const MOVE_ROTATE_3D: _bindgen_ty_563 = visualization_msgs__msg__InteractiveMarkerControl__MOVE_ROTATE_3D;
+        pub const NONE: _bindgen_ty_554 = visualization_msgs__msg__InteractiveMarkerControl__NONE;
+        pub const ROTATE_3D: _bindgen_ty_562 = visualization_msgs__msg__InteractiveMarkerControl__ROTATE_3D;
+        pub const ROTATE_AXIS: _bindgen_ty_559 = visualization_msgs__msg__InteractiveMarkerControl__ROTATE_AXIS;
+        pub const VIEW_FACING: _bindgen_ty_553 = visualization_msgs__msg__InteractiveMarkerControl__VIEW_FACING;
     }
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
@@ -527,12 +527,12 @@ pub mod msg {
     }
     #[allow(non_upper_case_globals)]
     impl InteractiveMarkerFeedback {
-        pub const BUTTON_CLICK: _bindgen_ty_491 = visualization_msgs__msg__InteractiveMarkerFeedback__BUTTON_CLICK;
-        pub const KEEP_ALIVE: _bindgen_ty_488 = visualization_msgs__msg__InteractiveMarkerFeedback__KEEP_ALIVE;
-        pub const MENU_SELECT: _bindgen_ty_490 = visualization_msgs__msg__InteractiveMarkerFeedback__MENU_SELECT;
-        pub const MOUSE_DOWN: _bindgen_ty_492 = visualization_msgs__msg__InteractiveMarkerFeedback__MOUSE_DOWN;
-        pub const MOUSE_UP: _bindgen_ty_493 = visualization_msgs__msg__InteractiveMarkerFeedback__MOUSE_UP;
-        pub const POSE_UPDATE: _bindgen_ty_489 = visualization_msgs__msg__InteractiveMarkerFeedback__POSE_UPDATE;
+        pub const BUTTON_CLICK: _bindgen_ty_584 = visualization_msgs__msg__InteractiveMarkerFeedback__BUTTON_CLICK;
+        pub const KEEP_ALIVE: _bindgen_ty_581 = visualization_msgs__msg__InteractiveMarkerFeedback__KEEP_ALIVE;
+        pub const MENU_SELECT: _bindgen_ty_583 = visualization_msgs__msg__InteractiveMarkerFeedback__MENU_SELECT;
+        pub const MOUSE_DOWN: _bindgen_ty_585 = visualization_msgs__msg__InteractiveMarkerFeedback__MOUSE_DOWN;
+        pub const MOUSE_UP: _bindgen_ty_586 = visualization_msgs__msg__InteractiveMarkerFeedback__MOUSE_UP;
+        pub const POSE_UPDATE: _bindgen_ty_582 = visualization_msgs__msg__InteractiveMarkerFeedback__POSE_UPDATE;
     }
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
@@ -827,8 +827,8 @@ pub mod msg {
     }
     #[allow(non_upper_case_globals)]
     impl InteractiveMarkerUpdate {
-        pub const KEEP_ALIVE: _bindgen_ty_494 = visualization_msgs__msg__InteractiveMarkerUpdate__KEEP_ALIVE;
-        pub const UPDATE: _bindgen_ty_495 = visualization_msgs__msg__InteractiveMarkerUpdate__UPDATE;
+        pub const KEEP_ALIVE: _bindgen_ty_587 = visualization_msgs__msg__InteractiveMarkerUpdate__KEEP_ALIVE;
+        pub const UPDATE: _bindgen_ty_588 = visualization_msgs__msg__InteractiveMarkerUpdate__UPDATE;
     }
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
@@ -1044,23 +1044,23 @@ pub mod msg {
     }
     #[allow(non_upper_case_globals)]
     impl Marker {
-        pub const ADD: _bindgen_ty_484 = visualization_msgs__msg__Marker__ADD;
-        pub const ARROW: _bindgen_ty_471 = visualization_msgs__msg__Marker__ARROW;
-        pub const ARROW_STRIP: _bindgen_ty_483 = visualization_msgs__msg__Marker__ARROW_STRIP;
-        pub const CUBE: _bindgen_ty_472 = visualization_msgs__msg__Marker__CUBE;
-        pub const CUBE_LIST: _bindgen_ty_477 = visualization_msgs__msg__Marker__CUBE_LIST;
-        pub const CYLINDER: _bindgen_ty_474 = visualization_msgs__msg__Marker__CYLINDER;
-        pub const DELETE: _bindgen_ty_486 = visualization_msgs__msg__Marker__DELETE;
-        pub const DELETEALL: _bindgen_ty_487 = visualization_msgs__msg__Marker__DELETEALL;
-        pub const LINE_LIST: _bindgen_ty_476 = visualization_msgs__msg__Marker__LINE_LIST;
-        pub const LINE_STRIP: _bindgen_ty_475 = visualization_msgs__msg__Marker__LINE_STRIP;
-        pub const MESH_RESOURCE: _bindgen_ty_481 = visualization_msgs__msg__Marker__MESH_RESOURCE;
-        pub const MODIFY: _bindgen_ty_485 = visualization_msgs__msg__Marker__MODIFY;
-        pub const POINTS: _bindgen_ty_479 = visualization_msgs__msg__Marker__POINTS;
-        pub const SPHERE: _bindgen_ty_473 = visualization_msgs__msg__Marker__SPHERE;
-        pub const SPHERE_LIST: _bindgen_ty_478 = visualization_msgs__msg__Marker__SPHERE_LIST;
-        pub const TEXT_VIEW_FACING: _bindgen_ty_480 = visualization_msgs__msg__Marker__TEXT_VIEW_FACING;
-        pub const TRIANGLE_LIST: _bindgen_ty_482 = visualization_msgs__msg__Marker__TRIANGLE_LIST;
+        pub const ADD: _bindgen_ty_577 = visualization_msgs__msg__Marker__ADD;
+        pub const ARROW: _bindgen_ty_564 = visualization_msgs__msg__Marker__ARROW;
+        pub const ARROW_STRIP: _bindgen_ty_576 = visualization_msgs__msg__Marker__ARROW_STRIP;
+        pub const CUBE: _bindgen_ty_565 = visualization_msgs__msg__Marker__CUBE;
+        pub const CUBE_LIST: _bindgen_ty_570 = visualization_msgs__msg__Marker__CUBE_LIST;
+        pub const CYLINDER: _bindgen_ty_567 = visualization_msgs__msg__Marker__CYLINDER;
+        pub const DELETE: _bindgen_ty_579 = visualization_msgs__msg__Marker__DELETE;
+        pub const DELETEALL: _bindgen_ty_580 = visualization_msgs__msg__Marker__DELETEALL;
+        pub const LINE_LIST: _bindgen_ty_569 = visualization_msgs__msg__Marker__LINE_LIST;
+        pub const LINE_STRIP: _bindgen_ty_568 = visualization_msgs__msg__Marker__LINE_STRIP;
+        pub const MESH_RESOURCE: _bindgen_ty_574 = visualization_msgs__msg__Marker__MESH_RESOURCE;
+        pub const MODIFY: _bindgen_ty_578 = visualization_msgs__msg__Marker__MODIFY;
+        pub const POINTS: _bindgen_ty_572 = visualization_msgs__msg__Marker__POINTS;
+        pub const SPHERE: _bindgen_ty_566 = visualization_msgs__msg__Marker__SPHERE;
+        pub const SPHERE_LIST: _bindgen_ty_571 = visualization_msgs__msg__Marker__SPHERE_LIST;
+        pub const TEXT_VIEW_FACING: _bindgen_ty_573 = visualization_msgs__msg__Marker__TEXT_VIEW_FACING;
+        pub const TRIANGLE_LIST: _bindgen_ty_575 = visualization_msgs__msg__Marker__TRIANGLE_LIST;
     }
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]
@@ -1205,9 +1205,9 @@ pub mod msg {
     }
     #[allow(non_upper_case_globals)]
     impl MenuEntry {
-        pub const FEEDBACK: _bindgen_ty_455 = visualization_msgs__msg__MenuEntry__FEEDBACK;
-        pub const ROSLAUNCH: _bindgen_ty_457 = visualization_msgs__msg__MenuEntry__ROSLAUNCH;
-        pub const ROSRUN: _bindgen_ty_456 = visualization_msgs__msg__MenuEntry__ROSRUN;
+        pub const FEEDBACK: _bindgen_ty_548 = visualization_msgs__msg__MenuEntry__FEEDBACK;
+        pub const ROSLAUNCH: _bindgen_ty_550 = visualization_msgs__msg__MenuEntry__ROSLAUNCH;
+        pub const ROSRUN: _bindgen_ty_549 = visualization_msgs__msg__MenuEntry__ROSRUN;
     }
     #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
     #[serde(default)]

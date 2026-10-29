@@ -18,6 +18,12 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// not have an analogue in the rcl.
 #[derive(Error, Clone, Debug)]
 pub enum Error {
+    #[error("invalid RIHS type hash: {value}")]
+    InvalidTypeHash { value: String },
+    #[error("type description query failed: {reason}")]
+    TypeDescriptionUnavailable { reason: String },
+    #[error("type description identity mismatch: expected {expected}, received {actual}")]
+    TypeDescriptionIdentityMismatch { expected: String, actual: String },
     #[error("this endpoint event already has an observer; drop its stream and spin cleanup before taking or observing it again")]
     QosEventAlreadyObserved,
     #[error("RCL_RET_OK")]

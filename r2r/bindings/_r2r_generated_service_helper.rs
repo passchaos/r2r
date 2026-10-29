@@ -155,6 +155,12 @@ impl UntypedServiceSupport {
             UntypedServiceSupport::new::<tf2_msgs::srv::FrameGraph::Service>()
         }
         #[allow(non_snake_case)]
+        fn new_untyped_service_support_type_description_interfaces_srv_GetTypeDescription() -> UntypedServiceSupport {
+            UntypedServiceSupport::new::<
+                type_description_interfaces::srv::GetTypeDescription::Service,
+            >()
+        }
+        #[allow(non_snake_case)]
         fn new_untyped_service_support_visualization_msgs_srv_GetInteractiveMarkers() -> UntypedServiceSupport {
             UntypedServiceSupport::new::<
                 visualization_msgs::srv::GetInteractiveMarkers::Service,
@@ -222,6 +228,8 @@ impl UntypedServiceSupport {
             new_untyped_service_support_test_msgs_srv_BasicTypes, "test_msgs/srv/Empty"
             => new_untyped_service_support_test_msgs_srv_Empty, "tf2_msgs/srv/FrameGraph"
             => new_untyped_service_support_tf2_msgs_srv_FrameGraph,
+            "type_description_interfaces/srv/GetTypeDescription" =>
+            new_untyped_service_support_type_description_interfaces_srv_GetTypeDescription,
             "visualization_msgs/srv/GetInteractiveMarkers" =>
             new_untyped_service_support_visualization_msgs_srv_GetInteractiveMarkers
         };

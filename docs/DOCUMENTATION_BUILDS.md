@@ -11,7 +11,7 @@ The snapshot distribution is defined in
 `r2r/bindings/_r2r_generated_cfg.txt` records the available interfaces.
 Documentation restores those conditions from the snapshot instead of depending
 on `ROS_DISTRO` or discovering packages on the build host. The snapshot contains
-23 standard/example/test packages, including the previously absent
+24 standard/example/test packages, including the previously absent
 `example_interfaces`, `std_srvs` and `service_msgs`. Existing documented packages
 remain available. Generated string fields now match native `RosString` storage
 and generated services expose their associated `Event` types.
@@ -25,12 +25,12 @@ python3 tests/check_documentation.py
 It removes ROS discovery, middleware and library-path variables for its child
 processes, then runs snapshot transaction tests, workspace compilation with all
 targets, common-library tests, the two pure message-path generator tests, two compile-fail
-`NativeMessageRef` ownership doctests and Rustdoc. It checks twenty-eight public documentation pages and sixty specific methods,
+`NativeMessageRef` ownership doctests and Rustdoc. It checks thirty-six public documentation pages and seventy-two specific methods,
 including lifecycle native/loaned publication and destruction, configurable
 managed publishers/timers, service introspection, simulated-time controls and
 owned background task completion/cancellation/errors, action feedback overflow policy and
 typed and runtime-typed batched action-server acceptance/execution/terminal completion, and scoped
-native subscription callback ownership/options, borrowed-native publication and native QoS event streams.
+native subscription callback ownership/options, borrowed-native publication native QoS event streams and type-description schema/hash/source queries.
 The main library now uses the default Rustdoc test setting, so ordinary workspace tests also
 execute its API examples and ownership compile-fail cases. The no-ROS gate also runs the pipeline harness counterexamples, including raw-sample integrity, source drift,
 finite performance ratios and preflight/runtime isolation requirements.

@@ -7402,53 +7402,806 @@ pub struct trajectory_msgs__msg__MultiDOFJointTrajectory__Sequence {
     pub size: usize,
     pub capacity: usize,
 }
-pub const visualization_msgs__msg__ImageMarker__CIRCLE: _bindgen_ty_448 =
-    _bindgen_ty_448::visualization_msgs__msg__ImageMarker__CIRCLE;
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_NOT_SET: _bindgen_ty_448 =
+    _bindgen_ty_448::type_description_interfaces__msg__FieldType__FIELD_TYPE_NOT_SET;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum _bindgen_ty_448 {
-    visualization_msgs__msg__ImageMarker__CIRCLE = 0,
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_NOT_SET = 0,
 }
-pub const visualization_msgs__msg__ImageMarker__LINE_STRIP: _bindgen_ty_449 =
-    _bindgen_ty_449::visualization_msgs__msg__ImageMarker__LINE_STRIP;
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_NESTED_TYPE: _bindgen_ty_449 =
+    _bindgen_ty_449::type_description_interfaces__msg__FieldType__FIELD_TYPE_NESTED_TYPE;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum _bindgen_ty_449 {
-    visualization_msgs__msg__ImageMarker__LINE_STRIP = 1,
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_NESTED_TYPE = 1,
 }
-pub const visualization_msgs__msg__ImageMarker__LINE_LIST: _bindgen_ty_450 =
-    _bindgen_ty_450::visualization_msgs__msg__ImageMarker__LINE_LIST;
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_INT8: _bindgen_ty_450 =
+    _bindgen_ty_450::type_description_interfaces__msg__FieldType__FIELD_TYPE_INT8;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum _bindgen_ty_450 {
-    visualization_msgs__msg__ImageMarker__LINE_LIST = 2,
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_INT8 = 2,
 }
-pub const visualization_msgs__msg__ImageMarker__POLYGON: _bindgen_ty_451 =
-    _bindgen_ty_451::visualization_msgs__msg__ImageMarker__POLYGON;
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT8: _bindgen_ty_451 =
+    _bindgen_ty_451::type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT8;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum _bindgen_ty_451 {
-    visualization_msgs__msg__ImageMarker__POLYGON = 3,
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT8 = 3,
 }
-pub const visualization_msgs__msg__ImageMarker__POINTS: _bindgen_ty_452 =
-    _bindgen_ty_452::visualization_msgs__msg__ImageMarker__POINTS;
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_INT16: _bindgen_ty_452 =
+    _bindgen_ty_452::type_description_interfaces__msg__FieldType__FIELD_TYPE_INT16;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum _bindgen_ty_452 {
-    visualization_msgs__msg__ImageMarker__POINTS = 4,
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_INT16 = 4,
 }
-pub const visualization_msgs__msg__ImageMarker__ADD: _bindgen_ty_453 =
-    _bindgen_ty_453::visualization_msgs__msg__ImageMarker__ADD;
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT16: _bindgen_ty_453 =
+    _bindgen_ty_453::type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT16;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum _bindgen_ty_453 {
-    visualization_msgs__msg__ImageMarker__ADD = 0,
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT16 = 5,
 }
-pub const visualization_msgs__msg__ImageMarker__REMOVE: _bindgen_ty_454 =
-    _bindgen_ty_454::visualization_msgs__msg__ImageMarker__REMOVE;
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_INT32: _bindgen_ty_454 =
+    _bindgen_ty_454::type_description_interfaces__msg__FieldType__FIELD_TYPE_INT32;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum _bindgen_ty_454 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_INT32 = 6,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT32: _bindgen_ty_455 =
+    _bindgen_ty_455::type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT32;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_455 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT32 = 7,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_INT64: _bindgen_ty_456 =
+    _bindgen_ty_456::type_description_interfaces__msg__FieldType__FIELD_TYPE_INT64;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_456 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_INT64 = 8,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT64: _bindgen_ty_457 =
+    _bindgen_ty_457::type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT64;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_457 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT64 = 9,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_FLOAT: _bindgen_ty_458 =
+    _bindgen_ty_458::type_description_interfaces__msg__FieldType__FIELD_TYPE_FLOAT;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_458 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_FLOAT = 10,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_DOUBLE: _bindgen_ty_459 =
+    _bindgen_ty_459::type_description_interfaces__msg__FieldType__FIELD_TYPE_DOUBLE;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_459 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_DOUBLE = 11,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_LONG_DOUBLE: _bindgen_ty_460 =
+    _bindgen_ty_460::type_description_interfaces__msg__FieldType__FIELD_TYPE_LONG_DOUBLE;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_460 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_LONG_DOUBLE = 12,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_CHAR: _bindgen_ty_461 =
+    _bindgen_ty_461::type_description_interfaces__msg__FieldType__FIELD_TYPE_CHAR;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_461 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_CHAR = 13,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_WCHAR: _bindgen_ty_462 =
+    _bindgen_ty_462::type_description_interfaces__msg__FieldType__FIELD_TYPE_WCHAR;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_462 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_WCHAR = 14,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_BOOLEAN: _bindgen_ty_463 =
+    _bindgen_ty_463::type_description_interfaces__msg__FieldType__FIELD_TYPE_BOOLEAN;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_463 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_BOOLEAN = 15,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_BYTE: _bindgen_ty_464 =
+    _bindgen_ty_464::type_description_interfaces__msg__FieldType__FIELD_TYPE_BYTE;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_464 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_BYTE = 16,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_STRING: _bindgen_ty_465 =
+    _bindgen_ty_465::type_description_interfaces__msg__FieldType__FIELD_TYPE_STRING;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_465 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_STRING = 17,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_WSTRING: _bindgen_ty_466 =
+    _bindgen_ty_466::type_description_interfaces__msg__FieldType__FIELD_TYPE_WSTRING;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_466 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_WSTRING = 18,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_STRING: _bindgen_ty_467 =
+    _bindgen_ty_467::type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_STRING;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_467 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_STRING = 19,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_WSTRING: _bindgen_ty_468 =
+    _bindgen_ty_468::type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_WSTRING;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_468 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_WSTRING = 20,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_STRING: _bindgen_ty_469 =
+    _bindgen_ty_469::type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_STRING;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_469 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_STRING = 21,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_WSTRING: _bindgen_ty_470 =
+    _bindgen_ty_470::type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_WSTRING;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_470 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_WSTRING = 22,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_NESTED_TYPE_ARRAY:
+    _bindgen_ty_471 =
+    _bindgen_ty_471::type_description_interfaces__msg__FieldType__FIELD_TYPE_NESTED_TYPE_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_471 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_NESTED_TYPE_ARRAY = 49,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_INT8_ARRAY: _bindgen_ty_472 =
+    _bindgen_ty_472::type_description_interfaces__msg__FieldType__FIELD_TYPE_INT8_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_472 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_INT8_ARRAY = 50,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT8_ARRAY: _bindgen_ty_473 =
+    _bindgen_ty_473::type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT8_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_473 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT8_ARRAY = 51,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_INT16_ARRAY: _bindgen_ty_474 =
+    _bindgen_ty_474::type_description_interfaces__msg__FieldType__FIELD_TYPE_INT16_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_474 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_INT16_ARRAY = 52,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT16_ARRAY: _bindgen_ty_475 =
+    _bindgen_ty_475::type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT16_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_475 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT16_ARRAY = 53,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_INT32_ARRAY: _bindgen_ty_476 =
+    _bindgen_ty_476::type_description_interfaces__msg__FieldType__FIELD_TYPE_INT32_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_476 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_INT32_ARRAY = 54,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT32_ARRAY: _bindgen_ty_477 =
+    _bindgen_ty_477::type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT32_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_477 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT32_ARRAY = 55,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_INT64_ARRAY: _bindgen_ty_478 =
+    _bindgen_ty_478::type_description_interfaces__msg__FieldType__FIELD_TYPE_INT64_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_478 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_INT64_ARRAY = 56,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT64_ARRAY: _bindgen_ty_479 =
+    _bindgen_ty_479::type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT64_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_479 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT64_ARRAY = 57,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_FLOAT_ARRAY: _bindgen_ty_480 =
+    _bindgen_ty_480::type_description_interfaces__msg__FieldType__FIELD_TYPE_FLOAT_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_480 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_FLOAT_ARRAY = 58,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_DOUBLE_ARRAY: _bindgen_ty_481 =
+    _bindgen_ty_481::type_description_interfaces__msg__FieldType__FIELD_TYPE_DOUBLE_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_481 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_DOUBLE_ARRAY = 59,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_LONG_DOUBLE_ARRAY:
+    _bindgen_ty_482 =
+    _bindgen_ty_482::type_description_interfaces__msg__FieldType__FIELD_TYPE_LONG_DOUBLE_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_482 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_LONG_DOUBLE_ARRAY = 60,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_CHAR_ARRAY: _bindgen_ty_483 =
+    _bindgen_ty_483::type_description_interfaces__msg__FieldType__FIELD_TYPE_CHAR_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_483 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_CHAR_ARRAY = 61,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_WCHAR_ARRAY: _bindgen_ty_484 =
+    _bindgen_ty_484::type_description_interfaces__msg__FieldType__FIELD_TYPE_WCHAR_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_484 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_WCHAR_ARRAY = 62,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_BOOLEAN_ARRAY: _bindgen_ty_485 =
+    _bindgen_ty_485::type_description_interfaces__msg__FieldType__FIELD_TYPE_BOOLEAN_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_485 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_BOOLEAN_ARRAY = 63,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_BYTE_ARRAY: _bindgen_ty_486 =
+    _bindgen_ty_486::type_description_interfaces__msg__FieldType__FIELD_TYPE_BYTE_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_486 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_BYTE_ARRAY = 64,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_STRING_ARRAY: _bindgen_ty_487 =
+    _bindgen_ty_487::type_description_interfaces__msg__FieldType__FIELD_TYPE_STRING_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_487 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_STRING_ARRAY = 65,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_WSTRING_ARRAY: _bindgen_ty_488 =
+    _bindgen_ty_488::type_description_interfaces__msg__FieldType__FIELD_TYPE_WSTRING_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_488 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_WSTRING_ARRAY = 66,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_STRING_ARRAY:
+    _bindgen_ty_489 =
+    _bindgen_ty_489::type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_STRING_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_489 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_STRING_ARRAY = 67,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_WSTRING_ARRAY:
+    _bindgen_ty_490 =
+    _bindgen_ty_490::type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_WSTRING_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_490 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_WSTRING_ARRAY = 68,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_STRING_ARRAY:
+    _bindgen_ty_491 =
+    _bindgen_ty_491::type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_STRING_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_491 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_STRING_ARRAY = 69,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_WSTRING_ARRAY:
+    _bindgen_ty_492 =
+    _bindgen_ty_492::type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_WSTRING_ARRAY;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_492 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_WSTRING_ARRAY = 70,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_NESTED_TYPE_BOUNDED_SEQUENCE : _bindgen_ty_493 = _bindgen_ty_493 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_NESTED_TYPE_BOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_493 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_NESTED_TYPE_BOUNDED_SEQUENCE = 97,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_INT8_BOUNDED_SEQUENCE:
+    _bindgen_ty_494 =
+    _bindgen_ty_494::type_description_interfaces__msg__FieldType__FIELD_TYPE_INT8_BOUNDED_SEQUENCE;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_494 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_INT8_BOUNDED_SEQUENCE = 98,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT8_BOUNDED_SEQUENCE:
+    _bindgen_ty_495 =
+    _bindgen_ty_495::type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT8_BOUNDED_SEQUENCE;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_495 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT8_BOUNDED_SEQUENCE = 99,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_INT16_BOUNDED_SEQUENCE:
+    _bindgen_ty_496 =
+    _bindgen_ty_496::type_description_interfaces__msg__FieldType__FIELD_TYPE_INT16_BOUNDED_SEQUENCE;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_496 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_INT16_BOUNDED_SEQUENCE = 100,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT16_BOUNDED_SEQUENCE : _bindgen_ty_497 = _bindgen_ty_497 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT16_BOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_497 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT16_BOUNDED_SEQUENCE = 101,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_INT32_BOUNDED_SEQUENCE:
+    _bindgen_ty_498 =
+    _bindgen_ty_498::type_description_interfaces__msg__FieldType__FIELD_TYPE_INT32_BOUNDED_SEQUENCE;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_498 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_INT32_BOUNDED_SEQUENCE = 102,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT32_BOUNDED_SEQUENCE : _bindgen_ty_499 = _bindgen_ty_499 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT32_BOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_499 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT32_BOUNDED_SEQUENCE = 103,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_INT64_BOUNDED_SEQUENCE:
+    _bindgen_ty_500 =
+    _bindgen_ty_500::type_description_interfaces__msg__FieldType__FIELD_TYPE_INT64_BOUNDED_SEQUENCE;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_500 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_INT64_BOUNDED_SEQUENCE = 104,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT64_BOUNDED_SEQUENCE : _bindgen_ty_501 = _bindgen_ty_501 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT64_BOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_501 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT64_BOUNDED_SEQUENCE = 105,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_FLOAT_BOUNDED_SEQUENCE:
+    _bindgen_ty_502 =
+    _bindgen_ty_502::type_description_interfaces__msg__FieldType__FIELD_TYPE_FLOAT_BOUNDED_SEQUENCE;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_502 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_FLOAT_BOUNDED_SEQUENCE = 106,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_DOUBLE_BOUNDED_SEQUENCE : _bindgen_ty_503 = _bindgen_ty_503 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_DOUBLE_BOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_503 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_DOUBLE_BOUNDED_SEQUENCE = 107,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_LONG_DOUBLE_BOUNDED_SEQUENCE : _bindgen_ty_504 = _bindgen_ty_504 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_LONG_DOUBLE_BOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_504 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_LONG_DOUBLE_BOUNDED_SEQUENCE = 108,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_CHAR_BOUNDED_SEQUENCE:
+    _bindgen_ty_505 =
+    _bindgen_ty_505::type_description_interfaces__msg__FieldType__FIELD_TYPE_CHAR_BOUNDED_SEQUENCE;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_505 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_CHAR_BOUNDED_SEQUENCE = 109,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_WCHAR_BOUNDED_SEQUENCE:
+    _bindgen_ty_506 =
+    _bindgen_ty_506::type_description_interfaces__msg__FieldType__FIELD_TYPE_WCHAR_BOUNDED_SEQUENCE;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_506 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_WCHAR_BOUNDED_SEQUENCE = 110,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_BOOLEAN_BOUNDED_SEQUENCE : _bindgen_ty_507 = _bindgen_ty_507 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_BOOLEAN_BOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_507 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_BOOLEAN_BOUNDED_SEQUENCE = 111,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_BYTE_BOUNDED_SEQUENCE:
+    _bindgen_ty_508 =
+    _bindgen_ty_508::type_description_interfaces__msg__FieldType__FIELD_TYPE_BYTE_BOUNDED_SEQUENCE;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_508 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_BYTE_BOUNDED_SEQUENCE = 112,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_STRING_BOUNDED_SEQUENCE : _bindgen_ty_509 = _bindgen_ty_509 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_STRING_BOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_509 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_STRING_BOUNDED_SEQUENCE = 113,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_WSTRING_BOUNDED_SEQUENCE : _bindgen_ty_510 = _bindgen_ty_510 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_WSTRING_BOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_510 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_WSTRING_BOUNDED_SEQUENCE = 114,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_STRING_BOUNDED_SEQUENCE : _bindgen_ty_511 = _bindgen_ty_511 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_STRING_BOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_511 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_STRING_BOUNDED_SEQUENCE = 115,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_WSTRING_BOUNDED_SEQUENCE : _bindgen_ty_512 = _bindgen_ty_512 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_WSTRING_BOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_512 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_WSTRING_BOUNDED_SEQUENCE = 116,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_STRING_BOUNDED_SEQUENCE : _bindgen_ty_513 = _bindgen_ty_513 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_STRING_BOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_513 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_STRING_BOUNDED_SEQUENCE = 117,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_WSTRING_BOUNDED_SEQUENCE : _bindgen_ty_514 = _bindgen_ty_514 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_WSTRING_BOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_514 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_WSTRING_BOUNDED_SEQUENCE = 118,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_NESTED_TYPE_UNBOUNDED_SEQUENCE : _bindgen_ty_515 = _bindgen_ty_515 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_NESTED_TYPE_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_515 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_NESTED_TYPE_UNBOUNDED_SEQUENCE = 145,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_INT8_UNBOUNDED_SEQUENCE : _bindgen_ty_516 = _bindgen_ty_516 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_INT8_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_516 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_INT8_UNBOUNDED_SEQUENCE = 146,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT8_UNBOUNDED_SEQUENCE : _bindgen_ty_517 = _bindgen_ty_517 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT8_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_517 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT8_UNBOUNDED_SEQUENCE = 147,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_INT16_UNBOUNDED_SEQUENCE : _bindgen_ty_518 = _bindgen_ty_518 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_INT16_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_518 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_INT16_UNBOUNDED_SEQUENCE = 148,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT16_UNBOUNDED_SEQUENCE : _bindgen_ty_519 = _bindgen_ty_519 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT16_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_519 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT16_UNBOUNDED_SEQUENCE = 149,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_INT32_UNBOUNDED_SEQUENCE : _bindgen_ty_520 = _bindgen_ty_520 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_INT32_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_520 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_INT32_UNBOUNDED_SEQUENCE = 150,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT32_UNBOUNDED_SEQUENCE : _bindgen_ty_521 = _bindgen_ty_521 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT32_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_521 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT32_UNBOUNDED_SEQUENCE = 151,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_INT64_UNBOUNDED_SEQUENCE : _bindgen_ty_522 = _bindgen_ty_522 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_INT64_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_522 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_INT64_UNBOUNDED_SEQUENCE = 152,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT64_UNBOUNDED_SEQUENCE : _bindgen_ty_523 = _bindgen_ty_523 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT64_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_523 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_UINT64_UNBOUNDED_SEQUENCE = 153,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_FLOAT_UNBOUNDED_SEQUENCE : _bindgen_ty_524 = _bindgen_ty_524 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_FLOAT_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_524 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_FLOAT_UNBOUNDED_SEQUENCE = 154,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_DOUBLE_UNBOUNDED_SEQUENCE : _bindgen_ty_525 = _bindgen_ty_525 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_DOUBLE_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_525 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_DOUBLE_UNBOUNDED_SEQUENCE = 155,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_LONG_DOUBLE_UNBOUNDED_SEQUENCE : _bindgen_ty_526 = _bindgen_ty_526 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_LONG_DOUBLE_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_526 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_LONG_DOUBLE_UNBOUNDED_SEQUENCE = 156,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_CHAR_UNBOUNDED_SEQUENCE : _bindgen_ty_527 = _bindgen_ty_527 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_CHAR_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_527 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_CHAR_UNBOUNDED_SEQUENCE = 157,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_WCHAR_UNBOUNDED_SEQUENCE : _bindgen_ty_528 = _bindgen_ty_528 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_WCHAR_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_528 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_WCHAR_UNBOUNDED_SEQUENCE = 158,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_BOOLEAN_UNBOUNDED_SEQUENCE : _bindgen_ty_529 = _bindgen_ty_529 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_BOOLEAN_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_529 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_BOOLEAN_UNBOUNDED_SEQUENCE = 159,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_BYTE_UNBOUNDED_SEQUENCE : _bindgen_ty_530 = _bindgen_ty_530 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_BYTE_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_530 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_BYTE_UNBOUNDED_SEQUENCE = 160,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_STRING_UNBOUNDED_SEQUENCE : _bindgen_ty_531 = _bindgen_ty_531 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_STRING_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_531 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_STRING_UNBOUNDED_SEQUENCE = 161,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_WSTRING_UNBOUNDED_SEQUENCE : _bindgen_ty_532 = _bindgen_ty_532 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_WSTRING_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_532 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_WSTRING_UNBOUNDED_SEQUENCE = 162,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_STRING_UNBOUNDED_SEQUENCE : _bindgen_ty_533 = _bindgen_ty_533 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_STRING_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_533 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_STRING_UNBOUNDED_SEQUENCE = 163,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_WSTRING_UNBOUNDED_SEQUENCE : _bindgen_ty_534 = _bindgen_ty_534 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_WSTRING_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_534 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_FIXED_WSTRING_UNBOUNDED_SEQUENCE = 164,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_STRING_UNBOUNDED_SEQUENCE : _bindgen_ty_535 = _bindgen_ty_535 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_STRING_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_535 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_STRING_UNBOUNDED_SEQUENCE = 165,
+}
+pub const type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_WSTRING_UNBOUNDED_SEQUENCE : _bindgen_ty_536 = _bindgen_ty_536 :: type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_WSTRING_UNBOUNDED_SEQUENCE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_536 {
+    type_description_interfaces__msg__FieldType__FIELD_TYPE_BOUNDED_WSTRING_UNBOUNDED_SEQUENCE =
+        166,
+}
+pub const type_description_interfaces__msg__FieldType__nested_type_name__MAX_STRING_SIZE:
+    _bindgen_ty_537 =
+    _bindgen_ty_537::type_description_interfaces__msg__FieldType__nested_type_name__MAX_STRING_SIZE;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_537 {
+    type_description_interfaces__msg__FieldType__nested_type_name__MAX_STRING_SIZE = 255,
+}
+#[repr(C)]
+pub struct type_description_interfaces__msg__FieldType {
+    pub type_id: u8,
+    pub capacity: u64,
+    pub string_capacity: u64,
+    pub nested_type_name: rosidl_runtime_c__String,
+}
+#[repr(C)]
+#[derive(Debug)]
+pub struct type_description_interfaces__msg__FieldType__Sequence {
+    pub data: *mut type_description_interfaces__msg__FieldType,
+    pub size: usize,
+    pub capacity: usize,
+}
+#[repr(C)]
+pub struct type_description_interfaces__msg__Field {
+    pub name: rosidl_runtime_c__String,
+    pub type_: type_description_interfaces__msg__FieldType,
+    pub default_value: rosidl_runtime_c__String,
+}
+#[repr(C)]
+#[derive(Debug)]
+pub struct type_description_interfaces__msg__Field__Sequence {
+    pub data: *mut type_description_interfaces__msg__Field,
+    pub size: usize,
+    pub capacity: usize,
+}
+pub const type_description_interfaces__msg__IndividualTypeDescription__type_name__MAX_STRING_SIZE : _bindgen_ty_538 = _bindgen_ty_538 :: type_description_interfaces__msg__IndividualTypeDescription__type_name__MAX_STRING_SIZE ;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_538 {
+    type_description_interfaces__msg__IndividualTypeDescription__type_name__MAX_STRING_SIZE = 255,
+}
+#[repr(C)]
+pub struct type_description_interfaces__msg__IndividualTypeDescription {
+    pub type_name: rosidl_runtime_c__String,
+    pub fields: type_description_interfaces__msg__Field__Sequence,
+}
+#[repr(C)]
+#[derive(Debug)]
+pub struct type_description_interfaces__msg__IndividualTypeDescription__Sequence {
+    pub data: *mut type_description_interfaces__msg__IndividualTypeDescription,
+    pub size: usize,
+    pub capacity: usize,
+}
+#[repr(C)]
+pub struct type_description_interfaces__msg__KeyValue {
+    pub key: rosidl_runtime_c__String,
+    pub value: rosidl_runtime_c__String,
+}
+#[repr(C)]
+#[derive(Debug)]
+pub struct type_description_interfaces__msg__KeyValue__Sequence {
+    pub data: *mut type_description_interfaces__msg__KeyValue,
+    pub size: usize,
+    pub capacity: usize,
+}
+#[repr(C)]
+pub struct type_description_interfaces__msg__TypeDescription {
+    pub type_description: type_description_interfaces__msg__IndividualTypeDescription,
+    pub referenced_type_descriptions:
+        type_description_interfaces__msg__IndividualTypeDescription__Sequence,
+}
+#[repr(C)]
+#[derive(Debug)]
+pub struct type_description_interfaces__msg__TypeDescription__Sequence {
+    pub data: *mut type_description_interfaces__msg__TypeDescription,
+    pub size: usize,
+    pub capacity: usize,
+}
+#[repr(C)]
+pub struct type_description_interfaces__msg__TypeSource {
+    pub type_name: rosidl_runtime_c__String,
+    pub encoding: rosidl_runtime_c__String,
+    pub raw_file_contents: rosidl_runtime_c__String,
+}
+#[repr(C)]
+#[derive(Debug)]
+pub struct type_description_interfaces__msg__TypeSource__Sequence {
+    pub data: *mut type_description_interfaces__msg__TypeSource,
+    pub size: usize,
+    pub capacity: usize,
+}
+#[repr(C)]
+pub struct type_description_interfaces__srv__GetTypeDescription_Request {
+    pub type_name: rosidl_runtime_c__String,
+    pub type_hash: rosidl_runtime_c__String,
+    pub include_type_sources: bool,
+}
+#[repr(C)]
+#[derive(Debug)]
+pub struct type_description_interfaces__srv__GetTypeDescription_Request__Sequence {
+    pub data: *mut type_description_interfaces__srv__GetTypeDescription_Request,
+    pub size: usize,
+    pub capacity: usize,
+}
+#[repr(C)]
+pub struct type_description_interfaces__srv__GetTypeDescription_Response {
+    pub successful: bool,
+    pub failure_reason: rosidl_runtime_c__String,
+    pub type_description: type_description_interfaces__msg__TypeDescription,
+    pub type_sources: type_description_interfaces__msg__TypeSource__Sequence,
+    pub extra_information: type_description_interfaces__msg__KeyValue__Sequence,
+}
+#[repr(C)]
+#[derive(Debug)]
+pub struct type_description_interfaces__srv__GetTypeDescription_Response__Sequence {
+    pub data: *mut type_description_interfaces__srv__GetTypeDescription_Response,
+    pub size: usize,
+    pub capacity: usize,
+}
+pub const type_description_interfaces__srv__GetTypeDescription_Event__request__MAX_SIZE:
+    _bindgen_ty_539 =
+    _bindgen_ty_539::type_description_interfaces__srv__GetTypeDescription_Event__request__MAX_SIZE;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_539 {
+    type_description_interfaces__srv__GetTypeDescription_Event__request__MAX_SIZE = 1,
+}
+pub const type_description_interfaces__srv__GetTypeDescription_Event__response__MAX_SIZE:
+    _bindgen_ty_540 =
+    _bindgen_ty_540::type_description_interfaces__srv__GetTypeDescription_Event__response__MAX_SIZE;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_540 {
+    type_description_interfaces__srv__GetTypeDescription_Event__response__MAX_SIZE = 1,
+}
+#[repr(C)]
+#[derive(Debug)]
+pub struct type_description_interfaces__srv__GetTypeDescription_Event {
+    pub info: service_msgs__msg__ServiceEventInfo,
+    pub request: type_description_interfaces__srv__GetTypeDescription_Request__Sequence,
+    pub response: type_description_interfaces__srv__GetTypeDescription_Response__Sequence,
+}
+#[repr(C)]
+#[derive(Debug)]
+pub struct type_description_interfaces__srv__GetTypeDescription_Event__Sequence {
+    pub data: *mut type_description_interfaces__srv__GetTypeDescription_Event,
+    pub size: usize,
+    pub capacity: usize,
+}
+pub const visualization_msgs__msg__ImageMarker__CIRCLE: _bindgen_ty_541 =
+    _bindgen_ty_541::visualization_msgs__msg__ImageMarker__CIRCLE;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_541 {
+    visualization_msgs__msg__ImageMarker__CIRCLE = 0,
+}
+pub const visualization_msgs__msg__ImageMarker__LINE_STRIP: _bindgen_ty_542 =
+    _bindgen_ty_542::visualization_msgs__msg__ImageMarker__LINE_STRIP;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_542 {
+    visualization_msgs__msg__ImageMarker__LINE_STRIP = 1,
+}
+pub const visualization_msgs__msg__ImageMarker__LINE_LIST: _bindgen_ty_543 =
+    _bindgen_ty_543::visualization_msgs__msg__ImageMarker__LINE_LIST;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_543 {
+    visualization_msgs__msg__ImageMarker__LINE_LIST = 2,
+}
+pub const visualization_msgs__msg__ImageMarker__POLYGON: _bindgen_ty_544 =
+    _bindgen_ty_544::visualization_msgs__msg__ImageMarker__POLYGON;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_544 {
+    visualization_msgs__msg__ImageMarker__POLYGON = 3,
+}
+pub const visualization_msgs__msg__ImageMarker__POINTS: _bindgen_ty_545 =
+    _bindgen_ty_545::visualization_msgs__msg__ImageMarker__POINTS;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_545 {
+    visualization_msgs__msg__ImageMarker__POINTS = 4,
+}
+pub const visualization_msgs__msg__ImageMarker__ADD: _bindgen_ty_546 =
+    _bindgen_ty_546::visualization_msgs__msg__ImageMarker__ADD;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_546 {
+    visualization_msgs__msg__ImageMarker__ADD = 0,
+}
+pub const visualization_msgs__msg__ImageMarker__REMOVE: _bindgen_ty_547 =
+    _bindgen_ty_547::visualization_msgs__msg__ImageMarker__REMOVE;
+#[repr(u32)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum _bindgen_ty_547 {
     visualization_msgs__msg__ImageMarker__REMOVE = 1,
 }
 #[repr(C)]
@@ -7474,25 +8227,25 @@ pub struct visualization_msgs__msg__ImageMarker__Sequence {
     pub size: usize,
     pub capacity: usize,
 }
-pub const visualization_msgs__msg__MenuEntry__FEEDBACK: _bindgen_ty_455 =
-    _bindgen_ty_455::visualization_msgs__msg__MenuEntry__FEEDBACK;
+pub const visualization_msgs__msg__MenuEntry__FEEDBACK: _bindgen_ty_548 =
+    _bindgen_ty_548::visualization_msgs__msg__MenuEntry__FEEDBACK;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_455 {
+pub enum _bindgen_ty_548 {
     visualization_msgs__msg__MenuEntry__FEEDBACK = 0,
 }
-pub const visualization_msgs__msg__MenuEntry__ROSRUN: _bindgen_ty_456 =
-    _bindgen_ty_456::visualization_msgs__msg__MenuEntry__ROSRUN;
+pub const visualization_msgs__msg__MenuEntry__ROSRUN: _bindgen_ty_549 =
+    _bindgen_ty_549::visualization_msgs__msg__MenuEntry__ROSRUN;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_456 {
+pub enum _bindgen_ty_549 {
     visualization_msgs__msg__MenuEntry__ROSRUN = 1,
 }
-pub const visualization_msgs__msg__MenuEntry__ROSLAUNCH: _bindgen_ty_457 =
-    _bindgen_ty_457::visualization_msgs__msg__MenuEntry__ROSLAUNCH;
+pub const visualization_msgs__msg__MenuEntry__ROSLAUNCH: _bindgen_ty_550 =
+    _bindgen_ty_550::visualization_msgs__msg__MenuEntry__ROSLAUNCH;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_457 {
+pub enum _bindgen_ty_550 {
     visualization_msgs__msg__MenuEntry__ROSLAUNCH = 2,
 }
 #[repr(C)]
@@ -7510,214 +8263,214 @@ pub struct visualization_msgs__msg__MenuEntry__Sequence {
     pub size: usize,
     pub capacity: usize,
 }
-pub const visualization_msgs__msg__InteractiveMarkerControl__INHERIT: _bindgen_ty_458 =
-    _bindgen_ty_458::visualization_msgs__msg__InteractiveMarkerControl__INHERIT;
+pub const visualization_msgs__msg__InteractiveMarkerControl__INHERIT: _bindgen_ty_551 =
+    _bindgen_ty_551::visualization_msgs__msg__InteractiveMarkerControl__INHERIT;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_458 {
+pub enum _bindgen_ty_551 {
     visualization_msgs__msg__InteractiveMarkerControl__INHERIT = 0,
 }
-pub const visualization_msgs__msg__InteractiveMarkerControl__FIXED: _bindgen_ty_459 =
-    _bindgen_ty_459::visualization_msgs__msg__InteractiveMarkerControl__FIXED;
+pub const visualization_msgs__msg__InteractiveMarkerControl__FIXED: _bindgen_ty_552 =
+    _bindgen_ty_552::visualization_msgs__msg__InteractiveMarkerControl__FIXED;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_459 {
+pub enum _bindgen_ty_552 {
     visualization_msgs__msg__InteractiveMarkerControl__FIXED = 1,
 }
-pub const visualization_msgs__msg__InteractiveMarkerControl__VIEW_FACING: _bindgen_ty_460 =
-    _bindgen_ty_460::visualization_msgs__msg__InteractiveMarkerControl__VIEW_FACING;
+pub const visualization_msgs__msg__InteractiveMarkerControl__VIEW_FACING: _bindgen_ty_553 =
+    _bindgen_ty_553::visualization_msgs__msg__InteractiveMarkerControl__VIEW_FACING;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_460 {
+pub enum _bindgen_ty_553 {
     visualization_msgs__msg__InteractiveMarkerControl__VIEW_FACING = 2,
 }
-pub const visualization_msgs__msg__InteractiveMarkerControl__NONE: _bindgen_ty_461 =
-    _bindgen_ty_461::visualization_msgs__msg__InteractiveMarkerControl__NONE;
+pub const visualization_msgs__msg__InteractiveMarkerControl__NONE: _bindgen_ty_554 =
+    _bindgen_ty_554::visualization_msgs__msg__InteractiveMarkerControl__NONE;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_461 {
+pub enum _bindgen_ty_554 {
     visualization_msgs__msg__InteractiveMarkerControl__NONE = 0,
 }
-pub const visualization_msgs__msg__InteractiveMarkerControl__MENU: _bindgen_ty_462 =
-    _bindgen_ty_462::visualization_msgs__msg__InteractiveMarkerControl__MENU;
+pub const visualization_msgs__msg__InteractiveMarkerControl__MENU: _bindgen_ty_555 =
+    _bindgen_ty_555::visualization_msgs__msg__InteractiveMarkerControl__MENU;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_462 {
+pub enum _bindgen_ty_555 {
     visualization_msgs__msg__InteractiveMarkerControl__MENU = 1,
 }
-pub const visualization_msgs__msg__InteractiveMarkerControl__BUTTON: _bindgen_ty_463 =
-    _bindgen_ty_463::visualization_msgs__msg__InteractiveMarkerControl__BUTTON;
+pub const visualization_msgs__msg__InteractiveMarkerControl__BUTTON: _bindgen_ty_556 =
+    _bindgen_ty_556::visualization_msgs__msg__InteractiveMarkerControl__BUTTON;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_463 {
+pub enum _bindgen_ty_556 {
     visualization_msgs__msg__InteractiveMarkerControl__BUTTON = 2,
 }
-pub const visualization_msgs__msg__InteractiveMarkerControl__MOVE_AXIS: _bindgen_ty_464 =
-    _bindgen_ty_464::visualization_msgs__msg__InteractiveMarkerControl__MOVE_AXIS;
+pub const visualization_msgs__msg__InteractiveMarkerControl__MOVE_AXIS: _bindgen_ty_557 =
+    _bindgen_ty_557::visualization_msgs__msg__InteractiveMarkerControl__MOVE_AXIS;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_464 {
+pub enum _bindgen_ty_557 {
     visualization_msgs__msg__InteractiveMarkerControl__MOVE_AXIS = 3,
 }
-pub const visualization_msgs__msg__InteractiveMarkerControl__MOVE_PLANE: _bindgen_ty_465 =
-    _bindgen_ty_465::visualization_msgs__msg__InteractiveMarkerControl__MOVE_PLANE;
+pub const visualization_msgs__msg__InteractiveMarkerControl__MOVE_PLANE: _bindgen_ty_558 =
+    _bindgen_ty_558::visualization_msgs__msg__InteractiveMarkerControl__MOVE_PLANE;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_465 {
+pub enum _bindgen_ty_558 {
     visualization_msgs__msg__InteractiveMarkerControl__MOVE_PLANE = 4,
 }
-pub const visualization_msgs__msg__InteractiveMarkerControl__ROTATE_AXIS: _bindgen_ty_466 =
-    _bindgen_ty_466::visualization_msgs__msg__InteractiveMarkerControl__ROTATE_AXIS;
+pub const visualization_msgs__msg__InteractiveMarkerControl__ROTATE_AXIS: _bindgen_ty_559 =
+    _bindgen_ty_559::visualization_msgs__msg__InteractiveMarkerControl__ROTATE_AXIS;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_466 {
+pub enum _bindgen_ty_559 {
     visualization_msgs__msg__InteractiveMarkerControl__ROTATE_AXIS = 5,
 }
-pub const visualization_msgs__msg__InteractiveMarkerControl__MOVE_ROTATE: _bindgen_ty_467 =
-    _bindgen_ty_467::visualization_msgs__msg__InteractiveMarkerControl__MOVE_ROTATE;
+pub const visualization_msgs__msg__InteractiveMarkerControl__MOVE_ROTATE: _bindgen_ty_560 =
+    _bindgen_ty_560::visualization_msgs__msg__InteractiveMarkerControl__MOVE_ROTATE;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_467 {
+pub enum _bindgen_ty_560 {
     visualization_msgs__msg__InteractiveMarkerControl__MOVE_ROTATE = 6,
 }
-pub const visualization_msgs__msg__InteractiveMarkerControl__MOVE_3D: _bindgen_ty_468 =
-    _bindgen_ty_468::visualization_msgs__msg__InteractiveMarkerControl__MOVE_3D;
+pub const visualization_msgs__msg__InteractiveMarkerControl__MOVE_3D: _bindgen_ty_561 =
+    _bindgen_ty_561::visualization_msgs__msg__InteractiveMarkerControl__MOVE_3D;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_468 {
+pub enum _bindgen_ty_561 {
     visualization_msgs__msg__InteractiveMarkerControl__MOVE_3D = 7,
 }
-pub const visualization_msgs__msg__InteractiveMarkerControl__ROTATE_3D: _bindgen_ty_469 =
-    _bindgen_ty_469::visualization_msgs__msg__InteractiveMarkerControl__ROTATE_3D;
+pub const visualization_msgs__msg__InteractiveMarkerControl__ROTATE_3D: _bindgen_ty_562 =
+    _bindgen_ty_562::visualization_msgs__msg__InteractiveMarkerControl__ROTATE_3D;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_469 {
+pub enum _bindgen_ty_562 {
     visualization_msgs__msg__InteractiveMarkerControl__ROTATE_3D = 8,
 }
-pub const visualization_msgs__msg__InteractiveMarkerControl__MOVE_ROTATE_3D: _bindgen_ty_470 =
-    _bindgen_ty_470::visualization_msgs__msg__InteractiveMarkerControl__MOVE_ROTATE_3D;
+pub const visualization_msgs__msg__InteractiveMarkerControl__MOVE_ROTATE_3D: _bindgen_ty_563 =
+    _bindgen_ty_563::visualization_msgs__msg__InteractiveMarkerControl__MOVE_ROTATE_3D;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_470 {
+pub enum _bindgen_ty_563 {
     visualization_msgs__msg__InteractiveMarkerControl__MOVE_ROTATE_3D = 9,
 }
-pub const visualization_msgs__msg__Marker__ARROW: _bindgen_ty_471 =
-    _bindgen_ty_471::visualization_msgs__msg__Marker__ARROW;
+pub const visualization_msgs__msg__Marker__ARROW: _bindgen_ty_564 =
+    _bindgen_ty_564::visualization_msgs__msg__Marker__ARROW;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_471 {
+pub enum _bindgen_ty_564 {
     visualization_msgs__msg__Marker__ARROW = 0,
 }
-pub const visualization_msgs__msg__Marker__CUBE: _bindgen_ty_472 =
-    _bindgen_ty_472::visualization_msgs__msg__Marker__CUBE;
+pub const visualization_msgs__msg__Marker__CUBE: _bindgen_ty_565 =
+    _bindgen_ty_565::visualization_msgs__msg__Marker__CUBE;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_472 {
+pub enum _bindgen_ty_565 {
     visualization_msgs__msg__Marker__CUBE = 1,
 }
-pub const visualization_msgs__msg__Marker__SPHERE: _bindgen_ty_473 =
-    _bindgen_ty_473::visualization_msgs__msg__Marker__SPHERE;
+pub const visualization_msgs__msg__Marker__SPHERE: _bindgen_ty_566 =
+    _bindgen_ty_566::visualization_msgs__msg__Marker__SPHERE;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_473 {
+pub enum _bindgen_ty_566 {
     visualization_msgs__msg__Marker__SPHERE = 2,
 }
-pub const visualization_msgs__msg__Marker__CYLINDER: _bindgen_ty_474 =
-    _bindgen_ty_474::visualization_msgs__msg__Marker__CYLINDER;
+pub const visualization_msgs__msg__Marker__CYLINDER: _bindgen_ty_567 =
+    _bindgen_ty_567::visualization_msgs__msg__Marker__CYLINDER;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_474 {
+pub enum _bindgen_ty_567 {
     visualization_msgs__msg__Marker__CYLINDER = 3,
 }
-pub const visualization_msgs__msg__Marker__LINE_STRIP: _bindgen_ty_475 =
-    _bindgen_ty_475::visualization_msgs__msg__Marker__LINE_STRIP;
+pub const visualization_msgs__msg__Marker__LINE_STRIP: _bindgen_ty_568 =
+    _bindgen_ty_568::visualization_msgs__msg__Marker__LINE_STRIP;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_475 {
+pub enum _bindgen_ty_568 {
     visualization_msgs__msg__Marker__LINE_STRIP = 4,
 }
-pub const visualization_msgs__msg__Marker__LINE_LIST: _bindgen_ty_476 =
-    _bindgen_ty_476::visualization_msgs__msg__Marker__LINE_LIST;
+pub const visualization_msgs__msg__Marker__LINE_LIST: _bindgen_ty_569 =
+    _bindgen_ty_569::visualization_msgs__msg__Marker__LINE_LIST;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_476 {
+pub enum _bindgen_ty_569 {
     visualization_msgs__msg__Marker__LINE_LIST = 5,
 }
-pub const visualization_msgs__msg__Marker__CUBE_LIST: _bindgen_ty_477 =
-    _bindgen_ty_477::visualization_msgs__msg__Marker__CUBE_LIST;
+pub const visualization_msgs__msg__Marker__CUBE_LIST: _bindgen_ty_570 =
+    _bindgen_ty_570::visualization_msgs__msg__Marker__CUBE_LIST;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_477 {
+pub enum _bindgen_ty_570 {
     visualization_msgs__msg__Marker__CUBE_LIST = 6,
 }
-pub const visualization_msgs__msg__Marker__SPHERE_LIST: _bindgen_ty_478 =
-    _bindgen_ty_478::visualization_msgs__msg__Marker__SPHERE_LIST;
+pub const visualization_msgs__msg__Marker__SPHERE_LIST: _bindgen_ty_571 =
+    _bindgen_ty_571::visualization_msgs__msg__Marker__SPHERE_LIST;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_478 {
+pub enum _bindgen_ty_571 {
     visualization_msgs__msg__Marker__SPHERE_LIST = 7,
 }
-pub const visualization_msgs__msg__Marker__POINTS: _bindgen_ty_479 =
-    _bindgen_ty_479::visualization_msgs__msg__Marker__POINTS;
+pub const visualization_msgs__msg__Marker__POINTS: _bindgen_ty_572 =
+    _bindgen_ty_572::visualization_msgs__msg__Marker__POINTS;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_479 {
+pub enum _bindgen_ty_572 {
     visualization_msgs__msg__Marker__POINTS = 8,
 }
-pub const visualization_msgs__msg__Marker__TEXT_VIEW_FACING: _bindgen_ty_480 =
-    _bindgen_ty_480::visualization_msgs__msg__Marker__TEXT_VIEW_FACING;
+pub const visualization_msgs__msg__Marker__TEXT_VIEW_FACING: _bindgen_ty_573 =
+    _bindgen_ty_573::visualization_msgs__msg__Marker__TEXT_VIEW_FACING;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_480 {
+pub enum _bindgen_ty_573 {
     visualization_msgs__msg__Marker__TEXT_VIEW_FACING = 9,
 }
-pub const visualization_msgs__msg__Marker__MESH_RESOURCE: _bindgen_ty_481 =
-    _bindgen_ty_481::visualization_msgs__msg__Marker__MESH_RESOURCE;
+pub const visualization_msgs__msg__Marker__MESH_RESOURCE: _bindgen_ty_574 =
+    _bindgen_ty_574::visualization_msgs__msg__Marker__MESH_RESOURCE;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_481 {
+pub enum _bindgen_ty_574 {
     visualization_msgs__msg__Marker__MESH_RESOURCE = 10,
 }
-pub const visualization_msgs__msg__Marker__TRIANGLE_LIST: _bindgen_ty_482 =
-    _bindgen_ty_482::visualization_msgs__msg__Marker__TRIANGLE_LIST;
+pub const visualization_msgs__msg__Marker__TRIANGLE_LIST: _bindgen_ty_575 =
+    _bindgen_ty_575::visualization_msgs__msg__Marker__TRIANGLE_LIST;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_482 {
+pub enum _bindgen_ty_575 {
     visualization_msgs__msg__Marker__TRIANGLE_LIST = 11,
 }
-pub const visualization_msgs__msg__Marker__ARROW_STRIP: _bindgen_ty_483 =
-    _bindgen_ty_483::visualization_msgs__msg__Marker__ARROW_STRIP;
+pub const visualization_msgs__msg__Marker__ARROW_STRIP: _bindgen_ty_576 =
+    _bindgen_ty_576::visualization_msgs__msg__Marker__ARROW_STRIP;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_483 {
+pub enum _bindgen_ty_576 {
     visualization_msgs__msg__Marker__ARROW_STRIP = 12,
 }
-pub const visualization_msgs__msg__Marker__ADD: _bindgen_ty_484 =
-    _bindgen_ty_484::visualization_msgs__msg__Marker__ADD;
+pub const visualization_msgs__msg__Marker__ADD: _bindgen_ty_577 =
+    _bindgen_ty_577::visualization_msgs__msg__Marker__ADD;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_484 {
+pub enum _bindgen_ty_577 {
     visualization_msgs__msg__Marker__ADD = 0,
 }
-pub const visualization_msgs__msg__Marker__MODIFY: _bindgen_ty_485 =
-    _bindgen_ty_485::visualization_msgs__msg__Marker__MODIFY;
+pub const visualization_msgs__msg__Marker__MODIFY: _bindgen_ty_578 =
+    _bindgen_ty_578::visualization_msgs__msg__Marker__MODIFY;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_485 {
+pub enum _bindgen_ty_578 {
     visualization_msgs__msg__Marker__MODIFY = 0,
 }
-pub const visualization_msgs__msg__Marker__DELETE: _bindgen_ty_486 =
-    _bindgen_ty_486::visualization_msgs__msg__Marker__DELETE;
+pub const visualization_msgs__msg__Marker__DELETE: _bindgen_ty_579 =
+    _bindgen_ty_579::visualization_msgs__msg__Marker__DELETE;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_486 {
+pub enum _bindgen_ty_579 {
     visualization_msgs__msg__Marker__DELETE = 2,
 }
-pub const visualization_msgs__msg__Marker__DELETEALL: _bindgen_ty_487 =
-    _bindgen_ty_487::visualization_msgs__msg__Marker__DELETEALL;
+pub const visualization_msgs__msg__Marker__DELETEALL: _bindgen_ty_580 =
+    _bindgen_ty_580::visualization_msgs__msg__Marker__DELETEALL;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_487 {
+pub enum _bindgen_ty_580 {
     visualization_msgs__msg__Marker__DELETEALL = 3,
 }
 #[repr(C)]
@@ -7809,46 +8562,46 @@ pub struct visualization_msgs__msg__InteractiveMarker__Sequence {
     pub size: usize,
     pub capacity: usize,
 }
-pub const visualization_msgs__msg__InteractiveMarkerFeedback__KEEP_ALIVE: _bindgen_ty_488 =
-    _bindgen_ty_488::visualization_msgs__msg__InteractiveMarkerFeedback__KEEP_ALIVE;
+pub const visualization_msgs__msg__InteractiveMarkerFeedback__KEEP_ALIVE: _bindgen_ty_581 =
+    _bindgen_ty_581::visualization_msgs__msg__InteractiveMarkerFeedback__KEEP_ALIVE;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_488 {
+pub enum _bindgen_ty_581 {
     visualization_msgs__msg__InteractiveMarkerFeedback__KEEP_ALIVE = 0,
 }
-pub const visualization_msgs__msg__InteractiveMarkerFeedback__POSE_UPDATE: _bindgen_ty_489 =
-    _bindgen_ty_489::visualization_msgs__msg__InteractiveMarkerFeedback__POSE_UPDATE;
+pub const visualization_msgs__msg__InteractiveMarkerFeedback__POSE_UPDATE: _bindgen_ty_582 =
+    _bindgen_ty_582::visualization_msgs__msg__InteractiveMarkerFeedback__POSE_UPDATE;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_489 {
+pub enum _bindgen_ty_582 {
     visualization_msgs__msg__InteractiveMarkerFeedback__POSE_UPDATE = 1,
 }
-pub const visualization_msgs__msg__InteractiveMarkerFeedback__MENU_SELECT: _bindgen_ty_490 =
-    _bindgen_ty_490::visualization_msgs__msg__InteractiveMarkerFeedback__MENU_SELECT;
+pub const visualization_msgs__msg__InteractiveMarkerFeedback__MENU_SELECT: _bindgen_ty_583 =
+    _bindgen_ty_583::visualization_msgs__msg__InteractiveMarkerFeedback__MENU_SELECT;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_490 {
+pub enum _bindgen_ty_583 {
     visualization_msgs__msg__InteractiveMarkerFeedback__MENU_SELECT = 2,
 }
-pub const visualization_msgs__msg__InteractiveMarkerFeedback__BUTTON_CLICK: _bindgen_ty_491 =
-    _bindgen_ty_491::visualization_msgs__msg__InteractiveMarkerFeedback__BUTTON_CLICK;
+pub const visualization_msgs__msg__InteractiveMarkerFeedback__BUTTON_CLICK: _bindgen_ty_584 =
+    _bindgen_ty_584::visualization_msgs__msg__InteractiveMarkerFeedback__BUTTON_CLICK;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_491 {
+pub enum _bindgen_ty_584 {
     visualization_msgs__msg__InteractiveMarkerFeedback__BUTTON_CLICK = 3,
 }
-pub const visualization_msgs__msg__InteractiveMarkerFeedback__MOUSE_DOWN: _bindgen_ty_492 =
-    _bindgen_ty_492::visualization_msgs__msg__InteractiveMarkerFeedback__MOUSE_DOWN;
+pub const visualization_msgs__msg__InteractiveMarkerFeedback__MOUSE_DOWN: _bindgen_ty_585 =
+    _bindgen_ty_585::visualization_msgs__msg__InteractiveMarkerFeedback__MOUSE_DOWN;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_492 {
+pub enum _bindgen_ty_585 {
     visualization_msgs__msg__InteractiveMarkerFeedback__MOUSE_DOWN = 4,
 }
-pub const visualization_msgs__msg__InteractiveMarkerFeedback__MOUSE_UP: _bindgen_ty_493 =
-    _bindgen_ty_493::visualization_msgs__msg__InteractiveMarkerFeedback__MOUSE_UP;
+pub const visualization_msgs__msg__InteractiveMarkerFeedback__MOUSE_UP: _bindgen_ty_586 =
+    _bindgen_ty_586::visualization_msgs__msg__InteractiveMarkerFeedback__MOUSE_UP;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_493 {
+pub enum _bindgen_ty_586 {
     visualization_msgs__msg__InteractiveMarkerFeedback__MOUSE_UP = 5,
 }
 #[repr(C)]
@@ -7896,18 +8649,18 @@ pub struct visualization_msgs__msg__InteractiveMarkerPose__Sequence {
     pub size: usize,
     pub capacity: usize,
 }
-pub const visualization_msgs__msg__InteractiveMarkerUpdate__KEEP_ALIVE: _bindgen_ty_494 =
-    _bindgen_ty_494::visualization_msgs__msg__InteractiveMarkerUpdate__KEEP_ALIVE;
+pub const visualization_msgs__msg__InteractiveMarkerUpdate__KEEP_ALIVE: _bindgen_ty_587 =
+    _bindgen_ty_587::visualization_msgs__msg__InteractiveMarkerUpdate__KEEP_ALIVE;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_494 {
+pub enum _bindgen_ty_587 {
     visualization_msgs__msg__InteractiveMarkerUpdate__KEEP_ALIVE = 0,
 }
-pub const visualization_msgs__msg__InteractiveMarkerUpdate__UPDATE: _bindgen_ty_495 =
-    _bindgen_ty_495::visualization_msgs__msg__InteractiveMarkerUpdate__UPDATE;
+pub const visualization_msgs__msg__InteractiveMarkerUpdate__UPDATE: _bindgen_ty_588 =
+    _bindgen_ty_588::visualization_msgs__msg__InteractiveMarkerUpdate__UPDATE;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_495 {
+pub enum _bindgen_ty_588 {
     visualization_msgs__msg__InteractiveMarkerUpdate__UPDATE = 1,
 }
 #[repr(C)]
@@ -7963,19 +8716,19 @@ pub struct visualization_msgs__srv__GetInteractiveMarkers_Response__Sequence {
     pub size: usize,
     pub capacity: usize,
 }
-pub const visualization_msgs__srv__GetInteractiveMarkers_Event__request__MAX_SIZE: _bindgen_ty_496 =
-    _bindgen_ty_496::visualization_msgs__srv__GetInteractiveMarkers_Event__request__MAX_SIZE;
+pub const visualization_msgs__srv__GetInteractiveMarkers_Event__request__MAX_SIZE: _bindgen_ty_589 =
+    _bindgen_ty_589::visualization_msgs__srv__GetInteractiveMarkers_Event__request__MAX_SIZE;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_496 {
+pub enum _bindgen_ty_589 {
     visualization_msgs__srv__GetInteractiveMarkers_Event__request__MAX_SIZE = 1,
 }
 pub const visualization_msgs__srv__GetInteractiveMarkers_Event__response__MAX_SIZE:
-    _bindgen_ty_497 =
-    _bindgen_ty_497::visualization_msgs__srv__GetInteractiveMarkers_Event__response__MAX_SIZE;
+    _bindgen_ty_590 =
+    _bindgen_ty_590::visualization_msgs__srv__GetInteractiveMarkers_Event__response__MAX_SIZE;
 #[repr(u32)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum _bindgen_ty_497 {
+pub enum _bindgen_ty_590 {
     visualization_msgs__srv__GetInteractiveMarkers_Event__response__MAX_SIZE = 1,
 }
 #[repr(C)]
@@ -15068,6 +15821,211 @@ unsafe extern "C" {
     );
     pub fn rosidl_typesupport_c__get_message_type_support_handle__trajectory_msgs__msg__MultiDOFJointTrajectoryPoint()
     -> *const rosidl_message_type_support_t;
+    pub fn rosidl_typesupport_introspection_c__get_message_type_support_handle__type_description_interfaces__msg__Field()
+    -> *const rosidl_message_type_support_t;
+    pub fn rosidl_typesupport_introspection_c__get_message_type_support_handle__type_description_interfaces__msg__FieldType()
+    -> *const rosidl_message_type_support_t;
+    pub fn rosidl_typesupport_introspection_c__get_message_type_support_handle__type_description_interfaces__msg__IndividualTypeDescription()
+    -> *const rosidl_message_type_support_t;
+    pub fn rosidl_typesupport_introspection_c__get_message_type_support_handle__type_description_interfaces__msg__KeyValue()
+    -> *const rosidl_message_type_support_t;
+    pub fn rosidl_typesupport_introspection_c__get_message_type_support_handle__type_description_interfaces__msg__TypeDescription()
+    -> *const rosidl_message_type_support_t;
+    pub fn rosidl_typesupport_introspection_c__get_message_type_support_handle__type_description_interfaces__msg__TypeSource()
+    -> *const rosidl_message_type_support_t;
+    pub fn type_description_interfaces__msg__Field__create()
+    -> *mut type_description_interfaces__msg__Field;
+    pub fn type_description_interfaces__msg__Field__destroy(
+        msg: *mut type_description_interfaces__msg__Field,
+    );
+    pub fn type_description_interfaces__msg__Field__Sequence__init(
+        array: *mut type_description_interfaces__msg__Field__Sequence, size: usize,
+    ) -> bool;
+    pub fn type_description_interfaces__msg__Field__Sequence__fini(
+        array: *mut type_description_interfaces__msg__Field__Sequence,
+    );
+    pub fn type_description_interfaces__msg__Field__Sequence__create(
+        size: usize,
+    ) -> *mut type_description_interfaces__msg__Field__Sequence;
+    pub fn type_description_interfaces__msg__Field__Sequence__destroy(
+        array: *mut type_description_interfaces__msg__Field__Sequence,
+    );
+    pub fn rosidl_typesupport_c__get_message_type_support_handle__type_description_interfaces__msg__Field()
+    -> *const rosidl_message_type_support_t;
+    pub fn type_description_interfaces__msg__FieldType__create()
+    -> *mut type_description_interfaces__msg__FieldType;
+    pub fn type_description_interfaces__msg__FieldType__destroy(
+        msg: *mut type_description_interfaces__msg__FieldType,
+    );
+    pub fn type_description_interfaces__msg__FieldType__Sequence__init(
+        array: *mut type_description_interfaces__msg__FieldType__Sequence, size: usize,
+    ) -> bool;
+    pub fn type_description_interfaces__msg__FieldType__Sequence__fini(
+        array: *mut type_description_interfaces__msg__FieldType__Sequence,
+    );
+    pub fn type_description_interfaces__msg__FieldType__Sequence__create(
+        size: usize,
+    ) -> *mut type_description_interfaces__msg__FieldType__Sequence;
+    pub fn type_description_interfaces__msg__FieldType__Sequence__destroy(
+        array: *mut type_description_interfaces__msg__FieldType__Sequence,
+    );
+    pub fn rosidl_typesupport_c__get_message_type_support_handle__type_description_interfaces__msg__FieldType()
+    -> *const rosidl_message_type_support_t;
+    pub fn type_description_interfaces__msg__IndividualTypeDescription__create()
+    -> *mut type_description_interfaces__msg__IndividualTypeDescription;
+    pub fn type_description_interfaces__msg__IndividualTypeDescription__destroy(
+        msg: *mut type_description_interfaces__msg__IndividualTypeDescription,
+    );
+    pub fn type_description_interfaces__msg__IndividualTypeDescription__Sequence__init(
+        array: *mut type_description_interfaces__msg__IndividualTypeDescription__Sequence,
+        size: usize,
+    ) -> bool;
+    pub fn type_description_interfaces__msg__IndividualTypeDescription__Sequence__fini(
+        array: *mut type_description_interfaces__msg__IndividualTypeDescription__Sequence,
+    );
+    pub fn type_description_interfaces__msg__IndividualTypeDescription__Sequence__create(
+        size: usize,
+    ) -> *mut type_description_interfaces__msg__IndividualTypeDescription__Sequence;
+    pub fn type_description_interfaces__msg__IndividualTypeDescription__Sequence__destroy(
+        array: *mut type_description_interfaces__msg__IndividualTypeDescription__Sequence,
+    );
+    pub fn rosidl_typesupport_c__get_message_type_support_handle__type_description_interfaces__msg__IndividualTypeDescription()
+    -> *const rosidl_message_type_support_t;
+    pub fn type_description_interfaces__msg__KeyValue__create()
+    -> *mut type_description_interfaces__msg__KeyValue;
+    pub fn type_description_interfaces__msg__KeyValue__destroy(
+        msg: *mut type_description_interfaces__msg__KeyValue,
+    );
+    pub fn type_description_interfaces__msg__KeyValue__Sequence__init(
+        array: *mut type_description_interfaces__msg__KeyValue__Sequence, size: usize,
+    ) -> bool;
+    pub fn type_description_interfaces__msg__KeyValue__Sequence__fini(
+        array: *mut type_description_interfaces__msg__KeyValue__Sequence,
+    );
+    pub fn type_description_interfaces__msg__KeyValue__Sequence__create(
+        size: usize,
+    ) -> *mut type_description_interfaces__msg__KeyValue__Sequence;
+    pub fn type_description_interfaces__msg__KeyValue__Sequence__destroy(
+        array: *mut type_description_interfaces__msg__KeyValue__Sequence,
+    );
+    pub fn rosidl_typesupport_c__get_message_type_support_handle__type_description_interfaces__msg__KeyValue()
+    -> *const rosidl_message_type_support_t;
+    pub fn type_description_interfaces__msg__TypeDescription__create()
+    -> *mut type_description_interfaces__msg__TypeDescription;
+    pub fn type_description_interfaces__msg__TypeDescription__destroy(
+        msg: *mut type_description_interfaces__msg__TypeDescription,
+    );
+    pub fn type_description_interfaces__msg__TypeDescription__Sequence__init(
+        array: *mut type_description_interfaces__msg__TypeDescription__Sequence, size: usize,
+    ) -> bool;
+    pub fn type_description_interfaces__msg__TypeDescription__Sequence__fini(
+        array: *mut type_description_interfaces__msg__TypeDescription__Sequence,
+    );
+    pub fn type_description_interfaces__msg__TypeDescription__Sequence__create(
+        size: usize,
+    ) -> *mut type_description_interfaces__msg__TypeDescription__Sequence;
+    pub fn type_description_interfaces__msg__TypeDescription__Sequence__destroy(
+        array: *mut type_description_interfaces__msg__TypeDescription__Sequence,
+    );
+    pub fn rosidl_typesupport_c__get_message_type_support_handle__type_description_interfaces__msg__TypeDescription()
+    -> *const rosidl_message_type_support_t;
+    pub fn type_description_interfaces__msg__TypeSource__create()
+    -> *mut type_description_interfaces__msg__TypeSource;
+    pub fn type_description_interfaces__msg__TypeSource__destroy(
+        msg: *mut type_description_interfaces__msg__TypeSource,
+    );
+    pub fn type_description_interfaces__msg__TypeSource__Sequence__init(
+        array: *mut type_description_interfaces__msg__TypeSource__Sequence, size: usize,
+    ) -> bool;
+    pub fn type_description_interfaces__msg__TypeSource__Sequence__fini(
+        array: *mut type_description_interfaces__msg__TypeSource__Sequence,
+    );
+    pub fn type_description_interfaces__msg__TypeSource__Sequence__create(
+        size: usize,
+    ) -> *mut type_description_interfaces__msg__TypeSource__Sequence;
+    pub fn type_description_interfaces__msg__TypeSource__Sequence__destroy(
+        array: *mut type_description_interfaces__msg__TypeSource__Sequence,
+    );
+    pub fn rosidl_typesupport_c__get_message_type_support_handle__type_description_interfaces__msg__TypeSource()
+    -> *const rosidl_message_type_support_t;
+    pub fn rosidl_typesupport_introspection_c__get_message_type_support_handle__type_description_interfaces__srv__GetTypeDescription_Request()
+    -> *const rosidl_message_type_support_t;
+    pub fn rosidl_typesupport_introspection_c__get_message_type_support_handle__type_description_interfaces__srv__GetTypeDescription_Response()
+    -> *const rosidl_message_type_support_t;
+    pub fn rosidl_typesupport_introspection_c__get_message_type_support_handle__type_description_interfaces__srv__GetTypeDescription_Event()
+    -> *const rosidl_message_type_support_t;
+    pub fn rosidl_typesupport_introspection_c__get_service_type_support_handle__type_description_interfaces__srv__GetTypeDescription()
+    -> *const rosidl_service_type_support_t;
+    pub fn type_description_interfaces__srv__GetTypeDescription_Request__create()
+    -> *mut type_description_interfaces__srv__GetTypeDescription_Request;
+    pub fn type_description_interfaces__srv__GetTypeDescription_Request__destroy(
+        msg: *mut type_description_interfaces__srv__GetTypeDescription_Request,
+    );
+    pub fn type_description_interfaces__srv__GetTypeDescription_Request__Sequence__init(
+        array: *mut type_description_interfaces__srv__GetTypeDescription_Request__Sequence,
+        size: usize,
+    ) -> bool;
+    pub fn type_description_interfaces__srv__GetTypeDescription_Request__Sequence__fini(
+        array: *mut type_description_interfaces__srv__GetTypeDescription_Request__Sequence,
+    );
+    pub fn type_description_interfaces__srv__GetTypeDescription_Request__Sequence__create(
+        size: usize,
+    ) -> *mut type_description_interfaces__srv__GetTypeDescription_Request__Sequence;
+    pub fn type_description_interfaces__srv__GetTypeDescription_Request__Sequence__destroy(
+        array: *mut type_description_interfaces__srv__GetTypeDescription_Request__Sequence,
+    );
+    pub fn type_description_interfaces__srv__GetTypeDescription_Response__create()
+    -> *mut type_description_interfaces__srv__GetTypeDescription_Response;
+    pub fn type_description_interfaces__srv__GetTypeDescription_Response__destroy(
+        msg: *mut type_description_interfaces__srv__GetTypeDescription_Response,
+    );
+    pub fn type_description_interfaces__srv__GetTypeDescription_Response__Sequence__init(
+        array: *mut type_description_interfaces__srv__GetTypeDescription_Response__Sequence,
+        size: usize,
+    ) -> bool;
+    pub fn type_description_interfaces__srv__GetTypeDescription_Response__Sequence__fini(
+        array: *mut type_description_interfaces__srv__GetTypeDescription_Response__Sequence,
+    );
+    pub fn type_description_interfaces__srv__GetTypeDescription_Response__Sequence__create(
+        size: usize,
+    ) -> *mut type_description_interfaces__srv__GetTypeDescription_Response__Sequence;
+    pub fn type_description_interfaces__srv__GetTypeDescription_Response__Sequence__destroy(
+        array: *mut type_description_interfaces__srv__GetTypeDescription_Response__Sequence,
+    );
+    pub fn type_description_interfaces__srv__GetTypeDescription_Event__create()
+    -> *mut type_description_interfaces__srv__GetTypeDescription_Event;
+    pub fn type_description_interfaces__srv__GetTypeDescription_Event__destroy(
+        msg: *mut type_description_interfaces__srv__GetTypeDescription_Event,
+    );
+    pub fn type_description_interfaces__srv__GetTypeDescription_Event__Sequence__init(
+        array: *mut type_description_interfaces__srv__GetTypeDescription_Event__Sequence,
+        size: usize,
+    ) -> bool;
+    pub fn type_description_interfaces__srv__GetTypeDescription_Event__Sequence__fini(
+        array: *mut type_description_interfaces__srv__GetTypeDescription_Event__Sequence,
+    );
+    pub fn type_description_interfaces__srv__GetTypeDescription_Event__Sequence__create(
+        size: usize,
+    ) -> *mut type_description_interfaces__srv__GetTypeDescription_Event__Sequence;
+    pub fn type_description_interfaces__srv__GetTypeDescription_Event__Sequence__destroy(
+        array: *mut type_description_interfaces__srv__GetTypeDescription_Event__Sequence,
+    );
+    pub fn rosidl_typesupport_c__get_message_type_support_handle__type_description_interfaces__srv__GetTypeDescription_Request()
+    -> *const rosidl_message_type_support_t;
+    pub fn rosidl_typesupport_c__get_message_type_support_handle__type_description_interfaces__srv__GetTypeDescription_Response()
+    -> *const rosidl_message_type_support_t;
+    pub fn rosidl_typesupport_c__get_message_type_support_handle__type_description_interfaces__srv__GetTypeDescription_Event()
+    -> *const rosidl_message_type_support_t;
+    pub fn rosidl_typesupport_c__get_service_type_support_handle__type_description_interfaces__srv__GetTypeDescription()
+    -> *const rosidl_service_type_support_t;
+    pub fn rosidl_typesupport_c__create_service_event_message__type_description_interfaces__srv__GetTypeDescription(
+        info: *const rosidl_service_introspection_info_t, allocator: *mut rcutils_allocator_t,
+        request_message: *const ::std::os::raw::c_void,
+        response_message: *const ::std::os::raw::c_void,
+    ) -> *mut ::std::os::raw::c_void;
+    pub fn rosidl_typesupport_c__destroy_service_event_message__type_description_interfaces__srv__GetTypeDescription(
+        event_msg: *mut ::std::os::raw::c_void, allocator: *mut rcutils_allocator_t,
+    ) -> bool;
     pub fn rosidl_typesupport_introspection_c__get_message_type_support_handle__unique_identifier_msgs__msg__UUID()
     -> *const rosidl_message_type_support_t;
     pub fn unique_identifier_msgs__msg__UUID__create() -> *mut unique_identifier_msgs__msg__UUID;

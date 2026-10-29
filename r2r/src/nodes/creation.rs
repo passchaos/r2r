@@ -132,6 +132,7 @@ impl Node {
                 parameter_post_set_callbacks: Arc::new(Mutex::new(Default::default())),
                 parameter_event_sink: None,
                 qos_events: None,
+                type_description_service: None,
                 parameter_handler_started: false,
                 node_handle,
                 subscribers: Vec::new(),
@@ -213,6 +214,25 @@ impl Node {
                 );
             }
             node.parameter_overrides = parameter_overrides;
+            let type_descriptions = match options.start_type_description_service {
+                Some(enabled) => enabled,
+                None => match node
+                    .parameter_overrides
+                    .get("start_type_description_service")
+                {
+                    None => false,
+                    Some(ParameterValue::Bool(enabled)) => *enabled,
+                    Some(_) => {
+                        return Err(Error::InvalidParameterType {
+                            name: "start_type_description_service".into(),
+                            ty: "bool",
+                        })
+                    }
+                },
+            };
+            if type_descriptions {
+                node.start_type_description_service()?;
+            }
             Ok(node)
         } else {
             log::error!("could not create node{}", res);

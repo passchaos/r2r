@@ -70,6 +70,10 @@ pub struct NodeOptions {
     pub enable_rosout: bool,
     /// Optional override for the `/rosout` publisher QoS.
     pub rosout_qos: Option<QosProfile>,
+    /// Configure the standard type-description service at creation. `None` uses the
+    /// `start_type_description_service` parameter override, defaulting to disabled.
+    /// The native service is available from Jazzy onward when its interfaces are generated.
+    pub start_type_description_service: Option<bool>,
 }
 
 impl Default for NodeOptions {
@@ -82,11 +86,17 @@ impl Default for NodeOptions {
             allow_undeclared_parameters: true,
             enable_rosout: true,
             rosout_qos: None,
+            start_type_description_service: None,
         }
     }
 }
 
 impl NodeOptions {
+    /// Start the standard native type-description service without a separate handler future.
+    pub fn start_type_description_service(mut self, enabled: bool) -> Self {
+        self.start_type_description_service = Some(enabled);
+        self
+    }
     /// Replaces the ROS arguments applied only to this node.
     ///
     /// Include an executable name as the first item when matching normal process argv semantics.

@@ -69,6 +69,11 @@ pub mod action {
             ) -> (unique_identifier_msgs::msg::UUID, Feedback) {
                 (msg.goal_id, msg.feedback)
             }
+            fn native_feedback_uuid(
+                msg: &<FeedbackMessage as WrappedTypesupport>::CStruct,
+            ) -> Option<[u8; 16]> {
+                Some(msg.goal_id.uuid)
+            }
             fn destructure_result_response_msg(
                 msg: GetResult::Response,
             ) -> (i8, Result) {
@@ -923,6 +928,11 @@ pub mod action {
                 msg: FeedbackMessage,
             ) -> (unique_identifier_msgs::msg::UUID, Feedback) {
                 (msg.goal_id, msg.feedback)
+            }
+            fn native_feedback_uuid(
+                msg: &<FeedbackMessage as WrappedTypesupport>::CStruct,
+            ) -> Option<[u8; 16]> {
+                Some(msg.goal_id.uuid)
             }
             fn destructure_result_response_msg(
                 msg: GetResult::Response,

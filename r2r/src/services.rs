@@ -16,6 +16,12 @@ use r2r_rcl::*;
 pub(crate) enum ServiceRequestAction {
     Idle,
     Remove,
+    /// A built-in service answered directly from native storage without a user-stream delivery.
+    #[cfg(all(
+        not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)),
+        r2r__type_description_interfaces__srv__GetTypeDescription
+    ))]
+    Handled,
     Deliver(Box<dyn FnOnce() -> bool>),
 }
 
@@ -79,6 +85,11 @@ pub(crate) fn complete_service_request<S: ?Sized>(
     match action {
         ServiceRequestAction::Idle => Ok(ServiceHandleResult::Idle),
         ServiceRequestAction::Remove => Ok(ServiceHandleResult::Remove),
+        #[cfg(all(
+            not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)),
+            r2r__type_description_interfaces__srv__GetTypeDescription
+        ))]
+        ServiceRequestAction::Handled => Ok(ServiceHandleResult::Taken),
         ServiceRequestAction::Deliver(deliver) => Ok(if deliver() {
             ServiceHandleResult::Remove
         } else {

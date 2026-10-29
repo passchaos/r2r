@@ -19,5 +19,6 @@ stereo_msgs
 test_msgs
 tf2_msgs
 trajectory_msgs
+type_description_interfaces
 unique_identifier_msgs
 visualization_msgs

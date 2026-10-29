@@ -10,6 +10,9 @@
 
 // query the network
 #include <rcl/graph.h>
+#if __has_include(<rcl/type_hash.h>)
+#include <rcl/type_hash.h>
+#endif
 #if __has_include(<rcl/network_flow_endpoints.h>)
 #include <rcl/network_flow_endpoints.h>
 #endif

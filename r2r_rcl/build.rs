@@ -83,6 +83,9 @@ fn gen_bindings(out_file: &Path) {
         .allowlist_var("rosidl_.*")
         .allowlist_var("g_rcutils_.*")
         .allowlist_function("rcl_.*")
+        .allowlist_function(
+            "type_description_interfaces__srv__GetTypeDescription_Response__(init|fini)",
+        )
         .allowlist_function("rcutils_.*")
         .allowlist_function("rmw_.*")
         .allowlist_function("rosidl_.*")
