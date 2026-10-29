@@ -139,8 +139,8 @@ mod services;
 ))]
 pub use service_introspection::ServiceIntrospectionState;
 pub use services::{
-    Service, ServiceOptions, ServiceRequest, ServiceRequestInfo, ServiceRequestUntyped,
-    ServiceUntyped,
+    CallbackService, CallbackServiceOptions, Service, ServiceOptions, ServiceRequest,
+    ServiceRequestInfo, ServiceRequestUntyped, ServiceUntyped,
 };
 
 mod availability;

@@ -263,6 +263,9 @@ impl FutureDriver for Node {
         self.future_wake_guard.clone()
     }
     fn cache_future_guard(&mut self, guard: Arc<FutureGuard>) {
+        if let Some(callbacks) = &self.service_callbacks {
+            callbacks.set_wake(Some(guard.observer_waker()));
+        }
         if let Some(sleeps) = &self.ros_sleeps {
             sleeps.set_wake(Some(guard.observer_waker()));
         }
@@ -371,7 +374,11 @@ impl Node {
             .ros_sleeps
             .as_ref()
             .is_some_and(|sleeps| sleeps.has_work());
-        if !events_pending && !sleeps_pending {
+        let callbacks_pending = self
+            .service_callbacks
+            .as_ref()
+            .is_some_and(|callbacks| callbacks.len() != 0);
+        if !events_pending && !sleeps_pending && !callbacks_pending {
             return Ok(None);
         }
         let guard = match self.future_wake_guard.as_ref() {
@@ -388,6 +395,9 @@ impl Node {
         }
         if let Some(sleeps) = &self.ros_sleeps {
             sleeps.set_wake(Some(guard.observer_waker()));
+        }
+        if let Some(callbacks) = &self.service_callbacks {
+            callbacks.set_wake(Some(guard.observer_waker()));
         }
         Ok(Some(ObserverWait { guard, previous }))
     }

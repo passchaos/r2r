@@ -1084,3 +1084,37 @@ binary manifests. These are semantic and native entity-scaling results, not appl
 latency/throughput leadership evidence. Humble and Kilted also execute the focused sleeps,
 shutdown cases, example and Clippy. Iron/Lyrical/Rolling runtime and broader networked/concurrent
 clock applications remain pending the supported distribution matrix.
+
+## Typed and scoped native service callbacks (2026-10-30)
+
+Short synchronous services now register typed or lifetime-scoped native handlers directly through
+Node/shared/background native execution. A lazy callback registry owns stable native endpoints;
+user handlers, payload retirement and captured-state destruction run without service/channel/
+handler locks. Native requests are independently initialized for each RMW take. One response
+container is reused, and explicit per-endpoint drain bounds retain fairness alongside ordinary
+request streams, other callbacks and action endpoints. The ownership token carries actual QoS,
+resolved names, native introspection and targeted immediate/drop cleanup with current-executor
+wakes. Callback errors or panic consume only the taken request and leave the endpoint registered.
+
+Twelve Jazzy cases verify exact replies and request sequence identities, error/panic recovery,
+foreign-node/capture cleanup, max-two dispatch passes alongside healthy callback and deferred
+services, shared-node service/action offsets and current background cleanup guards. Native type-
+support wrappers reject owned request decoding, count every independent request retirement and
+observe one native response create/destroy with stable dynamic buffers across 128/16/0/32/128
+Unicode replies. Response allocation failure leaves no endpoint. Native introspection checks
+complete request/response event payloads and sequence numbers. A Rustdoc compile-fail case proves
+that the native request cannot escape the handler.
+
+The workspace stage and final double-RMW optimized library suites pass 670 main-library cases
+with eight manual measurements ignored; eighteen Rustdoc examples, callback example and all-
+target warning-denied Clippy pass. Final Humble/Fast DDS gates execute eleven callback and 64
+service cases, Kilted/both RMWs twelve callback and 76 service cases per environment, with examples
+and Clippy. A true no-ROS gate checks all targets, snapshot/oracle/common/generator tests, three
+ownership compile-fail cases and 39 public artifacts with 86 methods.
+
+The independent native-callback/27f2130-stream/rclcpp service protocol has explicit receive-path
+identities, exact sequence/operand/sum and final stop/confirmation oracles. Both Jazzy RMWs pass
+seven language combinations at request windows one and sixteen: 28 records and 2800 raw RTT
+samples. Reports bind final source and independent binary identities. These busy-host short
+runs are protocol-only; isolated representative performance and resource evidence remains open.
+See [service callback evidence](interop/service-callbacks-2026-10-30/README.md).

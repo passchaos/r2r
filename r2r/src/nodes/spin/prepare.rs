@@ -13,6 +13,10 @@ impl Node {
         }
 
         self.graph_change_waiters.prune_canceled();
+        let service_callback_count = self
+            .service_callbacks
+            .as_mut()
+            .map_or(0, |callbacks| callbacks.prepare(self.node_handle.as_mut()));
         let ros_sleep_progress = match self.ros_sleeps.as_mut() {
             Some(sleeps) => sleeps.sync(false)?,
             None => false,
@@ -320,7 +324,9 @@ impl Node {
                 + self.action_wait_set_capacities.timers
                 + usize::from(ros_sleep_interested),
             clients: self.clients.len() + self.action_wait_set_capacities.clients,
-            services: self.services.len() + self.action_wait_set_capacities.services,
+            services: self.services.len()
+                + self.action_wait_set_capacities.services
+                + service_callback_count,
             events,
         };
 

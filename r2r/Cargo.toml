@@ -107,4 +107,4 @@ name = "multi_node_service"
 harness = false
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(r2r_bench_native_views)", "cfg(r2r_bench_native_callbacks)", "cfg(r2r_bench_shared_executor)", "cfg(r2r_bench_executor_control)", "cfg(r2r_bench_background_task)", "cfg(r2r_bench_action_batches)"] }
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(r2r_bench_native_views)", "cfg(r2r_bench_native_callbacks)", "cfg(r2r_bench_service_callbacks)", "cfg(r2r_bench_shared_executor)", "cfg(r2r_bench_executor_control)", "cfg(r2r_bench_background_task)", "cfg(r2r_bench_action_batches)"] }

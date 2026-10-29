@@ -141,6 +141,11 @@ impl WaitEntities<'_> {
         for id in services_to_remove {
             Node::remove_service(self.services, self.service_indexes, id, node_handle);
         }
+        if let Some(callbacks) = self.service_callbacks.as_mut() {
+            if let Err(failure) = callbacks.dispatch(ws, offsets.service_callbacks) {
+                service_error.get_or_insert(failure);
+            }
+        }
         if let Some(err) = service_error {
             return Err(err);
         }

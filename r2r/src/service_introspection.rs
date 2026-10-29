@@ -65,10 +65,25 @@ pub(crate) fn configure_service(
 ) -> Result<()> {
     let clock = node.get_ros_clock();
     let mut clock = clock.lock();
+    configure_service_native(
+        service,
+        type_support,
+        node.node_handle.as_mut(),
+        &mut clock,
+        state,
+        event_qos,
+    )
+}
+
+pub(crate) fn configure_service_native(
+    service: &mut rcl_service_t, type_support: &'static rosidl_service_type_support_t,
+    node: &mut rcl_node_t, clock: &mut crate::Clock, state: ServiceIntrospectionState,
+    event_qos: QosProfile,
+) -> Result<()> {
     check_result(unsafe {
         rcl_service_configure_service_introspection(
             service,
-            node.node_handle.as_mut(),
+            node,
             clock.clock_handle.as_mut(),
             type_support,
             publisher_options(event_qos),

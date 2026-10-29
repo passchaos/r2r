@@ -24,6 +24,14 @@ def percentile(samples, percent):
 
 
 def validate_receive_path(metadata, language, endpoint):
+    service_paths = metadata.get("service_receive_paths")
+    if service_paths is not None:
+        expected = {"rust"} | ({"baseline"} if "baseline" in metadata["binary_sha256"] else set())
+        if metadata["workload"] != "service" or set(service_paths) != expected or any(value not in {"stream", "native_callback"} for value in service_paths.values()):
+            raise RuntimeError("invalid service receive path metadata")
+        if language != "cpp" and endpoint.get("role") == "echo" and endpoint.get("receive_path") != service_paths[language]:
+            raise RuntimeError("service receive path mismatch")
+        return
     paths = metadata.get("rust_receive_paths")
     if paths is None:
         if "receive_path" in endpoint:
@@ -153,6 +161,8 @@ def main():
     parser.add_argument("--rmw", default="rmw_cyclonedds_cpp")
     parser.add_argument("--sizes", default="0,32,4096")
     parser.add_argument("--windows", default="1,16", help="service request concurrency windows")
+    parser.add_argument("--service-receive-path", choices=["stream", "native_callback"], default="stream")
+    parser.add_argument("--baseline-service-receive-path", choices=["stream", "native_callback"], default="stream")
     parser.add_argument("--scenarios", default="0,1", help="action scenarios: 0 success, 1 cancellation")
     parser.add_argument("--action-cohorts", type=int, default=1, help="fresh action endpoint cohorts, each with the requested iterations/warmup")
     parser.add_argument("--action-stability", action="store_true", help="focused Rust baseline/candidate short-cohort regression gate; full interoperability is a separate matrix")
@@ -164,6 +174,8 @@ def main():
     parser.add_argument("--build-manifest", type=Path)
     parser.add_argument("--max-regression", type=float, help="Maximum candidate/baseline ratio for same-language RTT percentiles and inverse throughput")
     args = parser.parse_args()
+    if args.workload != "service" and (args.service_receive_path != "stream" or args.baseline_service_receive_path != "stream"):
+        parser.error("service receive paths require the service workload")
     if (args.native_views and args.workload != "pubsub") or (args.baseline_native_views and (not args.native_views or args.baseline_rust is None)):
         parser.error("native receive paths require a pub/sub workload; view baseline controls also require a baseline")
     if args.same_binary_control and (args.baseline_rust is None or args.max_regression is None):
@@ -225,6 +237,10 @@ def main():
                           [Path("r2r/benches") / ("pubsub_view_roundtrip.rs" if args.native_views else {"pubsub": "pubsub_roundtrip.rs", "service": "service_roundtrip.rs", "action": "action_roundtrip.rs"}[args.workload]),
                            Path("tools/bench_ros") / {"pubsub": "roundtrip.cpp", "service": "service.cpp", "action": "action.cpp"}[args.workload], Path("tools/bench_ros/transport.py")]},
     }
+    if args.workload == "service":
+        metadata["service_receive_paths"] = {"rust": args.service_receive_path}
+        if args.baseline_rust: metadata["service_receive_paths"]["baseline"] = args.baseline_service_receive_path
+        metadata["echo_work"] = "validate exact request sequence/operands; native_callback Rust server uses scoped request and retained native response; stream server and C++ use owned typed request/reply"
     if args.native_views:
         metadata["rust_receive_paths"] = {"rust":args.rust_receive_path}
         if args.baseline_rust:

@@ -3,10 +3,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-use futures::{FutureExt, StreamExt};
-use r2r::{
-    example_interfaces::srv::AddTwoInts, Client, Context, Node, NodeOptions, QosProfile, Service,
-};
+use futures::FutureExt;
+#[cfg(not(r2r_bench_service_callbacks))]
+use futures::StreamExt;
+#[cfg(not(r2r_bench_service_callbacks))]
+use r2r::Service;
+use r2r::{example_interfaces::srv::AddTwoInts, Client, Context, Node, NodeOptions, QosProfile};
 
 const SPIN_WAIT: Duration = Duration::from_millis(100);
 const DEADLINE: Duration = Duration::from_secs(10);
@@ -18,6 +20,7 @@ fn expected_sum(sequence: usize) -> i64 {
     sequence as i64 + operand(sequence)
 }
 
+#[cfg(not(r2r_bench_service_callbacks))]
 fn receive(
     node: &mut Node, service: &mut Service<AddTwoInts::Service>,
 ) -> r2r::Result<r2r::ServiceRequest<AddTwoInts::Service>> {
@@ -25,6 +28,60 @@ fn receive(
     loop {
         if let Some(request) = service.next().now_or_never().flatten() {
             return Ok(request);
+        }
+        if Instant::now() >= deadline {
+            return Err(r2r::Error::RCL_RET_TIMEOUT);
+        }
+        node.try_spin_once(SPIN_WAIT)?;
+    }
+}
+
+#[cfg(r2r_bench_service_callbacks)]
+fn callback_echo(node: &mut Node, name: &str, qos: QosProfile, total: usize) -> r2r::Result<u64> {
+    use std::sync::{
+        atomic::{AtomicU64, AtomicUsize, Ordering},
+        Arc,
+    };
+    let completion = Arc::new((AtomicUsize::new(0), AtomicU64::new(0)));
+    let completed = completion.clone();
+    let mut next = 0;
+    let mut checksum = 0_u64;
+    let mut stop_received = false;
+    let _service = node.create_service_native_callback::<AddTwoInts::Service, _>(
+        name,
+        qos,
+        move |request, response, _| {
+            if next < total {
+                assert_eq!(request.a, next as i64);
+                assert_eq!(request.b, operand(next));
+                response.sum = expected_sum(next);
+                checksum = checksum.wrapping_add(next as u64);
+                next += 1;
+                completed.0.store(next, Ordering::Release);
+            } else if !stop_received {
+                assert_eq!((request.a, request.b), (-1, 0));
+                response.sum = -1;
+                stop_received = true;
+                completed.0.store(total + 1, Ordering::Release);
+            } else {
+                assert_eq!((request.a, request.b), (-2, 0));
+                response.sum = -2;
+                completed.1.store(checksum, Ordering::Relaxed);
+                completed.0.store(total + 2, Ordering::Release);
+            }
+            Ok(())
+        },
+    )?;
+    let mut deadline = Instant::now() + DEADLINE;
+    let mut observed = 0;
+    loop {
+        let progress = completion.0.load(Ordering::Acquire);
+        if progress == total + 2 {
+            return Ok(completion.1.load(Ordering::Relaxed));
+        }
+        if progress != observed {
+            observed = progress;
+            deadline = Instant::now() + DEADLINE;
         }
         if Instant::now() >= deadline {
             return Err(r2r::Error::RCL_RET_TIMEOUT);
@@ -106,6 +163,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rmw = unsafe { std::ffi::CStr::from_ptr(r2r_rcl::rmw_get_implementation_identifier()) }
         .to_str()?;
     let qos = QosProfile::services_default().keep_last(window.max(16));
+    #[cfg(r2r_bench_service_callbacks)]
+    if role == "echo" {
+        let checksum = callback_echo(&mut node, &args[4], qos, total)?;
+        println!(
+            "{}",
+            serde_json::json!({"implementation":"r2r", "role":role, "rmw":rmw,
+            "window":window, "iterations":iterations, "warmup":warmup, "received":total, "checksum":checksum,
+            "receive_path":"native_callback"})
+        );
+        return Ok(());
+    }
+    #[cfg(not(r2r_bench_service_callbacks))]
     if role == "echo" {
         let mut service = node.create_service::<AddTwoInts::Service>(&args[4], qos)?;
         let mut checksum = 0_u64;
@@ -127,7 +196,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!(
             "{}",
             serde_json::json!({"implementation":"r2r", "role":role, "rmw":rmw,
-            "window":window, "iterations":iterations, "warmup":warmup, "received":total, "checksum":checksum})
+            "window":window, "iterations":iterations, "warmup":warmup, "received":total, "checksum":checksum,
+            "receive_path":"stream"})
         );
         return Ok(());
     }

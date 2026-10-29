@@ -5,6 +5,18 @@ from transport import calibration_failures, regression_failures, validate_endpoi
 
 
 class ReceivePathValidation(unittest.TestCase):
+    def test_service_callback_and_stream_evidence_has_explicit_endpoint_paths(self):
+        metadata = {"workload":"service", "binary_sha256":{"rust":"a", "baseline":"b"},
+                    "service_receive_paths":{"rust":"native_callback", "baseline":"stream"}}
+        validate_receive_path(metadata, "rust", {"role":"echo", "receive_path":"native_callback"})
+        validate_receive_path(metadata, "baseline", {"role":"echo", "receive_path":"stream"})
+        validate_receive_path(metadata, "rust", {"role":"ping"})
+        for endpoint in [{"role":"echo"}, {"role":"echo", "receive_path":"stream"}]:
+            with self.assertRaisesRegex(RuntimeError, "service receive path mismatch"):
+                validate_receive_path(metadata, "rust", endpoint)
+        metadata["workload"] = "pubsub"
+        with self.assertRaisesRegex(RuntimeError, "invalid service receive path metadata"):
+            validate_receive_path(metadata, "rust", {"role":"echo", "receive_path":"native_callback"})
     def test_view_owned_and_same_path_controls_are_explicit(self):
         metadata = {"workload":"pubsub", "binary_sha256":{"rust":"a", "baseline":"b"},
                     "rust_receive_paths":{"rust":"view", "baseline":"owned"}}

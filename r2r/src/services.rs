@@ -12,6 +12,8 @@ use std::{
 
 use crate::{error::*, msg_types::*, Node, QosProfile};
 use r2r_rcl::*;
+pub(crate) mod callback;
+pub use callback::{CallbackService, CallbackServiceOptions};
 
 pub(crate) enum ServiceRequestAction {
     Idle,

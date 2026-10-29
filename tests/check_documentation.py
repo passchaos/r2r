@@ -22,6 +22,8 @@ REQUIRED_DOCUMENTATION = (
     "struct.NativeMessageRef.html",
     "struct.QosEventStream.html",
     "struct.RosSleep.html",
+    "struct.CallbackService.html",
+    "struct.CallbackServiceOptions.html",
     "enum.QosEvent.html",
     "enum.PublisherEventKind.html",
     "enum.SubscriptionEventKind.html",
@@ -74,7 +76,10 @@ REQUIRED_METHODS = {
                          "destroy_native_callback_subscription", "destroy_qos_event_stream",
                          "start_type_description_service", "start_type_description_service_with_qos", "stop_type_description_service",
                          "type_description_service_name", "create_type_description_client", "create_type_description_client_with_qos",
-                         "sleep_until_ros", "sleep_for_ros"),
+                         "sleep_until_ros", "sleep_for_ros", "create_service_callback", "create_service_callback_with_options",
+                         "create_service_native_callback", "create_service_native_callback_with_options", "destroy_callback_service"),
+    "struct.CallbackService.html": ("service_name", "get_request_subscription_actual_qos", "get_response_publisher_actual_qos", "configure_introspection"),
+    "struct.CallbackServiceOptions.html": ("max_requests_per_spin",),
     "struct.RosSleep.html": ("deadline_ns", "cancel"),
     "struct.TypeDescriptionClient.html": ("service_name", "wait_for_service", "wait_for_service_with_timeout",
                                            "describe", "describe_with_timeout"),
@@ -105,6 +110,7 @@ def check(environment=None):
         ["cargo", "test", "-p", "r2r_common", "--lib", "--features", "doc-only"],
         ["cargo", "test", "-p", "r2r_msg_gen", "--lib", "--features", "doc-only", "message_path"],
         ["cargo", "test", "-p", "r2r", "--doc", "--features", "doc-only", "NativeMessageRef"],
+        ["cargo", "test", "-p", "r2r", "--doc", "--features", "doc-only", "create_service_native_callback"],
         ["cargo", "doc", "-p", "r2r", "--no-deps", "--features", "doc-only"],
     )
     for command in commands:

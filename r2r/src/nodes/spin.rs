@@ -20,12 +20,14 @@ pub(super) struct EntityOffsets {
     graph_guard: Option<usize>,
     events: usize,
     ros_sleep_timer: Option<usize>,
+    service_callbacks: usize,
 }
 
 pub(super) struct WaitEntities<'a> {
     context: &'a Context,
     qos_events: &'a mut Option<Box<qos_events::QosEvents>>,
     ros_sleeps: &'a mut Option<Box<ros_sleep::RosSleeps>>,
+    service_callbacks: &'a mut Option<Box<service_callbacks::ServiceCallbacks>>,
     node_handle: &'a mut rcl_node_t,
     subscribers: &'a mut Vec<Box<dyn Subscriber_>>,
     subscription_indexes: &'a mut HashMap<uuid::Uuid, usize>,
@@ -49,6 +51,7 @@ impl Node {
                 context: &self.context,
                 qos_events: &mut self.qos_events,
                 ros_sleeps: &mut self.ros_sleeps,
+                service_callbacks: &mut self.service_callbacks,
                 node_handle: &mut self.node_handle,
                 subscribers: &mut self.subscribers,
                 subscription_indexes: &mut self.subscription_indexes,
@@ -117,6 +120,9 @@ impl WaitEntities<'_> {
             check_rcl_ret(unsafe {
                 rcl_wait_set_add_guard_condition(ws, guard.handle(), std::ptr::null_mut())
             })?;
+        }
+        if let Some(callbacks) = self.service_callbacks.as_ref() {
+            offsets.service_callbacks = callbacks.add_to_wait_set(ws)?;
         }
         let graph_guard_index = if !preparation.graph_interested {
             None

@@ -14,6 +14,7 @@ python3 tools/bench_ros/transport.py --workload service \
   --rust target/ros-service/r2r-candidate \
   --cpp target/ros-service/rclcpp-comparison \
   --cpu-ping 24 --cpu-echo 25 --domain-id 122 --rmw rmw_cyclonedds_cpp \
+  --service-receive-path native_callback \
   --windows 1,16 --iterations 5000 --warmup 100 --repetitions 5 \
   --build-manifest target/ros-service/build-manifest.json \
   --output target/ros-service/cyclonedds.json
@@ -28,7 +29,9 @@ versions, affinity/domain settings, endpoint results and compressed raw RTT samp
 
 Both applications have a single-threaded execution loop, a 100 ms blocking spin wait cap,
 `ServicesQoS` with reliable volatile KeepLast(max(16, window)), no rosout, and no parameter
-services or event publisher. Rust uses `Client::request` futures and a `Service` stream. C++
+services or event publisher. Rust uses `Client::request` futures and a scoped native callback with a retained response when
+the callback API is present; older baseline revisions use a `Service` stream. Reports retain
+explicit `native_callback|stream` server paths, and the runner rejects mislabeled endpoints. C++
 uses `async_send_request` and a standard service callback. Results are observed in submission
 order in both languages; RTT includes queueing within the bounded window. Per-request watchdogs
 fail missing responses after 10 seconds. Warmup drains completely before measured requests start.
@@ -55,3 +58,11 @@ This fixed-size service workload does not cover large service payloads, action w
 multithreaded executors, timeouts under load, networked machines or saturation at unlimited
 concurrency. It establishes a reproducible first service comparison; those scenarios remain
 separate work toward the overall Rust/C++ goal.
+
+The builder detects `create_service_native_callback` and declares/enables the benchmark cfg only
+when its API exists. Baseline builds receive the identical protocol source with the historical
+stream fallback. The source manifest includes complete workspace inputs and the extracted
+callback implementations. Callback server watchdogs track native request progress without
+querying the graph or taking an application mutex inside the measured request path. Protocol
+smoke on a contended host does not qualify latency/throughput; final performance requires an
+isolated interleaved matrix with the original regression limits.

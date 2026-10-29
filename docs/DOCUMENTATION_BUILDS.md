@@ -25,7 +25,7 @@ python3 tests/check_documentation.py
 It removes ROS discovery, middleware and library-path variables for its child
 processes, then runs snapshot transaction tests, workspace compilation with all
 targets, common-library tests, the two pure message-path generator tests, two compile-fail
-`NativeMessageRef` ownership doctests and Rustdoc. It checks thirty-seven public documentation pages and seventy-six specific methods,
+`NativeMessageRef` ownership doctests and Rustdoc. It checks thirty-nine public documentation pages and eighty-six specific methods,
 including lifecycle native/loaned publication and destruction, configurable
 managed publishers/timers, service introspection, simulated-time controls and
 owned background task completion/cancellation/errors, action feedback overflow policy and

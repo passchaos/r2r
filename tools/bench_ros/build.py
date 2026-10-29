@@ -29,9 +29,9 @@ def registry_lock_entries(path):
     return entries
 
 
-def pipeline_workspace_sources(source):
+def pipeline_workspace_sources(source, benchmark="pubsub_pipeline"):
     paths = [source / name for name in ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml"]]
-    paths.append(source / "r2r/benches/pubsub_pipeline.rs")
+    paths.append(source / f"r2r/benches/{benchmark}.rs")
     for crate in ["r2r", "r2r_common", "r2r_rcl", "r2r_msg_gen", "r2r_actions", "r2r_macros"]:
         for name in ["Cargo.toml", "build.rs"]:
             if (source / crate / name).exists():
@@ -78,6 +78,12 @@ def rust_binary(source, target, destination, env, workload="codec"):
         if batch_source.exists() and "pub fn execute_batch" in batch_source.read_text():
             flags += " --cfg r2r_bench_action_batches"
         build_env["RUSTFLAGS"] = flags.strip()
+    if workload == "service":
+        flags = build_env.get("RUSTFLAGS", "") + " --check-cfg=cfg(r2r_bench_service_callbacks)"
+        callback_source = source / "r2r/src/nodes/service_callbacks.rs"
+        if callback_source.exists() and "pub fn create_service_native_callback" in callback_source.read_text():
+            flags += " --cfg r2r_bench_service_callbacks"
+        build_env["RUSTFLAGS"] = flags.strip()
     output = command(["cargo", "build", "--locked", "--release", "-p", "r2r", "--bench", benchmark, "--message-format=json"], source, build_env)
     artifacts = [json.loads(line) for line in output.splitlines() if line.startswith("{")]
     executable = next(item["executable"] for item in artifacts if item.get("reason") == "compiler-artifact" and item.get("target", {}).get("name") == benchmark and item.get("executable"))
@@ -98,6 +104,8 @@ def rust_binary(source, target, destination, env, workload="codec"):
         # runtime modules too. Cover the complete workspace input set so an extraction or
         # generator change cannot leave a stale performance report apparently current.
         sources.extend(pipeline_workspace_sources(source))
+    if workload == "service":
+        sources.extend(pipeline_workspace_sources(source, benchmark))
     if workload in {"codec", "codec_strings"}:
         sources.append(source / "r2r/benches/support/codec.rs")
         sources.append(source / "r2r/benches/support/allocation_probe.rs")
@@ -153,6 +161,9 @@ def main():
     if args.workload == "pubsub_pipeline":
         manifests["native_callback_api_detection"] = "nodes/subscription_api.rs contains public subscribe_native_callback: scoped native callback receive/forward; absent: owned typed stream fallback"
         manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_native_callbacks); --cfg enables scoped native callbacks only where the public API exists"
+    if args.workload == "service":
+        manifests["service_callback_api_detection"] = "nodes/service_callbacks.rs contains create_service_native_callback: native request/reused response; absent: owned service stream"
+        manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_service_callbacks); --cfg enables native service callbacks only where their API exists"
     if args.workload in {"codec", "codec_strings"}:
         manifests["serializer_api_detection"] = "r2r/src/serialization.rs present: reusable API; absent: historical owned-byte API fallback for serialize_reuse modes"
         manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_serializer); --cfg r2r_bench_serializer only when serializer API exists"

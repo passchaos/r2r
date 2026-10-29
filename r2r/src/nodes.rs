@@ -65,6 +65,7 @@ mod publisher_api;
 mod qos_events;
 mod ros_sleep;
 mod service_api;
+mod service_callbacks;
 mod spin;
 mod subscription_api;
 mod timers;
@@ -113,6 +114,7 @@ pub struct Node {
     parameter_event_sink: Option<ParameterEventSink>,
     qos_events: Option<Box<qos_events::QosEvents>>,
     type_description_service: Option<uuid::Uuid>,
+    service_callbacks: Option<Box<service_callbacks::ServiceCallbacks>>,
     parameter_handler_started: bool,
     pub(crate) node_handle: Box<rcl_node_t>,
     // the node owns the subscribers
@@ -435,6 +437,9 @@ impl Drop for Node {
         let _ctx_handle = self.context.context_handle.lock();
         self.wait_set.fini();
         self.qos_events.take();
+        if let Some(callbacks) = &mut self.service_callbacks {
+            callbacks.destroy_all(self.node_handle.as_mut());
+        }
 
         for s in &mut self.subscribers {
             s.destroy(&mut self.node_handle);
