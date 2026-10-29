@@ -12,7 +12,7 @@ use std::sync::{Arc, Weak};
 
 use crate::error::Result;
 use crate::publishers::Publisher;
-use crate::{NativeMsg, Node, WrappedTypesupport};
+use crate::{NativeMessageRef, NativeMsg, Node, WrappedTypesupport};
 
 mod endpoints;
 mod loaned;
@@ -104,6 +104,17 @@ impl<T: WrappedTypesupport> LifecyclePublisher<T> {
             return Ok(());
         }
         self.publisher.publish_native(msg)
+    }
+
+    /// Publish a borrowed native ROS message while activated.
+    ///
+    /// This preserves the lifecycle gate while forwarding directly from a scoped native
+    /// subscription callback without copying into an owned Rust message.
+    pub fn publish_native_ref(&self, msg: &NativeMessageRef<'_, T>) -> Result<()> {
+        if !self.is_activated() {
+            return Ok(());
+        }
+        self.publisher.publish_native_ref(msg)
     }
 
     /// Borrow native middleware storage for a lifecycle-gated publication.

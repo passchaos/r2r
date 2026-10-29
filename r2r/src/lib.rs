@@ -23,7 +23,7 @@
 //! After having sourced ROS2 (see README for more details), you can
 //! try the following example:
 //!
-//! ``` rust
+//! ```no_run
 //! use futures::{executor::LocalPool, future, stream::StreamExt, task::LocalSpawnExt};
 //! use r2r::QosProfile;
 //!
@@ -56,7 +56,7 @@
 //!         loop {
 //!             let _elapsed = timer.tick().await.unwrap();
 //!             let msg = r2r::std_msgs::msg::String {
-//!                 data: format!("Hello, world! ({})", counter),
+//!                 data: format!("Hello, world! ({})", counter).into(),
 //!             };
 //!             publisher.publish(&msg).unwrap();
 //!             counter += 1;
@@ -83,7 +83,7 @@ pub use error::{Error, Result};
 mod msg_types;
 mod serialization;
 pub use msg_types::{
-    generated_msgs::*, WrappedActionTypeSupport, WrappedNativeMsg as NativeMsg,
+    generated_msgs::*, NativeMessageRef, WrappedActionTypeSupport, WrappedNativeMsg as NativeMsg,
     WrappedNativeMsgUntyped, WrappedServiceTypeSupport, WrappedTypesupport,
 };
 pub use serialization::MessageSerializer;
@@ -95,7 +95,8 @@ mod subscribers;
 pub use subscribers::ContentFilterOptions;
 pub use subscribers::{
     LivelinessChangedStatus, LoanedSubscriptionMessage, MessageInfo, MessageLostStatus,
-    ReceivedMessage, RequestedDeadlineMissedStatus, RequestedIncompatibleQosStatus, Subscription,
+    NativeCallbackSubscription, NativeCallbackSubscriptionOptions, ReceivedMessage,
+    RequestedDeadlineMissedStatus, RequestedIncompatibleQosStatus, Subscription,
     SubscriptionOptions,
 };
 

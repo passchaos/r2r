@@ -24,12 +24,16 @@ python3 tests/check_documentation.py
 
 It removes ROS discovery, middleware and library-path variables for its child
 processes, then runs snapshot transaction tests, workspace compilation with all
-targets, common-library tests, the two pure message-path generator tests and
-Rustdoc. It checks nineteen public documentation pages and forty-one specific methods,
+targets, common-library tests, the two pure message-path generator tests, two compile-fail
+`NativeMessageRef` ownership doctests and Rustdoc. It checks twenty-four public documentation pages and fifty-four specific methods,
 including lifecycle native/loaned publication and destruction, configurable
 managed publishers/timers, service introspection, simulated-time controls and
 owned background task completion/cancellation/errors, action feedback overflow policy and
-typed and runtime-typed batched action-server acceptance/execution/terminal completion.
+typed and runtime-typed batched action-server acceptance/execution/terminal completion, and scoped
+native subscription callback ownership/options and borrowed-native publication.
+The main library now uses the default Rustdoc test setting, so ordinary workspace tests also
+execute its API examples and ownership compile-fail cases. The no-ROS gate also runs the pipeline harness counterexamples, including raw-sample integrity, source drift,
+finite performance ratios and preflight/runtime isolation requirements.
 
 The `docs_no_ros` CI job runs this same gate in Ubuntu 24.04 with the
 repository-pinned Rust 1.85 toolchain and no ROS installation. The refreshed

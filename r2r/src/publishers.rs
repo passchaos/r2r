@@ -1657,6 +1657,20 @@ where
     where
         T: WrappedTypesupport,
     {
+        let view = NativeMessageRef::from_owned(msg);
+        self.publish_native_ref(&view)
+    }
+
+    /// Publish a borrowed native ROS message without taking ownership of its storage.
+    ///
+    /// This is the direct forwarding path for messages received by
+    /// [`Node::subscribe_native_callback`](crate::Node::subscribe_native_callback). The native
+    /// storage remains owned by the active subscription dispatch and is valid only for the
+    /// duration of that callback.
+    pub fn publish_native_ref(&self, msg: &NativeMessageRef<'_, T>) -> Result<()>
+    where
+        T: WrappedTypesupport,
+    {
         // upgrade to actual ref. if still alive
         let publisher = self
             .handle

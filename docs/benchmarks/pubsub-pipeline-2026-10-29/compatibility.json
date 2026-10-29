@@ -1,0 +1,96 @@
+{
+  "scope": "scoped NativeMessageRef callbacks, allocation/retirement/fairness oracles, lifecycle publication and qualification gates",
+  "validated_utc": "2026-10-29T17:03:59Z",
+  "git_head": "9deaa6803b67644c8b39cf4c032f678e49696ba2",
+  "working_tree_dirty": true,
+  "toolchain": {
+    "rustc": "rustc 1.85.0 (4d91de4e4 2025-02-17)",
+    "cargo": "cargo 1.85.0 (d73d2caf9 2024-12-31)"
+  },
+  "source_sha256": {
+    "r2r/Cargo.toml": "0799806b0529fb76817527515bc98ea7743c5057e6e553467d1d00fd2d2c9c1b",
+    "r2r/src/lib.rs": "da3f01d4ad651428822a03c2029c87f04d60893120d464e2ed342542f739150f",
+    "r2r/src/msg_types.rs": "1b5aad1dc576f5c4bdabafece082569078ac869f49f351d01a411f9a5b58c4a8",
+    "r2r/src/subscribers.rs": "8c5e064cd3b4b5860ce0097c4d9347dd968cb46f73a1805f0dc0f245aff5f2f5",
+    "r2r/src/subscribers/native_callback.rs": "7f46818214a941ec55374c83007aeda5379aa57671fe6a63424de2cc283724b4",
+    "r2r/src/subscribers/native_callback/tests.rs": "3b6bfe199d8881073dbab138bc52391297a20e4a800d6cfe4f6d0d6d94497167",
+    "r2r/src/nodes/subscription_api.rs": "cd1f8c32619b8addad92a6bc5ce8a9467d4856a29ddaf242235e16932da9ee77",
+    "r2r/src/publishers.rs": "c185a6af2551531780454f730bd1312835ebf23c3d12be4dca7ba8ac68043f7e",
+    "r2r/src/lifecycle/publisher.rs": "1fa468a8341a0a8da9fc0f80d9b192f6ad455153e8de8d15ef1851ac6478de6a",
+    "r2r/src/lifecycle/publisher/tests.rs": "8e48325dee917071b2ba5989d04ae1cdb7137c2246f50b21b95d598e5efbb969",
+    "r2r/examples/native_callback_forward.rs": "71e9010b862281c5a52009009e4dabdf546d26f2f49ec801f42a176db517de2b",
+    "tests/check_documentation.py": "94bed71923cb08a38a771926d6ddb81a850f04dda8af5dc6b031f8155cda77ac",
+    "tools/bench_ros/build.py": "dde80b4167648615c38beb509334caf96b6afce13be8b93beab8e66b2486a1b6",
+    "tools/bench_ros/pubsub_pipeline.py": "b3f52208c9676ebfce363f99649d66e0b871867e2ef2c53108e5a40303ab2d5e",
+    "tools/bench_ros/test_pubsub_pipeline.py": "b08df3d604f545e718a4ec735c59f2017394805043f2aaa9acfc1a8f5675b251",
+    "tools/bench_ros/verify_pubsub_pipeline.py": "8e263362b22950d35956b38e7e61313fec27063e58dfa04045dd514334b3124a"
+  },
+  "gates": {
+    "jazzy_both_rmw": {
+      "log": "logs/jazzy-final-boundaries.log.gz",
+      "sha256": "874858702e7744d393094af451a8a3fff5de4496f489a8de4900faab4f6d1f1e",
+      "main_library_debug_passed": 607,
+      "main_library_release_passed_per_rmw": 607,
+      "ignored_manual_measurements": 8,
+      "callback_cases": 7,
+      "lifecycle_publication_cases": 9,
+      "doctests": 17,
+      "clippy_all_targets": "passed",
+      "examples": 2
+    },
+    "humble_fastdds": {
+      "log": "logs/humble-final-boundaries.log.gz",
+      "sha256": "8f0694ce95ae93bb9a9b6d885410e242012cf11488fa31431ee629d558f3c62e",
+      "callback_cases": 7,
+      "lifecycle_publication_cases": 9,
+      "clippy_all_targets": "passed",
+      "examples": 1,
+      "image": "sha256:4e346fcaeb5f64690213fadce5dd27980d6cc3a0eb47ca9419d5a2427f70af41"
+    },
+    "kilted_both_rmw": {
+      "log": "logs/kilted-final-boundaries.log.gz",
+      "sha256": "a896f5ef5f23e85aa049acc92991da89605b05fdfeb632d9da6f5b0b3f311eaa",
+      "callback_cases_per_rmw": 7,
+      "lifecycle_publication_cases_per_rmw": 9,
+      "clippy_all_targets": "passed",
+      "examples": 2,
+      "image": "sha256:5217474d9be62dcc995ff45e8743525620ea59f49cef33c0d3402a6427aa2c20"
+    },
+    "no_ros": {
+      "log": "logs/no-ros-final-boundaries.log.gz",
+      "sha256": "272adc5e3dea302ab4f4c6b6df5112f78357f3175018e37767046254c2982873",
+      "snapshot_tests": 4,
+      "harness_cases": 12,
+      "common_tests": 6,
+      "generator_tests": 2,
+      "ownership_compile_fail_doctests": 2,
+      "documentation_pages": 24,
+      "documented_methods": 54
+    },
+    "harness": {
+      "log": "logs/harness-final-boundaries.log.gz",
+      "sha256": "7917fb5163536ebcfa641aa0ae275653a94e3d5a0ea283d024a7fb2fbe481b09",
+      "passed": 12,
+      "failed": 0
+    },
+    "final_protocol": {
+      "log": "logs/final-protocol.log.gz",
+      "sha256": "348f40f0d803a82e04c95833508bcdf0c813353f9f0b091ab2f0d8384656ff3a",
+      "rmws": 2,
+      "records_per_rmw": 12,
+      "rtt_samples_per_rmw": 1200,
+      "directions": [
+        "rust/rust",
+        "cpp/cpp",
+        "rust/cpp",
+        "cpp/rust"
+      ],
+      "cases": [
+        "0:1:1",
+        "4096:16:1",
+        "4096:8:4"
+      ],
+      "scope": "protocol correctness only; no isolation or performance qualification"
+    }
+  }
+}

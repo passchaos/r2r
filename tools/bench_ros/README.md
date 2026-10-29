@@ -8,6 +8,8 @@ stop the run.
 
 The [end-to-end pub/sub harness](TRANSPORT.md) compares separate ping/echo processes and
 includes both cross-language directions, individual RTT percentiles and raw sample artifacts.
+The [pipelined/fanout harness](PUBSUB_PIPELINE.md) adds fixed in-flight windows, echo-side
+subscription fanout, scoped native callback identities and verified per-message stage samples.
 The [service harness](SERVICE.md) measures native `AddTwoInts` roundtrips with both single-request
 and bounded-concurrency windows using the same archive/verification infrastructure.
 The [action harness](ACTION.md) validates deferred acceptance, observed feedback, successful and

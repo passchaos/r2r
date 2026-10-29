@@ -274,6 +274,59 @@ impl Node {
         Ok(Subscription::new(receiver, id, Arc::clone(&self.canceled_subscriptions)))
     }
 
+    /// Registers a scoped callback over each received native ROS message.
+    ///
+    /// The callback runs during node dispatch. Its borrowed native message view cannot escape the
+    /// invocation, so it can be inspected or forwarded with [`Publisher::publish_native_ref`]
+    /// without a native-to-owned Rust conversion or channel send.
+    pub fn subscribe_native_callback<T, F>(
+        &mut self, topic: &str, qos_profile: QosProfile, callback: F,
+    ) -> Result<NativeCallbackSubscription>
+    where
+        T: WrappedTypesupport,
+        F: for<'message> FnMut(NativeMessageRef<'message, T>, MessageInfo) -> Result<()>
+            + Send
+            + 'static,
+    {
+        self.subscribe_native_callback_with_options::<T, F>(
+            topic,
+            qos_profile,
+            NativeCallbackSubscriptionOptions::default(),
+            callback,
+        )
+    }
+
+    /// Registers a scoped native callback with explicit dispatch and endpoint options.
+    pub fn subscribe_native_callback_with_options<T, F>(
+        &mut self, topic: &str, qos_profile: QosProfile,
+        options: NativeCallbackSubscriptionOptions, callback: F,
+    ) -> Result<NativeCallbackSubscription>
+    where
+        T: WrappedTypesupport,
+        F: for<'message> FnMut(NativeMessageRef<'message, T>, MessageInfo) -> Result<()>
+            + Send
+            + 'static,
+    {
+        let options = options.validate()?;
+        let subscription_handle = create_subscription_helper(
+            self.node_handle.as_mut(),
+            topic,
+            T::get_ts(),
+            qos_profile,
+            options.ignore_local_publications,
+            options.unique_network_flow,
+        )?;
+        let id = uuid::Uuid::new_v4();
+        let subscriber = NativeCallbackSubscriber::<T, F>::new(
+            subscription_handle,
+            callback,
+            options.max_messages_per_spin,
+            SubscriptionMatchState::new(id),
+        );
+        self.add_subscriber(Box::new(subscriber));
+        Ok(NativeCallbackSubscription::new(id, Arc::clone(&self.canceled_subscriptions)))
+    }
+
     /// Subscribe to a ROS topic.
     ///
     /// This function returns a `Stream` of ros messages as `serde_json::Value`:s.
@@ -487,6 +540,15 @@ impl Node {
     /// Passing a subscription created by another node leaves this node unchanged and schedules
     /// the subscription for normal cleanup by its owning node.
     pub fn destroy_subscription<T>(&mut self, subscription: Subscription<T>) {
+        let id = subscription.id;
+        drop(subscription);
+        self.destroy_subscription_by_id(id);
+    }
+
+    /// Immediately destroys a scoped native callback subscription owned by this node.
+    pub fn destroy_native_callback_subscription(
+        &mut self, subscription: NativeCallbackSubscription,
+    ) {
         let id = subscription.id;
         drop(subscription);
         self.destroy_subscription_by_id(id);

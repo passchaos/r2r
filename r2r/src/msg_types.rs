@@ -220,6 +220,78 @@ where
     deallocator: Option<Box<dyn FnOnce(*mut T::CStruct) + Send>>,
 }
 
+/// A read-only, non-owning view of a native ROS message received during subscription dispatch.
+///
+/// The lifetime prevents the native storage from escaping its callback. The owning allocation and
+/// deallocator remain private to r2r, while [`Deref`] allows direct native-field inspection.
+/// Pass this view to [`Publisher::publish_native_ref`](crate::Publisher::publish_native_ref)
+/// to forward the same native message without constructing an owned Rust payload.
+///
+/// Native fields are intentionally read-only in safe Rust:
+///
+/// ```compile_fail
+/// use r2r::{std_msgs::msg::Int32, NativeCallbackSubscription, Node, QosProfile};
+///
+/// fn install(node: &mut Node) -> r2r::Result<NativeCallbackSubscription> {
+///     node.subscribe_native_callback::<Int32, _>(
+///         "/input",
+///         QosProfile::default(),
+///         |mut message, _| {
+///             message.data = 7;
+///             Ok(())
+///         },
+///     )
+/// }
+/// ```
+///
+/// The callback lifetime also prevents retaining the view:
+///
+/// ```compile_fail
+/// use r2r::{std_msgs::msg::Int32, NativeCallbackSubscription, Node, QosProfile};
+///
+/// fn install(node: &mut Node) -> r2r::Result<NativeCallbackSubscription> {
+///     let mut escaped = None;
+///     node.subscribe_native_callback::<Int32, _>(
+///         "/input",
+///         QosProfile::default(),
+///         move |message, _| {
+///             escaped = Some(message);
+///             Ok(())
+///         },
+///     )
+/// }
+/// ```
+pub struct NativeMessageRef<'message, T>
+where
+    T: WrappedTypesupport,
+{
+    message: &'message T::CStruct,
+}
+
+impl<'message, T> NativeMessageRef<'message, T>
+where
+    T: WrappedTypesupport,
+{
+    pub(crate) fn from_owned(message: &'message WrappedNativeMsg<T>) -> Self {
+        Self { message }
+    }
+
+    pub(crate) fn void_ptr(&self) -> *const std::os::raw::c_void {
+        std::ptr::from_ref::<T::CStruct>(self.message).cast()
+    }
+}
+
+impl<T> Deref for NativeMessageRef<'_, T>
+where
+    T: WrappedTypesupport,
+{
+    type Target = T::CStruct;
+
+    fn deref(&self) -> &Self::Target {
+        self.message
+    }
+}
+
 pub trait VoidPtr {
     fn void_ptr(&self) -> *const std::os::raw::c_void;
     fn void_ptr_mut(&mut self) -> *mut std::os::raw::c_void;

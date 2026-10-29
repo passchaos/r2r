@@ -28,6 +28,10 @@ use crate::{
 };
 use r2r_rcl::*;
 
+mod native_callback;
+pub(crate) use native_callback::NativeCallbackSubscriber;
+pub use native_callback::{NativeCallbackSubscription, NativeCallbackSubscriptionOptions};
+
 /// Rust-side buffering options for a ROS subscription stream.
 ///
 /// These options are independent from DDS history/depth QoS. They control messages after they

@@ -60,11 +60,22 @@ fn managed_publisher_drops_messages_until_active_and_after_deactivate() {
         assert!(Instant::now() < deadline, "managed publisher did not match");
     }
 
-    let msg = |text: &str| std_msgs::msg::String { data: text.into() };
+    let publish_both = |text: &str| {
+        publisher
+            .publish(&std_msgs::msg::String { data: text.into() })
+            .unwrap();
+        let native = crate::NativeMsg::try_from(&std_msgs::msg::String {
+            data: format!("{text}-native").into(),
+        })
+        .unwrap();
+        publisher
+            .publish_native_ref(&crate::NativeMessageRef::from_owned(&native))
+            .unwrap();
+    };
 
     // Unconfigured: message dropped.
     assert!(!publisher.is_activated());
-    publisher.publish(&msg("unconfigured")).unwrap();
+    publish_both("unconfigured");
     assert!(
         drain(&mut managed, &mut subscriber_node, &mut messages, Duration::from_millis(200))
             .is_empty()
@@ -73,7 +84,7 @@ fn managed_publisher_drops_messages_until_active_and_after_deactivate() {
     // Configured/inactive: still dropped.
     assert_eq!(managed.configure().unwrap(), CallbackReturn::Success);
     assert!(!publisher.is_activated());
-    publisher.publish(&msg("inactive")).unwrap();
+    publish_both("inactive");
     assert!(
         drain(&mut managed, &mut subscriber_node, &mut messages, Duration::from_millis(200))
             .is_empty()
@@ -82,15 +93,15 @@ fn managed_publisher_drops_messages_until_active_and_after_deactivate() {
     // Active: delivered.
     assert_eq!(managed.activate().unwrap(), CallbackReturn::Success);
     assert!(publisher.is_activated());
-    publisher.publish(&msg("active")).unwrap();
+    publish_both("active");
     let delivered =
         drain(&mut managed, &mut subscriber_node, &mut messages, Duration::from_millis(500));
-    assert_eq!(delivered, vec!["active".to_string()]);
+    assert_eq!(delivered, ["active", "active-native"]);
 
     // Deactivated: dropped again.
     assert_eq!(managed.deactivate().unwrap(), CallbackReturn::Success);
     assert!(!publisher.is_activated());
-    publisher.publish(&msg("inactive-again")).unwrap();
+    publish_both("inactive-again");
     assert!(
         drain(&mut managed, &mut subscriber_node, &mut messages, Duration::from_millis(200))
             .is_empty()
@@ -111,12 +122,15 @@ fn native_publication_handles_failure_recovery_and_active_creation() {
     // Inactive native publication leaves caller-owned storage available.
     let mut native = crate::NativeMsg::<std_msgs::msg::Int32>::new();
     publisher.publish_native(&mut native).unwrap();
+    let view = crate::NativeMessageRef::from_owned(&native);
+    publisher.publish_native_ref(&view).unwrap();
     managed.on_activate(Box::new(|_| CallbackReturn::Success));
     managed.activate().unwrap();
     let active_publisher = managed
         .create_publisher::<std_msgs::msg::Int32>("created_active", QosProfile::default())
         .unwrap();
     assert!(active_publisher.is_activated());
+    active_publisher.publish_native_ref(&view).unwrap();
     active_publisher.publish_native(&mut native).unwrap();
     managed.on_deactivate(Box::new(|_| CallbackReturn::error("recover to unconfigured")));
     assert!(matches!(managed.deactivate().unwrap(), CallbackReturn::Error(_)));
@@ -133,7 +147,13 @@ fn native_publication_handles_failure_recovery_and_active_creation() {
         publisher.publish_native(&mut native),
         Err(crate::Error::RCL_RET_PUBLISHER_INVALID)
     ));
+    let view = crate::NativeMessageRef::from_owned(&native);
+    assert!(matches!(
+        publisher.publish_native_ref(&view),
+        Err(crate::Error::RCL_RET_PUBLISHER_INVALID)
+    ));
     publisher.on_deactivate();
+    publisher.publish_native_ref(&view).unwrap();
     publisher.publish_native(&mut native).unwrap();
 }
 

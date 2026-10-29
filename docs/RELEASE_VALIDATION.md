@@ -901,3 +901,56 @@ CycloneDDS lifecycle p99 is 1.7% lower and batch rate 3.0% higher; Fast DDS life
 are 0.5%/1.3%/0.4% lower and batch rate is 0.4% higher. See
 [runtime-typed batch evidence](benchmarks/action-goal-batching-untyped-2026-10-29/README.md).
 
+## Scoped native subscription callbacks and pipelined pub/sub (2026-10-29)
+
+`Node::subscribe_native_callback` adds an opt-in, scoped native receive path for forwarding,
+filtering and native codecs. Each take still owns an independent native container; the callback
+receives only a lifetime-bound, read-only `NativeMessageRef<'_, T>` with private provenance, so
+neither the native C struct contents nor the owning wrapper/deallocator can escape
+dispatch. `Publisher::publish_native_ref` forwards it directly. This skips the native-to-owned Rust deep copy and
+futures-channel send without reviving the rejected populated-container reuse contract. A public
+ownership token exposes topic/QoS/matching helpers and deterministic destruction; per-spin drain
+limits make throughput/fairness explicit. Existing stream, raw, untyped and loaned APIs are
+unchanged.
+
+Seven real-RCL cases under each Jazzy RMW cover native forwarding, exact payload delivery, option
+validation, callback-error propagation without implicit teardown, endpoint identity and explicit
+teardown. Allocation-failure injection preserves the unread sample. Instrumented native wrappers
+reject Rust decoding and count exact container retirement after success, errors and panic with
+4096/7/0/128-element payloads. A seven-message burst uses at most two callbacks per spin while
+a ready ordinary stream receives its complete batch. Dropped ownership tokens release captures,
+fail pending publisher waits and preserve sibling subscriptions. The wake-driven example passes under Jazzy/both RMWs,
+Humble/Fast DDS and Kilted/both RMWs. Jazzy runs all 17 Rustdoc examples, including two
+compile-fail ownership cases; the no-ROS gate independently runs those two cases and checks 24 API
+pages and 54 methods.
+
+The independent pipeline harness validates `elements × window × fanout`, every fanout copy,
+ordered responses, complete payloads, window maxima and final controls. Reports retain raw RTT,
+ping publish, echo collect and echo publish samples. The selected cases are 0×1×1, 4096×16×1 and
+4096×8×4 with 1000 measured messages, 50 warmups and five interleaved repetitions on CPUs 24/25.
+Pre-final runs passed the unchanged 1.05 p50/p95/p99/inverse-throughput candidate/baseline gate,
+but their candidate manifest differs from the final ownership implementation, and
+the isolation-aware runner and qualification checks have changed too. They are retained as
+superseded evidence pending an isolated final-source rerun, not promoted as release evidence.
+
+In those pre-final same-run observations, r2r lowers large-pipeline p50/p95/p99 by 9%/16%/5% and raises rate 16%
+under CycloneDDS; Fast DDS improves 14%/11%/7% and 18%. Fanout-four improves p50/p95/p99 by
+23%/28%/29% with 32% more throughput under CycloneDDS, and 30%/32%/34% with 39% more throughput
+under Fast DDS. These comparisons require final-source reproduction before any leadership claim.
+A 4096×16×4 CycloneDDS calibration has 100–198 ms tails in identical Rust builds and remains a
+rejected saturation boundary. A final-source rerun made under concurrent Zig load is also retained
+as rejected, contended evidence. See
+[pipeline/fanout evidence](benchmarks/pubsub-pipeline-2026-10-29/README.md).
+
+
+The 2026-10-30 boundary audit keeps callback code and seven real-middleware cases in a separate
+`subscribers/native_callback` module. Jazzy full workspace and both optimized RMW suites pass
+607 main-library cases with eight manual measurements ignored, plus warning-denied all-target
+Clippy. Humble/Fast DDS and Kilted/both RMWs pass seven callback and nine lifecycle-publication
+cases, the example and all-target Clippy. Default Rustdoc execution is restored; all seventeen
+examples pass. A true no-ROS container verifies all targets, snapshot transactions, twelve harness
+counterexamples, common/generator tests, two ownership compile-fail cases and 24 API pages/54
+methods. Final four-direction protocol smoke passes under both RMWs with a complete 165-input
+source manifest. The formal performance preflight failed due to concurrent Zig compilation;
+final-source performance promotion remains pending. Source/log identities and all reports live in
+the [callback evidence archive](benchmarks/pubsub-pipeline-2026-10-29/README.md).

@@ -10,9 +10,9 @@ import shutil
 import subprocess
 import tempfile
 
-BENCHMARKS = {"codec": "ros_comparison", "codec_strings": "string_sequences", "transport": "pubsub_roundtrip", "native_views": "pubsub_view_roundtrip", "executor": "multi_node_service", "service": "service_roundtrip", "action": "action_roundtrip", "action_feedback": "action_feedback_roundtrip", "future": "future_execution"}
-CPP_BINARIES = {"codec": "rclcpp_comparison", "codec_strings": "rclcpp_string_sequences", "transport": "rclcpp_roundtrip", "native_views": "rclcpp_roundtrip", "executor": "rclcpp_multi_node_service", "service": "rclcpp_service", "action": "rclcpp_action_roundtrip", "action_feedback": "rclcpp_action_feedback_roundtrip"}
-CPP_SOURCES = {"codec": "comparison.cpp", "codec_strings": "string_sequences.cpp", "transport": "roundtrip.cpp", "native_views": "roundtrip.cpp", "executor": "multi_node_service.cpp", "service": "service.cpp", "action": "action.cpp", "action_feedback": "action_feedback.cpp"}
+BENCHMARKS = {"codec": "ros_comparison", "codec_strings": "string_sequences", "transport": "pubsub_roundtrip", "pubsub_pipeline": "pubsub_pipeline", "native_views": "pubsub_view_roundtrip", "executor": "multi_node_service", "service": "service_roundtrip", "action": "action_roundtrip", "action_feedback": "action_feedback_roundtrip", "future": "future_execution"}
+CPP_BINARIES = {"codec": "rclcpp_comparison", "codec_strings": "rclcpp_string_sequences", "transport": "rclcpp_roundtrip", "pubsub_pipeline": "rclcpp_pubsub_pipeline", "native_views": "rclcpp_roundtrip", "executor": "rclcpp_multi_node_service", "service": "rclcpp_service", "action": "rclcpp_action_roundtrip", "action_feedback": "rclcpp_action_feedback_roundtrip"}
+CPP_SOURCES = {"codec": "comparison.cpp", "codec_strings": "string_sequences.cpp", "transport": "roundtrip.cpp", "pubsub_pipeline": "pubsub_pipeline.cpp", "native_views": "roundtrip.cpp", "executor": "multi_node_service.cpp", "service": "service.cpp", "action": "action.cpp", "action_feedback": "action_feedback.cpp"}
 
 
 def command(arguments, cwd, env):
@@ -27,6 +27,18 @@ def registry_lock_entries(path):
         if "source" in fields:
             entries.add((fields["name"],fields["version"],fields["source"]))
     return entries
+
+
+def pipeline_workspace_sources(source):
+    paths = [source / name for name in ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml"]]
+    paths.append(source / "r2r/benches/pubsub_pipeline.rs")
+    for crate in ["r2r", "r2r_common", "r2r_rcl", "r2r_msg_gen", "r2r_actions", "r2r_macros"]:
+        for name in ["Cargo.toml", "build.rs"]:
+            if (source / crate / name).exists():
+                paths.append(source / crate / name)
+        paths.extend(sorted((source / crate / "src").rglob("*.rs")))
+        paths.extend(sorted((source / crate / "bindings").rglob("*.rs")))
+    return sorted(set(paths))
 
 
 def rust_binary(source, target, destination, env, workload="codec"):
@@ -49,6 +61,12 @@ def rust_binary(source, target, destination, env, workload="codec"):
         if (source / "r2r/src/native_views.rs").exists():
             flags += " --cfg r2r_bench_native_views"
         build_env["RUSTFLAGS"] = flags.strip()
+    if workload == "pubsub_pipeline":
+        flags = build_env.get("RUSTFLAGS", "") + " --check-cfg=cfg(r2r_bench_native_callbacks)"
+        callback_source = source / "r2r/src/nodes/subscription_api.rs"
+        if callback_source.exists() and "pub fn subscribe_native_callback" in callback_source.read_text():
+            flags += " --cfg r2r_bench_native_callbacks"
+        build_env["RUSTFLAGS"] = flags.strip()
     if workload in {"codec", "codec_strings"}:
         flags = build_env.get("RUSTFLAGS", "") + " --check-cfg=cfg(r2r_bench_serializer)"
         if (source / "r2r/src/serialization.rs").exists():
@@ -70,11 +88,16 @@ def rust_binary(source, target, destination, env, workload="codec"):
         sources.append(source / "r2r/src/native_metadata.rs")
     if (source / "r2r/src/notifications.rs").exists():
         sources.append(source / "r2r/src/notifications.rs")
-    if workload in {"service", "executor"}:
+    if workload in {"service", "executor", "pubsub_pipeline"}:
         sources.extend(sorted((source / "r2r/src/nodes").rglob("*.rs")))
         sources.extend(sorted((source / "r2r/src/lifecycle").rglob("*.rs")))
         if (source / "r2r/src/lifecycle.rs").exists():
             sources.append(source / "r2r/src/lifecycle.rs")
+    if workload == "pubsub_pipeline":
+        # Native receive behavior depends on generated bindings, build scripts and shared
+        # runtime modules too. Cover the complete workspace input set so an extraction or
+        # generator change cannot leave a stale performance report apparently current.
+        sources.extend(pipeline_workspace_sources(source))
     if workload in {"codec", "codec_strings"}:
         sources.append(source / "r2r/benches/support/codec.rs")
         sources.append(source / "r2r/benches/support/allocation_probe.rs")
@@ -127,6 +150,9 @@ def main():
     if args.workload == "native_views":
         manifests["receive_api_detection"] = "native_views.rs present: subscribe_view and publish_view echo; absent: normal typed receive/publish fallback"
         manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_native_views); --cfg r2r_bench_native_views only where the view API exists"
+    if args.workload == "pubsub_pipeline":
+        manifests["native_callback_api_detection"] = "nodes/subscription_api.rs contains public subscribe_native_callback: scoped native callback receive/forward; absent: owned typed stream fallback"
+        manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_native_callbacks); --cfg enables scoped native callbacks only where the public API exists"
     if args.workload in {"codec", "codec_strings"}:
         manifests["serializer_api_detection"] = "r2r/src/serialization.rs present: reusable API; absent: historical owned-byte API fallback for serialize_reuse modes"
         manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_serializer); --cfg r2r_bench_serializer only when serializer API exists"
@@ -170,7 +196,7 @@ def main():
         print(f"Future execution binaries and source manifest: {output}")
         return
     ros_prefix = f"/opt/ros/{env['ROS_DISTRO']}"
-    command(["cmake", "-S", str(root / "tools/bench_ros"), "-B", str(output / "cpp"), "-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_PREFIX_PATH={ros_prefix}", "-DPython3_EXECUTABLE=/usr/bin/python3", f"-DR2R_BUILD_SERVICE_BENCH={'ON' if args.workload == 'service' else 'OFF'}", f"-DR2R_BUILD_ACTION_BENCH={'ON' if args.workload == 'action' else 'OFF'}", f"-DR2R_BUILD_ACTION_FEEDBACK_BENCH={'ON' if args.workload == 'action_feedback' else 'OFF'}", f"-DR2R_BUILD_EXECUTOR_BENCH={'ON' if args.workload == 'executor' else 'OFF'}", f"-DR2R_BUILD_STRING_BENCH={'ON' if args.workload == 'codec_strings' else 'OFF'}", f"-DR2R_BUILD_ALLOCATION_PROBE={'ON' if args.with_probe else 'OFF'}"], root, env)
+    command(["cmake", "-S", str(root / "tools/bench_ros"), "-B", str(output / "cpp"), "-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_PREFIX_PATH={ros_prefix}", "-DPython3_EXECUTABLE=/usr/bin/python3", f"-DR2R_BUILD_SERVICE_BENCH={'ON' if args.workload == 'service' else 'OFF'}", f"-DR2R_BUILD_PUBSUB_PIPELINE_BENCH={'ON' if args.workload == 'pubsub_pipeline' else 'OFF'}", f"-DR2R_BUILD_ACTION_BENCH={'ON' if args.workload == 'action' else 'OFF'}", f"-DR2R_BUILD_ACTION_FEEDBACK_BENCH={'ON' if args.workload == 'action_feedback' else 'OFF'}", f"-DR2R_BUILD_EXECUTOR_BENCH={'ON' if args.workload == 'executor' else 'OFF'}", f"-DR2R_BUILD_STRING_BENCH={'ON' if args.workload == 'codec_strings' else 'OFF'}", f"-DR2R_BUILD_ALLOCATION_PROBE={'ON' if args.with_probe else 'OFF'}"], root, env)
     cpp_binary = CPP_BINARIES[args.workload]
     command(["cmake", "--build", str(output / "cpp"), "--target", cpp_binary, "-j", "4"], root, env)
     shutil.copy2(output / f"cpp/{cpp_binary}", output / "rclcpp-comparison")
