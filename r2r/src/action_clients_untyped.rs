@@ -597,6 +597,7 @@ pub struct WrappedActionClientUntyped {
     pub feedback_senders: HashMap<uuid::Uuid, FeedbackSender<Result<serde_json::Value>>>,
     pub canceled_feedback_goals: CanceledFeedbackQueue,
     pub pending_feedback_goals: Arc<Mutex<PendingFeedbackQueue>>,
+    pub feedback_native_buffer: native_feedback::NativeFeedbackBuffer<WrappedNativeMsgUntyped>,
     pub result_requests: HashMap<i64, uuid::Uuid>,
     pub result_request_sequences: HashMap<uuid::Uuid, i64>,
     pub result_senders: HashMap<uuid::Uuid, ResultSender>,
@@ -992,7 +993,8 @@ impl ActionClient_ for WrappedActionClientUntyped {
             }
             PendingFeedbackAction::None | PendingFeedbackAction::Continue => {}
         }
-        let mut feedback_msg = (self.action_type_support.make_feedback_msg)()?;
+        let make_feedback_msg = self.action_type_support.make_feedback_msg;
+        let mut feedback_msg = self.feedback_native_buffer.checkout(make_feedback_msg)?;
         let ret =
             unsafe { rcl_action_take_feedback(&self.rcl_handle, feedback_msg.void_ptr_mut()) };
         if action_client_take_succeeded(ret)? {
@@ -1016,7 +1018,7 @@ impl ActionClient_ for WrappedActionClientUntyped {
                 client,
                 feedback_msg,
                 move |feedback_msg| {
-                    let (uuid, feedback) = destructure(feedback_msg);
+                    let (uuid, feedback) = destructure(&feedback_msg);
                     Ok((uuid_msg_to_uuid(&uuid)?, Box::new(feedback)))
                 },
             ));
@@ -1321,6 +1323,7 @@ mod tests {
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::new(),
             feedback_channel_capacity: 0,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
         let future = registered_cancel_response_future(receiver, canceled_cancels, 10);
@@ -1358,6 +1361,7 @@ mod tests {
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::new(),
             feedback_channel_capacity: 1,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
         let stream = ActionFeedbackStreamUntyped {
@@ -1395,6 +1399,7 @@ mod tests {
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::new(),
             feedback_channel_capacity: 1,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: waiters,
         };
 
@@ -1432,6 +1437,7 @@ mod tests {
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::new(),
             feedback_channel_capacity: 1,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
         let expected = serde_json::json!({ "sequence": [1, 2, 3] });
@@ -1484,6 +1490,7 @@ mod tests {
                 (other, GoalStatus::Unknown),
             ]),
             feedback_channel_capacity: 0,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
 
@@ -1524,6 +1531,7 @@ mod tests {
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::from([(uuid, GoalStatus::Unknown)]),
             feedback_channel_capacity: 0,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         }));
         let registration = PendingGoalRegistration {
@@ -1583,6 +1591,7 @@ mod tests {
                 (other, GoalStatus::Executing),
             ]),
             feedback_channel_capacity: 1,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
 
@@ -1651,6 +1660,7 @@ mod tests {
                 (other, GoalStatus::Unknown),
             ]),
             feedback_channel_capacity: 1,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         }));
         let pending = PendingGoalRegistration {

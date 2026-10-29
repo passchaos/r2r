@@ -144,6 +144,7 @@ impl Node {
                     options.feedback_overflow_policy,
                 ),
             )),
+            feedback_native_buffer: Default::default(),
             result_senders: HashMap::new(),
             canceled_result_goals: Arc::new(Mutex::new(ActionClientMaintenanceQueue::new(
                 Arc::clone(&maintenance_notifier),
@@ -234,6 +235,7 @@ impl Node {
                     options.feedback_overflow_policy,
                 ),
             )),
+            feedback_native_buffer: Default::default(),
             result_senders: HashMap::new(),
             canceled_result_goals: Arc::new(Mutex::new(ActionClientMaintenanceQueue::new(
                 Arc::clone(&maintenance_notifier),

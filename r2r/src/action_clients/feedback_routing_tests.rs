@@ -28,6 +28,7 @@ pub(super) fn typed_state(
         canceled_result_goals: Arc::new(Mutex::new(Default::default())),
         goal_status: HashMap::new(),
         feedback_channel_capacity: 0,
+        feedback_native_buffer: Default::default(),
         poll_available_channels: AvailabilityWaiters::default(),
     }))
 }
@@ -50,6 +51,7 @@ fn untyped_client() -> Arc<Mutex<dyn ActionClient_>> {
         canceled_result_goals: Arc::new(Mutex::new(Default::default())),
         goal_status: HashMap::new(),
         feedback_channel_capacity: 0,
+        feedback_native_buffer: Default::default(),
         poll_available_channels: AvailabilityWaiters::default(),
     }))
 }

@@ -1227,6 +1227,8 @@ where
     pub feedback_senders: HashMap<uuid::Uuid, FeedbackSender<T::Feedback>>,
     pub canceled_feedback_goals: CanceledFeedbackQueue,
     pub pending_feedback_goals: Arc<Mutex<PendingFeedbackQueue>>,
+    pub feedback_native_buffer:
+        native_feedback::NativeFeedbackBuffer<WrappedNativeMsg<T::FeedbackMessage>>,
     pub result_requests: HashMap<i64, uuid::Uuid>,
     pub result_request_sequences: HashMap<uuid::Uuid, i64>,
     pub result_senders: HashMap<uuid::Uuid, ResultSender<T::Result>>,
@@ -1691,7 +1693,9 @@ where
             }
             PendingFeedbackAction::None | PendingFeedbackAction::Continue => {}
         }
-        let mut feedback_msg = WrappedNativeMsg::<T::FeedbackMessage>::try_new()?;
+        let mut feedback_msg = self
+            .feedback_native_buffer
+            .checkout(WrappedNativeMsg::<T::FeedbackMessage>::try_new)?;
         let ret =
             unsafe { rcl_action_take_feedback(&self.rcl_handle, feedback_msg.void_ptr_mut()) };
         if action_client_take_succeeded(ret)? {
@@ -1703,7 +1707,7 @@ where
                     Arc::clone(&self.pending_feedback_goals),
                     uuid,
                     |feedback_msg| {
-                        let message = T::FeedbackMessage::from_native(&feedback_msg);
+                        let message = T::FeedbackMessage::from_native(feedback_msg);
                         let (id, feedback) = T::destructure_feedback_msg(message);
                         Ok((uuid_msg_to_uuid(&id)?, feedback))
                     },
@@ -2170,6 +2174,7 @@ mod tests {
             result_request_sequences: HashMap::new(),
             goal_status: HashMap::new(),
             feedback_channel_capacity: 1,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         }));
         let identity = Arc::as_ptr(&client).cast::<()>() as usize;
@@ -2212,6 +2217,7 @@ mod tests {
             result_request_sequences: HashMap::new(),
             goal_status: HashMap::new(),
             feedback_channel_capacity: 1,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
         let (first_sender, first_receiver) = oneshot::channel();
@@ -2245,6 +2251,7 @@ mod tests {
             result_request_sequences: HashMap::new(),
             goal_status: HashMap::from([(uuid::Uuid::nil(), GoalStatus::Accepted)]),
             feedback_channel_capacity: 1,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
 
@@ -2863,6 +2870,7 @@ mod tests {
             canceled_result_goals: Arc::clone(&canceled_results),
             goal_status: HashMap::from([(uuid, GoalStatus::Succeeded)]),
             feedback_channel_capacity: 1,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
         let result = ActionResultFuture::<Fibonacci::Action> {
@@ -2987,6 +2995,7 @@ mod tests {
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::new(),
             feedback_channel_capacity: 1,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
 
@@ -3261,6 +3270,7 @@ mod tests {
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::from([(target, GoalStatus::Accepted)]),
             feedback_channel_capacity: 0,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         }));
         let wake = Arc::new(GoalCleanupWake {
@@ -3322,6 +3332,7 @@ mod tests {
                 (other, GoalStatus::Unknown),
             ]),
             feedback_channel_capacity: 0,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
 
@@ -3358,6 +3369,7 @@ mod tests {
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::from([(uuid, GoalStatus::Unknown)]),
             feedback_channel_capacity: 0,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         }));
         let registration = PendingGoalRegistration {
@@ -3404,6 +3416,7 @@ mod tests {
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::from([(target, GoalStatus::Accepted)]),
             feedback_channel_capacity: 1,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         });
         let (sender, receiver) = oneshot::channel();
@@ -3555,6 +3568,7 @@ mod tests {
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::new(),
             feedback_channel_capacity: 0,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
         let future = registered_cancel_response_future(receiver, canceled_cancels, 10);
@@ -3588,6 +3602,7 @@ mod tests {
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::new(),
             feedback_channel_capacity: 1,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
         let stream = ActionFeedbackStream::<Fibonacci::Action> {
@@ -3621,6 +3636,7 @@ mod tests {
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             goal_status: HashMap::new(),
             feedback_channel_capacity: 1,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: waiters,
         };
 
@@ -3704,6 +3720,7 @@ mod tests {
                 (other, GoalStatus::Executing),
             ]),
             feedback_channel_capacity: 1,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
 
@@ -3768,6 +3785,7 @@ mod tests {
                 (other, GoalStatus::Unknown),
             ]),
             feedback_channel_capacity: 1,
+            feedback_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         }));
         let pending = PendingGoalRegistration {

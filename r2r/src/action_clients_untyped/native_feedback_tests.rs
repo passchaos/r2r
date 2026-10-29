@@ -25,14 +25,14 @@ fn drive<F: Future<Output = Result<T>>, T>(server: &mut Node, client: &mut Node,
 }
 
 fn unexpected_decode(
-    _: WrappedNativeMsgUntyped,
+    _: &WrappedNativeMsgUntyped,
 ) -> (unique_identifier_msgs::msg::UUID, Result<serde_json::Value>) {
     panic!("unobserved native feedback converted its payload");
 }
 
 static FALLBACK_DECODES: AtomicUsize = AtomicUsize::new(0);
 fn fallback_decode(
-    native: WrappedNativeMsgUntyped,
+    native: &WrappedNativeMsgUntyped,
 ) -> (unique_identifier_msgs::msg::UUID, Result<serde_json::Value>) {
     FALLBACK_DECODES.fetch_add(1, Ordering::Relaxed);
     let message = Fibonacci::FeedbackMessage::from_native(unsafe {
@@ -88,37 +88,72 @@ fn run(other_observer: bool, fallback: bool) {
         goal.0.execute().unwrap();
         goals.push(goal);
     }
-    let native = client.client.upgrade().unwrap();
-    let original = native.lock().action_type_support.destructure_feedback_msg;
+    let native_client = client.client.upgrade().unwrap();
+    let original = native_client
+        .lock()
+        .action_type_support
+        .destructure_feedback_msg;
     if fallback {
         FALLBACK_DECODES.store(0, Ordering::Relaxed);
-        native.lock().action_type_support.native_feedback_uuid = |_| None;
-        native.lock().action_type_support.destructure_feedback_msg = fallback_decode;
+        native_client
+            .lock()
+            .action_type_support
+            .native_feedback_uuid = |_| None;
+        native_client
+            .lock()
+            .action_type_support
+            .destructure_feedback_msg = fallback_decode;
     } else {
-        native.lock().action_type_support.destructure_feedback_msg = unexpected_decode;
+        native_client
+            .lock()
+            .action_type_support
+            .destructure_feedback_msg = unexpected_decode;
     }
-    for value in 0..8 {
+    let lengths = [8192, 4096, 2048, 1024, 512, 64, 1, 0];
+    for (value, length) in lengths.into_iter().enumerate() {
         goals[0]
             .0
             .publish_feedback(Fibonacci::Feedback {
-                sequence: vec![value; 4096],
+                sequence: vec![value as i32; length],
             })
             .unwrap();
     }
-    let erased: Arc<Mutex<dyn ActionClient_>> = native.clone();
+    let erased: Arc<Mutex<dyn ActionClient_>> = native_client.clone();
     let deadline = Instant::now() + Duration::from_secs(5);
     let mut taken = 0;
+    let mut storage: Option<(usize, usize, usize)> = None;
     while taken < 8 {
         assert!(Instant::now() < deadline, "only took {taken} native feedback messages");
         let mut operations = Vec::new();
         let result = {
-            native
+            native_client
                 .lock()
                 .handle_feedback_msg(erased.clone(), &mut operations)
         }
         .unwrap();
         run_detached_action_client_completions(operations);
         if matches!(result, ActionClientTakeResult::Taken) {
+            let current = native_client
+                .lock()
+                .feedback_native_buffer
+                .inspect_available(|native| unsafe {
+                    let message = &*(native.void_ptr()
+                        as *const <Fibonacci::FeedbackMessage as WrappedTypesupport>::CStruct);
+                    (
+                        native.void_ptr() as usize,
+                        message.feedback.sequence.data as usize,
+                        message.feedback.sequence.capacity,
+                    )
+                })
+                .expect("native feedback storage was not returned after completion");
+            if let Some(storage) = storage {
+                assert_eq!(current.0, storage.0);
+                assert!(current.2 >= lengths[taken]);
+            } else {
+                assert!(current.1 != 0);
+                assert!(current.2 >= 8192);
+                storage = Some(current);
+            }
             taken += 1;
         } else {
             std::thread::sleep(Duration::from_millis(1));
@@ -127,8 +162,15 @@ fn run(other_observer: bool, fallback: bool) {
     if fallback {
         assert_eq!(FALLBACK_DECODES.load(Ordering::Relaxed), 8);
     }
-    assert!(native.lock().pending_feedback_goals.lock().is_empty());
-    native.lock().action_type_support.destructure_feedback_msg = original;
+    assert!(native_client
+        .lock()
+        .pending_feedback_goals
+        .lock()
+        .is_empty());
+    native_client
+        .lock()
+        .action_type_support
+        .destructure_feedback_msg = original;
     if other_observer {
         goals[1]
             .0

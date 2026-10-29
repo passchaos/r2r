@@ -29,6 +29,8 @@ For progress snapshots, select `ActionClientOptions::feedback_overflow_policy(Fe
 
 Generated action clients inspect the native feedback goal UUID before constructing the Rust payload. Goals sent with `ActionGoalOptions::track_feedback(false)` therefore discard their feedback without payload conversion, while observed feedback enters its typed channel without an intermediate erased allocation. Custom action wrappers retain compatible full decoding unless they opt into the unsafe native identity accessor.
 
+Action clients also retain one outer native feedback message between takes. Its RAII lease returns storage after post-lock conversion or every error/closed/unobserved path, avoiding repeated outer message construction without assuming that middleware preserves dynamic payload buffers.
+
 Action servers continue large cancellation delivery and decision batches through ready queues. Full streams wait for capacity, and cached notifications follow the node after executor transfer. Run `cargo run -p r2r --example action_cancel_group` for a forty-goal `cancel_all()` workflow with partial acceptance and checked terminal results. [Server cancellation progress](docs/ACTION_SERVER_CANCELLATION_PROGRESS.md) describes batching, ownership and buffering.
 
 Cancellation maintenance follows ready server identities, so blocked servers avoid repeated polling during unrelated ROS traffic. External decisions wake the existing foreground, shared or background executor guard, including after node transfer. [Action-server scheduling](docs/ACTION_SERVER_SCHEDULING.md) describes the bounded queue and saved correctness/performance evidence.

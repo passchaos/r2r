@@ -728,3 +728,57 @@ Lyrical and Rolling have no new local runtime evidence. Retained native feedback
 storage, borrowed delivery, bursty large payloads and qualified multi-goal
 Rust/rclcpp scaling remain open.
 
+## Reusable outer native feedback storage (2026-10-29)
+
+Every typed/untyped action client now owns a bounded one-slot native feedback
+pool. `rcl_action_take_feedback` checks out its message and a RAII lease returns
+it after the completion releases the client lock. Unobserved/closed channels,
+successful delivery, legacy fallback, conversion errors and UUID mismatches all
+return storage. Creating an empty slot and destroying a displaced message happen
+outside the pool lock, with destructor-reentry oracles. A lease retains the pool
+if the action client is destroyed during completion. Untyped conversion borrows
+the uniquely owned native message and `WrappedNativeMsgUntyped` follows the
+existing unsafe typesupport contract for cross-thread ownership.
+
+Real RCL tests publish sequence lengths 8192 through zero. Both Jazzy RMWs take
+all eight messages with the same outer native address, preserve zero decode for
+unobserved goals, execute eight legacy fallback decodes and retain another
+observed goal. The initial stronger oracle required the nested sequence data
+address to remain unchanged; both RMWs failed it. Those failures are retained,
+and the promoted contract makes no dynamic payload-capacity reuse promise.
+
+The [saved stage and complete matrices](benchmarks/native-feedback-buffer-2026-10-29/README.md)
+use final source-identical binaries. Five CPU-24 runs of 100000 empty-feedback
+completions reduce measured allocations/frees from 300000/300000 to
+200000/200000, requested bytes from 20.8 MB to 16.8 MB and median local time
+from 208.953 to 141.841 ns/message. The boundary excludes RCL, DDS and payload
+conversion.
+
+Process-wide probes over the complete action lifecycle also show lower client
+allocation totals. Per 1000 measured goals, CycloneDDS median client allocation
+entry points fall by 2006 success and 1985 cancellation; Fast DDS falls by 2485
+and 2156. Client free calls fall by 3006/2985 and 2485/2156 respectively. Server
+medians differ by at most 344 calls. These are implementation-dependent observed
+process totals, not fixed per-message ABI claims; instrumented timing is not used
+as latency evidence.
+
+Independent optimized `3f877ec` baseline/candidate ordinary action matrices on
+CPUs 24/25 retain the original 1.05 same-language p50/p95/p99/inverse-throughput
+limit. CycloneDDS and Fast DDS both pass success and cancellation: 140 records
+and 140000 raw RTT samples. The largest gated ratio is Fast DDS success p99 at
+1.015166. Mixed directions remain within 1.36% of their corresponding baseline
+pairs, outside the preselected gate and without a new same-binary calibration.
+No universal tail or rclcpp leadership conclusion is made.
+
+The complete Jazzy workspace passes with 589 main-library cases and seven
+manual measurements ignored; both complete optimized RMW suites pass the same
+589/7. Each RMW passes 58 feedback cases with four ignored measurements.
+Formatting and warning-denied all-target Clippy pass. Fresh Humble/Fast DDS and
+Kilted/both-RMW targets pass 58/4 per environment plus all-target Clippy. A
+fresh no-ROS target passes four snapshot transactions, all-target compilation,
+six common/two generator tests, Rustdoc and fifteen-page/twenty-nine-method API
+checks. All 78 measured candidate source hashes match delivered code. Iron,
+Lyrical and Rolling have no new local runtime evidence. Dynamic payload reuse,
+borrowed feedback, burst/fanout and qualified concurrent Rust/rclcpp scaling
+remain open.
+

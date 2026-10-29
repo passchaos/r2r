@@ -120,6 +120,23 @@ Both ordinary action regression matrices pass the unchanged 1.05 same-language
 gate. The complete evidence and limitations are in the
 [native identity report](benchmarks/native-feedback-identity-2026-10-29/README.md).
 
+Each typed/untyped action client now also retains one outer native feedback
+message. A RAII lease returns it after the post-unlock completion on success,
+closed/unobserved channels, decode errors and identity mismatches. Creating a
+missing message and destroying displaced storage happen outside the pool lock;
+destroying the client while a completion exists remains safe because the lease
+owns the bounded one-slot pool. Untyped conversion borrows this native message,
+then the lease returns it after JSON construction.
+
+Real CycloneDDS/Fast DDS tests reuse the same outer address across eight takes
+whose sequence lengths shrink from 8192 to zero. An earlier oracle also required
+the nested sequence data pointer to stay fixed; both RMWs disproved that. The
+contract therefore does not promise dynamic payload storage reuse. A fixed-CPU
+stage removes one allocation/free per message, complete instrumented action
+matrices show lower client allocation totals under both RMWs, and both ordinary
+5% regression gates pass. See the
+[native buffer report](benchmarks/native-feedback-buffer-2026-10-29/README.md).
+
 The complete `action_feedback_coalesce` application leaves one goal unconsumed,
 publishes thirty-two updates and verifies another goal's feedback first. It then
 checks the queued sample 0, latest pending sample 31, both distinct terminal

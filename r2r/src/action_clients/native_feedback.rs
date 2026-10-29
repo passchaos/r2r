@@ -1,13 +1,95 @@
 //! Route known native identity before decoding its payload.
 
 use super::*;
+use std::ops::{Deref, DerefMut};
 
 #[cfg(test)]
 use super::feedback_routing::allocation_probe;
 
+pub(crate) struct NativeFeedbackBuffer<N> {
+    slot: Arc<Mutex<Option<N>>>,
+}
+
+impl<N> Clone for NativeFeedbackBuffer<N> {
+    fn clone(&self) -> Self {
+        Self {
+            slot: Arc::clone(&self.slot),
+        }
+    }
+}
+
+impl<N> Default for NativeFeedbackBuffer<N> {
+    fn default() -> Self {
+        Self {
+            slot: Arc::new(Mutex::new(None)),
+        }
+    }
+}
+
+impl<N> NativeFeedbackBuffer<N> {
+    pub(crate) fn checkout(
+        &self, create: impl FnOnce() -> Result<N>,
+    ) -> Result<NativeFeedbackLease<N>> {
+        let cached = { self.slot.lock().take() };
+        let native = match cached {
+            Some(native) => native,
+            None => create()?,
+        };
+        Ok(NativeFeedbackLease {
+            native: Some(native),
+            buffer: self.clone(),
+        })
+    }
+
+    fn recycle(&self, native: N) {
+        // A concurrent return keeps the most recently used storage. Retire the displaced
+        // value only after releasing the pool lock so native finalizers can reenter safely.
+        let retired = { self.slot.lock().replace(native) };
+        drop(retired);
+    }
+
+    #[cfg(test)]
+    fn is_available(&self) -> bool {
+        self.slot.lock().is_some()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn inspect_available<R>(&self, inspect: impl FnOnce(&N) -> R) -> Option<R> {
+        self.slot.lock().as_ref().map(inspect)
+    }
+}
+
+pub(crate) struct NativeFeedbackLease<N> {
+    native: Option<N>,
+    buffer: NativeFeedbackBuffer<N>,
+}
+
+impl<N> Deref for NativeFeedbackLease<N> {
+    type Target = N;
+
+    fn deref(&self) -> &Self::Target {
+        self.native.as_ref().unwrap()
+    }
+}
+
+impl<N> DerefMut for NativeFeedbackLease<N> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.native.as_mut().unwrap()
+    }
+}
+
+impl<N> Drop for NativeFeedbackLease<N> {
+    fn drop(&mut self) {
+        if let Some(native) = self.native.take() {
+            self.buffer.recycle(native);
+        }
+    }
+}
+
 pub(crate) fn completion<N: 'static, T: Send + 'static>(
-    native: N, channel: Option<FeedbackSender<T>>, pending: Arc<Mutex<PendingFeedbackQueue>>,
-    uuid: uuid::Uuid, decode: impl FnOnce(N) -> Result<(uuid::Uuid, T)> + 'static,
+    native: NativeFeedbackLease<N>, channel: Option<FeedbackSender<T>>,
+    pending: Arc<Mutex<PendingFeedbackQueue>>, uuid: uuid::Uuid,
+    decode: impl FnOnce(&N) -> Result<(uuid::Uuid, T)> + 'static,
 ) -> ActionClientCompletion {
     let Some(channel) = channel else {
         return ActionClientCompletion {
@@ -28,7 +110,7 @@ pub(crate) fn completion<N: 'static, T: Send + 'static>(
                 drop(decode);
                 return Ok(true);
             }
-            let (decoded_uuid, payload) = decode(native)?;
+            let (decoded_uuid, payload) = decode(&native)?;
             if decoded_uuid != uuid {
                 return Err(Error::RCL_RET_ACTION_CLIENT_INVALID);
             }
@@ -49,6 +131,74 @@ mod tests {
     use super::*;
     use futures::{FutureExt, StreamExt};
 
+    fn leased<N>(native: N) -> (NativeFeedbackBuffer<N>, NativeFeedbackLease<N>) {
+        let buffer = NativeFeedbackBuffer::default();
+        let lease = buffer.checkout(|| Ok(native)).unwrap();
+        (buffer, lease)
+    }
+
+    #[test]
+    fn native_feedback_lease_reuses_storage_and_recycles_after_factory_failure() {
+        let buffer = NativeFeedbackBuffer::default();
+        let creates = AtomicUsize::new(0);
+        let create_buffer = buffer.clone();
+        let first = buffer
+            .checkout(|| {
+                assert!(create_buffer.slot.try_lock().is_some());
+                creates.fetch_add(1, Ordering::Relaxed);
+                Ok(Vec::<u8>::with_capacity(32))
+            })
+            .unwrap();
+        let allocation = first.as_ptr();
+        drop(first);
+        let second = buffer
+            .checkout(|| -> Result<Vec<u8>> { panic!("reusable storage was not checked out") })
+            .unwrap();
+        assert_eq!(second.as_ptr(), allocation);
+        assert_eq!(second.capacity(), 32);
+        assert_eq!(creates.load(Ordering::Relaxed), 1);
+        drop(second);
+        assert!(buffer.is_available());
+
+        let empty = NativeFeedbackBuffer::<Vec<u8>>::default();
+        assert!(matches!(
+            empty.checkout(|| Err(Error::RCL_RET_BAD_ALLOC)),
+            Err(Error::RCL_RET_BAD_ALLOC)
+        ));
+        assert!(!empty.is_available());
+    }
+
+    #[test]
+    fn native_feedback_buffer_retires_displaced_storage_after_unlock() {
+        struct Resource {
+            owner: Weak<Mutex<Option<Resource>>>,
+            drops: Arc<AtomicUsize>,
+        }
+        impl Drop for Resource {
+            fn drop(&mut self) {
+                assert!(self.owner.upgrade().unwrap().try_lock().is_some());
+                self.drops.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+        let slot = Arc::new(Mutex::new(None));
+        let buffer = NativeFeedbackBuffer { slot: slot.clone() };
+        let drops = Arc::new(AtomicUsize::new(0));
+        let resource = || Resource {
+            owner: Arc::downgrade(&slot),
+            drops: drops.clone(),
+        };
+        let first = buffer.checkout(|| Ok(resource())).unwrap();
+        let second = buffer.checkout(|| Ok(resource())).unwrap();
+        drop(first);
+        drop(second);
+        assert_eq!(drops.load(Ordering::Relaxed), 1);
+        let remaining = { slot.lock().take() };
+        drop(remaining);
+        assert_eq!(drops.load(Ordering::Relaxed), 2);
+        drop(buffer);
+        drop(slot);
+    }
+
     #[cfg(all(target_os = "linux", r2r__example_interfaces__action__Fibonacci))]
     #[test]
     #[ignore = "manual native identity delivery allocation stage; LD_PRELOAD probe required"]
@@ -66,6 +216,7 @@ mod tests {
                 let channel =
                     Arc::new(Mutex::new(FeedbackChannel::<Fibonacci::Feedback>::new(sender)));
                 let pending = Arc::new(Mutex::new(PendingFeedbackQueue::default()));
+                let native = NativeFeedbackBuffer::default();
                 let channels = if observed {
                     HashMap::from([(id, channel.clone())])
                 } else {
@@ -77,6 +228,7 @@ mod tests {
                 let mut deliver = || {
                     let counter = decodes.clone();
                     let value = Fibonacci::Feedback::default();
+                    let value = native.checkout(|| Ok(value)).unwrap();
                     let operation = if direct {
                         completion(
                             value,
@@ -85,13 +237,13 @@ mod tests {
                             id,
                             move |value| {
                                 counter.fetch_add(1, Ordering::Relaxed);
-                                Ok((id, value))
+                                Ok((id, value.clone()))
                             },
                         )
                     } else {
                         action_feedback_decode_completion(client.clone(), value, move |value| {
                             counter.fetch_add(1, Ordering::Relaxed);
-                            Ok((id, Box::new(value)))
+                            Ok((id, Box::new((*value).clone())))
                         })
                     };
                     (operation.notify)().unwrap();
@@ -137,6 +289,70 @@ mod tests {
         }
     }
 
+    #[cfg(all(target_os = "linux", r2r__example_interfaces__action__Fibonacci))]
+    #[test]
+    #[ignore = "manual native feedback outer-storage reuse allocation stage; LD_PRELOAD probe required"]
+    fn benchmark_native_feedback_buffer_reuses_outer_allocation() {
+        use crate::example_interfaces::action::Fibonacci;
+        const ITERATIONS: usize = 100_000;
+        let probe = allocation_probe::Probe::load()
+            .unwrap()
+            .expect("LD_PRELOAD allocation probe required");
+        let id = uuid::Uuid::from_u128(1);
+        for reuse in [false, true] {
+            let buffer = NativeFeedbackBuffer::default();
+            let mut stats = allocation_probe::NativeStats::default();
+            for _ in 0..1000 {
+                let native = buffer
+                    .checkout(WrappedNativeMsg::<Fibonacci::FeedbackMessage>::try_new)
+                    .unwrap();
+                let operation = completion(
+                    native,
+                    None::<FeedbackSender<Fibonacci::Feedback>>,
+                    Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+                    id,
+                    |_| panic!("unobserved feedback must not decode"),
+                );
+                (operation.notify)().unwrap();
+                if !reuse {
+                    let retired = { buffer.slot.lock().take() };
+                    drop(retired);
+                }
+            }
+            assert_eq!(unsafe { (probe.begin)() }, 0);
+            let begin = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                let native = buffer
+                    .checkout(WrappedNativeMsg::<Fibonacci::FeedbackMessage>::try_new)
+                    .unwrap();
+                let operation = completion(
+                    native,
+                    None::<FeedbackSender<Fibonacci::Feedback>>,
+                    Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+                    id,
+                    |_| panic!("unobserved feedback must not decode"),
+                );
+                (operation.notify)().unwrap();
+                if !reuse {
+                    let retired = { buffer.slot.lock().take() };
+                    drop(retired);
+                }
+            }
+            let elapsed_ns = begin.elapsed().as_nanos();
+            assert_eq!(unsafe { (probe.end)(&mut stats) }, 0);
+            let allocations =
+                stats.malloc_calls + stats.calloc_calls + stats.realloc_calls + stats.aligned_calls;
+            assert_eq!(
+                stats.failed_allocations + stats.counter_overflows + stats.size_overflows,
+                0
+            );
+            println!(
+                "{}",
+                serde_json::json!({"boundary":"native feedback outer message create/destroy versus one-slot reuse; empty Fibonacci feedback; no RCL/DDS", "reuse":reuse, "iterations":ITERATIONS, "elapsed_ns":elapsed_ns,"allocations":allocations,"frees":stats.free_calls,"requested_bytes":stats.requested_bytes})
+            );
+        }
+    }
+
     #[cfg(r2r__example_interfaces__action__Fibonacci)]
     #[test]
     fn generated_native_uuid_matches_payload_decode_for_typed_and_untyped_messages() {
@@ -170,7 +386,7 @@ mod tests {
                     })
                     .unwrap();
                 assert_eq!((support.native_feedback_uuid)(&untyped), Some(uuid));
-                let (id, decoded) = (support.destructure_feedback_msg)(untyped);
+                let (id, decoded) = (support.destructure_feedback_msg)(&untyped);
                 assert_eq!(id.uuid, uuid);
                 assert_eq!(
                     serde_json::from_value::<Fibonacci::Feedback>(decoded.unwrap()).unwrap(),
@@ -204,6 +420,7 @@ mod tests {
             drops: drops.clone(),
         };
         let counter = decodes.clone();
+        let (buffer, native) = leased(native);
         let finish = {
             let _locked = owner.lock();
             completion(
@@ -213,7 +430,7 @@ mod tests {
                 uuid::Uuid::nil(),
                 move |native| {
                     counter.fetch_add(1, Ordering::Relaxed);
-                    drop(native);
+                    let _ = native;
                     drop(decoder_resource);
                     Ok((uuid::Uuid::nil(), 1))
                 },
@@ -222,6 +439,9 @@ mod tests {
         assert_eq!(drops.load(Ordering::Relaxed), 0);
         (finish.notify)().unwrap();
         assert_eq!(decodes.load(Ordering::Relaxed), 0);
+        assert_eq!(drops.load(Ordering::Relaxed), 1);
+        assert!(buffer.is_available());
+        drop(buffer);
         assert_eq!(drops.load(Ordering::Relaxed), 2);
     }
 
@@ -233,14 +453,16 @@ mod tests {
         let queue = Arc::new(Mutex::new(PendingFeedbackQueue::default()));
         let decodes = Arc::new(AtomicUsize::new(0));
         let counter = decodes.clone();
-        let finish = completion(42_u32, Some(channel), queue, id, move |value| {
+        let (buffer, native) = leased(42_u32);
+        let finish = completion(native, Some(channel), queue, id, move |value| {
             counter.fetch_add(1, Ordering::Relaxed);
-            Ok((id, value))
+            Ok((id, *value))
         });
         assert_eq!(decodes.load(Ordering::Relaxed), 0);
         (finish.notify)().unwrap();
         assert_eq!(receiver.next().now_or_never(), Some(Some(42)));
         assert_eq!(decodes.load(Ordering::Relaxed), 1);
+        assert!(buffer.is_available());
     }
 
     #[test]
@@ -251,15 +473,16 @@ mod tests {
             let close = channel.clone();
             let decodes = Arc::new(AtomicUsize::new(0));
             let counter = decodes.clone();
+            let (buffer, native) = leased(1_u32);
             let finish = completion(
-                1_u32,
+                native,
                 Some(channel.clone()),
                 Arc::new(Mutex::new(PendingFeedbackQueue::default())),
                 uuid::Uuid::nil(),
                 move |value| {
                     counter.fetch_add(1, Ordering::Relaxed);
                     (close_feedback_completion(close).notify)().unwrap();
-                    Ok((uuid::Uuid::nil(), value))
+                    Ok((uuid::Uuid::nil(), *value))
                 },
             );
             if before {
@@ -270,6 +493,7 @@ mod tests {
             assert!(channel.lock().sender.is_none());
             assert!(channel.lock().pending.is_none());
             assert_eq!(receiver.next().now_or_never(), Some(None));
+            assert!(buffer.is_available());
         }
     }
 
@@ -277,15 +501,35 @@ mod tests {
     fn native_uuid_mismatch_rejects_delivery_and_retains_the_channel() {
         let (sender, mut receiver) = mpsc::channel(0);
         let channel = Arc::new(Mutex::new(FeedbackChannel::new(sender)));
+        let (buffer, native) = leased(1_u32);
         let finish = completion(
-            1_u32,
+            native,
             Some(channel.clone()),
             Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             uuid::Uuid::from_u128(1),
-            |value| Ok((uuid::Uuid::from_u128(2), value)),
+            |value| Ok((uuid::Uuid::from_u128(2), *value)),
         );
         assert!(matches!((finish.notify)(), Err(Error::RCL_RET_ACTION_CLIENT_INVALID)));
         assert!(receiver.next().now_or_never().is_none());
         assert!(channel.lock().sender.is_some());
+        assert!(buffer.is_available());
+    }
+
+    #[test]
+    fn native_decode_error_recycles_storage_without_touching_the_channel() {
+        let (sender, mut receiver) = mpsc::channel::<u32>(0);
+        let channel = Arc::new(Mutex::new(FeedbackChannel::new(sender)));
+        let (buffer, native) = leased(1_u32);
+        let finish = completion(
+            native,
+            Some(channel.clone()),
+            Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            uuid::Uuid::nil(),
+            |_| Err(Error::RCL_RET_BAD_ALLOC),
+        );
+        assert!(matches!((finish.notify)(), Err(Error::RCL_RET_BAD_ALLOC)));
+        assert!(receiver.next().now_or_never().is_none());
+        assert!(channel.lock().sender.is_some());
+        assert!(buffer.is_available());
     }
 }

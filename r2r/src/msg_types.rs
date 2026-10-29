@@ -236,6 +236,11 @@ pub struct WrappedNativeMsgUntyped {
     msg_from_json: fn(native: *mut std::os::raw::c_void, json: serde_json::Value) -> Result<()>,
 }
 
+// SAFETY: every constructor installs operations from one `WrappedTypesupport`
+// implementation, whose unsafe contract requires owned native allocations to be
+// movable across threads. The wrapper retains unique ownership of that allocation.
+unsafe impl Send for WrappedNativeMsgUntyped {}
+
 unsafe impl Send for UntypedServiceSupport {}
 pub struct UntypedServiceSupport {
     pub ts: &'static rosidl_service_type_support_t,
@@ -281,7 +286,7 @@ pub struct UntypedActionSupport {
     pub(crate) native_feedback_uuid: fn(&WrappedNativeMsgUntyped) -> Option<[u8; 16]>,
     pub(crate) destructure_feedback_msg:
         fn(
-            WrappedNativeMsgUntyped,
+            &WrappedNativeMsgUntyped,
         ) -> (unique_identifier_msgs::msg::UUID, Result<serde_json::Value>),
 
     pub(crate) make_result_request_msg:
@@ -329,7 +334,7 @@ where
 }
 
 fn destructure_action_feedback<T>(
-    msg: WrappedNativeMsgUntyped,
+    msg: &WrappedNativeMsgUntyped,
 ) -> (unique_identifier_msgs::msg::UUID, Result<serde_json::Value>)
 where
     T: WrappedActionTypeSupport,

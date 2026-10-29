@@ -1,0 +1,108 @@
+{
+  "cpu": 24,
+  "boundary": "native feedback outer message create/destroy versus one-slot reuse; empty Fibonacci feedback; no RCL/DDS",
+  "binary_sha256": "47ebae8f5e1b804516746a1e973150af9d94d61bcf8ecd2bbf396d7d9247111a",
+  "probe_sha256": "7602fb54d07cf65818e4e5da8bab16034cbe181fa2d896e61b7a48bc07fe1592",
+  "records": [
+    {
+      "allocations": 300000,
+      "boundary": "native feedback outer message create/destroy versus one-slot reuse; empty Fibonacci feedback; no RCL/DDS",
+      "elapsed_ns": 20881884,
+      "frees": 300000,
+      "iterations": 100000,
+      "requested_bytes": 20800000,
+      "reuse": false,
+      "repetition": 0
+    },
+    {
+      "allocations": 200000,
+      "boundary": "native feedback outer message create/destroy versus one-slot reuse; empty Fibonacci feedback; no RCL/DDS",
+      "elapsed_ns": 14180206,
+      "frees": 200000,
+      "iterations": 100000,
+      "requested_bytes": 16800000,
+      "reuse": true,
+      "repetition": 0
+    },
+    {
+      "allocations": 300000,
+      "boundary": "native feedback outer message create/destroy versus one-slot reuse; empty Fibonacci feedback; no RCL/DDS",
+      "elapsed_ns": 20946385,
+      "frees": 300000,
+      "iterations": 100000,
+      "requested_bytes": 20800000,
+      "reuse": false,
+      "repetition": 1
+    },
+    {
+      "allocations": 200000,
+      "boundary": "native feedback outer message create/destroy versus one-slot reuse; empty Fibonacci feedback; no RCL/DDS",
+      "elapsed_ns": 14177817,
+      "frees": 200000,
+      "iterations": 100000,
+      "requested_bytes": 16800000,
+      "reuse": true,
+      "repetition": 1
+    },
+    {
+      "allocations": 300000,
+      "boundary": "native feedback outer message create/destroy versus one-slot reuse; empty Fibonacci feedback; no RCL/DDS",
+      "elapsed_ns": 20840774,
+      "frees": 300000,
+      "iterations": 100000,
+      "requested_bytes": 20800000,
+      "reuse": false,
+      "repetition": 2
+    },
+    {
+      "allocations": 200000,
+      "boundary": "native feedback outer message create/destroy versus one-slot reuse; empty Fibonacci feedback; no RCL/DDS",
+      "elapsed_ns": 14184090,
+      "frees": 200000,
+      "iterations": 100000,
+      "requested_bytes": 16800000,
+      "reuse": true,
+      "repetition": 2
+    },
+    {
+      "allocations": 300000,
+      "boundary": "native feedback outer message create/destroy versus one-slot reuse; empty Fibonacci feedback; no RCL/DDS",
+      "elapsed_ns": 20897724,
+      "frees": 300000,
+      "iterations": 100000,
+      "requested_bytes": 20800000,
+      "reuse": false,
+      "repetition": 3
+    },
+    {
+      "allocations": 200000,
+      "boundary": "native feedback outer message create/destroy versus one-slot reuse; empty Fibonacci feedback; no RCL/DDS",
+      "elapsed_ns": 14208864,
+      "frees": 200000,
+      "iterations": 100000,
+      "requested_bytes": 16800000,
+      "reuse": true,
+      "repetition": 3
+    },
+    {
+      "allocations": 300000,
+      "boundary": "native feedback outer message create/destroy versus one-slot reuse; empty Fibonacci feedback; no RCL/DDS",
+      "elapsed_ns": 20895347,
+      "frees": 300000,
+      "iterations": 100000,
+      "requested_bytes": 20800000,
+      "reuse": false,
+      "repetition": 4
+    },
+    {
+      "allocations": 200000,
+      "boundary": "native feedback outer message create/destroy versus one-slot reuse; empty Fibonacci feedback; no RCL/DDS",
+      "elapsed_ns": 14188911,
+      "frees": 200000,
+      "iterations": 100000,
+      "requested_bytes": 16800000,
+      "reuse": true,
+      "repetition": 4
+    }
+  ]
+}

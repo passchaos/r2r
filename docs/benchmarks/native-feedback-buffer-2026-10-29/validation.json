@@ -1,0 +1,177 @@
+{
+  "date_utc": "2026-10-29T04:23:37Z",
+  "parent_ref": "3f877ec75b899e0f92d36f65ba1ef46a549d54b9",
+  "goal_status": "active",
+  "scope": "bounded RAII reuse of typed and untyped action-client outer native feedback messages",
+  "validation": {
+    "performance-report-integrity": {
+      "exit_code": 0,
+      "log": "logs/performance-verify.log.gz",
+      "sha256": "1757b3e82b4d666b74be20f1a9b112bb15d7962df2d5ecf32a2637db7bb281cc",
+      "observed_result": "both reports: 70 records and 70000 RTT samples verified with passing recorded gates"
+    },
+    "resource-report-integrity": {
+      "exit_code": 0,
+      "log": "logs/resource-verify.log.gz",
+      "sha256": "68d7fefa86cd622cd1257ec7f582053dff15c447e70489cb56601349f2b5aafe",
+      "observed_result": "both instrumented reports: 70 records and 70000 RTT samples verified"
+    },
+    "workspace-jazzy-cyclonedds": {
+      "exit_code": 0,
+      "log": "logs/workspace.log.gz",
+      "sha256": "60b3809e1bd0f0393f343527baac52861c09b04c124c1022ed53d48130ba1885",
+      "main_library_result": "589 passed; 0 failed; 7 ignored",
+      "additional_boundaries": "context 7; threads 1; tokio raw 2; tokio 1; common 6; macros 2; generator 2; rcl 27; workspace doc-tests"
+    },
+    "release-jazzy-cyclonedds": {
+      "exit_code": 0,
+      "log": "logs/release-cyclonedds.log.gz",
+      "sha256": "e2388647a895fa01eaf93c7b95fccf00a77fe9400773cfd7998fde1729928466",
+      "main_library_result": "589 passed; 0 failed; 7 ignored"
+    },
+    "release-jazzy-fastdds": {
+      "exit_code": 0,
+      "log": "logs/release-fastdds.log.gz",
+      "sha256": "4395e60abe9318c465e594a3d238d083048612723a4f2f0d68cd5a9bb7ffb9c6",
+      "main_library_result": "589 passed; 0 failed; 7 ignored"
+    },
+    "clippy-jazzy-all-targets": {
+      "exit_code": 0,
+      "log": "logs/clippy.log.gz",
+      "sha256": "e07458dbbb572ca3ee1440103e2850fb9d2a546cfebd2f17d6c1291ecc5cd3a8"
+    },
+    "format": {
+      "exit_code": 0,
+      "log": "logs/format.log.gz",
+      "sha256": "59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2"
+    },
+    "humble-fastdds": {
+      "exit_code": 0,
+      "log": "logs/humble.log.gz",
+      "sha256": "10cf74fa257464e6ad88b2126de10b0ed895d69610ad70f150a8b3b4b51005c0",
+      "observed_test_result": "58 passed; 0 failed; 4 ignored; 524 filtered out",
+      "clippy_all_targets": "passed"
+    },
+    "kilted-both-rmw": {
+      "exit_code": 0,
+      "log": "logs/kilted.log.gz",
+      "sha256": "d45ed025fac1153b074149ba83ba93ad7c3dc918d835d778bd698bedb1d3c3ac",
+      "cyclonedds_result": "58 passed; 0 failed; 4 ignored; 538 filtered out",
+      "fastdds_result": "58 passed; 0 failed; 4 ignored; 538 filtered out",
+      "clippy_all_targets": "passed"
+    },
+    "no-ros": {
+      "exit_code": 0,
+      "log": "logs/no-ros.log.gz",
+      "sha256": "b16ef110446dd14a6c0c0d70f79cb7b7d168c849d457d936ed1f031d7398e1d0",
+      "snapshot_transaction_tests": 4,
+      "common_tests": 6,
+      "generator_tests": 2,
+      "api_artifacts": 15,
+      "documented_methods": 29,
+      "workspace_all_targets_check": "passed"
+    },
+    "allocation-stage": {
+      "exit_code": 0,
+      "log": "logs/stage.log.gz",
+      "sha256": "8e809f547f593b671553c25a6aa64ebd26cd67337fac609c90f575c700a4b490",
+      "runs": 5,
+      "observed_test_results": 5
+    }
+  },
+  "performance": {
+    "baseline_ref": "3f877ec75b899e0f92d36f65ba1ef46a549d54b9",
+    "cyclonedds": {
+      "report": "action/cyclonedds.json",
+      "report_sha256": "1000557de081e1f3c1fc79c2746806b0412942a74d01fb5eb367f9c8ea354adc",
+      "samples": "action/cyclonedds.samples.json.gz",
+      "samples_sha256": "54cb4fa2a3f9d5716540037888345af6a816215732bc86a63496129d2094ed8d",
+      "records": 70,
+      "rtt_samples": 70000,
+      "gate": {"maximum_ratio": 1.05, "passed": true, "failures": []},
+      "success_ratios": {"p50": 1.0059262880490032, "p95": 0.9951081936727427, "p99": 0.9949706837301124, "inverse_throughput": 0.999686686403573},
+      "cancellation_ratios": {"p50": 0.9986640551176826, "p95": 0.9972934319831612, "p99": 0.9990139130238116, "inverse_throughput": 1.002424676770518}
+    },
+    "fastdds": {
+      "report": "action/fastdds.json",
+      "report_sha256": "df22e9d9026bbcbc5ba289e00a75c512e329f903c9e4a73c04110bf2f693a230",
+      "samples": "action/fastdds.samples.json.gz",
+      "samples_sha256": "4a221adb52d1bed56002d6ce3c52492a0374cad75be1c473e16cd21a2a0d1816",
+      "records": 70,
+      "rtt_samples": 70000,
+      "gate": {"maximum_ratio": 1.05, "passed": true, "failures": []},
+      "success_ratios": {"p50": 0.9975196817843593, "p95": 0.9834128360797918, "p99": 1.0151662453820727, "inverse_throughput": 0.9981929643627119},
+      "cancellation_ratios": {"p50": 0.9967377660259928, "p95": 0.9920775552362944, "p99": 0.9874934746849318, "inverse_throughput": 1.0033876894412435}
+    },
+    "binary_sha256": {
+      "candidate": "4be17701dc7e0b07b89f23f20261841a52117b8c1cc5b52a1ecfc3af28197984",
+      "baseline": "93ed2ca534539a1d30c1d328b109fa53c53a35e8f48ae4aefa4832ae01025413",
+      "rclcpp": "547677f0aa734ed161bc087407a044ba9f5a972ea93a902dbca3f3e6c3ead30f"
+    },
+    "mixed_direction_boundary": {
+      "minimum_ratio": 0.9765302857142857,
+      "maximum_ratio": 1.0135959571358986,
+      "preselected_gate": false,
+      "new_same_binary_calibration": false
+    }
+  },
+  "resource": {
+    "cyclonedds": {
+      "report": "resource/cyclonedds.json",
+      "report_sha256": "3e0d159899f03f2ea2f4db8ab6193f2902db81d374e4b44d9dda1764436774d2",
+      "samples": "resource/resource-cyclonedds.samples.json.gz",
+      "samples_sha256": "ecca09a442bc7ccd6a11a9c4cf6104b2ab9bf040bef15884d14cdcc49887e69a",
+      "records": 70,
+      "rtt_samples": 70000,
+      "success_client": {"baseline": [84038, 84038, 150923868], "candidate": [82032, 81032, 150844637], "delta": [-2006, -3006, -79231]},
+      "cancellation_client": {"baseline": [96807, 96807, 201237060], "candidate": [94822, 93822, 201165295], "delta": [-1985, -2985, -71765]},
+      "server_deltas": {"success": [0, 0, -720], "cancellation": [2, 0, 720]}
+    },
+    "fastdds": {
+      "report": "resource/fastdds.json",
+      "report_sha256": "42534e6641109d5d2527e19a51b97cf8f670dff5c634317c84bfdf8663e3be5e",
+      "samples": "resource/resource-fastdds.samples.json.gz",
+      "samples_sha256": "76bc1f0d66ac07e3103ac28dcf23687a43b2565f12f2e87af30f6ca03bde8395",
+      "records": 70,
+      "rtt_samples": 70000,
+      "success_client": {"baseline": [141542, 140543, 96708082], "candidate": [139057, 138058, 96667556], "delta": [-2485, -2485, -40526]},
+      "cancellation_client": {"baseline": [158912, 157912, 122356998], "candidate": [156756, 155756, 122286357], "delta": [-2156, -2156, -70641]},
+      "server_deltas": {"success": [145, 145, 3640], "cancellation": [344, 344, -16343]}
+    },
+    "field_order": ["allocation_entry_points", "free_calls", "requested_bytes"],
+    "latency_evidence": false
+  },
+  "allocation_stage": {
+    "report": "stage/report.json",
+    "sha256": "e807bd3bfbcb49c72a7919f1749e61730f01ccd6198dcfa0a5c9ed59604d7d7b",
+    "records": 10,
+    "messages": 1000000,
+    "iterations_per_record": 100000,
+    "cpu": 24,
+    "binary_sha256": "47ebae8f5e1b804516746a1e973150af9d94d61bcf8ecd2bbf396d7d9247111a",
+    "probe_sha256": "7602fb54d07cf65818e4e5da8bab16034cbe181fa2d896e61b7a48bc07fe1592",
+    "create_destroy": {"allocations": 300000, "frees": 300000, "requested_bytes": 20800000, "median_ns_per_message": 208.95347},
+    "reuse": {"allocations": 200000, "frees": 200000, "requested_bytes": 16800000, "median_ns_per_message": 141.8409}
+  },
+  "source_identity": {
+    "manifest": "action/build-manifest.json",
+    "manifest_sha256": "e0c14bbaa72db917b8cc1286029bad40d5e94e15ebfc0198589b19622f476565",
+    "candidate_files": 78,
+    "mismatches": []
+  },
+  "compatibility_images": {
+    "humble": "sha256:4e346fcaeb5f64690213fadce5dd27980d6cc3a0eb47ca9419d5a2427f70af41",
+    "kilted_both_rmw": "sha256:5217474d9be62dcc995ff45e8743525620ea59f49cef33c0d3402a6427aa2c20",
+    "kilted_dockerfile": "compat/Dockerfile.kilted",
+    "kilted_dockerfile_sha256": "8971c29b910b14d5f09ff967a3326c4504f627d08268478bf7ab567593949c65",
+    "no_ros": "sha256:3f3ae1e14bc9d9f61515515027b47f5b8dcf16c79f689c81c045cf29dcce2926"
+  },
+  "retained_failures": {
+    "dynamic-sequence-address-cyclonedds": {"log": "logs/rejected/dynamic-sequence-address-cyclonedds.log.gz", "sha256": "cc77457dfe8628c652d482f01be4c5a30e73ed593430e1cb341a5660e1f86628", "observed": "6 passed; 2 failed; 1 ignored", "resolution": "outer native address is required stable; nested dynamic sequence address is explicitly not promised"},
+    "dynamic-sequence-address-fastdds": {"log": "logs/rejected/dynamic-sequence-address-fastdds.log.gz", "sha256": "54f9967c95ad0994af51b7a645386e5dfd7dd4bee09435383f189e60189c2117", "observed": "6 passed; 2 failed; 1 ignored", "resolution": "outer native address is required stable; nested dynamic sequence address is explicitly not promised"},
+    "resource-archive-name": {"log": "logs/rejected/resource-archive-name.log.gz", "sha256": "3ebc5bc85618a1ff1bee915f99a1464173f3f3d0a4ea9f93f9918d2c1ed37fda", "resolution": "archived samples use the report-declared resource-prefixed names"}
+  },
+  "documentation_sha256": {
+    "README.md": "d3badf98044ad3a5914b9a2f162cbe9d7a1316169ba3e0acb64479cefa4c7d5c"
+  }
+}
