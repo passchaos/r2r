@@ -381,6 +381,11 @@ pub struct LifecycleNode {
 }
 
 impl LifecycleNode {
+    pub(crate) fn runtime_register_callback_timer(
+        &self, timer: std::sync::Weak<super::callback_timer::state::CallbackTimerState>,
+    ) {
+        self.runtime.entities.register_callback_timer(timer);
+    }
     pub(crate) fn register_managed_timer(
         &self, timer: std::sync::Weak<crate::lifecycle::timer::state::LifecycleTimerState>,
     ) {

@@ -46,9 +46,10 @@ native teardown and user callbacks remain on the owning execution thread. User c
 captured-state retirement hold no notification, context or managed-clock lock. Initialization
 borrows the pinned timer so failed construction releases captured state after those locks.
 
-These factories create regular Node timer registrations. Lifecycle-managed stream timers keep
-their existing native pause/restart contract. Dedicated lifecycle callback wrappers are a
-separate extension; lifecycle applications should configure explicit callback activation.
+On `LifecycleNode`, the same factory names return lifecycle-managed callback registrations.
+[Managed callback timers](LIFECYCLE_CALLBACK_TIMERS.md) pause natively outside active state and
+acquire an activation-generation permit before advancing the native timer. Explicit
+`Node::create_timer_callback(&mut managed, ...)` remains available for regular registrations.
 
 ## Storage and validation
 

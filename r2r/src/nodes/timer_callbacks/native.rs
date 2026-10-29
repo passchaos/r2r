@@ -11,28 +11,38 @@ pub(super) trait NativeTimer {
     fn destroy(self: Pin<&mut Self>);
 }
 
-pub(super) trait Handler {
+pub(crate) trait Handler {
     type Tick;
+    type Permit;
+    fn permit(&self) -> Option<Self::Permit>;
     fn advance(timer: *mut rcl_timer_t, clock: ClockType) -> Result<Self::Tick>;
-    fn invoke(&mut self, tick: Self::Tick) -> Result<()>;
+    fn invoke(&mut self, tick: Self::Tick, permit: Self::Permit) -> Result<()>;
 }
 
-pub(super) struct Plain<F>(pub(super) F);
+pub(crate) struct Plain<F>(pub(crate) F);
 impl<F: FnMut() -> Result<()>> Handler for Plain<F> {
     type Tick = ();
+    type Permit = ();
+    fn permit(&self) -> Option<()> {
+        Some(())
+    }
     fn advance(timer: *mut rcl_timer_t, _clock: ClockType) -> Result<()> {
         check_rcl_ret(unsafe { rcl_timer_call(timer) })
     }
-    fn invoke(&mut self, (): ()) -> Result<()> {
+    fn invoke(&mut self, (): (), (): ()) -> Result<()> {
         (self.0)()
     }
 }
 
 #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
-pub(super) struct WithInfo<F>(pub(super) F);
+pub(crate) struct WithInfo<F>(pub(crate) F);
 #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
 impl<F: FnMut(TimerCallInfo) -> Result<()>> Handler for WithInfo<F> {
     type Tick = TimerCallInfo;
+    type Permit = ();
+    fn permit(&self) -> Option<()> {
+        Some(())
+    }
     fn advance(timer: *mut rcl_timer_t, clock: ClockType) -> Result<TimerCallInfo> {
         let mut elapsed = 0;
         check_rcl_ret(unsafe { rcl_timer_get_time_since_last_call(timer, &mut elapsed) })?;
@@ -47,7 +57,7 @@ impl<F: FnMut(TimerCallInfo) -> Result<()>> Handler for WithInfo<F> {
             actual_call_time_ns: call.actual_call_time,
         })
     }
-    fn invoke(&mut self, tick: TimerCallInfo) -> Result<()> {
+    fn invoke(&mut self, tick: TimerCallInfo, (): ()) -> Result<()> {
         (self.0)(tick)
     }
 }
@@ -144,12 +154,17 @@ impl<H: Handler + Send + 'static> NativeTimer for Timer<H> {
         if !ready {
             return Ok(());
         }
+        // Managed handlers retain a generation permit through native advancement and user
+        // execution. A failed/obsolete activation cannot consume native one-shot readiness.
+        let Some(permit) = timer.handler.permit() else {
+            return Ok(());
+        };
         let tick = H::advance(&mut timer.native.handle, timer.clock_type)?;
         if timer.options.oneshot {
             check_rcl_ret(unsafe { rcl_timer_cancel(&mut timer.native.handle) })?;
         }
         // All user work, including error/panic paths, runs outside RCL and internal locks.
-        timer.handler.invoke(tick)
+        timer.handler.invoke(tick, permit)
     }
     fn destroy(self: Pin<&mut Self>) {
         unsafe { self.get_unchecked_mut() }.destroy_native();

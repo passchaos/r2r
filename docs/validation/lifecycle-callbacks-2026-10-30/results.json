@@ -1,0 +1,187 @@
+{
+  "date": "2026-10-30",
+  "parent_commit": "423d21fcf8c8f899d1dd23287215551705827f0b",
+  "toolchain": "Rust 1.85.0",
+  "logs": {
+    "baseline": {
+      "file": "baseline.log.gz",
+      "sha256": "4026124f4d05c7ef1cdb49a35f739e9a7a7a0fb561e3b81b1516b4a51a4c8b85",
+      "raw_sha256": "b35794987510b6ac1dedeacba108fd9ee5df1795c004c46205c24320527796fc",
+      "test_results": [
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 706 filtered out; finished in 0.05s"
+      ],
+      "rmws": []
+    },
+    "negative-initial": {
+      "file": "negative-initial.log.gz",
+      "sha256": "a82371503a95177636c7f0c56d2d67fa86acd410d0855d1aab7305abd2fefcbd",
+      "raw_sha256": "2997472c374f7891d6524ef385e2dd398aa57aaa6c00d3432c1271cafa1402b0",
+      "test_results": [
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 715 filtered out; finished in 0.11s"
+      ],
+      "rmws": []
+    },
+    "negative-detail": {
+      "file": "negative-detail.log.gz",
+      "sha256": "851fe6fc2cd65824f8a4491530fe47e6f2d200839a2596241e9f8c8eb7466d7c",
+      "raw_sha256": "200804262fa45beda5624c0aac6dda4d7cd738b5482e37cf0c031dfa17f8d00e",
+      "test_results": [
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 715 filtered out; finished in 0.56s"
+      ],
+      "rmws": []
+    },
+    "jazzy": {
+      "file": "jazzy.log.gz",
+      "sha256": "101429d6e7108bc469c8622a1390e6f28fc02af4a33480a752b9b06e9bd7a813",
+      "raw_sha256": "d517c0d66fb2ba3b5701cecaffaf287927a0511c10d96987ac14967cbede30c3",
+      "test_results": [
+        "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 706 filtered out; finished in 0.06s",
+        "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 706 filtered out; finished in 0.06s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.12s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.15s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.78s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.18s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 709 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 25.30s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 40.66s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.65s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.94s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+        "test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 41.16s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.85s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.02s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 709 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 14.14s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.03s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.87s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.06s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.02s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 716 filtered out; finished in 0.02s",
+        "test result: ok. 709 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 17.04s"
+      ],
+      "rmws": [
+        "ROS_DISTRO=jazzy RMW_IMPLEMENTATION=rmw_cyclonedds_cpp",
+        "ROS_DISTRO=jazzy RMW_IMPLEMENTATION=rmw_fastrtps_cpp",
+        "ROS_DISTRO=jazzy RMW_IMPLEMENTATION=rmw_cyclonedds_cpp",
+        "ROS_DISTRO=jazzy RMW_IMPLEMENTATION=rmw_fastrtps_cpp"
+      ]
+    },
+    "humble": {
+      "file": "humble.log.gz",
+      "sha256": "dd3b34aad4bfd819e957c9f5b5c04aa3a2470d20c5b8ff8531e6bbcd3f371ce9",
+      "raw_sha256": "a09a84a6afbb8112cae6d96838261e4b90f9b541008434660a5b62cb65e50387",
+      "test_results": [
+        "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 684 filtered out; finished in 0.05s",
+        "test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 646 filtered out; finished in 0.68s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 692 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 692 filtered out; finished in 0.01s",
+        "test result: ok. 79 passed; 0 failed; 0 ignored; 0 measured; 614 filtered out; finished in 1.61s",
+        "test result: ok. 52 passed; 0 failed; 0 ignored; 0 measured; 641 filtered out; finished in 0.33s"
+      ],
+      "rmws": [
+        "ROS_DISTRO=humble RMW_IMPLEMENTATION=rmw_fastrtps_cpp"
+      ]
+    },
+    "kilted": {
+      "file": "kilted.log.gz",
+      "sha256": "a22c5955a65fa3c1e4bba7d4f5779301f634895b3bc6a4d7c70c5fbe7d187824",
+      "raw_sha256": "55372f327469448d83ad364e5569b43652120cf18490792aaa8df950a598bc0d",
+      "test_results": [
+        "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 710 filtered out; finished in 0.06s",
+        "test result: ok. 52 passed; 0 failed; 0 ignored; 0 measured; 669 filtered out; finished in 0.66s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 720 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 720 filtered out; finished in 0.00s",
+        "test result: ok. 80 passed; 0 failed; 0 ignored; 0 measured; 641 filtered out; finished in 1.59s",
+        "test result: ok. 56 passed; 0 failed; 0 ignored; 0 measured; 665 filtered out; finished in 0.38s",
+        "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 710 filtered out; finished in 0.51s",
+        "test result: ok. 52 passed; 0 failed; 0 ignored; 0 measured; 669 filtered out; finished in 0.65s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 720 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 720 filtered out; finished in 0.01s",
+        "test result: ok. 80 passed; 0 failed; 0 ignored; 0 measured; 641 filtered out; finished in 1.73s",
+        "test result: ok. 56 passed; 0 failed; 0 ignored; 0 measured; 665 filtered out; finished in 0.36s"
+      ],
+      "rmws": [
+        "ROS_DISTRO=kilted RMW_IMPLEMENTATION=rmw_cyclonedds_cpp",
+        "ROS_DISTRO=kilted RMW_IMPLEMENTATION=rmw_fastrtps_cpp"
+      ]
+    },
+    "no-ros": {
+      "file": "no-ros.log.gz",
+      "sha256": "61a4333768ef1f8c2626dfa1b8b3e3ce22d6078dbc8d9c8aedce08ef00e751eb",
+      "raw_sha256": "918692ad8717b9a3ed15425022ab79d23e7a63acf650521053e22029c40c240d",
+      "test_results": [
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 17 filtered out; finished in 1.13s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 18 filtered out; finished in 0.08s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 18 filtered out; finished in 0.22s"
+      ],
+      "rmws": []
+    }
+  },
+  "native_negative_reference": {
+    "installed_package": "ros-jazzy-rcl 9.2.11-1noble.20260911.104031",
+    "source_url": "https://github.com/ros2/rcl/blob/9.2.11/rcl/src/rcl/timer.c#L289",
+    "source_sha256": "a45140f6ef58578ff1d0bb0350bb65f94832b558e4850aef9ffc2b1560aec29f",
+    "behavior": "negative native timer call returns RCL_RET_ERROR before recording last call or consuming callback"
+  },
+  "performance_scope": "Native functionality and ownership validation; no Rust/C++ performance leadership claim",
+  "changed_source_sha256": {
+    "Cargo.lock": "8984d00d89e3a1262d61fd6b329a4039e28495760b7767a2aea45ae7570e3e6f",
+    "Cargo.toml": "64f4d528ca80b3af3d06ce9c69f1c5c79b96730fc75835e924d158485399dc61",
+    "r2r/examples/lifecycle_callback_timer.rs": "bb854865c11a58c85a01e2d632f22b68ca0878dcac4b25c04029e84ea5365092",
+    "r2r/src/lib.rs": "aad215a3112cd97679c47b0811e6e323c3421e42683c8d621838616acfb9c55a",
+    "r2r/src/lifecycle.rs": "414b07dd6f2a54c3de7138f2e9803e45f66d7ffce08a4db066119d7f535d0a7c",
+    "r2r/src/lifecycle/callback_timer.rs": "d2bd107df101bef2473cde78d4e3ea110c445b4f6820a5efc5dcfa07c2a5376f",
+    "r2r/src/lifecycle/callback_timer/api.rs": "8b828795d5bc52bc3b7bbbc48f9451db0c76cafa9227ce2afc7a9699b5186b90",
+    "r2r/src/lifecycle/callback_timer/handler.rs": "8d254862170a2b3f1772787c4ad8ee4ed8d7575bfa96e1451aefd7e78d28c1cd",
+    "r2r/src/lifecycle/callback_timer/operations.rs": "354ec23992faa5cfbe243c5e4a5bf21edbafeb971965e58dc3ceed05bacff94b",
+    "r2r/src/lifecycle/callback_timer/state.rs": "d2193cf8f3e2d8f11283410fcd6efbcd2839133668f21b479947823f44e803b6",
+    "r2r/src/lifecycle/callback_timer/tests.rs": "9abbc957661e44ff004929a87b2c654a6144dd7e536af3302808d3316716b3e2",
+    "r2r/src/lifecycle/callback_timer/tests/controls.rs": "b580f9211c7b26b4f9aa8fc3b198d7343a1529f22517027888d08e46643ea473",
+    "r2r/src/lifecycle/callback_timer/tests/execution.rs": "350208ba5e0e80c700bd251378192e903c27bff7d9ef55e251f19d927c0251ee",
+    "r2r/src/lifecycle/managed.rs": "84e286f81aadf6e81fc4b5d08ee7c8a2a1d7383ee1a9d29ae26a9da1e12d42ec",
+    "r2r/src/lifecycle/node.rs": "d73e551b77dc8850c3dfef2272f0e66deaa1f29b95e194a0ae3d788a1236f97c",
+    "r2r/src/lifecycle/timer.rs": "778a55650bd3460916af6e8426801a54bd2adef5aff022b6f9e5b156d14ee8a7",
+    "r2r/src/lifecycle/timer/generation.rs": "931c71dc525bb394b3b1d23ebe94249d28417f484f2769e5f6d0ff685d0765bb",
+    "r2r/src/lifecycle/timer/state.rs": "35d0b56acd605ff115696a3d727541b8ca090c81c23a4ec00e113d3581f91e1d",
+    "r2r/src/nodes.rs": "620bff3cac30e298637fce0799272974ce60174dfdb451aa681d71de337105aa",
+    "r2r/src/nodes/managed_timers.rs": "41fae8e8a4c29f9b3f8e7f28efe8661b0abd4c4cee304ed9e2f9ad639c0b2514",
+    "r2r/src/nodes/managed_timers/tests.rs": "11e3f0682e127e7925d8f2afcc4063c1593daa705fcfaac1583759c3cceef6ed",
+    "r2r/src/nodes/timer_callbacks.rs": "3c3874654e6ef04d149b278260b795596edc8d941dbb419e4ade66e176a8a0f9",
+    "r2r/src/nodes/timer_callbacks/api.rs": "1ced46912335adc9cc3e1aa8de3b66bddf57931ba746073b75efb012c752f90b",
+    "r2r/src/nodes/timer_callbacks/handle.rs": "77d5c2251ae1a3cb10f8ed799f9e19ecfd66e99008887a36dd64a6953047f96b",
+    "r2r/src/nodes/timer_callbacks/native.rs": "9f58732f89db26f9e755f9e37cee8f3dee6965ab4bdd6f35e4c8dd95d854d86e",
+    "rust-toolchain.toml": "19fcd7491a66e0653370b3fea22acda83b749c4c541357a4daff7b33d5aab480"
+  }
+}

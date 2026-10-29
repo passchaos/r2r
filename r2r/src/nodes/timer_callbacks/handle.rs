@@ -117,6 +117,9 @@ impl CallbackTimer {
     pub(crate) fn identity(&self) -> uuid::Uuid {
         self.id
     }
+    pub(crate) fn owner_wake(&self) -> Option<std::task::Waker> {
+        self.canceled.lock().wake()
+    }
 }
 impl Drop for CallbackTimer {
     fn drop(&mut self) {

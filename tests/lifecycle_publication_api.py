@@ -44,6 +44,12 @@ fn timer_controls(timer: &mut r2r::LifecycleTimer, node: &mut Node) {
     timer.period(node).unwrap();
     drop(timer.tick());
 }
+fn callback_timer(node: &mut r2r::LifecycleNode) -> r2r::LifecycleCallbackTimer {
+    node.create_wall_timer_callback(std::time::Duration::from_millis(5), || Ok(())).unwrap()
+}
+fn callback_controls(timer: r2r::LifecycleCallbackTimer, node: &mut Node) {
+    timer.cancel(node).unwrap(); timer.reset(node).unwrap(); timer.period(node).unwrap(); timer.destroy(node);
+}
 fn task(executor: r2r::Executor) -> r2r::ExecutorTask {
     executor.spawn().unwrap()
 }
@@ -95,6 +101,16 @@ fn send_task(task: r2r::ExecutorTask) {
     (
         "timer_field_escape",
         "fn escape(timer: &r2r::LifecycleTimer) { let _ = timer.state; }",
+        "E0616",
+    ),
+    (
+        "callback_timer_deref_escape",
+        "fn escape(timer: &r2r::LifecycleCallbackTimer) -> &r2r::CallbackTimer { timer }",
+        "E0308",
+    ),
+    (
+        "callback_timer_field_escape",
+        "fn escape(timer: &r2r::LifecycleCallbackTimer) { let _ = timer.state; }",
         "E0616",
     ),
     (

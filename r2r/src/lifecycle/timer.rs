@@ -6,6 +6,7 @@ use std::time::Duration;
 use super::{LifecycleNode, LifecycleState};
 use crate::{ClockType, Node, Result, Timer, TimerOptions};
 
+pub(crate) mod generation;
 mod operations;
 pub(crate) mod state;
 #[cfg(test)]

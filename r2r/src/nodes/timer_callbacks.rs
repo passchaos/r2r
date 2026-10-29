@@ -5,7 +5,7 @@ use std::pin::Pin;
 
 mod api;
 mod handle;
-mod native;
+pub(crate) mod native;
 pub use handle::{CallbackTimer, CallbackTimerOptions};
 use native::NativeTimer;
 

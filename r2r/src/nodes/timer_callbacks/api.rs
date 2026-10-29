@@ -2,7 +2,7 @@ use super::*;
 use native::{Handler, Plain, Timer};
 
 impl Node {
-    fn register_callback_timer<H: Handler + Send + 'static>(
+    pub(crate) fn register_callback_timer<H: Handler + Send + 'static>(
         &mut self, period: Duration, options: CallbackTimerOptions, clock_type: ClockType,
         handler: H,
     ) -> Result<CallbackTimer> {

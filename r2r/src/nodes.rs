@@ -68,7 +68,7 @@ mod service_api;
 mod service_callbacks;
 mod spin;
 mod subscription_api;
-mod timer_callbacks;
+pub(crate) mod timer_callbacks;
 mod timers;
 mod type_descriptions;
 mod wait_set;

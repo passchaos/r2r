@@ -1216,3 +1216,34 @@ executed counts, source identities and full logs are retained in
 Dedicated lifecycle callback wrappers, concurrent callback scheduling and isolated representative
 Rust/C++ performance/resource comparisons remain open. This slice establishes native callback
 capability and ownership behavior, without a throughput-leadership claim.
+
+## Lifecycle-native callback timers (2026-10-30)
+
+The inherited callback factory previously initialized inactive LifecycleNode timers as running;
+the native pause counterexample failed against `423d21f`. [Managed callback timers](LIFECYCLE_CALLBACK_TIMERS.md)
+now shadow these factories with weak Node/runtime registration, shared activation/reset generations
+and a permit acquired before native time advancement. Stale readiness cannot consume one-shot
+state. Completion/error/panic consumes one-shot manual enable before user code, and explicit
+reset rearms it. Failed deactivation retaining active state preserves its existing deadline.
+
+Control and native lifecycle state hold no user callback lock. The permit keeps control lifetime
+through invocation; external activation signals the current weak native owner even with no tick
+future. Existing stream timers share the generation utility without changing their inbox boundary.
+Public compilation rejects managed-to-ordinary callback and private-state escapes.
+
+An initial signed-time timing test failed because installed RCL 9.2.11 explicitly rejects native
+calls at negative clock time before invocation. Tagged native source and original error logs are
+retained. Paired managed/regular tests verify that exact error and preserved one-shot state, then
+recover after reset; positive-domain backwards reactivation retains exact current SDK timestamps.
+
+Eleven Jazzy managed callback cases, fourteen existing stream cases and the twelve-case public
+compiler gate pass. The native service-driven example validates sixteen callback publications
+through two active/three paused phases. Final Jazzy workspace and both optimized RMW library
+suites pass 709 main-library cases plus nineteen Rustdoc examples, with eight manual measurements
+ignored. Optimized lifecycle callback/Tokio workflows and all-target warning-denied Clippy pass.
+Native Humble/Fast DDS and Kilted/both-RMW scoped runtime, optimized examples, compiler gates and
+Clippy accompany true no-ROS all-target and 42-artifact/131-method documentation checks.
+See [complete lifecycle callback evidence](validation/lifecycle-callbacks-2026-10-30/README.md).
+
+Concurrent callback scheduling and isolated representative performance/resource comparisons
+remain separate requirements for the full Rust/C++ leadership goal.

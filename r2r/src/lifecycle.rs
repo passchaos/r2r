@@ -16,6 +16,8 @@
 //! invisible to the r2r executor. Instead the managed node drives its machine
 //! from native r2r services with `rclcpp_lifecycle` transition semantics.
 
+pub(crate) mod callback_timer;
+pub use callback_timer::LifecycleCallbackTimer;
 mod managed;
 pub mod node;
 pub mod publisher;

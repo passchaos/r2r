@@ -5,6 +5,9 @@ The ROS-clock variant follows managed/simulated ROS time; the wall variant uses
 a monotonic steady clock. Both native timers start paused unless created on an
 already active node with autostart enabled.
 
+[Lifecycle callback timers](LIFECYCLE_CALLBACK_TIMERS.md) provide matching native activation
+and manual-generation controls for direct synchronous handlers without a tick inbox.
+
 | State/control | Native schedule and Rust ticks |
 | --- | --- |
 | Unconfigured, inactive or finalized | The native timer is canceled before the next native wait; `tick` remains pending |
