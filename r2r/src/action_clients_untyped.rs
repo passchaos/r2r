@@ -1574,7 +1574,9 @@ mod tests {
                     target,
                     Arc::new(Mutex::new(FeedbackChannel {
                         sender: Some(target_feedback),
-                        pending: Some(Ok(serde_json::json!({ "sequence": [1] }))),
+                        pending: Some(PendingFeedback::Ready(Ok(
+                            serde_json::json!({ "sequence": [1] }),
+                        ))),
                         closing: false,
                         overflow_policy: crate::FeedbackOverflowPolicy::Backpressure,
                     })),
@@ -1643,7 +1645,9 @@ mod tests {
                     target,
                     Arc::new(Mutex::new(FeedbackChannel {
                         sender: Some(target_feedback),
-                        pending: Some(Ok(serde_json::json!({ "sequence": [1] }))),
+                        pending: Some(PendingFeedback::Ready(Ok(
+                            serde_json::json!({ "sequence": [1] }),
+                        ))),
                         closing: false,
                         overflow_policy: crate::FeedbackOverflowPolicy::Backpressure,
                     })),

@@ -1,0 +1,169 @@
+{
+  "date_utc": "2026-10-29T05:04:31Z",
+  "parent_ref": "42c862b3dbbd4748cfd1faed019454e23768f5aa",
+  "goal_status": "active",
+  "scope": "defer built-in Coalesce feedback conversion until the latest native item is deliverable",
+  "validation": {
+    "performance-report-integrity": {
+      "exit_code": 0,
+      "log": "logs/performance-verify.log.gz",
+      "sha256": "c256bfcdf8e0836bb7de2414d67212ea6c7429e44bf5a47044b240bd38e94c36",
+      "observed_result": "both reports: 70 records and 70000 RTT samples verified with passing recorded gates"
+    },
+    "feedback-jazzy-cyclonedds": {
+      "exit_code": 0,
+      "log": "logs/feedback-cyclonedds.log.gz",
+      "sha256": "65280f501d983e0eab7eb7e7bfa996f63e0f12af8229a0676e56f98766ac8a24",
+      "observed_test_result": "63 passed; 0 failed; 5 ignored; 534 filtered out"
+    },
+    "feedback-jazzy-fastdds": {
+      "exit_code": 0,
+      "log": "logs/feedback-fastdds.log.gz",
+      "sha256": "d7e801f87a85cc5efa2ebfab939acedd2f765860dbefd7a011fd17b4ffaa11b3",
+      "observed_test_result": "63 passed; 0 failed; 5 ignored; 534 filtered out"
+    },
+    "decode-error-and-panic": {
+      "exit_code": 0,
+      "log": "logs/decode-errors.log.gz",
+      "sha256": "26c0a6f7c085ca064264a69a162f02182bc7d0db876b6dd434905cec5ca94b9a",
+      "observed_test_result": "2 passed; 0 failed"
+    },
+    "workspace-jazzy-cyclonedds": {
+      "exit_code": 0,
+      "log": "logs/workspace.log.gz",
+      "sha256": "f7e86624225af98d2a6877b8011dad9863331e88fb0702a1db3858cb3a1ab6eb",
+      "main_library_result": "594 passed; 0 failed; 8 ignored",
+      "additional_boundaries": "context 7; threads 1; tokio raw 2; tokio 1; common 6; macros 2; generator 2; rcl 27; workspace doc-tests"
+    },
+    "release-jazzy-cyclonedds": {
+      "exit_code": 0,
+      "log": "logs/release-cyclonedds.log.gz",
+      "sha256": "c5debada42addd684407843a147258543eb9280f1174f3e9859786a7f7c3ddb0",
+      "main_library_result": "594 passed; 0 failed; 8 ignored"
+    },
+    "release-jazzy-fastdds": {
+      "exit_code": 0,
+      "log": "logs/release-fastdds.log.gz",
+      "sha256": "c6703591e65e79baba70918e7b0583f016bcccba0a5a12fc18dfdc3f285cdfc9",
+      "main_library_result": "594 passed; 0 failed; 8 ignored"
+    },
+    "clippy-jazzy-all-targets": {
+      "exit_code": 0,
+      "log": "logs/clippy.log.gz",
+      "sha256": "da341e4e9625215247fbbd2f18048eb4b9e8f3f77f55673aec88610308e5987a"
+    },
+    "format": {
+      "exit_code": 0,
+      "log": "logs/format.log.gz",
+      "sha256": "59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2"
+    },
+    "humble-fastdds": {
+      "exit_code": 0,
+      "log": "logs/humble.log.gz",
+      "sha256": "8aed5290aa1e74872d774a7d75ac002fb9279bc493faa97881996be938c16364",
+      "observed_test_result": "63 passed; 0 failed; 5 ignored; 524 filtered out",
+      "clippy_all_targets": "passed"
+    },
+    "kilted-both-rmw": {
+      "exit_code": 0,
+      "log": "logs/kilted.log.gz",
+      "sha256": "e7dd597f2e85ba0abe161f7e646f82bb85a6e3d8136bb49ed1e5b8cada172606",
+      "cyclonedds_result": "63 passed; 0 failed; 5 ignored; 538 filtered out",
+      "fastdds_result": "63 passed; 0 failed; 5 ignored; 538 filtered out",
+      "clippy_all_targets": "passed"
+    },
+    "no-ros": {
+      "exit_code": 0,
+      "log": "logs/no-ros.log.gz",
+      "sha256": "402e58b1be0c765230866e9fcbe53a7ce5322cb95c26915715cb6c4c1b93da77",
+      "snapshot_transaction_tests": 4,
+      "common_tests": 6,
+      "generator_tests": 2,
+      "api_artifacts": 15,
+      "documented_methods": 29,
+      "workspace_all_targets_check": "passed"
+    },
+    "allocation-stage": {
+      "exit_code": 0,
+      "log": "logs/stage.log.gz",
+      "sha256": "97358a001dc75ea6716be045ce52f863ea6708d7281998e93e1a2c780e31adb6",
+      "runs": 5,
+      "observed_test_results": 5
+    }
+  },
+  "performance": {
+    "baseline_ref": "42c862b3dbbd4748cfd1faed019454e23768f5aa",
+    "cyclonedds": {
+      "report": "action/cyclonedds.json",
+      "report_sha256": "368b2fb5681054a8047cc78f5596912346714bce2cde850d3e1bdf98bd315f0e",
+      "samples": "action/cyclonedds.samples.json.gz",
+      "samples_sha256": "dd4477ee61052b696dca32ebaeffef402795d3e57370fe95cf4e23258323950d",
+      "records": 70,
+      "rtt_samples": 70000,
+      "gate": {"maximum_ratio": 1.05, "passed": true, "failures": []},
+      "success_ratios": {"p50": 1.0066052790337123, "p95": 1.02368839940072, "p99": 1.02064644781392, "inverse_throughput": 1.0108342741576333},
+      "cancellation_ratios": {"p50": 1.0020836084221392, "p95": 1.0075078665827564, "p99": 1.0123517387963878, "inverse_throughput": 1.0013956653325284}
+    },
+    "fastdds": {
+      "report": "action/fastdds.json",
+      "report_sha256": "8dcc1a94df86dd25d7a9627378c719f86a6cec3ce4ff2b472a98525b283d57ca",
+      "samples": "action/fastdds.samples.json.gz",
+      "samples_sha256": "346166eecda873dfe3c110973b084abcfffb0d59f0b791bdd78bc897c500e346",
+      "records": 70,
+      "rtt_samples": 70000,
+      "gate": {"maximum_ratio": 1.05, "passed": true, "failures": []},
+      "success_ratios": {"p50": 1.0024682080748282, "p95": 0.9944742416936517, "p99": 0.9784896785994252, "inverse_throughput": 0.9993478656797308},
+      "cancellation_ratios": {"p50": 1.002593921990907, "p95": 1.0087265008320956, "p99": 1.0262399651763368, "inverse_throughput": 1.0036209368958255}
+    },
+    "binary_sha256": {
+      "candidate": "e5b9365ed7b6d41e022fc5074336c5fb94a52cd9b57e9d1286e9d6ea61255f27",
+      "baseline": "fe8fe6d3446a57f63e53a70dd4975a807a8d06ab5832b74abdc0722cc40ef158",
+      "rclcpp": "547677f0aa734ed161bc087407a044ba9f5a972ea93a902dbca3f3e6c3ead30f"
+    },
+    "mixed_direction_boundary": {
+      "minimum_ratio": 0.9797946179494473,
+      "maximum_ratio": 1.0091317345895507,
+      "preselected_gate": false,
+      "new_same_binary_calibration": false
+    }
+  },
+  "allocation_stage": {
+    "report": "stage/report.json",
+    "sha256": "cd78174c35456447ce7780f2d44e1195ec3e77e9acf20fe005aae950b185dfcd",
+    "records": 10,
+    "arrivals": 100000,
+    "iterations_per_record": 10000,
+    "elements_per_arrival": 4096,
+    "cpu": 24,
+    "binary_sha256": "d7111be89dc4210f24ed51f4300823e70f237fc2c51a03456f9af072e17e37bb",
+    "probe_sha256": "7602fb54d07cf65818e4e5da8bab16034cbe181fa2d896e61b7a48bc07fe1592",
+    "eager": {"arrival_decodes": 10000, "allocations": 30000, "frees": 30000, "requested_bytes": 165120000, "median_ns_per_arrival": 845.208},
+    "deferred": {"arrival_decodes": 0, "allocations": 20000, "frees": 20000, "requested_bytes": 1600000, "median_ns_per_arrival": 489.6081}
+  },
+  "memory_layout": {
+    "pending_queue_bytes_unchanged": true,
+    "maximum_channel_growth_bytes": 16,
+    "u32_channel_bytes": {"baseline": 40, "candidate": 56}
+  },
+  "source_identity": {
+    "manifest": "action/build-manifest.json",
+    "manifest_sha256": "9ae4bfeb17a3bbd98babf92b87d4447e33ab24e05ab10481fb388546932a7dcf",
+    "candidate_files": 78,
+    "mismatches": []
+  },
+  "compatibility_images": {
+    "humble": "sha256:4e346fcaeb5f64690213fadce5dd27980d6cc3a0eb47ca9419d5a2427f70af41",
+    "kilted_both_rmw": "sha256:5217474d9be62dcc995ff45e8743525620ea59f49cef33c0d3402a6427aa2c20",
+    "kilted_dockerfile": "compat/Dockerfile.kilted",
+    "kilted_dockerfile_sha256": "8971c29b910b14d5f09ff967a3326c4504f627d08268478bf7ab567593949c65",
+    "no_ros": "sha256:3f3ae1e14bc9d9f61515515027b47f5b8dcf16c79f689c81c045cf29dcce2926"
+  },
+  "retained_failures": {
+    "cyclonedds-test-compile": {"log": "logs/rejected/cyclonedds-test-compile.log.gz", "sha256": "8450e3818edecee61a26e4e25020fb727a91beee44ab231f3b163878cd737f0b", "resolution": "use compatibility tuple fields returned by send_goal_request"},
+    "fastdds-test-compile": {"log": "logs/rejected/fastdds-test-compile.log.gz", "sha256": "8450e3818edecee61a26e4e25020fb727a91beee44ab231f3b163878cd737f0b", "resolution": "same pre-runtime compile failure as CycloneDDS invocation"},
+    "legacy-layout": {"log": "logs/rejected/legacy-layout.log.gz", "sha256": "51d75ed928097f3d2f805cd06f658666ef99ef798037681e6a62aa9483b79d42", "observed": "61 passed; 1 failed; 5 ignored", "resolution": "admit and bound one fat-pointer deferred state instead of claiming the legacy 40-byte u32 channel"}
+  },
+  "documentation_sha256": {
+    "README.md": "5f339ead81ae076486c7f2daef874e6d781b851a54dffdf51feb90db040971d3"
+  }
+}

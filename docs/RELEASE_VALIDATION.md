@@ -782,3 +782,57 @@ Lyrical and Rolling have no new local runtime evidence. Dynamic payload reuse,
 borrowed feedback, burst/fanout and qualified concurrent Rust/rclcpp scaling
 remain open.
 
+## Deferred latest-only Coalesce decoding (2026-10-29)
+
+Built-in typed/untyped action clients now keep a native lease as the pending
+`FeedbackOverflowPolicy::Coalesce` item. A newer native sample replaces the old
+lease without constructing its owned Rust/JSON payload. Capacity recovery takes
+the newest item, decodes once outside client/channel/retry locks and uses the
+existing sender restoration path. Default Backpressure remains eager, ordered
+and lossless; custom action support without a native UUID accessor retains the
+compatible eager route.
+
+Pending feedback is internally `Ready(T)` or a boxed deferred decoder. The
+channel grows by at most two machine words per tracked goal (u32 is 40 -> 56
+bytes on the pinned target); the retry queue size is unchanged. Replacement and
+closure drop captured native storage after unlocking. A detached-sender RAII
+guard restores sender ownership on decode `Err` and panic unwind, while UUID
+mismatch remains an action-client error.
+
+A real two-goal untyped RCL oracle sends one queued 4096-element sample, eight
+large updates and one healthy-goal sample. It observes the healthy goal first,
+then the blocked goal's original and latest values, exact results and stream
+closure. Only three decodes execute for the three delivered payloads; seven
+superseded large samples are never converted. CycloneDDS and Fast DDS both pass.
+Typed/untyped foreground overflow, background executor transfer, capacity wakes
+and Backpressure cases remain green.
+
+The [saved fixed-CPU stage](benchmarks/native-feedback-deferred-2026-10-29/README.md)
+runs five repetitions of 10000 full-channel arrivals with 4096 i32 values. The
+former eager path performs 10000 arrival decodes, 30000 allocations/frees and
+165.12 MB requested bytes. Deferred ingress performs zero superseded decodes,
+20000 allocations/frees and 1.6 MB requested bytes; the latest is decoded once
+after measurement. Median stage time is 845.208 versus 489.608 ns/arrival. This
+excludes RCL/DDS and is not a complete application-latency claim.
+
+Independent optimized `42c862b` baseline/candidate ordinary action matrices
+protect default Backpressure on CPUs 24/25 with the unchanged 1.05
+p50/p95/p99/inverse-throughput gate. Both Jazzy RMWs pass success and
+cancellation: 140 records and 140000 RTT samples. The largest gated ratio is
+Fast DDS cancellation p99 at 1.026240. Mixed directions stay within 2.1% of
+matching baseline-language pairs, outside the gate and without new A/A
+calibration. No general rclcpp leadership claim is made.
+
+The complete Jazzy workspace passes with 594 main-library cases and eight
+manual measurements ignored; complete optimized suites pass 594/8 under both
+RMWs. Each RMW passes 63 feedback cases with five ignored measurements.
+Formatting and warning-denied all-target Clippy pass. Fresh Humble/Fast DDS and
+Kilted/both-RMW targets pass 63/5 per environment plus all-target Clippy. A
+fresh no-ROS target passes snapshot transactions, all-target compilation, six
+common/two generator cases, Rustdoc and fifteen-page/twenty-nine-method API
+checks. All 78 measured source hashes match delivered code. Initial test tuple
+field compile failures and the rejected legacy 40-byte channel assertion are
+retained. Iron, Lyrical and Rolling have no new local runtime evidence. Borrowed
+delivered payloads, dynamic RMW storage reuse and full burst/fanout scaling
+remain open.
+

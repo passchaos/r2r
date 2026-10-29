@@ -35,8 +35,10 @@ mod cancellation;
 mod feedback;
 pub(crate) mod feedback_routing;
 pub(crate) mod native_feedback;
+#[cfg(test)]
+pub(crate) use feedback::PendingFeedback;
 pub(crate) use feedback::{
-    close_feedback_completion, feedback_completion_with_queue,
+    close_feedback_completion, defer_feedback_with_queue, feedback_completion_with_queue,
     take_ready_pending_feedback_with_progress, FeedbackChannel, FeedbackSender,
     PendingFeedbackAction, PendingFeedbackQueue,
 };
@@ -2787,7 +2789,7 @@ mod tests {
                 let channel = if uuid == in_flight {
                     FeedbackChannel {
                         sender: None,
-                        pending: Some(()),
+                        pending: Some(PendingFeedback::Ready(())),
                         closing: false,
                         overflow_policy: crate::FeedbackOverflowPolicy::Backpressure,
                     }
@@ -3024,10 +3026,17 @@ mod tests {
             .unwrap()
             .notify)()
         .unwrap();
-        assert_eq!(channel.lock().pending, Some(42));
+        assert_eq!(
+            channel
+                .lock()
+                .pending
+                .as_ref()
+                .and_then(PendingFeedback::ready_ref),
+            Some(&42)
+        );
 
         assert_eq!(receiver.next().now_or_never().flatten(), Some(41));
-        let pending = channel.lock().pending.take().unwrap();
+        let pending = channel.lock().pending.take().unwrap().into_ready().unwrap();
         (feedback_completion(Arc::clone(&channel), pending)
             .unwrap()
             .notify)()
@@ -3049,12 +3058,12 @@ mod tests {
             .unwrap()
             .notify)()
         .unwrap();
-        blocked.lock().pending = Some(42);
+        blocked.lock().pending = Some(PendingFeedback::Ready(42));
 
         let (ready_sender, mut ready_receiver) = mpsc::channel(0);
         let ready = Arc::new(Mutex::new(FeedbackChannel {
             sender: Some(ready_sender),
-            pending: Some(52),
+            pending: Some(PendingFeedback::Ready(52)),
             closing: false,
             overflow_policy: crate::FeedbackOverflowPolicy::Backpressure,
         }));
@@ -3075,7 +3084,14 @@ mod tests {
 
         assert_eq!(ready_receiver.next().now_or_never().flatten(), Some(52));
         assert!(channels[&ready_uuid].lock().pending.is_none());
-        assert_eq!(channels[&blocked_uuid].lock().pending, Some(42));
+        assert_eq!(
+            channels[&blocked_uuid]
+                .lock()
+                .pending
+                .as_ref()
+                .and_then(PendingFeedback::ready_ref),
+            Some(&42)
+        );
         assert!(pending.lock().goals.is_empty());
         assert_eq!(pending.lock().blocked_count(), 1);
         assert_eq!(blocked_receiver.next().now_or_never().flatten(), Some(41));
@@ -3095,7 +3111,7 @@ mod tests {
                 .unwrap()
                 .notify)()
             .unwrap();
-            channel.lock().pending = Some(pending);
+            channel.lock().pending = Some(PendingFeedback::Ready(pending));
             (channel, receiver)
         }
 
@@ -3115,8 +3131,22 @@ mod tests {
             take_ready_pending_feedback(&pending, &channels),
             PendingFeedbackAction::Backpressured
         ));
-        assert_eq!(channels[&first_uuid].lock().pending, Some(42));
-        assert_eq!(channels[&second_uuid].lock().pending, Some(52));
+        assert_eq!(
+            channels[&first_uuid]
+                .lock()
+                .pending
+                .as_ref()
+                .and_then(PendingFeedback::ready_ref),
+            Some(&42)
+        );
+        assert_eq!(
+            channels[&second_uuid]
+                .lock()
+                .pending
+                .as_ref()
+                .and_then(PendingFeedback::ready_ref),
+            Some(&52)
+        );
         assert!(pending.lock().goals.is_empty());
         assert_eq!(pending.lock().blocked_count(), 2);
         assert_eq!(first_receiver.next().now_or_never().flatten(), Some(41));
@@ -3133,7 +3163,7 @@ mod tests {
                 uuid,
                 Arc::new(Mutex::new(FeedbackChannel {
                     sender: None,
-                    pending: Some(value),
+                    pending: Some(PendingFeedback::Ready(value)),
                     closing: false,
                     overflow_policy: crate::FeedbackOverflowPolicy::Backpressure,
                 })),
@@ -3181,7 +3211,14 @@ mod tests {
         .unwrap();
         (completion.notify)().unwrap();
 
-        assert_eq!(channel.lock().pending, Some(42));
+        assert_eq!(
+            channel
+                .lock()
+                .pending
+                .as_ref()
+                .and_then(PendingFeedback::ready_ref),
+            Some(&42)
+        );
         assert_eq!(pending.lock().goals, [uuid]);
         pending.lock().push(uuid);
         assert_eq!(pending.lock().goals, [uuid]);
@@ -3195,7 +3232,7 @@ mod tests {
         let (sender, mut receiver) = mpsc::channel(0);
         let channel = Arc::new(Mutex::new(FeedbackChannel {
             sender: Some(sender),
-            pending: Some(42),
+            pending: Some(PendingFeedback::Ready(42)),
             closing: false,
             overflow_policy: crate::FeedbackOverflowPolicy::Backpressure,
         }));
@@ -3404,7 +3441,7 @@ mod tests {
                 target,
                 Arc::new(Mutex::new(FeedbackChannel {
                     sender: Some(feedback_sender),
-                    pending: Some(Fibonacci::Feedback::default()),
+                    pending: Some(PendingFeedback::Ready(Fibonacci::Feedback::default())),
                     closing: false,
                     overflow_policy: crate::FeedbackOverflowPolicy::Backpressure,
                 })),
@@ -3703,7 +3740,7 @@ mod tests {
                     target,
                     Arc::new(Mutex::new(FeedbackChannel {
                         sender: Some(target_feedback),
-                        pending: Some(Fibonacci::Feedback::default()),
+                        pending: Some(PendingFeedback::Ready(Fibonacci::Feedback::default())),
                         closing: false,
                         overflow_policy: crate::FeedbackOverflowPolicy::Backpressure,
                     })),
@@ -3768,7 +3805,7 @@ mod tests {
                     target,
                     Arc::new(Mutex::new(FeedbackChannel {
                         sender: Some(target_feedback),
-                        pending: Some(Fibonacci::Feedback::default()),
+                        pending: Some(PendingFeedback::Ready(Fibonacci::Feedback::default())),
                         closing: false,
                         overflow_policy: crate::FeedbackOverflowPolicy::Backpressure,
                     })),

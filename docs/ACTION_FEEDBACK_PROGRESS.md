@@ -73,12 +73,11 @@ during `try_send`, and its restoration preserves a newer reentrant item if an
 older attempted send fails. Superseded payloads are destroyed after releasing
 the channel/readiness locks. This introduces no native guard, timer or worker.
 
-The implementation keeps overflow semantics separate from native decoding and
-payload storage. Future native-storage reuse or deferred decoding can replace
-those private paths while preserving the public item/retention contract and
-bounded per-goal state. Tracked feedback still decodes each taken native sample;
-retained native storage and complete large-payload transport profiling remain
-additional work.
+The implementation keeps overflow semantics separate from public payload
+ownership. Backpressure decodes each taken native sample to preserve lossless
+ordering. Coalesce can retain its newest pending native lease and delay owned
+conversion until capacity recovers. Retained dynamic payload storage and complete
+large-payload transport profiling remain additional work.
 
 Native dispatch keeps an optional erased payload slot while client routing
 borrows it. Matching routes consume the slot into the existing delivery
@@ -136,6 +135,21 @@ stage removes one allocation/free per message, complete instrumented action
 matrices show lower client allocation totals under both RMWs, and both ordinary
 5% regression gates pass. See the
 [native buffer report](benchmarks/native-feedback-buffer-2026-10-29/README.md).
+
+When a Coalesce channel is full, built-in action support now stores a one-shot
+native decoder instead of immediately constructing the owned Rust/JSON payload.
+Newer samples replace the retained lease; only the latest is decoded when sender
+capacity returns. A two-goal real-RCL oracle publishes ten messages containing
+4096-element blocked payloads plus healthy progress and observes exactly three
+decodes for the three values actually delivered. Both Jazzy RMWs pass.
+
+The detached sender is also an RAII lease, so decode errors and panic unwind
+restore it. Replacement/closure retire native captures after releasing channel
+and retry locks. This costs at most two machine words per feedback channel (u32:
+40 to 56 bytes on the pinned toolchain) while the retry queue header is unchanged.
+The fixed-CPU stage removes 10000 large owned clones and 163.52 MB of allocation
+requests per 10000 superseded arrivals; both ordinary Backpressure A/B gates pass.
+See [deferred Coalesce evidence](benchmarks/native-feedback-deferred-2026-10-29/README.md).
 
 The complete `action_feedback_coalesce` application leaves one goal unconsumed,
 publishes thirty-two updates and verifies another goal's feedback first. It then

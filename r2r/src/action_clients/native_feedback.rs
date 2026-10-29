@@ -86,10 +86,10 @@ impl<N> Drop for NativeFeedbackLease<N> {
     }
 }
 
-pub(crate) fn completion<N: 'static, T: Send + 'static>(
+pub(crate) fn completion<N: Send + 'static, T: Send + 'static>(
     native: NativeFeedbackLease<N>, channel: Option<FeedbackSender<T>>,
     pending: Arc<Mutex<PendingFeedbackQueue>>, uuid: uuid::Uuid,
-    decode: impl FnOnce(&N) -> Result<(uuid::Uuid, T)> + 'static,
+    decode: impl FnOnce(&N) -> Result<(uuid::Uuid, T)> + Send + 'static,
 ) -> ActionClientCompletion {
     let Some(channel) = channel else {
         return ActionClientCompletion {
@@ -104,11 +104,28 @@ pub(crate) fn completion<N: 'static, T: Send + 'static>(
     };
     ActionClientCompletion {
         notify: Box::new(move || {
-            let closed = { channel.lock().is_closed() };
+            let (closed, overflow_policy) = {
+                let channel = channel.lock();
+                (channel.is_closed(), channel.overflow_policy)
+            };
             if closed {
                 drop(native);
                 drop(decode);
                 return Ok(true);
+            }
+            if overflow_policy == FeedbackOverflowPolicy::Coalesce {
+                return defer_feedback_with_queue(
+                    channel,
+                    move || {
+                        let (decoded_uuid, payload) = decode(&native)?;
+                        if decoded_uuid != uuid {
+                            return Err(Error::RCL_RET_ACTION_CLIENT_INVALID);
+                        }
+                        Ok(payload)
+                    },
+                    uuid,
+                    pending,
+                );
             }
             let (decoded_uuid, payload) = decode(&native)?;
             if decoded_uuid != uuid {
@@ -197,6 +214,56 @@ mod tests {
         assert_eq!(drops.load(Ordering::Relaxed), 2);
         drop(buffer);
         drop(slot);
+    }
+
+    #[test]
+    fn coalesced_native_feedback_decodes_only_the_latest_when_capacity_recovers() {
+        let id = uuid::Uuid::from_u128(1);
+        let (sender, mut receiver) = mpsc::channel(0);
+        let channel = Arc::new(Mutex::new(FeedbackChannel::with_overflow_policy(
+            sender,
+            FeedbackOverflowPolicy::Coalesce,
+        )));
+        let queue = Arc::new(Mutex::new(PendingFeedbackQueue::default()));
+        (feedback_completion_with_queue(channel.clone(), vec![0_i32], Some((id, queue.clone())))
+            .unwrap()
+            .notify)()
+        .unwrap();
+
+        let buffer = NativeFeedbackBuffer::default();
+        let decodes = Arc::new(AtomicUsize::new(0));
+        for value in [1_i32, 2] {
+            let native = buffer.checkout(|| Ok(vec![value; 4096])).unwrap();
+            let counter = decodes.clone();
+            let finish =
+                completion(native, Some(channel.clone()), queue.clone(), id, move |native| {
+                    counter.fetch_add(1, Ordering::Relaxed);
+                    Ok((id, native.clone()))
+                });
+            (finish.notify)().unwrap();
+        }
+        assert_eq!(decodes.load(Ordering::Relaxed), 0);
+        assert!(channel
+            .lock()
+            .pending
+            .as_ref()
+            .is_some_and(PendingFeedback::is_deferred));
+        assert!(buffer.is_available(), "superseded native lease was not recycled");
+        assert_eq!(receiver.next().now_or_never(), Some(Some(vec![0])));
+
+        let channels = HashMap::from([(id, channel.clone())]);
+        let (action, _) = take_ready_pending_feedback_with_progress(&queue, &channels);
+        let PendingFeedbackAction::Deliver(deliver) = action else {
+            panic!("latest deferred feedback was not ready after capacity recovery");
+        };
+        (deliver.notify)().unwrap();
+        assert_eq!(decodes.load(Ordering::Relaxed), 1);
+        let delivered = receiver.next().now_or_never().unwrap().unwrap();
+        assert_eq!(delivered.len(), 4096);
+        assert!(delivered.iter().all(|value| *value == 2));
+        assert!(channel.lock().pending.is_none());
+        assert!(queue.lock().is_empty());
+        assert!(buffer.is_available());
     }
 
     #[cfg(all(target_os = "linux", r2r__example_interfaces__action__Fibonacci))]
@@ -350,6 +417,101 @@ mod tests {
                 "{}",
                 serde_json::json!({"boundary":"native feedback outer message create/destroy versus one-slot reuse; empty Fibonacci feedback; no RCL/DDS", "reuse":reuse, "iterations":ITERATIONS, "elapsed_ns":elapsed_ns,"allocations":allocations,"frees":stats.free_calls,"requested_bytes":stats.requested_bytes})
             );
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[ignore = "manual eager versus deferred coalesced large-feedback stage; LD_PRELOAD probe required"]
+    fn benchmark_deferred_coalescing_skips_superseded_large_payload_decodes() {
+        const ITERATIONS: usize = 10_000;
+        const ELEMENTS: usize = 4096;
+        let probe = allocation_probe::Probe::load()
+            .unwrap()
+            .expect("LD_PRELOAD allocation probe required");
+        let id = uuid::Uuid::from_u128(1);
+        for deferred in [false, true] {
+            let (sender, mut receiver) = mpsc::channel(0);
+            let channel = Arc::new(Mutex::new(FeedbackChannel::with_overflow_policy(
+                sender,
+                FeedbackOverflowPolicy::Coalesce,
+            )));
+            let queue = Arc::new(Mutex::new(PendingFeedbackQueue::default()));
+            (feedback_completion_with_queue(
+                channel.clone(),
+                vec![-1_i32; ELEMENTS],
+                Some((id, queue.clone())),
+            )
+            .unwrap()
+            .notify)()
+            .unwrap();
+            let buffer = NativeFeedbackBuffer::default();
+            let decodes = Arc::new(AtomicUsize::new(0));
+            let arrival = |value: i32| {
+                let mut native = buffer.checkout(|| Ok(vec![0_i32; ELEMENTS])).unwrap();
+                native.fill(std::hint::black_box(value));
+                let counter = decodes.clone();
+                let delivery_channel = channel.clone();
+                let delivery_queue = queue.clone();
+                let finish = if deferred {
+                    completion(native, Some(delivery_channel), delivery_queue, id, move |native| {
+                        counter.fetch_add(1, Ordering::Relaxed);
+                        Ok((id, native.clone()))
+                    })
+                } else {
+                    ActionClientCompletion {
+                        notify: Box::new(move || {
+                            counter.fetch_add(1, Ordering::Relaxed);
+                            let payload = native.to_vec();
+                            let deliver = feedback_completion_with_queue(
+                                delivery_channel,
+                                payload,
+                                Some((id, delivery_queue)),
+                            )
+                            .unwrap();
+                            (deliver.notify)()
+                        }),
+                        cleanup_goal_on_failure: None,
+                    }
+                };
+                (finish.notify)().unwrap();
+            };
+            for value in 0..100 {
+                arrival(value);
+            }
+            decodes.store(0, Ordering::Relaxed);
+            let mut stats = allocation_probe::NativeStats::default();
+            assert_eq!(unsafe { (probe.begin)() }, 0);
+            let begin = std::time::Instant::now();
+            for value in 0..ITERATIONS {
+                arrival(value as i32);
+            }
+            let elapsed_ns = begin.elapsed().as_nanos();
+            assert_eq!(unsafe { (probe.end)(&mut stats) }, 0);
+            let measured_decodes = decodes.load(Ordering::Relaxed);
+            assert_eq!(measured_decodes, if deferred { 0 } else { ITERATIONS });
+            let allocations =
+                stats.malloc_calls + stats.calloc_calls + stats.realloc_calls + stats.aligned_calls;
+            assert_eq!(
+                stats.failed_allocations + stats.counter_overflows + stats.size_overflows,
+                0
+            );
+            println!(
+                "{}",
+                serde_json::json!({"boundary":"full-channel coalesced 4096-i32 native arrivals; eager owned clone versus deferred latest-only decode; no RCL/DDS", "deferred":deferred, "iterations":ITERATIONS, "elements":ELEMENTS, "elapsed_ns":elapsed_ns,"allocations":allocations,"frees":stats.free_calls,"requested_bytes":stats.requested_bytes,"arrival_decodes":measured_decodes})
+            );
+
+            assert!(receiver.next().now_or_never().unwrap().is_some());
+            let channels = HashMap::from([(id, channel.clone())]);
+            let (action, _) = take_ready_pending_feedback_with_progress(&queue, &channels);
+            let PendingFeedbackAction::Deliver(deliver) = action else {
+                panic!("pending latest feedback did not become ready");
+            };
+            (deliver.notify)().unwrap();
+            let latest = receiver.next().now_or_never().unwrap().unwrap();
+            assert_eq!(latest.len(), ELEMENTS);
+            assert!(latest.iter().all(|value| *value == ITERATIONS as i32 - 1));
+            assert_eq!(decodes.load(Ordering::Relaxed), if deferred { 1 } else { ITERATIONS });
         }
     }
 

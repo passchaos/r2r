@@ -63,7 +63,14 @@ fn overflow_coalesces_only_pending_samples_and_releases_the_latest_on_capacity()
         for value in 101..=4096 {
             arrive(&queue, &channel, value);
         }
-        assert_eq!(channel.lock().pending, Some(4096));
+        assert_eq!(
+            channel
+                .lock()
+                .pending
+                .as_ref()
+                .and_then(PendingFeedback::ready_ref),
+            Some(&4096)
+        );
         assert!(queue.lock().goals.is_empty(), "replacement requeued a still-blocked sender");
         assert_eq!(queue.lock().blocked_count(), 1);
         for value in 0..=capacity as u32 {
@@ -104,8 +111,12 @@ fn overflow_detached_sender_retains_the_newest_arrival_on_success_and_failure() 
         arrive(&queue, &channel, 3);
         (first.notify)().unwrap();
         assert_eq!(
-            channel.lock().pending,
-            Some(3),
+            channel
+                .lock()
+                .pending
+                .as_ref()
+                .and_then(PendingFeedback::ready_ref),
+            Some(&3),
             "older detached payload replaced the newest arrival"
         );
         assert_eq!(receiver.next().now_or_never(), Some(Some(if already_full { 0 } else { 1 })));
@@ -209,7 +220,17 @@ fn overflow_payload_retirement_never_holds_channel_or_readiness_locks() {
     assert_eq!(drops.load(Ordering::Relaxed), 1);
     (first.notify)().unwrap();
     assert_eq!(drops.load(Ordering::Relaxed), 2);
-    assert_eq!(channel.lock().pending.as_ref().unwrap().value, 3);
+    assert_eq!(
+        channel
+            .lock()
+            .pending
+            .as_ref()
+            .unwrap()
+            .ready_ref()
+            .unwrap()
+            .value,
+        3
+    );
     (close_feedback_completion(channel.clone()).notify)().unwrap();
     deliver(4);
     assert_eq!(drops.load(Ordering::Relaxed), 4);
@@ -218,7 +239,113 @@ fn overflow_payload_retirement_never_holds_channel_or_readiness_locks() {
 }
 
 #[test]
-fn overflow_policy_preserves_existing_channel_and_queue_headers() {
+fn deferred_decode_failure_restores_the_sender_for_later_feedback() {
+    let Fixture {
+        queue,
+        channel,
+        mut receiver,
+        channels,
+    } = coalescing::<u32>(0);
+    defer_feedback_with_queue(
+        channel.clone(),
+        || Err(Error::RCL_RET_BAD_ALLOC),
+        uuid::Uuid::from_u128(1),
+        queue.clone(),
+    )
+    .unwrap();
+    assert!(channel
+        .lock()
+        .pending
+        .as_ref()
+        .is_some_and(PendingFeedback::is_deferred));
+    let PendingFeedbackAction::Deliver(deliver) = take_ready_pending_feedback(&queue, &channels)
+    else {
+        panic!("deferred error was not scheduled on a writable sender");
+    };
+    assert!(matches!((deliver.notify)(), Err(Error::RCL_RET_BAD_ALLOC)));
+    assert!(channel.lock().sender.is_some());
+    assert!(channel.lock().pending.is_none());
+    assert!(queue.lock().is_empty());
+
+    arrive(&queue, &channel, 42);
+    assert_eq!(receiver.next().now_or_never(), Some(Some(42)));
+}
+
+#[test]
+fn deferred_decode_panic_restores_the_sender_during_unwind() {
+    let Fixture {
+        queue,
+        channel,
+        receiver: _,
+        channels,
+    } = coalescing::<u32>(0);
+    defer_feedback_with_queue(
+        channel.clone(),
+        || -> Result<u32> { panic!("injected deferred decoder panic") },
+        uuid::Uuid::from_u128(1),
+        queue.clone(),
+    )
+    .unwrap();
+    let PendingFeedbackAction::Deliver(deliver) = take_ready_pending_feedback(&queue, &channels)
+    else {
+        panic!("deferred panic was not scheduled on a writable sender");
+    };
+    assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = (deliver.notify)();
+    }))
+    .is_err());
+    assert!(channel.lock().sender.is_some());
+    assert!(channel.lock().pending.is_none());
+    assert!(queue.lock().is_empty());
+}
+
+#[test]
+fn deferred_replacement_and_close_retire_captures_after_unlock() {
+    struct Resource {
+        channel: Weak<Mutex<FeedbackChannel<u32>>>,
+        queue: Weak<Mutex<PendingFeedbackQueue>>,
+        drops: Arc<AtomicUsize>,
+    }
+    impl Drop for Resource {
+        fn drop(&mut self) {
+            assert!(self.channel.upgrade().unwrap().try_lock().is_some());
+            assert!(self.queue.upgrade().unwrap().try_lock().is_some());
+            self.drops.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+    let Fixture {
+        queue,
+        channel,
+        receiver: _,
+        channels: _,
+    } = coalescing::<u32>(0);
+    let drops = Arc::new(AtomicUsize::new(0));
+    let resource = || Resource {
+        channel: Arc::downgrade(&channel),
+        queue: Arc::downgrade(&queue),
+        drops: drops.clone(),
+    };
+    for value in [1, 2] {
+        let retained = resource();
+        defer_feedback_with_queue(
+            channel.clone(),
+            move || {
+                drop(retained);
+                Ok(value)
+            },
+            uuid::Uuid::from_u128(1),
+            queue.clone(),
+        )
+        .unwrap();
+    }
+    assert_eq!(drops.load(Ordering::Relaxed), 1);
+    (close_feedback_completion(channel.clone()).notify)().unwrap();
+    assert_eq!(drops.load(Ordering::Relaxed), 2);
+    assert!(channel.lock().pending.is_none());
+}
+
+#[test]
+fn deferred_feedback_bounds_channel_growth_and_preserves_queue_header() {
     #[allow(dead_code)]
     struct LegacyChannel<T> {
         sender: Option<mpsc::Sender<T>>,
@@ -234,12 +361,20 @@ fn overflow_policy_preserves_existing_channel_and_queue_headers() {
     }
     use std::mem::size_of;
     assert_eq!(size_of::<PendingFeedbackQueue>(), size_of::<LegacyQueue>());
-    assert_eq!(size_of::<FeedbackChannel<u32>>(), size_of::<LegacyChannel<u32>>());
-    assert_eq!(size_of::<FeedbackChannel<Vec<i32>>>(), size_of::<LegacyChannel<Vec<i32>>>());
-    assert_eq!(
-        size_of::<FeedbackChannel<Result<serde_json::Value>>>(),
-        size_of::<LegacyChannel<Result<serde_json::Value>>>()
-    );
+    for (current, legacy) in [
+        (size_of::<FeedbackChannel<u32>>(), size_of::<LegacyChannel<u32>>()),
+        (size_of::<FeedbackChannel<Vec<i32>>>(), size_of::<LegacyChannel<Vec<i32>>>()),
+        (
+            size_of::<FeedbackChannel<Result<serde_json::Value>>>(),
+            size_of::<LegacyChannel<Result<serde_json::Value>>>(),
+        ),
+    ] {
+        assert!(current >= legacy);
+        assert!(
+            current <= legacy + 2 * size_of::<usize>(),
+            "deferred state added more than one fat pointer: {legacy} -> {current}"
+        );
+    }
 }
 
 #[test]
@@ -274,7 +409,14 @@ fn benchmark_feedback_overflow_delivery_stage() {
         arrive(&queue, &channel, std::hint::black_box(value));
     }
     let coalesce_ns = begin.elapsed().as_nanos();
-    assert_eq!(channel.lock().pending, Some(ITERATIONS));
+    assert_eq!(
+        channel
+            .lock()
+            .pending
+            .as_ref()
+            .and_then(PendingFeedback::ready_ref),
+        Some(&ITERATIONS)
+    );
     assert_eq!(receiver.next().now_or_never(), Some(Some(0)));
     let PendingFeedbackAction::Deliver(deliver) = take_ready_pending_feedback(&queue, &channels)
     else {

@@ -3,7 +3,7 @@
 use super::*;
 use crate::{
     example_interfaces::action::Fibonacci, ActionClientOptions, ActionGoalOptions,
-    ActionServerOptions, GoalStatus, QosProfile,
+    ActionServerOptions, FeedbackOverflowPolicy, GoalStatus, QosProfile,
 };
 use futures::{FutureExt, StreamExt};
 use std::{
@@ -31,10 +31,17 @@ fn unexpected_decode(
 }
 
 static FALLBACK_DECODES: AtomicUsize = AtomicUsize::new(0);
+static COALESCED_DECODES: AtomicUsize = AtomicUsize::new(0);
 fn fallback_decode(
     native: &WrappedNativeMsgUntyped,
 ) -> (unique_identifier_msgs::msg::UUID, Result<serde_json::Value>) {
     FALLBACK_DECODES.fetch_add(1, Ordering::Relaxed);
+    decode_json(native)
+}
+
+fn decode_json(
+    native: &WrappedNativeMsgUntyped,
+) -> (unique_identifier_msgs::msg::UUID, Result<serde_json::Value>) {
     let message = Fibonacci::FeedbackMessage::from_native(unsafe {
         &*(native.void_ptr() as *const <Fibonacci::FeedbackMessage as WrappedTypesupport>::CStruct)
     });
@@ -46,6 +53,13 @@ fn fallback_decode(
             err: err.to_string(),
         }),
     )
+}
+
+fn coalesced_decode(
+    native: &WrappedNativeMsgUntyped,
+) -> (unique_identifier_msgs::msg::UUID, Result<serde_json::Value>) {
+    COALESCED_DECODES.fetch_add(1, Ordering::Relaxed);
+    decode_json(native)
 }
 
 fn run(other_observer: bool, fallback: bool) {
@@ -217,4 +231,141 @@ fn native_feedback_skips_unobserved_payload_with_no_or_another_observer() {
 #[test]
 fn native_feedback_without_uuid_accessor_preserves_legacy_decoding() {
     run(false, true);
+}
+
+#[test]
+fn coalesced_native_feedback_decodes_only_delivered_large_payloads() {
+    let context = crate::Context::create().unwrap();
+    let mut server_node = Node::create(context.clone(), "native_coalesce_server", "").unwrap();
+    let mut client_node = Node::create(context, "native_coalesce_client", "").unwrap();
+    let name = format!("/native_coalesce_{}", uuid::Uuid::new_v4().simple());
+    let qos = QosProfile::default().keep_last(64);
+    let mut requests = server_node
+        .create_action_server_with_options::<Fibonacci::Action>(
+            &name,
+            ActionServerOptions::default().feedback_topic_qos(qos.clone()),
+        )
+        .unwrap();
+    let client = client_node
+        .create_action_client_untyped_with_options(
+            &name,
+            "example_interfaces/action/Fibonacci",
+            ActionClientOptions::default()
+                .feedback_channel_capacity(0)
+                .feedback_overflow_policy(FeedbackOverflowPolicy::Coalesce)
+                .feedback_topic_qos(qos),
+        )
+        .unwrap();
+    drive(&mut server_node, &mut client_node, client.wait_for_action_server().unwrap());
+
+    let mut goals = Vec::new();
+    let mut observations = Vec::new();
+    for order in 0..2 {
+        let response = client
+            .send_goal_request(serde_json::json!({"order":order}))
+            .unwrap();
+        let request = drive(&mut server_node, &mut client_node, async {
+            requests
+                .next()
+                .await
+                .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)
+        });
+        let goal = request.accept_deferred().unwrap();
+        observations.push(drive(&mut server_node, &mut client_node, response));
+        goal.0.execute().unwrap();
+        goals.push(goal);
+    }
+    let native_client = client.client.upgrade().unwrap();
+    let original = native_client
+        .lock()
+        .action_type_support
+        .destructure_feedback_msg;
+    COALESCED_DECODES.store(0, Ordering::Relaxed);
+    native_client
+        .lock()
+        .action_type_support
+        .destructure_feedback_msg = coalesced_decode;
+
+    goals[0]
+        .0
+        .publish_feedback(Fibonacci::Feedback {
+            sequence: vec![0; 4096],
+        })
+        .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while COALESCED_DECODES.load(Ordering::Relaxed) != 1 {
+        assert!(Instant::now() < deadline);
+        server_node.try_spin_once(Duration::from_millis(1)).unwrap();
+        client_node.try_spin_once(Duration::from_millis(1)).unwrap();
+    }
+    for value in 1..=8 {
+        goals[0]
+            .0
+            .publish_feedback(Fibonacci::Feedback {
+                sequence: vec![value; 4096],
+            })
+            .unwrap();
+    }
+    goals[1]
+        .0
+        .publish_feedback(Fibonacci::Feedback { sequence: vec![99] })
+        .unwrap();
+
+    let healthy = &mut observations[1].2;
+    let message = drive(&mut server_node, &mut client_node, async {
+        healthy
+            .next()
+            .await
+            .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)
+    });
+    assert_eq!(
+        serde_json::from_value::<Fibonacci::Feedback>(message.unwrap())
+            .unwrap()
+            .sequence,
+        [99]
+    );
+    assert_eq!(COALESCED_DECODES.load(Ordering::Relaxed), 2);
+
+    let blocked = &mut observations[0].2;
+    let first = blocked.next().now_or_never().unwrap().unwrap();
+    assert_eq!(
+        serde_json::from_value::<Fibonacci::Feedback>(first.unwrap())
+            .unwrap()
+            .sequence,
+        vec![0; 4096]
+    );
+    let latest = drive(&mut server_node, &mut client_node, async {
+        blocked
+            .next()
+            .await
+            .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)
+    });
+    assert_eq!(
+        serde_json::from_value::<Fibonacci::Feedback>(latest.unwrap())
+            .unwrap()
+            .sequence,
+        vec![8; 4096]
+    );
+    assert_eq!(COALESCED_DECODES.load(Ordering::Relaxed), 3);
+    native_client
+        .lock()
+        .action_type_support
+        .destructure_feedback_msg = original;
+
+    for (index, (goal, _)) in goals.iter_mut().enumerate() {
+        goal.succeed(Fibonacci::Result {
+            sequence: vec![index as i32],
+        })
+        .unwrap();
+    }
+    for (index, observed) in observations.into_iter().enumerate() {
+        let (status, result) = drive(&mut server_node, &mut client_node, observed.1);
+        assert_eq!(status, GoalStatus::Succeeded);
+        assert_eq!(
+            serde_json::from_value::<Fibonacci::Result>(result.unwrap())
+                .unwrap()
+                .sequence,
+            [index as i32]
+        );
+    }
 }

@@ -140,7 +140,14 @@ fn detached_sender_restoration_preserves_and_reschedules_reentrant_feedback() {
     let _ = take_ready_pending_feedback(&queue, &channels);
     assert!(queue.lock().is_empty());
     (first.notify)().unwrap();
-    assert_eq!(channel.lock().pending, Some(2));
+    assert_eq!(
+        channel
+            .lock()
+            .pending
+            .as_ref()
+            .and_then(PendingFeedback::ready_ref),
+        Some(&2)
+    );
     let PendingFeedbackAction::Deliver(second) = take_ready_pending_feedback(&queue, &channels)
     else {
         panic!("restored pending payload was erased");

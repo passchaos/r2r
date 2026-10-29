@@ -1,0 +1,128 @@
+{
+  "cpu": 24,
+  "boundary": "full-channel coalesced 4096-i32 native arrivals; eager owned clone versus deferred latest-only decode; no RCL/DDS",
+  "binary_sha256": "d7111be89dc4210f24ed51f4300823e70f237fc2c51a03456f9af072e17e37bb",
+  "probe_sha256": "7602fb54d07cf65818e4e5da8bab16034cbe181fa2d896e61b7a48bc07fe1592",
+  "records": [
+    {
+      "allocations": 30000,
+      "arrival_decodes": 10000,
+      "boundary": "full-channel coalesced 4096-i32 native arrivals; eager owned clone versus deferred latest-only decode; no RCL/DDS",
+      "deferred": false,
+      "elapsed_ns": 8561232,
+      "elements": 4096,
+      "frees": 30000,
+      "iterations": 10000,
+      "requested_bytes": 165120000,
+      "repetition": 0
+    },
+    {
+      "allocations": 20000,
+      "arrival_decodes": 0,
+      "boundary": "full-channel coalesced 4096-i32 native arrivals; eager owned clone versus deferred latest-only decode; no RCL/DDS",
+      "deferred": true,
+      "elapsed_ns": 4896081,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "requested_bytes": 1600000,
+      "repetition": 0
+    },
+    {
+      "allocations": 30000,
+      "arrival_decodes": 10000,
+      "boundary": "full-channel coalesced 4096-i32 native arrivals; eager owned clone versus deferred latest-only decode; no RCL/DDS",
+      "deferred": false,
+      "elapsed_ns": 8380864,
+      "elements": 4096,
+      "frees": 30000,
+      "iterations": 10000,
+      "requested_bytes": 165120000,
+      "repetition": 1
+    },
+    {
+      "allocations": 20000,
+      "arrival_decodes": 0,
+      "boundary": "full-channel coalesced 4096-i32 native arrivals; eager owned clone versus deferred latest-only decode; no RCL/DDS",
+      "deferred": true,
+      "elapsed_ns": 4954230,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "requested_bytes": 1600000,
+      "repetition": 1
+    },
+    {
+      "allocations": 30000,
+      "arrival_decodes": 10000,
+      "boundary": "full-channel coalesced 4096-i32 native arrivals; eager owned clone versus deferred latest-only decode; no RCL/DDS",
+      "deferred": false,
+      "elapsed_ns": 8416696,
+      "elements": 4096,
+      "frees": 30000,
+      "iterations": 10000,
+      "requested_bytes": 165120000,
+      "repetition": 2
+    },
+    {
+      "allocations": 20000,
+      "arrival_decodes": 0,
+      "boundary": "full-channel coalesced 4096-i32 native arrivals; eager owned clone versus deferred latest-only decode; no RCL/DDS",
+      "deferred": true,
+      "elapsed_ns": 4615781,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "requested_bytes": 1600000,
+      "repetition": 2
+    },
+    {
+      "allocations": 30000,
+      "arrival_decodes": 10000,
+      "boundary": "full-channel coalesced 4096-i32 native arrivals; eager owned clone versus deferred latest-only decode; no RCL/DDS",
+      "deferred": false,
+      "elapsed_ns": 8485884,
+      "elements": 4096,
+      "frees": 30000,
+      "iterations": 10000,
+      "requested_bytes": 165120000,
+      "repetition": 3
+    },
+    {
+      "allocations": 20000,
+      "arrival_decodes": 0,
+      "boundary": "full-channel coalesced 4096-i32 native arrivals; eager owned clone versus deferred latest-only decode; no RCL/DDS",
+      "deferred": true,
+      "elapsed_ns": 4898113,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "requested_bytes": 1600000,
+      "repetition": 3
+    },
+    {
+      "allocations": 30000,
+      "arrival_decodes": 10000,
+      "boundary": "full-channel coalesced 4096-i32 native arrivals; eager owned clone versus deferred latest-only decode; no RCL/DDS",
+      "deferred": false,
+      "elapsed_ns": 8452080,
+      "elements": 4096,
+      "frees": 30000,
+      "iterations": 10000,
+      "requested_bytes": 165120000,
+      "repetition": 4
+    },
+    {
+      "allocations": 20000,
+      "arrival_decodes": 0,
+      "boundary": "full-channel coalesced 4096-i32 native arrivals; eager owned clone versus deferred latest-only decode; no RCL/DDS",
+      "deferred": true,
+      "elapsed_ns": 4879568,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "requested_bytes": 1600000,
+      "repetition": 4
+    }
+  ]
+}

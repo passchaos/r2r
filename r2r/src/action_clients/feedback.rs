@@ -181,9 +181,54 @@ impl Drop for FeedbackReady {
 
 pub(crate) struct FeedbackChannel<T> {
     pub(crate) sender: Option<mpsc::Sender<T>>,
-    pub(crate) pending: Option<T>,
+    pub(crate) pending: Option<PendingFeedback<T>>,
     pub(crate) closing: bool,
     pub(crate) overflow_policy: FeedbackOverflowPolicy,
+}
+
+pub(crate) enum PendingFeedback<T> {
+    Ready(T),
+    Deferred(Box<dyn FnOnce() -> Result<T> + Send>),
+}
+
+#[cfg(test)]
+impl<T: std::fmt::Debug> std::fmt::Debug for PendingFeedback<T> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Ready(value) => formatter.debug_tuple("Ready").field(value).finish(),
+            Self::Deferred(_) => formatter.write_str("Deferred(..)"),
+        }
+    }
+}
+
+impl<T> PendingFeedback<T> {
+    fn resolve(self) -> Result<T> {
+        match self {
+            Self::Ready(value) => Ok(value),
+            Self::Deferred(decode) => decode(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn ready_ref(&self) -> Option<&T> {
+        match self {
+            Self::Ready(value) => Some(value),
+            Self::Deferred(_) => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn into_ready(self) -> Option<T> {
+        match self {
+            Self::Ready(value) => Some(value),
+            Self::Deferred(_) => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn is_deferred(&self) -> bool {
+        matches!(self, Self::Deferred(_))
+    }
 }
 
 pub(crate) type FeedbackSender<T> = Arc<Mutex<FeedbackChannel<T>>>;
@@ -234,7 +279,7 @@ pub(crate) fn feedback_completion_with_queue<T: Send + 'static>(
             if locked.overflow_policy == FeedbackOverflowPolicy::Coalesce
                 && locked.pending.is_some()
             {
-                let retired = locked.pending.replace(feedback);
+                let retired = locked.pending.replace(PendingFeedback::Ready(feedback));
                 drop(locked);
                 drop(retired);
                 return Ok(true);
@@ -242,7 +287,7 @@ pub(crate) fn feedback_completion_with_queue<T: Send + 'static>(
             let Some(sender) = locked.sender.take() else {
                 let queued = locked.pending.is_none();
                 let retired = if queued {
-                    locked.pending = Some(feedback);
+                    locked.pending = Some(PendingFeedback::Ready(feedback));
                     None
                 } else {
                     Some(feedback)
@@ -261,6 +306,28 @@ pub(crate) fn feedback_completion_with_queue<T: Send + 'static>(
         }),
         cleanup_goal_on_failure: None,
     })
+}
+
+pub(crate) fn defer_feedback_with_queue<T: Send + 'static>(
+    channel: FeedbackSender<T>, decode: impl FnOnce() -> Result<T> + Send + 'static,
+    uuid: uuid::Uuid, queue: Arc<Mutex<PendingFeedbackQueue>>,
+) -> Result<bool> {
+    let deferred = PendingFeedback::Deferred(Box::new(decode));
+    let mut locked = channel.lock();
+    if locked.closing {
+        drop(locked);
+        drop(deferred);
+        return Ok(true);
+    }
+    debug_assert_eq!(locked.overflow_policy, FeedbackOverflowPolicy::Coalesce);
+    let queued = locked.pending.is_none();
+    let retired = locked.pending.replace(deferred);
+    drop(locked);
+    drop(retired);
+    if queued {
+        enqueue(&queue, uuid);
+    }
+    Ok(true)
 }
 
 #[cfg(test)]
@@ -314,7 +381,7 @@ pub(crate) fn take_ready_pending_feedback_with_progress<T: Send + 'static>(
         drop(locked);
         let continuation = continue_ready(queue);
         return (
-            PendingFeedbackAction::Deliver(detached_feedback_completion(
+            PendingFeedbackAction::Deliver(detached_pending_feedback_completion(
                 channel.clone(),
                 sender,
                 payload,
@@ -347,6 +414,7 @@ fn continue_ready(queue: &Arc<Mutex<PendingFeedbackQueue>>) -> bool {
     more
 }
 
+#[cfg(test)]
 pub(super) fn detached_feedback_completion<T: Send + 'static>(
     channel: FeedbackSender<T>, sender: mpsc::Sender<T>, feedback: T,
     pending_queue: Option<(uuid::Uuid, Arc<Mutex<PendingFeedbackQueue>>)>,
@@ -355,6 +423,55 @@ pub(super) fn detached_feedback_completion<T: Send + 'static>(
         notify: Box::new(move || send_feedback(channel, sender, feedback, pending_queue)),
         cleanup_goal_on_failure: None,
     }
+}
+
+fn detached_pending_feedback_completion<T: Send + 'static>(
+    channel: FeedbackSender<T>, sender: mpsc::Sender<T>, feedback: PendingFeedback<T>,
+    pending_queue: Option<(uuid::Uuid, Arc<Mutex<PendingFeedbackQueue>>)>,
+) -> ActionClientCompletion {
+    ActionClientCompletion {
+        notify: Box::new(move || {
+            let mut sender = DetachedFeedbackSender {
+                channel: channel.clone(),
+                sender: Some(sender),
+            };
+            let feedback = feedback.resolve()?;
+            send_feedback(channel, sender.take(), feedback, pending_queue)
+        }),
+        cleanup_goal_on_failure: None,
+    }
+}
+
+struct DetachedFeedbackSender<T> {
+    channel: FeedbackSender<T>,
+    sender: Option<mpsc::Sender<T>>,
+}
+
+impl<T> DetachedFeedbackSender<T> {
+    fn take(&mut self) -> mpsc::Sender<T> {
+        self.sender.take().unwrap()
+    }
+}
+
+impl<T> Drop for DetachedFeedbackSender<T> {
+    fn drop(&mut self) {
+        if let Some(sender) = self.sender.take() {
+            restore_feedback_sender(self.channel.clone(), sender);
+        }
+    }
+}
+
+fn restore_feedback_sender<T>(channel: FeedbackSender<T>, sender: mpsc::Sender<T>) {
+    let retired = {
+        let mut locked = channel.lock();
+        if locked.closing || locked.sender.is_some() {
+            Some(sender)
+        } else {
+            locked.sender = Some(sender);
+            None
+        }
+    };
+    drop(retired);
 }
 
 fn send_feedback<T: Send + 'static>(
@@ -377,9 +494,9 @@ fn send_feedback<T: Send + 'static>(
             if locked.overflow_policy == FeedbackOverflowPolicy::Coalesce
                 && locked.pending.is_some()
             {
-                Some(payload)
+                Some(PendingFeedback::Ready(payload))
             } else {
-                locked.pending.replace(payload)
+                locked.pending.replace(PendingFeedback::Ready(payload))
             }
         });
         let queued = locked.pending.is_some();
