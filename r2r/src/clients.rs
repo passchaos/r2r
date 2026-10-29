@@ -776,6 +776,12 @@ pub trait Client_ {
     fn register_poll_available(&mut self, s: oneshot::Sender<()>) -> bool;
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Option<ClientCompletion>;
     fn has_pending_availability(&mut self) -> bool;
+    fn poll_availability_state(&mut self) -> crate::availability::WaiterState {
+        crate::availability::WaiterState {
+            waiting: self.has_pending_availability(),
+            cleanup_pending: false,
+        }
+    }
     #[cfg(test)]
     fn availability_poll_count(&self) -> usize;
     fn has_pending_work(&mut self) -> bool;
@@ -878,8 +884,11 @@ where
     }
 
     fn has_pending_availability(&mut self) -> bool {
-        self.poll_available_channels.prune_canceled();
-        !self.poll_available_channels.is_empty()
+        self.poll_available_channels.poll_state().waiting
+    }
+
+    fn poll_availability_state(&mut self) -> crate::availability::WaiterState {
+        self.poll_available_channels.poll_state()
     }
 
     #[cfg(test)]
@@ -987,8 +996,11 @@ impl Client_ for UntypedClient_ {
     }
 
     fn has_pending_availability(&mut self) -> bool {
-        self.poll_available_channels.prune_canceled();
-        !self.poll_available_channels.is_empty()
+        self.poll_available_channels.poll_state().waiting
+    }
+
+    fn poll_availability_state(&mut self) -> crate::availability::WaiterState {
+        self.poll_available_channels.poll_state()
     }
 
     #[cfg(test)]

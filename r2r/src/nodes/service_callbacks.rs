@@ -196,10 +196,11 @@ impl Node {
             options,
             callback,
         )?;
-        let wake = self
-            .future_wake_guard
-            .as_ref()
-            .map(|guard| guard.observer_waker());
+        let wake = self.canceled_services.lock().wake().or_else(|| {
+            self.future_wake_guard
+                .as_ref()
+                .map(|guard| guard.observer_waker())
+        });
         let registry = self.service_callbacks.get_or_insert_with(Default::default);
         registry.set_wake(wake);
         Ok(registry.insert(service))

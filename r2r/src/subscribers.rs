@@ -856,12 +856,11 @@ pub(crate) trait Subscriber_ {
             }
         }
     }
-    fn has_pending_publisher_waits(&mut self) -> bool {
+    fn poll_publisher_wait_state(&mut self) -> crate::availability::WaiterState {
         let Some(state) = self.match_state_mut() else {
-            return false;
+            return Default::default();
         };
-        state.waiters.prune_canceled();
-        !state.waiters.is_empty()
+        state.waiters.poll_state()
     }
     #[cfg(test)]
     fn publisher_wait_poll_count(&self) -> usize {

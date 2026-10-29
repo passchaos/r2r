@@ -92,6 +92,9 @@ impl Node {
         };
 
         let client_arc = Arc::new(Mutex::new(ws));
+        client_arc
+            .lock()
+            .set_availability_wake(self.dropped_clients.lock().wake());
         let identity = Self::client_identity(&client_arc);
         let c = make_client(
             Arc::downgrade(&client_arc),
@@ -165,6 +168,9 @@ impl Node {
         };
 
         let client_arc = Arc::new(Mutex::new(client));
+        client_arc
+            .lock()
+            .set_availability_wake(self.dropped_clients.lock().wake());
         let identity = Self::client_identity(&client_arc);
         let c = make_untyped_client(
             Arc::downgrade(&client_arc),

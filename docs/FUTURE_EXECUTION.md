@@ -60,6 +60,13 @@ futures still drain ready ROS work with a zero wait, preserving callback progres
 native wait returns, ROS callback delivery only requests another future poll and avoids a
 redundant native trigger.
 
+[Observer cancellation](AVAILABILITY_CANCELLATION.md) also binds service/action availability,
+matching, graph-change and ACK cleanup to this current guard. Endpoints created after guard
+initialization inherit the binding. Bounded cancellation bursts continue through zero native
+waits until cleanup finishes, then ordinary idle waiting resumes. Node transfer unbinds the
+previous executor and foreground reuse restores the node's cached guard without scanning
+entities on repeated same-owner runs.
+
 Run completion, timeout and unwinding disarm the waker. Stale wakers contain weak native
 references and do not retain the node/context or complete subsequent work. RCL guard storage
 has a stable address; trigger calls hold an Arc, excluding concurrent finalization. The

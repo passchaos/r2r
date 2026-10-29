@@ -52,7 +52,7 @@ impl Executor {
 
     /// Adds an owned node. Node/entity configuration can be changed through [`Self::node_mut`]
     /// between spins. Moving ownership excludes simultaneous waits for the same entities.
-    pub fn add_node(&mut self, node: Node) -> Result<ExecutorNodeId> {
+    pub fn add_node(&mut self, mut node: Node) -> Result<ExecutorNodeId> {
         if !Arc::ptr_eq(&node.context.context_handle, &self.context.context_handle) {
             return Err(Error::RCL_RET_INVALID_ARGUMENT);
         }
@@ -61,9 +61,7 @@ impl Executor {
         }
         self.wait_set.clear()?;
         if let Some(guard) = &self.future_wake_guard {
-            node.dropped_action_servers
-                .lock()
-                .set_wake(Some(guard.observer_waker()));
+            node.set_native_observer_wake(Some(guard.observer_waker()));
         }
         let id = ExecutorNodeId(uuid::Uuid::new_v4());
         self.indexes.insert(id, self.nodes.len());
@@ -82,7 +80,7 @@ impl Executor {
         self.wait_set.clear()?;
         self.indexes.remove(&id);
         let mut entry = self.nodes.swap_remove(index);
-        entry.node.set_background_wake(None);
+        entry.node.set_native_observer_wake(None);
         if let Some(swapped) = self.nodes.get(index) {
             self.indexes.insert(swapped.id, index);
         }
@@ -273,24 +271,18 @@ impl FutureDriver for Executor {
             control.attach_guard(&guard);
         }
         let wake = guard.observer_waker();
-        for entry in &self.nodes {
-            entry
-                .node
-                .dropped_action_servers
-                .lock()
-                .set_wake(Some(wake.clone()));
+        for entry in &mut self.nodes {
+            entry.node.set_native_observer_wake(Some(wake.clone()));
         }
         self.future_wake_guard = Some(guard);
     }
     fn set_future_wake(&mut self, wake: Arc<FutureWake>) {
         if let Some(guard) = &self.future_wake_guard {
             let native_wake = guard.observer_waker();
-            for entry in &self.nodes {
+            for entry in &mut self.nodes {
                 entry
                     .node
-                    .dropped_action_servers
-                    .lock()
-                    .set_wake(Some(native_wake.clone()));
+                    .set_native_observer_wake(Some(native_wake.clone()));
             }
         }
         self.future_wake_state = Some(wake);

@@ -42,10 +42,10 @@ use crate::{
     subscribers::*,
 };
 
-mod background_notifications;
 mod executor;
 mod future_executor;
 mod graph;
+mod observer_notifications;
 mod options;
 pub(crate) use options::NodeOptionsNative;
 pub use options::{NodeOptions, ParameterHandlerOptions};
@@ -3341,8 +3341,28 @@ mod tests {
         let acked = publisher.wait_for_all_acked_async().unwrap();
         drop(publisher);
         node.try_spin_once(Duration::ZERO).unwrap();
-        // Cleanup runs before ACK polling, so the waiter keeps the native publisher alive for
-        // the spin that resolves it. The next spin may release it.
+        // Successful ACK polling releases the last native operation during preparation.
+        // The completed result remains available after targeted publisher destruction.
+        assert_eq!(node.pubs.len(), publisher_count - 1);
+        futures::executor::block_on(acked).unwrap();
+
+        let publisher = node
+            .create_publisher::<crate::std_msgs::msg::String>(
+                "/publisher_pending_ack_wait",
+                QosProfile::default(),
+            )
+            .unwrap();
+        publisher
+            .handle
+            .upgrade()
+            .unwrap()
+            .ack_query_override
+            .store(r2r_rcl::RCL_RET_TIMEOUT as i32, std::sync::atomic::Ordering::Release);
+        let publisher_count = node.pubs.len();
+        let acked = publisher.wait_for_all_acked_async().unwrap();
+        drop(publisher);
+        node.try_spin_once(Duration::ZERO).unwrap();
+        // Pending ACK work still owns the endpoint until its observer is canceled.
         assert_eq!(node.pubs.len(), publisher_count);
         drop(acked);
         node.try_spin_once(Duration::ZERO).unwrap();

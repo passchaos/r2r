@@ -4,6 +4,10 @@
 cancel and feedback observer cleanup across bounded passes, even after the
 initial enqueue notification has been consumed.
 
+[Availability cancellation](AVAILABILITY_CANCELLATION.md) likewise preserves bounded
+service/action/matching/graph/ACK cleanup across coalesced notifications and retries
+dropped endpoint destruction after its last availability operation is removed.
+
 Dropping a public endpoint queues its identity for the owning node's next
 prepare/dispatch cycle. A background executor can wait indefinitely without
 unrelated traffic; queued cleanup must wake that native wait itself. The
@@ -12,8 +16,8 @@ and client native ownership persisted until the execution task was stopped.
 
 Subscriptions, services, publishers, ordinary/managed timers and typed/untyped
 service/action clients and action-server streams now schedule cleanup through a
-notification queue. Background startup binds its existing weak guard waker to
-these queues. The first entry in an empty queue wakes the native thread after
+notification queue. Native future execution and shared/background executors bind their
+existing weak guard waker to these queues. The first entry in an empty queue wakes the native thread after
 the queue lock is released; later entries coalesce until that queue is drained.
 Per-entity identity/index removal and ordinary drop ownership remain unchanged.
 

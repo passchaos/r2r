@@ -1127,8 +1127,15 @@ impl ActionClient_ for WrappedActionClientUntyped {
     }
 
     fn has_pending_availability(&mut self) -> bool {
-        self.poll_available_channels.prune_canceled();
-        !self.poll_available_channels.is_empty()
+        self.poll_available_channels.poll_state().waiting
+    }
+    #[cfg(test)]
+    fn availability_waiter_count(&self) -> usize {
+        self.poll_available_channels.len()
+    }
+
+    fn poll_availability_state(&mut self) -> crate::availability::WaiterState {
+        self.poll_available_channels.poll_state()
     }
 
     fn has_pending_work(&mut self) -> bool {

@@ -4,7 +4,12 @@
 use super::*;
 
 impl Node {
-    pub(crate) fn add_subscriber(&mut self, subscriber: Box<dyn Subscriber_>) {
+    pub(crate) fn add_subscriber(&mut self, mut subscriber: Box<dyn Subscriber_>) {
+        if let Some(state) = subscriber.match_state_mut() {
+            state
+                .waiters
+                .set_native_wake(self.canceled_subscriptions.lock().wake());
+        }
         let index = self.subscribers.len();
         if let Some(state) = subscriber.match_state() {
             let previous = self.subscription_indexes.insert(state.id, index);

@@ -1294,6 +1294,16 @@ pub trait ActionClient_ {
     fn disable_maintenance_notifications(&self);
     fn poll_available(&mut self, node: &mut rcl_node_t) -> Vec<ActionClientCompletion>;
     fn has_pending_availability(&mut self) -> bool;
+    #[cfg(test)]
+    fn availability_waiter_count(&self) -> usize {
+        0
+    }
+    fn poll_availability_state(&mut self) -> crate::availability::WaiterState {
+        crate::availability::WaiterState {
+            waiting: self.has_pending_availability(),
+            cleanup_pending: false,
+        }
+    }
 }
 
 impl<T> WrappedActionClient<T>
@@ -1833,8 +1843,15 @@ where
     }
 
     fn has_pending_availability(&mut self) -> bool {
-        self.poll_available_channels.prune_canceled();
-        !self.poll_available_channels.is_empty()
+        self.poll_available_channels.poll_state().waiting
+    }
+    #[cfg(test)]
+    fn availability_waiter_count(&self) -> usize {
+        self.poll_available_channels.len()
+    }
+
+    fn poll_availability_state(&mut self) -> crate::availability::WaiterState {
+        self.poll_available_channels.poll_state()
     }
 
     fn has_pending_work(&mut self) -> bool {

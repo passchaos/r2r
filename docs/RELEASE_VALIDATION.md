@@ -1118,3 +1118,38 @@ seven language combinations at request windows one and sixteen: 28 records and 2
 samples. Reports bind final source and independent binary identities. These busy-host short
 runs are protocol-only; isolated representative performance and resource evidence remains open.
 See [service callback evidence](interop/service-callbacks-2026-10-30/README.md).
+
+## Availability cancellation and current native wakes (2026-10-30)
+
+[Availability cancellation](AVAILABILITY_CANCELLATION.md) closes two background regressions:
+512 canceled observers stranded a bounded cleanup backlog, and cancellation left an already-
+dropped client registered. A separate foreground Node regression demonstrated no native guard
+notification when an availability observer was canceled during wake-driven execution.
+
+One bounded state snapshot reports live observers and unexamined cancellation work. Targeted
+interest remains active and native waits use zero timeout while cleanup remains. Maintenance
+retries dropped service/action clients and publishers after their last availability/ACK work
+is removed. Successful ACK results remain readable after same-pass publisher destruction;
+incomplete ACK work still retains its endpoint. Publisher matching and ACK snapshots avoid
+redundant state queries and retain independent graph/query policies.
+
+Native observer binding covers foreground Node and shared/background executors, graph and
+subscription matching, factories after guard initialization and transferred-node reuse.
+Existing queue wake identity skips repeat entity scans; the implementation adds no node state,
+eager guard, timer or thread. Eleven new cases combine exact 16-token bounds, 512 cancellations
+per endpoint queue, six healthy peer waits, native ownership release, ACK cadence restoration,
+each cancellation source, actual foreground wait interruption and a binding-access probe.
+
+Final Jazzy workspace validation passes 681 main-library cases and 18 Rustdoc examples. Both
+Jazzy RMWs pass complete optimized 681-case suites, the optimized 32-roundtrip TCP/service/
+pubsub Tokio workflow with node reuse and all-target warning-denied Clippy. Eight manual
+measurement cases remain ignored. The 32-server preparation stage executes 2000 measured
+passes per RMW with zero native maintenance polls; busy-host unrestricted-affinity samples
+are path checks and do not establish a formal performance result.
+
+Native Humble/Fast DDS and Kilted/both-RMW scoped runtime, optimized Tokio workflow and
+all-target Clippy checks accompany a true no-ROS all-target/documentation gate. Exact executed
+counts, source identities, original failures, complete logs and stage samples are recorded in
+[availability cancellation evidence](validation/availability-cancellation-2026-10-30/README.md).
+Iron, Lyrical and Rolling have no new local runtime evidence in this slice. Calibrated
+independent A/B and representative C++ throughput/resource/scaling comparisons remain open.

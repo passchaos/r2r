@@ -157,6 +157,9 @@ impl Node {
         };
 
         let client_arc = Arc::new(Mutex::new(client));
+        client_arc
+            .lock()
+            .set_availability_wake(self.dropped_action_clients.lock().wake());
         let identity = Self::action_client_identity(&client_arc);
         maintenance_notifier.set_identity(identity);
         self.action_client_identities
@@ -248,6 +251,9 @@ impl Node {
         };
 
         let client_arc = Arc::new(Mutex::new(client));
+        client_arc
+            .lock()
+            .set_availability_wake(self.dropped_action_clients.lock().wake());
         let identity = Self::action_client_identity(&client_arc);
         maintenance_notifier.set_identity(identity);
         self.action_client_identities

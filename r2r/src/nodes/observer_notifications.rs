@@ -1,10 +1,20 @@
-//! Attach native wakes to background-owned observer and work queues.
+//! Attach the current native wake to observer and work queues.
 
 use super::Node;
 use std::task::Waker;
 
 impl Node {
-    pub(in crate::nodes) fn set_background_wake(&mut self, wake: Option<Waker>) {
+    pub(in crate::nodes) fn set_native_observer_wake(&mut self, wake: Option<Waker>) {
+        // Queue storage already identifies the bound owner. Factories inherit that wake,
+        // so repeated future runs need no entity scan or additional node metadata.
+        let current = self.canceled_subscriptions.lock().wake();
+        if match (&current, &wake) {
+            (Some(current), Some(wake)) => current.will_wake(wake),
+            (None, None) => true,
+            _ => false,
+        } {
+            return;
+        }
         if let Some(callbacks) = &self.service_callbacks {
             callbacks.set_wake(wake.clone());
         }
@@ -24,6 +34,12 @@ impl Node {
         self.active_maintenance_action_clients
             .lock()
             .set_wake(wake.clone());
+        self.graph_change_waiters.set_native_wake(wake.clone());
+        for subscriber in &mut self.subscribers {
+            if let Some(state) = subscriber.match_state_mut() {
+                state.waiters.set_native_wake(wake.clone());
+            }
+        }
         for client in &self.clients {
             client.lock().set_availability_wake(wake.clone());
         }
@@ -38,3 +54,6 @@ impl Node {
         }
     }
 }
+
+#[cfg(all(test, not(feature = "doc-only")))]
+mod tests;

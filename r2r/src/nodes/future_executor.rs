@@ -263,22 +263,12 @@ impl FutureDriver for Node {
         self.future_wake_guard.clone()
     }
     fn cache_future_guard(&mut self, guard: Arc<FutureGuard>) {
-        if let Some(callbacks) = &self.service_callbacks {
-            callbacks.set_wake(Some(guard.observer_waker()));
-        }
-        if let Some(sleeps) = &self.ros_sleeps {
-            sleeps.set_wake(Some(guard.observer_waker()));
-        }
-        if let Some(events) = &self.qos_events {
-            events.set_wake(Some(guard.observer_waker()));
-        }
+        self.set_native_observer_wake(Some(guard.observer_waker()));
         self.future_wake_guard = Some(guard);
     }
     fn set_future_wake(&mut self, wake: Arc<FutureWake>) {
         if let Some(guard) = &self.future_wake_guard {
-            self.dropped_action_servers
-                .lock()
-                .set_wake(Some(guard.observer_waker()));
+            self.set_native_observer_wake(Some(guard.observer_waker()));
         }
         self.future_wake_state = Some(wake);
     }
@@ -385,7 +375,7 @@ impl Node {
             Some(guard) => guard.clone(),
             None => {
                 let guard = FutureGuard::new(&self.context)?;
-                self.future_wake_guard = Some(guard.clone());
+                self.cache_future_guard(guard.clone());
                 guard
             }
         };

@@ -11,6 +11,20 @@ use std::{
 
 const MAX_CANCELED_AVAILABILITY_WAITERS_PER_SPIN: usize = 16;
 
+/// Snapshot from one bounded cleanup pass. Queued cancellation work remains active even
+/// when no application observer is left; this must not turn into a native indefinite wait.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct WaiterState {
+    pub(crate) waiting: bool,
+    pub(crate) cleanup_pending: bool,
+}
+
+impl WaiterState {
+    pub(crate) fn active(self) -> bool {
+        self.waiting || self.cleanup_pending
+    }
+}
+
 #[derive(Default)]
 struct CancellationState {
     tokens: VecDeque<u64>,
@@ -89,14 +103,15 @@ impl<T> Waiters<T> {
         false
     }
 
-    pub(crate) fn prune_canceled(&mut self) {
-        let candidates = {
+    pub(crate) fn prune_canceled(&mut self) -> bool {
+        let (candidates, continuation) = {
             let mut canceled_waiters = self.canceled_waiters.lock();
             let count = canceled_waiters
                 .tokens
                 .len()
                 .min(MAX_CANCELED_AVAILABILITY_WAITERS_PER_SPIN);
-            canceled_waiters.tokens.drain(..count).collect::<Vec<_>>()
+            let candidates = canceled_waiters.tokens.drain(..count).collect::<Vec<_>>();
+            (candidates, !canceled_waiters.tokens.is_empty())
         };
         for token in candidates {
             if self
@@ -106,6 +121,15 @@ impl<T> Waiters<T> {
             {
                 self.senders.remove(&token);
             }
+        }
+        continuation
+    }
+
+    pub(crate) fn poll_state(&mut self) -> WaiterState {
+        let cleanup_pending = self.prune_canceled();
+        WaiterState {
+            waiting: !self.is_empty(),
+            cleanup_pending,
         }
     }
 
@@ -121,6 +145,12 @@ impl<T> Waiters<T> {
     #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.senders.len()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn cancellation_probe(&self) -> impl Fn() -> usize + Send + 'static {
+        let state = self.canceled_waiters.clone();
+        move || state.lock().tokens.len()
     }
 
     pub(crate) fn take_all(&mut self) -> Vec<oneshot::Sender<T>> {
@@ -196,10 +226,51 @@ mod tests {
             drop(receiver);
         }
 
-        waiters.prune_canceled();
+        assert!(waiters.prune_canceled());
 
         assert_eq!(waiters.senders.len(), 4);
         assert_eq!(waiters.canceled_waiters.lock().tokens.len(), 4);
+        assert!(!waiters.prune_canceled());
+        assert!(waiters.is_empty());
+    }
+
+    #[test]
+    fn waiter_state_preserves_live_observers_until_cancel_backlog_is_exhausted() {
+        let mut waiters = AvailabilityWaiters::default();
+        let (live_sender, live) = oneshot::channel();
+        waiters.register(live_sender);
+        for _ in 0..40 {
+            let (sender, receiver) = oneshot::channel();
+            waiters.register(sender);
+            drop(receiver);
+        }
+        for (remaining, pending) in [(25, true), (9, true), (1, false)] {
+            let state = waiters.poll_state();
+            assert!(state.waiting);
+            assert_eq!(state.cleanup_pending, pending);
+            assert_eq!(waiters.len(), remaining);
+        }
+        waiters.take_all().pop().unwrap().send(()).unwrap();
+        assert_eq!(futures::executor::block_on(live), Ok(()));
+        assert!(!waiters.poll_state().active());
+    }
+
+    #[test]
+    fn completed_waiter_stale_cancellations_keep_cleanup_active_without_live_senders() {
+        let mut waiters = AvailabilityWaiters::default();
+        for _ in 0..40 {
+            let (sender, receiver) = oneshot::channel();
+            waiters.register(sender);
+            drop(receiver);
+        }
+        drop(waiters.take_all());
+        assert!(waiters.is_empty());
+        for pending in [true, true, false] {
+            let state = waiters.poll_state();
+            assert!(!state.waiting);
+            assert_eq!(state.cleanup_pending, pending);
+            assert_eq!(state.active(), pending);
+        }
     }
 
     #[test]

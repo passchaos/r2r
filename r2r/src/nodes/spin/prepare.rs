@@ -12,7 +12,7 @@ impl Node {
             time_source.apply_requested_sim_time(self)?;
         }
 
-        self.graph_change_waiters.prune_canceled();
+        let mut availability_cleanup_pending = self.graph_change_waiters.prune_canceled();
         let service_callback_count = self
             .service_callbacks
             .as_mut()
@@ -177,8 +177,15 @@ impl Node {
             complete_client_operation(client, |client| {
                 Ok(client.poll_available(self.node_handle.as_mut()))
             })?;
-            if client.lock().has_pending_availability() {
+            let state = client.lock().poll_availability_state();
+            availability_cleanup_pending |= state.cleanup_pending;
+            if state.active() {
                 self.clients_with_active_availability.insert(identity);
+            }
+            // Cancellation may release the last operation after the initial removal pass.
+            // Retry the same maintained identity before an otherwise indefinite native wait.
+            if self.pending_client_removals.contains(&identity) && self.remove_client(identity) {
+                self.pending_client_removals.remove(&identity);
             }
         }
 
@@ -240,9 +247,16 @@ impl Node {
                 },
                 |client, uuid| client.forget_goal(uuid),
             )?;
-            if client.lock().has_pending_availability() {
+            let state = client.lock().poll_availability_state();
+            availability_cleanup_pending |= state.cleanup_pending;
+            if state.active() {
                 self.action_clients_with_active_availability
                     .insert(identity);
+            }
+            if self.pending_action_client_removals.contains(&identity)
+                && self.remove_action_client(identity)?
+            {
+                self.pending_action_client_removals.remove(&identity);
             }
         }
 
@@ -257,10 +271,16 @@ impl Node {
             let Some(index) = self.publisher_indexes.get(&id).copied() else {
                 continue;
             };
-            if self.pubs[index].poll_waits() {
-                ack_query_pending |= self.pubs[index].has_pending_ack_waits();
-                publisher_matching_pending |= self.pubs[index].has_pending_matching_waits();
+            let (matching, acknowledgements) = self.pubs[index].poll_waits();
+            availability_cleanup_pending |=
+                matching.cleanup_pending || acknowledgements.cleanup_pending;
+            if matching.active() || acknowledgements.active() {
+                ack_query_pending |= acknowledgements.waiting;
+                publisher_matching_pending |= matching.waiting;
                 self.publishers_with_active_waits.insert(id);
+            }
+            if self.pending_publisher_removals.contains(&id) && self.remove_dropped_publisher(id) {
+                self.pending_publisher_removals.remove(&id);
             }
         }
         let subscriptions_with_active_waits =
@@ -271,7 +291,9 @@ impl Node {
             };
             let subscriber = &mut self.subscribers[index];
             subscriber.poll_has_publishers();
-            if subscriber.has_pending_publisher_waits() {
+            let state = subscriber.poll_publisher_wait_state();
+            availability_cleanup_pending |= state.cleanup_pending;
+            if state.active() {
                 self.subscriptions_with_active_waits.insert(id);
             }
         }
@@ -280,16 +302,17 @@ impl Node {
         // Drain already-ready native events, then let the application observe the transition
         // without sleeping through the caller's timeout before it can publish a final result.
         let timeout_nanos = duration_to_rcl_nanos(timeout)?;
-        let (timeout, timeout_nanos) = if local_action_progress || ros_sleep_progress {
-            (Duration::ZERO, 0)
-        } else if ack_query_pending {
-            // RCL exposes acknowledgements as a query rather than a wait-set event. Only
-            // pending ACK observers need this bounded fallback, including wake-driven runs.
-            let wait = timeout.min(Duration::from_millis(10));
-            (wait, duration_to_rcl_nanos(wait)?)
-        } else {
-            (timeout, timeout_nanos)
-        };
+        let (timeout, timeout_nanos) =
+            if local_action_progress || ros_sleep_progress || availability_cleanup_pending {
+                (Duration::ZERO, 0)
+            } else if ack_query_pending {
+                // RCL exposes acknowledgements as a query rather than a wait-set event. Only
+                // pending ACK observers need this bounded fallback, including wake-driven runs.
+                let wait = timeout.min(Duration::from_millis(10));
+                (wait, duration_to_rcl_nanos(wait)?)
+            } else {
+                (timeout, timeout_nanos)
+            };
 
         // #[doc = "* This function is thread-safe for unique wait sets with unique contents."]
         // #[doc = "* This function cannot operate on the same wait set in multiple threads, and"]

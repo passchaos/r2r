@@ -148,7 +148,7 @@ impl Executor {
         };
         let wake = guard.observer_waker();
         for entry in &mut self.nodes {
-            entry.node.set_background_wake(Some(wake.clone()));
+            entry.node.set_native_observer_wake(Some(wake.clone()));
         }
         let (sender, completion) = oneshot::channel();
         let thread = thread::Builder::new()

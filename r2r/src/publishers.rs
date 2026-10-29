@@ -299,9 +299,7 @@ pub(crate) struct Publisher_ {
 }
 
 fn has_active_waiters<T>(waiters: &Mutex<Waiters<T>>) -> bool {
-    let mut waiters = waiters.lock();
-    waiters.prune_canceled();
-    !waiters.is_empty()
+    waiters.lock().poll_state().waiting
 }
 
 fn take_waiters_through<T>(waiters: &Mutex<Waiters<T>>, boundary: u64) -> Vec<oneshot::Sender<T>> {
@@ -975,19 +973,23 @@ impl Publisher_ {
         has_active_waiters(&self.poll_ack_channels)
     }
 
-    pub(crate) fn has_pending_ack_waits(&self) -> bool {
-        has_active_waiters(&self.poll_ack_channels)
-    }
-    pub(crate) fn has_pending_matching_waits(&self) -> bool {
-        has_active_waiters(&self.poll_subscriber_channels)
-    }
-
-    pub(crate) fn poll_waits(&self) -> bool {
+    pub(crate) fn poll_waits(
+        &self,
+    ) -> (crate::availability::WaiterState, crate::availability::WaiterState) {
         #[cfg(test)]
         self.wait_poll_count.fetch_add(1, Ordering::Relaxed);
         self.poll_has_subscribers();
         self.poll_all_acked();
-        self.has_pending_waits()
+        let matching = self.poll_subscriber_channels.lock().poll_state();
+        let acknowledgements = self.poll_ack_channels.lock().poll_state();
+        (matching, acknowledgements)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn waiter_counts(&self) -> (usize, usize) {
+        let matching = self.poll_subscriber_channels.lock().len();
+        let acknowledgements = self.poll_ack_channels.lock().len();
+        (matching, acknowledgements)
     }
 
     pub(crate) fn destroy(&self, node: &mut rcl_node_t) {

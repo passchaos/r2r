@@ -8,6 +8,7 @@ impl Node {
     }
 
     pub(in crate::nodes) fn add_publisher(&mut self, publisher: Arc<Publisher_>) {
+        publisher.set_observer_wake(self.dropped_publishers.lock().wake());
         let index = self.pubs.len();
         let identity = Self::publisher_identity(&publisher);
         let previous = self.publisher_indexes.insert(identity, index);
