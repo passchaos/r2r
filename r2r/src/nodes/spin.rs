@@ -8,6 +8,7 @@ pub(super) struct SpinPreparation {
     pub(super) capacities: WaitSetCapacities,
     pub(super) future_guard: Option<Arc<future_executor::FutureGuard>>,
     graph_interested: bool,
+    ros_sleep_interested: bool,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -18,11 +19,13 @@ pub(super) struct EntityOffsets {
     services: usize,
     graph_guard: Option<usize>,
     events: usize,
+    ros_sleep_timer: Option<usize>,
 }
 
 pub(super) struct WaitEntities<'a> {
     context: &'a Context,
     qos_events: &'a mut Option<Box<qos_events::QosEvents>>,
+    ros_sleeps: &'a mut Option<Box<ros_sleep::RosSleeps>>,
     node_handle: &'a mut rcl_node_t,
     subscribers: &'a mut Vec<Box<dyn Subscriber_>>,
     subscription_indexes: &'a mut HashMap<uuid::Uuid, usize>,
@@ -45,6 +48,7 @@ impl Node {
             WaitEntities {
                 context: &self.context,
                 qos_events: &mut self.qos_events,
+                ros_sleeps: &mut self.ros_sleeps,
                 node_handle: &mut self.node_handle,
                 subscribers: &mut self.subscribers,
                 subscription_indexes: &mut self.subscription_indexes,
@@ -90,6 +94,15 @@ impl WaitEntities<'_> {
             if position == 0 {
                 offsets.clients = index;
             }
+        }
+        if preparation.ros_sleep_interested {
+            let sleeps = self
+                .ros_sleeps
+                .as_ref()
+                .ok_or(Error::RCL_RET_NODE_INVALID)?;
+            let mut index = 0;
+            check_rcl_ret(unsafe { rcl_wait_set_add_timer(ws, sleeps.handle(), &mut index) })?;
+            offsets.ros_sleep_timer = Some(index);
         }
 
         for (position, s) in self.services.iter().enumerate() {
@@ -147,7 +160,7 @@ impl WaitEntities<'_> {
 }
 
 pub(super) fn spin_once(node: &mut Node, timeout: Duration) -> Result<()> {
-    let _event_wait = node.activate_qos_event_guard()?;
+    let _event_wait = node.activate_observer_guard()?;
     let preparation = node.prepare_spin(timeout)?;
     let (wait_set, mut entities) = node.wait_entities();
     if preparation.capacities == WaitSetCapacities::default() {

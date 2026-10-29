@@ -86,6 +86,7 @@ pub use msg_types::{
     generated_msgs::*, NativeMessageRef, WrappedActionTypeSupport, WrappedNativeMsg as NativeMsg,
     WrappedNativeMsgUntyped, WrappedServiceTypeSupport, WrappedTypesupport,
 };
+pub use nodes::RosSleep;
 pub use serialization::MessageSerializer;
 
 mod utils;

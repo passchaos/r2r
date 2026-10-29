@@ -61,6 +61,20 @@ impl WaitEntities<'_> {
         if let Some(err) = subscriber_error {
             return Err(err);
         }
+        // Clock samples are applied by subscribers above. Complete due ROS sleeps in the same
+        // dispatch, while the shared native timer never enters an ordinary timer's tick channel.
+        if let Some(index) = offsets.ros_sleep_timer {
+            if ws.timers.is_null() || index >= ws.size_of_timers {
+                return Err(Error::RCL_RET_WAIT_SET_INVALID);
+            }
+            if let Some(sleeps) = self.ros_sleeps.as_mut() {
+                let ready = unsafe { *ws.timers.add(index) };
+                if !ready.is_null() && ready != sleeps.handle() {
+                    return Err(Error::RCL_RET_WAIT_SET_INVALID);
+                }
+                sleeps.sync(!ready.is_null())?;
+            }
+        }
 
         let mut timers_to_remove = Vec::new();
         let mut timer_error = None;

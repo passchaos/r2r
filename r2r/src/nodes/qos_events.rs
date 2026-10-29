@@ -53,6 +53,10 @@ pub(in crate::nodes) struct QosEvents {
 }
 
 impl QosEvents {
+    pub(in crate::nodes) fn has_registrations(&self) -> bool {
+        !self.registrations.is_empty()
+    }
+
     fn contains(&self, endpoint: EventEndpoint, kind: EventKind) -> bool {
         self.owners.contains_key(&(endpoint, kind))
     }
@@ -196,26 +200,6 @@ impl QosEvents {
 }
 
 impl Node {
-    pub(in crate::nodes) fn activate_qos_event_guard(&mut self) -> Result<Option<EventWait>> {
-        let Some(events) = self
-            .qos_events
-            .as_ref()
-            .filter(|events| !events.registrations.is_empty())
-        else {
-            return Ok(None);
-        };
-        let guard = match self.future_wake_guard.as_ref() {
-            Some(guard) => guard.clone(),
-            None => {
-                let guard = future_executor::FutureGuard::new(&self.context)?;
-                self.future_wake_guard = Some(guard.clone());
-                guard
-            }
-        };
-        let previous = guard.active.swap(true, std::sync::atomic::Ordering::AcqRel);
-        events.set_wake(Some(guard.observer_waker()));
-        Ok(Some(EventWait { guard, previous }))
-    }
     pub(crate) fn publisher_qos_events(
         &mut self, publisher: Arc<Publisher_>, kind: PublisherEventKind,
     ) -> Result<QosEventStream> {
@@ -282,19 +266,6 @@ impl Node {
         if let Some(events) = &mut self.qos_events {
             events.remove(stream.id);
         }
-    }
-}
-
-pub(in crate::nodes) struct EventWait {
-    guard: Arc<future_executor::FutureGuard>,
-    previous: bool,
-}
-
-impl Drop for EventWait {
-    fn drop(&mut self) {
-        self.guard
-            .active
-            .store(self.previous, std::sync::atomic::Ordering::Release);
     }
 }
 

@@ -58,6 +58,25 @@ jobs:
       run: docker run r2r_test cargo test --workspace -- --test-threads=1
     - name: Check service-event oracle rejection cases
       run: docker run r2r_test python3 -m unittest discover -s tools/ros_oracles -p test_service_events.py
+    - name: Check ROS-clock sleep oracle rejection cases
+      run: docker run r2r_test python3 -m unittest discover -s tools/ros_oracles -p test_ros_sleep.py
+    - name: Verify native ROS-clock sleep semantics against C++
+      run: |
+        mkdir -p ros-sleep-results
+        docker run --rm -v "$PWD/ros-sleep-results:/results" r2r_test bash -c '
+          set -e
+          python3 tools/ros_oracles/ros_sleep.py build --output-dir target/ros-sleep
+          python3 tools/ros_oracles/ros_sleep.py run --binaries target/ros-sleep \
+            --rmw rmw_cyclonedds_cpp --domain-id 158 --output /results/cyclonedds.json
+          python3 tools/ros_oracles/ros_sleep.py run --binaries target/ros-sleep \
+            --rmw rmw_fastrtps_cpp --domain-id 160 --output /results/fastdds.json
+        '
+    - name: Save ROS sleep interoperability evidence
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ros-sleep-${{ matrix.ros_distro }}
+        path: ros-sleep-results/
     - name: Check QoS-event oracle rejection cases
       run: docker run r2r_test python3 -m unittest discover -s tools/ros_oracles -p test_qos_events.py
     - name: Check type-description oracle rejection cases

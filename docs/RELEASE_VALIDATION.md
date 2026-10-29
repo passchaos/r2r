@@ -1043,3 +1043,44 @@ all targets, snapshot/harness/common/generator tests, two ownership compile-fail
 public pages/functions with 72 specific methods. Independent C++ interoperability is required
 by CI for Jazzy/Kilted/Lyrical/Rolling. Local Iron/Lyrical/Rolling runtime evidence and broader
 network/multithread performance comparisons remain open.
+
+## Aggregated ROS-clock sleeps (2026-10-30)
+
+`Node::sleep_until_ros` and `sleep_for_ros` return Send futures with independent cancellation and
+signed ROS-clock targets. Each node lazily owns one native wake timer and one jump callback,
+with an indexed minimum heap and reusable generation slots. Cancellation removes the deadline
+immediately in O(log n); there are no far-future tombstones. Past/zero targets create no scheduler.
+Simulated time pauses and backwards jumps preserve the absolute deadline. Clock-source switches
+interrupt only earlier registrations; new-domain waits survive prior interruption cleanup.
+
+Native wakes use a steady clock while readiness compares the ROS clock. Native periods are
+capped at one day and rechecked against the original target, avoiding RCL's unchecked
+now+period arithmetic near i64::MAX. A maximum signed simulated-time target is covered directly.
+Simulated time cancels the native wake timer and uses clock notifications. At most 64 due or
+interrupted waits complete per preparation/dispatch pass, with runnable continuation. Idle
+queues omit the canceled native timer from wait sets. Stable registrations avoid unrelated
+clock queries or full deadline scans. Native guard bindings follow Node/shared/background
+executor ownership and returned-node reuse.
+
+Completion, explicit cancellation and node destruction notify after releasing deadline, clock
+and context locks. Context shutdown now separates native guard triggers from post-shutdown
+application observer wakes, with those wakes occurring after context unlock. The timer's owned
+native clock serializes its finalizer. Weak callback/context registration prevents reference
+cycles, and scheduler creation rolls back safely if shutdown wins registration.
+
+Seventeen focused cases cover sorted indexed-heap oracles, 100000 canceled far-future slot reuse,
+past deadlines/overflow, exact system deadline readiness, root cancellation/rearm, node/context
+cleanup and lock reentry, signed/paused/backwards simulated time, source changes, 512 concurrent
+waits sharing one native timer with bounded passes, ordinary wall timer progress, current
+background/returned-node native guards, actual /clock delivery and the i64::MAX target. Both
+Jazzy RMWs pass optimized cases. Final debug and both optimized main-library suites pass
+658 tests with eight manual measurements ignored; workspace/Rustdoc and all-target Clippy
+pass. The runnable example verifies 1/2/1/3 second simulated updates and independent cancellation.
+
+Independent Rust and rclcpp processes follow the same controlled native /clock trace: pending
+through pause and backward movement, complete at the original absolute deadline, then cancel
+another pending wait. Both Jazzy RMWs pass the exact command/time/state oracle with source and
+binary manifests. These are semantic and native entity-scaling results, not application
+latency/throughput leadership evidence. Humble and Kilted also execute the focused sleeps,
+shutdown cases, example and Clippy. Iron/Lyrical/Rolling runtime and broader networked/concurrent
+clock applications remain pending the supported distribution matrix.

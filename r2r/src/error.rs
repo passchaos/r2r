@@ -18,6 +18,10 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// not have an analogue in the rcl.
 #[derive(Error, Clone, Debug)]
 pub enum Error {
+    #[error("ROS sleep canceled")]
+    RosSleepCancelled,
+    #[error("ROS time source changed while sleeping")]
+    RosTimeSourceChanged,
     #[error("invalid RIHS type hash: {value}")]
     InvalidTypeHash { value: String },
     #[error("type description query failed: {reason}")]

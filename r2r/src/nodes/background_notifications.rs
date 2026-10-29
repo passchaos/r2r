@@ -8,6 +8,9 @@ impl Node {
         if let Some(events) = &self.qos_events {
             events.set_wake(wake.clone());
         }
+        if let Some(sleeps) = &self.ros_sleeps {
+            sleeps.set_wake(wake.clone());
+        }
         self.canceled_subscriptions.lock().set_wake(wake.clone());
         self.canceled_services.lock().set_wake(wake.clone());
         self.dropped_clients.lock().set_wake(wake.clone());

@@ -63,6 +63,7 @@ mod client_api;
 mod managed_timers;
 mod publisher_api;
 mod qos_events;
+mod ros_sleep;
 mod service_api;
 mod spin;
 mod subscription_api;
@@ -74,6 +75,7 @@ pub use future_executor::FutureExecutionOptions;
 #[cfg(all(test, not(r2r__ros__distro__humble)))]
 pub(crate) use graph::c_string_from_ptr;
 pub use graph::{TopicEndpointInfo, TopicEndpointType, TopicTypeHash};
+pub use ros_sleep::RosSleep;
 #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
 pub use timers::TimerCallInfo;
 pub(crate) use timers::{future_with_timeout, Timer_};
@@ -151,6 +153,7 @@ pub struct Node {
     timer_indexes: HashMap<uuid::Uuid, usize>,
     canceled_timers: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
     managed_timers: Option<Box<managed_timers::ManagedTimers>>,
+    ros_sleeps: Option<Box<ros_sleep::RosSleeps>>,
     // and the publishers, whom we allow to be shared.. hmm.
     pub(crate) pubs: Vec<Arc<Publisher_>>,
     publisher_indexes: HashMap<uuid::Uuid, usize>,
@@ -418,6 +421,11 @@ impl Drop for Node {
     fn drop(&mut self) {
         // Wake managed tick observers even when their native timer is paused.
         self.managed_timers.take();
+        let ros_sleep_notifications = self
+            .ros_sleeps
+            .take()
+            .map(|mut sleeps| sleeps.close())
+            .unwrap_or_default();
         let qos_notifications = self
             .qos_events
             .as_mut()
@@ -455,6 +463,9 @@ impl Drop for Node {
         drop(_ctx_handle);
         for (channel, error) in qos_notifications {
             channel.close(error);
+        }
+        for entry in ros_sleep_notifications {
+            let _ = entry.sender.send(Err(Error::RCL_RET_NODE_INVALID));
         }
     }
 }

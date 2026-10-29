@@ -13,6 +13,10 @@ impl Node {
         }
 
         self.graph_change_waiters.prune_canceled();
+        let ros_sleep_progress = match self.ros_sleeps.as_mut() {
+            Some(sleeps) => sleeps.sync(false)?,
+            None => false,
+        };
 
         let canceled_subscriptions = {
             let mut canceled_subscriptions = self.canceled_subscriptions.lock();
@@ -272,7 +276,7 @@ impl Node {
         // Drain already-ready native events, then let the application observe the transition
         // without sleeping through the caller's timeout before it can publish a final result.
         let timeout_nanos = duration_to_rcl_nanos(timeout)?;
-        let (timeout, timeout_nanos) = if local_action_progress {
+        let (timeout, timeout_nanos) = if local_action_progress || ros_sleep_progress {
             (Duration::ZERO, 0)
         } else if ack_query_pending {
             // RCL exposes acknowledgements as a query rather than a wait-set event. Only
@@ -303,12 +307,18 @@ impl Node {
             .qos_events
             .as_mut()
             .map_or(0, |events| events.prepare());
+        let ros_sleep_interested = self
+            .ros_sleeps
+            .as_ref()
+            .is_some_and(|sleeps| sleeps.has_work());
         let capacities = WaitSetCapacities {
             subscriptions: self.subscribers.len() + self.action_wait_set_capacities.subscriptions,
             guard_conditions: self.action_wait_set_capacities.guard_conditions
                 + usize::from(graph_interested)
                 + usize::from(future_guard.is_some()),
-            timers: self.timers.len() + self.action_wait_set_capacities.timers,
+            timers: self.timers.len()
+                + self.action_wait_set_capacities.timers
+                + usize::from(ros_sleep_interested),
             clients: self.clients.len() + self.action_wait_set_capacities.clients,
             services: self.services.len() + self.action_wait_set_capacities.services,
             events,
@@ -320,6 +330,7 @@ impl Node {
             capacities,
             future_guard,
             graph_interested,
+            ros_sleep_interested,
         })
     }
 }

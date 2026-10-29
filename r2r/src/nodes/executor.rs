@@ -172,6 +172,9 @@ impl Executor {
             if let Some(events) = &entry.node.qos_events {
                 events.set_wake(Some(guard.observer_waker()));
             }
+            if let Some(sleeps) = &entry.node.ros_sleeps {
+                sleeps.set_wake(Some(guard.observer_waker()));
+            }
             let preparation = entry.node.prepare_spin(timeout)?;
             add_capacities(&mut capacities, preparation.capacities)?;
             wait = wait.min(preparation.timeout);

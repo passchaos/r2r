@@ -263,6 +263,9 @@ impl FutureDriver for Node {
         self.future_wake_guard.clone()
     }
     fn cache_future_guard(&mut self, guard: Arc<FutureGuard>) {
+        if let Some(sleeps) = &self.ros_sleeps {
+            sleeps.set_wake(Some(guard.observer_waker()));
+        }
         if let Some(events) = &self.qos_events {
             events.set_wake(Some(guard.observer_waker()));
         }
@@ -357,3 +360,48 @@ pub(super) fn drive_future<T>(
 
 #[cfg(all(test, not(feature = "doc-only")))]
 mod tests;
+
+impl Node {
+    pub(in crate::nodes) fn activate_observer_guard(&mut self) -> Result<Option<ObserverWait>> {
+        let events_pending = self
+            .qos_events
+            .as_ref()
+            .is_some_and(|events| events.has_registrations());
+        let sleeps_pending = self
+            .ros_sleeps
+            .as_ref()
+            .is_some_and(|sleeps| sleeps.has_work());
+        if !events_pending && !sleeps_pending {
+            return Ok(None);
+        }
+        let guard = match self.future_wake_guard.as_ref() {
+            Some(guard) => guard.clone(),
+            None => {
+                let guard = FutureGuard::new(&self.context)?;
+                self.future_wake_guard = Some(guard.clone());
+                guard
+            }
+        };
+        let previous = guard.active.swap(true, Ordering::AcqRel);
+        if let Some(events) = &self.qos_events {
+            events.set_wake(Some(guard.observer_waker()));
+        }
+        if let Some(sleeps) = &self.ros_sleeps {
+            sleeps.set_wake(Some(guard.observer_waker()));
+        }
+        Ok(Some(ObserverWait { guard, previous }))
+    }
+}
+
+pub(in crate::nodes) struct ObserverWait {
+    guard: Arc<FutureGuard>,
+    previous: bool,
+}
+
+impl Drop for ObserverWait {
+    fn drop(&mut self) {
+        self.guard
+            .active
+            .store(self.previous, std::sync::atomic::Ordering::Release);
+    }
+}

@@ -128,8 +128,21 @@ impl Context {
     /// nodes and the final [`Context`] clone are dropped. Calling this method more than once is
     /// harmless.
     pub fn shutdown(&self) -> Result<()> {
-        let result = self.context_handle.lock().request_shutdown();
+        let (result, observers) = {
+            let mut context = self.context_handle.lock();
+            let observers = context
+                .shutdown_wakes
+                .iter()
+                .filter_map(|wake| wake.upgrade())
+                .collect::<Vec<_>>();
+            (context.request_shutdown(), observers)
+        };
         self.shutdown_changed.notify_all();
+        if result.is_ok() {
+            for observer in observers {
+                observer.after_shutdown();
+            }
+        }
         result
     }
 
@@ -187,6 +200,8 @@ pub struct ContextHandle {
 
 pub(crate) trait ShutdownWake: Send + Sync {
     fn wake_shutdown(&self);
+    /// Notify application observers after native shutdown releases the context mutex.
+    fn after_shutdown(&self) {}
 }
 
 struct InitOptions {
