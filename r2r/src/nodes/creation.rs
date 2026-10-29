@@ -178,6 +178,7 @@ impl Node {
                 action_wait_set_capacities: WaitSetCapacities::default(),
                 timers: Vec::new(),
                 managed_timers: None,
+                timer_callbacks: None,
                 ros_sleeps: None,
                 timer_indexes: HashMap::new(),
                 canceled_timers: Arc::new(Mutex::new(

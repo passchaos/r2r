@@ -68,6 +68,7 @@ mod service_api;
 mod service_callbacks;
 mod spin;
 mod subscription_api;
+mod timer_callbacks;
 mod timers;
 mod type_descriptions;
 mod wait_set;
@@ -77,6 +78,7 @@ pub use future_executor::FutureExecutionOptions;
 pub(crate) use graph::c_string_from_ptr;
 pub use graph::{TopicEndpointInfo, TopicEndpointType, TopicTypeHash};
 pub use ros_sleep::RosSleep;
+pub use timer_callbacks::{CallbackTimer, CallbackTimerOptions};
 #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
 pub use timers::TimerCallInfo;
 pub(crate) use timers::{future_with_timeout, Timer_};
@@ -155,6 +157,7 @@ pub struct Node {
     timer_indexes: HashMap<uuid::Uuid, usize>,
     canceled_timers: Arc<Mutex<crate::notifications::NotificationQueue<uuid::Uuid>>>,
     managed_timers: Option<Box<managed_timers::ManagedTimers>>,
+    timer_callbacks: Option<Box<timer_callbacks::TimerCallbacks>>,
     ros_sleeps: Option<Box<ros_sleep::RosSleeps>>,
     // and the publishers, whom we allow to be shared.. hmm.
     pub(crate) pubs: Vec<Arc<Publisher_>>,
@@ -439,6 +442,9 @@ impl Drop for Node {
         self.qos_events.take();
         if let Some(callbacks) = &mut self.service_callbacks {
             callbacks.destroy_all(self.node_handle.as_mut());
+        }
+        if let Some(callbacks) = &mut self.timer_callbacks {
+            callbacks.destroy_all();
         }
 
         for s in &mut self.subscribers {

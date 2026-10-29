@@ -13,6 +13,10 @@ impl Node {
         }
 
         let mut availability_cleanup_pending = self.graph_change_waiters.prune_canceled();
+        let timer_callback_count = self
+            .timer_callbacks
+            .as_mut()
+            .map_or(0, |callbacks| callbacks.prepare());
         let service_callback_count = self
             .service_callbacks
             .as_mut()
@@ -344,6 +348,7 @@ impl Node {
                 + usize::from(graph_interested)
                 + usize::from(future_guard.is_some()),
             timers: self.timers.len()
+                + timer_callback_count
                 + self.action_wait_set_capacities.timers
                 + usize::from(ros_sleep_interested),
             clients: self.clients.len() + self.action_wait_set_capacities.clients,

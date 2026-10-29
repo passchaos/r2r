@@ -196,10 +196,10 @@ mod nodes;
 #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
 pub use nodes::TimerCallInfo;
 pub use nodes::{
-    Executor, ExecutorHandle, ExecutorNodeId, ExecutorTask, ExecutorTaskError,
-    FutureExecutionOptions, Node, NodeOptions, ParameterCallbackHandle, ParameterHandlerOptions,
-    ParameterPostSetCallbackHandle, ParameterPreSetCallbackHandle, Timer, TimerOptions,
-    TopicEndpointInfo, TopicEndpointType, TopicTypeHash,
+    CallbackTimer, CallbackTimerOptions, Executor, ExecutorHandle, ExecutorNodeId, ExecutorTask,
+    ExecutorTaskError, FutureExecutionOptions, Node, NodeOptions, ParameterCallbackHandle,
+    ParameterHandlerOptions, ParameterPostSetCallbackHandle, ParameterPreSetCallbackHandle, Timer,
+    TimerOptions, TopicEndpointInfo, TopicEndpointType, TopicTypeHash,
 };
 
 mod lifecycle;

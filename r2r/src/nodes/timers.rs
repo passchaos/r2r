@@ -87,12 +87,12 @@ pub unsafe fn init_timer(
 
 #[derive(Debug)]
 pub(crate) struct RclTimer {
-    handle: rcl_timer_t,
+    pub(in crate::nodes) handle: rcl_timer_t,
     _pin: PhantomPinned, // To prevent Unpin implementation
 }
 
 impl RclTimer {
-    unsafe fn new() -> Self {
+    pub(in crate::nodes) unsafe fn new() -> Self {
         Self {
             handle: rcl_get_zero_initialized_timer(),
             _pin: PhantomPinned,

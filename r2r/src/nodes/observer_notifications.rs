@@ -18,6 +18,9 @@ impl Node {
         if let Some(callbacks) = &self.service_callbacks {
             callbacks.set_wake(wake.clone());
         }
+        if let Some(callbacks) = &self.timer_callbacks {
+            callbacks.set_wake(wake.clone());
+        }
         if let Some(events) = &self.qos_events {
             events.set_wake(wake.clone());
         }

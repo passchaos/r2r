@@ -21,6 +21,7 @@ pub(super) struct EntityOffsets {
     events: usize,
     ros_sleep_timer: Option<usize>,
     service_callbacks: usize,
+    timer_callbacks: usize,
 }
 
 pub(super) struct WaitEntities<'a> {
@@ -28,6 +29,7 @@ pub(super) struct WaitEntities<'a> {
     qos_events: &'a mut Option<Box<qos_events::QosEvents>>,
     ros_sleeps: &'a mut Option<Box<ros_sleep::RosSleeps>>,
     service_callbacks: &'a mut Option<Box<service_callbacks::ServiceCallbacks>>,
+    timer_callbacks: &'a mut Option<Box<timer_callbacks::TimerCallbacks>>,
     node_handle: &'a mut rcl_node_t,
     subscribers: &'a mut Vec<Box<dyn Subscriber_>>,
     subscription_indexes: &'a mut HashMap<uuid::Uuid, usize>,
@@ -52,6 +54,7 @@ impl Node {
                 qos_events: &mut self.qos_events,
                 ros_sleeps: &mut self.ros_sleeps,
                 service_callbacks: &mut self.service_callbacks,
+                timer_callbacks: &mut self.timer_callbacks,
                 node_handle: &mut self.node_handle,
                 subscribers: &mut self.subscribers,
                 subscription_indexes: &mut self.subscription_indexes,
@@ -106,6 +109,9 @@ impl WaitEntities<'_> {
             let mut index = 0;
             check_rcl_ret(unsafe { rcl_wait_set_add_timer(ws, sleeps.handle(), &mut index) })?;
             offsets.ros_sleep_timer = Some(index);
+        }
+        if let Some(callbacks) = self.timer_callbacks.as_ref() {
+            offsets.timer_callbacks = callbacks.add_to_wait_set(ws)?;
         }
 
         for (position, s) in self.services.iter().enumerate() {

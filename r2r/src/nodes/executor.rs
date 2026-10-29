@@ -167,6 +167,9 @@ impl Executor {
         };
         let mut wait = timeout;
         for entry in &mut self.nodes {
+            if let Some(callbacks) = &entry.node.timer_callbacks {
+                callbacks.set_wake(Some(guard.observer_waker()));
+            }
             if let Some(callbacks) = &entry.node.service_callbacks {
                 callbacks.set_wake(Some(guard.observer_waker()));
             }

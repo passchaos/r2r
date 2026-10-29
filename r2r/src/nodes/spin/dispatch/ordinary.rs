@@ -95,6 +95,9 @@ impl WaitEntities<'_> {
         for id in timers_to_remove {
             Node::remove_timer(self.timers, self.timer_indexes, id);
         }
+        if let Some(callbacks) = self.timer_callbacks.as_mut() {
+            errors.record(callbacks.dispatch(ws, offsets.timer_callbacks));
+        }
 
         if !ws.clients.is_null() {
             let ws_clients = unsafe {

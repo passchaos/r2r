@@ -1187,3 +1187,32 @@ and three configurations per Jazzy RMW: 42 records and 4200 raw RTT samples with
 receive-path, payload/sequence/count/stop checks. Fixed-CPU short runs are protocol-only because
 the performance isolation preflight failed on competing Zig builds and load. Formal A/B,
 saturated fanout, broad concurrency/scaling and performance-leadership evidence remain open.
+
+## Native synchronous timer callbacks (2026-10-30)
+
+[Timer callbacks](TIMER_CALLBACKS.md) add synchronous wall/ROS handlers with explicit native
+autostart, one-shot and period controls. Each pinned allocation contains RCL timer storage,
+handler state and optional steady-clock ownership. A lazy registry keeps ordinary timer layout
+and tick channels intact, adds a separate native readiness span and inherits the current weak
+guard for background and returned-node cleanup. Plain handlers advance RCL without constructing
+elapsed metadata or sending a tick. Native time advances before Rust callback execution.
+
+Eleven Jazzy cases check exact controls and owner isolation, native address stability, failure/
+drop/destruction retirement outside context and clock locks, stale native readiness suppression,
+paused/backwards ROS deadlines, native timestamps, error/panic rearming, mixed timer/sleep/service/
+action offsets and live current-guard cleanup. A compile-fail case rejects a non-Send handler.
+The example verifies 32 exact callback publications, native manual startup, one-shot ROS timing
+and endpoint destruction. Newer call-info factories follow the same Humble/Iron exclusions as
+existing TimerCallInfo support.
+
+Final Jazzy workspace and both-RMW optimized library gates pass 698 main-library cases, with
+eight manual measurements ignored. Nineteen Rustdoc examples, dual-RMW optimized callback and
+Tokio workflows, and all-target warning-denied Clippy pass. Native Humble/Fast DDS and Kilted/
+both-RMW callback/timer/executor gates, optimized examples and all-target Clippy accompany a
+true no-ROS all-target/documentation gate expanded to 41 artifacts and 109 methods. Exact
+executed counts, source identities and full logs are retained in
+[timer callback evidence](validation/timer-callbacks-2026-10-30/README.md).
+
+Dedicated lifecycle callback wrappers, concurrent callback scheduling and isolated representative
+Rust/C++ performance/resource comparisons remain open. This slice establishes native callback
+capability and ownership behavior, without a throughput-leadership claim.

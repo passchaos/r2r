@@ -368,7 +368,11 @@ impl Node {
             .service_callbacks
             .as_ref()
             .is_some_and(|callbacks| callbacks.len() != 0);
-        if !events_pending && !sleeps_pending && !callbacks_pending {
+        let timers_pending = self
+            .timer_callbacks
+            .as_ref()
+            .is_some_and(|callbacks| callbacks.len() != 0);
+        if !events_pending && !sleeps_pending && !callbacks_pending && !timers_pending {
             return Ok(None);
         }
         let guard = match self.future_wake_guard.as_ref() {
@@ -387,6 +391,9 @@ impl Node {
             sleeps.set_wake(Some(guard.observer_waker()));
         }
         if let Some(callbacks) = &self.service_callbacks {
+            callbacks.set_wake(Some(guard.observer_waker()));
+        }
+        if let Some(callbacks) = &self.timer_callbacks {
             callbacks.set_wake(Some(guard.observer_waker()));
         }
         Ok(Some(ObserverWait { guard, previous }))
