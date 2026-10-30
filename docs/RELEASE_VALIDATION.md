@@ -1,5 +1,27 @@
 # Optimized runtime validation
 
+## Same-Node callback groups (2026-10-30)
+
+[Callback groups](CALLBACK_GROUPS.md) run scoped native subscriptions, typed/native
+services and wall/ROS timers across mutually exclusive group jobs within one
+total native/callback worker budget. One job retains exclusive native Node/wait
+ownership. Stop returns handler/Node state; failures/panic cancel peers before
+application polling. Lifecycle generation policy remains on timer storage.
+
+Jazzy passes 30 focused cases under each RMW in debug and release, the complete
+two-worker forwarding/RPC example, 752 main-library cases in the workspace and
+both optimized suites, 25 Rustdoc cases and all-target warning-denied Clippy.
+Native Humble/Fast DDS passes 29 optimized focused and 121 executor cases;
+Kilted/CycloneDDS plus Fast DDS each pass 30/123 cases. Examples, ownership
+Rustdoc and Clippy pass in those native environments. The no-ROS gate verifies
+58 public documentation artifacts and 226 methods.
+
+[Recorded evidence](validation/callback-groups-2026-10-30/README.md) includes native
+sequence/storage, finalized-service send rejection, exact invocation timestamps,
+lifecycle selection epochs and input retirement/backpressure oracles. The
+performance isolation prerequisite failed external contention before measurement;
+reentrant groups and isolated representative C++ comparisons remain open.
+
 r2r validates runtime behavior with debug assertions disabled as well as with the default
 test profile. The Jazzy quality job runs the complete library suite with `cargo test --release`.
 Version-specific and middleware integration gates still cover the supported Humble-and-newer

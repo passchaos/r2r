@@ -134,6 +134,7 @@ impl Node {
                 qos_events: None,
                 type_description_service: None,
                 service_callbacks: None,
+                grouped_callbacks: None,
                 parameter_handler_started: false,
                 node_handle,
                 subscribers: Vec::new(),

@@ -13,6 +13,12 @@ impl Node {
         }
 
         let mut availability_cleanup_pending = self.graph_change_waiters.prune_canceled();
+        let grouped_capacities = self
+            .grouped_callbacks
+            .as_mut()
+            .map_or(Ok(WaitSetCapacities::default()), |callbacks| {
+                callbacks.prepare(self.node_handle.as_mut(), &mut self.qos_events)
+            })?;
         let timer_callback_count = self
             .timer_callbacks
             .as_mut()
@@ -290,10 +296,9 @@ impl Node {
         let subscriptions_with_active_waits =
             std::mem::take(&mut self.subscriptions_with_active_waits);
         for id in subscriptions_with_active_waits {
-            let Some(index) = self.subscription_indexes.get(&id).copied() else {
+            let Ok(subscriber) = self.subscriber_mut(id) else {
                 continue;
             };
-            let subscriber = &mut self.subscribers[index];
             subscriber.poll_has_publishers();
             let state = subscriber.poll_publisher_wait_state();
             availability_cleanup_pending |= state.cleanup_pending;
@@ -343,16 +348,20 @@ impl Node {
             .as_ref()
             .is_some_and(|sleeps| sleeps.has_work());
         let capacities = WaitSetCapacities {
-            subscriptions: self.subscribers.len() + self.action_wait_set_capacities.subscriptions,
+            subscriptions: self.subscribers.len()
+                + self.action_wait_set_capacities.subscriptions
+                + grouped_capacities.subscriptions,
             guard_conditions: self.action_wait_set_capacities.guard_conditions
                 + usize::from(graph_interested)
                 + usize::from(future_guard.is_some()),
             timers: self.timers.len()
+                + grouped_capacities.timers
                 + timer_callback_count
                 + self.action_wait_set_capacities.timers
                 + usize::from(ros_sleep_interested),
             clients: self.clients.len() + self.action_wait_set_capacities.clients,
             services: self.services.len()
+                + grouped_capacities.services
                 + self.action_wait_set_capacities.services
                 + service_callback_count,
             events,

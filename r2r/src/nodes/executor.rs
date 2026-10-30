@@ -38,6 +38,33 @@ pub struct Executor {
 unsafe impl Send for Executor {}
 
 impl Executor {
+    pub(in crate::nodes) fn callback_group_bindings(
+        &self,
+    ) -> Vec<(uuid::Uuid, super::callback_executor::CallbackGroupId)> {
+        self.nodes
+            .iter()
+            .filter_map(|entry| entry.node.grouped_callbacks.as_ref())
+            .flat_map(|sources| sources.groups().map(|group| (sources.node_id, group)))
+            .collect()
+    }
+    pub(in crate::nodes) fn callback_scheduler_wake(
+        &mut self,
+    ) -> Result<(std::task::Waker, Context)> {
+        let guard = match &self.future_wake_guard {
+            Some(guard) => guard.clone(),
+            None => {
+                let guard = FutureGuard::new(&self.context)?;
+                self.cache_future_guard(guard.clone());
+                guard
+            }
+        };
+        let wake = guard.observer_waker();
+        for entry in &mut self.nodes {
+            entry.node.set_native_observer_wake(Some(wake.clone()));
+        }
+        Ok((wake, self.context.clone()))
+    }
+
     #[cfg(all(test, not(feature = "doc-only")))]
     pub(in crate::nodes) fn native_wait_identity(&self) -> (usize, usize) {
         (
@@ -206,7 +233,7 @@ impl Executor {
             )
         })?;
         for entry in &mut self.nodes {
-            let (_, entities) = entry.node.wait_entities();
+            let (_, mut entities) = entry.node.wait_entities();
             entry.offsets = entities
                 .add_ordinary(&mut self.wait_set.handle, entry.preparation.as_ref().unwrap())?;
         }

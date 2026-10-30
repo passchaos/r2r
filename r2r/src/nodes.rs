@@ -53,6 +53,13 @@ pub use options::{NodeOptions, ParameterHandlerOptions};
 pub use parallel_executor::{
     ParallelExecutor, ParallelExecutorHandle, ParallelExecutorTask, ParallelExecutorTaskError,
 };
+mod callback_executor;
+pub(crate) use callback_executor::sources::GroupedTimerActivation;
+pub use callback_executor::{
+    CallbackExecutor, CallbackExecutorHandle, CallbackExecutorTask, CallbackExecutorTaskError,
+    CallbackGroup, CallbackGroupId, CallbackQueueOptions, CallbackWorkerError, GroupedService,
+    GroupedSubscription, GroupedSubscriptionOptions, GroupedTimer,
+};
 mod creation;
 mod parameter_api;
 mod parameter_handler;
@@ -121,6 +128,7 @@ pub struct Node {
     qos_events: Option<Box<qos_events::QosEvents>>,
     type_description_service: Option<uuid::Uuid>,
     service_callbacks: Option<Box<service_callbacks::ServiceCallbacks>>,
+    grouped_callbacks: Option<Box<callback_executor::sources::Sources>>,
     parameter_handler_started: bool,
     pub(crate) node_handle: Box<rcl_node_t>,
     // the node owns the subscribers
@@ -449,6 +457,9 @@ impl Drop for Node {
         }
         if let Some(callbacks) = &mut self.timer_callbacks {
             callbacks.destroy_all();
+        }
+        if let Some(callbacks) = &mut self.grouped_callbacks {
+            callbacks.destroy_all(self.node_handle.as_mut());
         }
 
         for s in &mut self.subscribers {

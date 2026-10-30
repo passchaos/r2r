@@ -39,6 +39,18 @@ REQUIRED_DOCUMENTATION = (
     "struct.ParallelExecutorHandle.html",
     "struct.ParallelExecutorTask.html",
     "enum.ParallelExecutorTaskError.html",
+    "struct.CallbackExecutor.html",
+    "struct.CallbackExecutorHandle.html",
+    "struct.CallbackExecutorTask.html",
+    "enum.CallbackExecutorTaskError.html",
+    "enum.CallbackWorkerError.html",
+    "struct.CallbackGroup.html",
+    "struct.CallbackGroupId.html",
+    "struct.CallbackQueueOptions.html",
+    "struct.GroupedSubscription.html",
+    "struct.GroupedSubscriptionOptions.html",
+    "struct.GroupedService.html",
+    "struct.GroupedTimer.html",
     "enum.FeedbackOverflowPolicy.html",
     "struct.ActionClientOptions.html",
     "struct.ActionServerGoal.html",
@@ -82,6 +94,15 @@ REQUIRED_METHODS = {
     "struct.ParallelExecutor.html": ("new", "worker_count", "len", "is_empty", "add_node", "add_node_to_worker", "node_mut", "remove_node", "handle", "is_cancelled", "reset_cancel", "spawn"),
     "struct.ParallelExecutorHandle.html": ("cancel", "is_cancelled"),
     "struct.ParallelExecutorTask.html": ("worker_count", "handle", "cancel", "is_finished", "stop"),
+    "struct.CallbackExecutor.html": ("new", "worker_count", "add_node", "node_mut", "remove_node", "len", "is_empty", "add_group", "group_mut", "node_and_group_mut", "handle", "is_cancelled", "reset_cancel", "spawn"),
+    "struct.CallbackExecutorHandle.html": ("cancel", "is_cancelled"),
+    "struct.CallbackExecutorTask.html": ("handle", "worker_count", "cancel", "is_finished", "stop"),
+    "struct.CallbackGroup.html": ("new", "id", "len", "is_empty"),
+    "struct.CallbackQueueOptions.html": ("capacity", "max_inputs_per_spin"),
+    "struct.GroupedSubscriptionOptions.html": ("queue", "endpoint"),
+    "struct.GroupedSubscription.html": ("topic_name", "actual_qos", "get_publisher_count", "wait_for_publishers", "wait_for_publishers_with_timeout", "qos_events", "is_valid"),
+    "struct.GroupedService.html": ("is_valid", "service_name", "get_request_subscription_actual_qos", "get_response_publisher_actual_qos", "configure_introspection"),
+    "struct.GroupedTimer.html": ("is_valid", "clock_type", "is_steady", "cancel", "reset", "is_canceled", "period", "next_call_time_ns", "set_period"),
     "struct.ActionClientOptions.html": ("feedback_overflow_policy",),
     "struct.ActionServerGoal.html": ("execute_batch", "succeed_batch", "abort_batch", "cancel_batch"),
     "struct.ActionServerGoalRequest.html": ("accept_batch", "accept_deferred_batch"),
@@ -110,6 +131,24 @@ REQUIRED_METHODS = {
 }
 
 
+REQUIRED_METHODS["struct.Node.html"] += (
+    "subscribe_callback_in_group", "subscribe_callback_in_group_with_options",
+    "subscribe_native_callback_in_group", "subscribe_native_callback_in_group_with_options", "destroy_grouped_subscription",
+    "create_service_callback_in_group", "create_service_callback_in_group_with_options",
+    "create_service_native_callback_in_group", "create_service_native_callback_in_group_with_options", "destroy_grouped_service",
+    "create_wall_timer_callback_in_group", "create_wall_timer_callback_in_group_with_options",
+    "create_timer_callback_in_group", "create_timer_callback_in_group_with_options",
+    "create_wall_timer_callback_in_group_with_info", "create_wall_timer_callback_in_group_with_info_and_options",
+    "create_timer_callback_in_group_with_info", "create_timer_callback_in_group_with_info_and_options",
+)
+REQUIRED_METHODS["struct.LifecycleNode.html"] += (
+    "create_wall_timer_callback_in_group", "create_wall_timer_callback_in_group_with_options",
+    "create_timer_callback_in_group", "create_timer_callback_in_group_with_options",
+    "create_wall_timer_callback_in_group_with_info", "create_wall_timer_callback_in_group_with_info_and_options",
+    "create_timer_callback_in_group_with_info", "create_timer_callback_in_group_with_info_and_options",
+)
+
+
 def documentation_environment():
     environment = os.environ.copy()
     for variable in ROS_ENVIRONMENT:
@@ -132,6 +171,8 @@ def check(environment=None):
         ["cargo", "test", "-p", "r2r", "--doc", "--features", "doc-only", "create_service_native_callback"],
         ["cargo", "test", "-p", "r2r", "--doc", "--features", "doc-only", "create_wall_timer_callback"],
         ["cargo", "test", "-p", "r2r", "--doc", "--features", "doc-only", "ParallelExecutor"],
+        ["cargo", "test", "-p", "r2r", "--doc", "--features", "doc-only", "CallbackExecutor"],
+        ["cargo", "test", "-p", "r2r", "--doc", "--features", "doc-only", "subscribe_native_callback_in_group"],
         ["cargo", "doc", "-p", "r2r", "--no-deps", "--features", "doc-only"],
     )
     for command in commands:

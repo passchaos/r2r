@@ -30,6 +30,7 @@ pub(super) struct WaitEntities<'a> {
     ros_sleeps: &'a mut Option<Box<ros_sleep::RosSleeps>>,
     service_callbacks: &'a mut Option<Box<service_callbacks::ServiceCallbacks>>,
     timer_callbacks: &'a mut Option<Box<timer_callbacks::TimerCallbacks>>,
+    grouped_callbacks: &'a mut Option<Box<callback_executor::sources::Sources>>,
     node_handle: &'a mut rcl_node_t,
     subscribers: &'a mut Vec<Box<dyn Subscriber_>>,
     subscription_indexes: &'a mut HashMap<uuid::Uuid, usize>,
@@ -55,6 +56,7 @@ impl Node {
                 ros_sleeps: &mut self.ros_sleeps,
                 service_callbacks: &mut self.service_callbacks,
                 timer_callbacks: &mut self.timer_callbacks,
+                grouped_callbacks: &mut self.grouped_callbacks,
                 node_handle: &mut self.node_handle,
                 subscribers: &mut self.subscribers,
                 subscription_indexes: &mut self.subscription_indexes,
@@ -75,7 +77,7 @@ impl Node {
 
 impl WaitEntities<'_> {
     pub(super) fn add_ordinary(
-        &self, ws: &mut rcl_wait_set_t, preparation: &SpinPreparation,
+        &mut self, ws: &mut rcl_wait_set_t, preparation: &SpinPreparation,
     ) -> Result<EntityOffsets> {
         let mut offsets = EntityOffsets::default();
         for (position, s) in self.subscribers.iter().enumerate() {
@@ -148,6 +150,9 @@ impl WaitEntities<'_> {
             offsets.events = events.add_to_wait_set(ws)?;
         }
         offsets.graph_guard = graph_guard_index;
+        if let Some(callbacks) = self.grouped_callbacks.as_mut() {
+            callbacks.add_to_wait_set(ws)?;
+        }
         Ok(offsets)
     }
     pub(super) fn add_actions(&self, ws: &mut rcl_wait_set_t) -> Result<()> {

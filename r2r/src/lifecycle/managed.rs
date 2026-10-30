@@ -13,6 +13,7 @@ enum ManagedEntity {
     Publisher(WeakActivation),
     Timer(Weak<LifecycleTimerState>),
     CallbackTimer(Weak<CallbackTimerState>),
+    GroupedTimer(Weak<dyn crate::nodes::GroupedTimerActivation>),
 }
 
 #[derive(Default)]
@@ -21,6 +22,13 @@ pub(crate) struct ManagedEntities {
 }
 
 impl ManagedEntities {
+    pub(crate) fn register_grouped_timer(
+        &self, timer: Weak<dyn crate::nodes::GroupedTimerActivation>,
+    ) {
+        self.entities
+            .lock()
+            .push(ManagedEntity::GroupedTimer(timer));
+    }
     pub fn register(&self, entity: WeakActivation) {
         self.entities.lock().push(ManagedEntity::Publisher(entity));
     }
@@ -56,6 +64,13 @@ impl ManagedEntities {
             ManagedEntity::CallbackTimer(weak) => match weak.upgrade() {
                 Some(timer) => {
                     timer.set_node_active(enabled);
+                    true
+                }
+                None => false,
+            },
+            ManagedEntity::GroupedTimer(weak) => match weak.upgrade() {
+                Some(timer) => {
+                    timer.set_active(enabled);
                     true
                 }
                 None => false,

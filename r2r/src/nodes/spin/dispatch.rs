@@ -31,6 +31,9 @@ impl WaitEntities<'_> {
         let mut errors = DispatchErrors::default();
         self.dispatch_ordinary(ws, offsets, &mut errors)?;
         self.dispatch_actions(ws, &mut errors);
+        if let Some(callbacks) = self.grouped_callbacks.as_mut() {
+            errors.record(callbacks.dispatch(ws));
+        }
         errors.result()
     }
 }

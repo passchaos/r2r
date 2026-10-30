@@ -381,6 +381,11 @@ pub struct LifecycleNode {
 }
 
 impl LifecycleNode {
+    pub(crate) fn runtime_register_grouped_timer(
+        &self, timer: std::sync::Weak<dyn crate::nodes::GroupedTimerActivation>,
+    ) {
+        self.runtime.entities.register_grouped_timer(timer);
+    }
     pub(crate) fn runtime_register_callback_timer(
         &self, timer: std::sync::Weak<super::callback_timer::state::CallbackTimerState>,
     ) {

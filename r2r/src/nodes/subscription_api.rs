@@ -72,11 +72,13 @@ impl Node {
     }
 
     pub(crate) fn subscriber(&self, id: uuid::Uuid) -> Result<&dyn Subscriber_> {
-        let index = self
-            .subscription_indexes
-            .get(&id)
-            .copied()
-            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
+        let Some(index) = self.subscription_indexes.get(&id).copied() else {
+            return self
+                .grouped_callbacks
+                .as_ref()
+                .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
+                .subscriber(id);
+        };
         self.subscribers
             .get(index)
             .map(|subscriber| &**subscriber)
@@ -84,11 +86,13 @@ impl Node {
     }
 
     pub(crate) fn subscriber_mut(&mut self, id: uuid::Uuid) -> Result<&mut (dyn Subscriber_ + '_)> {
-        let index = self
-            .subscription_indexes
-            .get(&id)
-            .copied()
-            .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?;
+        let Some(index) = self.subscription_indexes.get(&id).copied() else {
+            return self
+                .grouped_callbacks
+                .as_mut()
+                .ok_or(Error::RCL_RET_SUBSCRIPTION_INVALID)?
+                .subscriber_mut(id);
+        };
         match self.subscribers.get_mut(index) {
             Some(subscriber) => Ok(&mut **subscriber),
             None => Err(Error::RCL_RET_SUBSCRIPTION_INVALID),

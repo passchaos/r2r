@@ -549,7 +549,7 @@ impl SubscriptionMatchState {
         event.take_incompatible_type()
     }
 
-    fn clear_events(&mut self) {
+    pub(crate) fn clear_events(&mut self) {
         self.requested_incompatible_qos = None;
         self.requested_deadline_missed = None;
         self.liveliness_changed = None;

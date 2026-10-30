@@ -196,6 +196,11 @@ mod nodes;
 #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
 pub use nodes::TimerCallInfo;
 pub use nodes::{
+    CallbackExecutor, CallbackExecutorHandle, CallbackExecutorTask, CallbackExecutorTaskError,
+    CallbackGroup, CallbackGroupId, CallbackQueueOptions, CallbackWorkerError, GroupedService,
+    GroupedSubscription, GroupedSubscriptionOptions, GroupedTimer,
+};
+pub use nodes::{
     CallbackTimer, CallbackTimerOptions, Executor, ExecutorHandle, ExecutorNodeId, ExecutorTask,
     ExecutorTaskError, FutureExecutionOptions, Node, NodeOptions, ParallelExecutor,
     ParallelExecutorHandle, ParallelExecutorTask, ParallelExecutorTaskError,

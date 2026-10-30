@@ -1,0 +1,67 @@
+{
+  "required_consecutive_samples": 3,
+  "interval_seconds": 10,
+  "timeout_seconds": 50,
+  "maximum_load1": 2.0,
+  "forbidden_process_names": [
+    "zig",
+    "rustc",
+    "cargo",
+    "cc1",
+    "cc1plus",
+    "clang",
+    "clang++",
+    "gcc",
+    "g++",
+    "collect2",
+    "ld",
+    "ld.lld",
+    "lld",
+    "mold",
+    "cmake",
+    "make",
+    "ninja",
+    "lux-webgpu-comp"
+  ],
+  "passed": false,
+  "error": "performance isolation preflight timed out: {'observed_utc': '2026-10-30T01:22:29.457643+00:00', 'load1': 7.064453125, 'competing_processes': {'zig': 6}}",
+  "observations": [
+    {
+      "observed_utc": "2026-10-30T01:21:49.412246+00:00",
+      "load1": 7.41748046875,
+      "competing_processes": {
+        "zig": 4
+      }
+    },
+    {
+      "observed_utc": "2026-10-30T01:21:59.423431+00:00",
+      "load1": 7.50732421875,
+      "competing_processes": {
+        "zig": 5
+      }
+    },
+    {
+      "observed_utc": "2026-10-30T01:22:09.434918+00:00",
+      "load1": 7.1884765625,
+      "competing_processes": {
+        "zig": 6,
+        "lux-webgpu-comp": 1
+      }
+    },
+    {
+      "observed_utc": "2026-10-30T01:22:19.446375+00:00",
+      "load1": 7.62158203125,
+      "competing_processes": {
+        "zig": 6
+      }
+    },
+    {
+      "observed_utc": "2026-10-30T01:22:29.457643+00:00",
+      "load1": 7.064453125,
+      "competing_processes": {
+        "zig": 6
+      }
+    }
+  ],
+  "performance_measurement_started": false
+}
