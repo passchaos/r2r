@@ -39,7 +39,7 @@ fn callback_group_workers_progress_while_another_group_is_blocked() {
         })
         .unwrap();
     let groups = vec![slow, healthy];
-    let ids: Vec<_> = groups.iter().map(CallbackGroup::id).collect();
+    let ids: Vec<_> = groups.iter().map(|group| group.id()).collect();
     let scheduler = scheduler::Scheduler::new(None, groups, 2).unwrap();
     let workers: Vec<_> = (0..2)
         .map(|worker| {
@@ -59,7 +59,7 @@ fn callback_group_workers_progress_while_another_group_is_blocked() {
     assert_ne!(slow_thread, progress.expect("blocked group stalled a different group"));
     let (native, groups) = scheduler.recover();
     assert!(native.is_none());
-    assert_eq!(groups.iter().map(CallbackGroup::id).collect::<Vec<_>>(), ids);
+    assert_eq!(groups.iter().map(|group| group.id()).collect::<Vec<_>>(), ids);
     assert_eq!(groups.len(), 2);
     drop(input_slow);
     drop(input_healthy);

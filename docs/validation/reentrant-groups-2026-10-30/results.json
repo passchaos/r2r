@@ -1,0 +1,210 @@
+{
+  "recorded_utc": "2026-10-30T04:42:09.775435+00:00",
+  "parent_commit": "29a59cdeafe95bcef82ab79657f349b5395d82f3",
+  "capability_verification": "pass",
+  "scope": "Bounded reentrant same-Node native subscription/service/timer callbacks with shared Fn + Send + Sync handlers and independent lane input/reply ownership; C++ performance leadership remains unproven",
+  "rust_version": "1.85.0",
+  "jazzy": {
+    "rmws": [
+      "rmw_cyclonedds_cpp",
+      "rmw_fastrtps_cpp"
+    ],
+    "module_debug_each": 49,
+    "module_release_each": 49,
+    "new_reentrant_cases": 19,
+    "full_debug_workspace_library": 771,
+    "full_release_library_each": 771,
+    "ignored_manual_measurements": 8,
+    "main_library_rustdoc": 27,
+    "all_target_workspace_clippy": "pass",
+    "examples_each": [
+      "callback_groups",
+      "reentrant_callbacks"
+    ]
+  },
+  "native_compatibility": [
+    {
+      "distro": "humble",
+      "rmw": "rmw_fastrtps_cpp",
+      "release_module": 47,
+      "release_executor": 139
+    },
+    {
+      "distro": "kilted",
+      "rmw": "rmw_cyclonedds_cpp",
+      "release_module": 49,
+      "release_executor": 142
+    },
+    {
+      "distro": "kilted",
+      "rmw": "rmw_fastrtps_cpp",
+      "release_module": 49,
+      "release_executor": 142
+    }
+  ],
+  "native_compatibility_all_target_clippy": "pass",
+  "public_ownership_rustdoc_cases": 5,
+  "no_ros": {
+    "all_targets": "pass",
+    "artifacts": 59,
+    "methods": 257,
+    "public_rustdoc_cases": 12,
+    "native_only_unused_test_helpers": [
+      "len",
+      "source_id",
+      "native_validity_probe"
+    ],
+    "additional_full_unit_binary_attempt": {
+      "result": "unsupported native-symbol link",
+      "log": "logs/no-ros-unit-link-failure.log.gz",
+      "explanation": "doc-only provides declarations for compilation, not native RCL runtime libraries; queue/scheduler cases execute in the native module gates"
+    }
+  },
+  "performance": {
+    "isolation_passed": false,
+    "measurement_started": false,
+    "cpp_multithreaded_advantage_proven": false,
+    "observations": "performance-isolation-preflight.json"
+  },
+  "unverified_local_runtime_distros": [
+    "iron",
+    "lyrical",
+    "rolling"
+  ],
+  "source_manifest": "source-manifest.json",
+  "container_images": {
+    "r2r_humble_validation": "sha256:4e346fcaeb5f64690213fadce5dd27980d6cc3a0eb47ca9419d5a2427f70af41",
+    "r2r_kilted_native_feedback_validation": "sha256:5217474d9be62dcc995ff45e8743525620ea59f49cef33c0d3402a6427aa2c20",
+    "r2r_no_ros_validation": "sha256:3f3ae1e14bc9d9f61515515027b47f5b8dcf16c79f689c81c045cf29dcce2926"
+  },
+  "logs": {
+    "logs/humble-final.log.gz": {
+      "sha256": "4b0931664e9249e903bce23e2a8eea88f362a2d267693f9cada8121e3053cfe0",
+      "raw_sha256": "0f8659c4b03db7c4ccc9ce1b6ccfaa9d3511bbb5d8640450ac2a0a9e9e0d635e",
+      "test_summaries": [
+        "test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 706 filtered out; finished in 0.52s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 752 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 752 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 752 filtered out; finished in 0.03s",
+        "test result: ok. 139 passed; 0 failed; 0 ignored; 0 measured; 614 filtered out; finished in 2.57s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 2.01s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 1.83s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out; finished in 0.07s"
+      ]
+    },
+    "logs/isolation-preflight.log.gz": {
+      "sha256": "4c4dcffce77747cc355d7152eeb0371356f56e7a2471ea453e41dbccaeea3260",
+      "raw_sha256": "46e0addb0bf34ef79de40033868cfab390ffa39843f3c45ddb158c30cfa56702",
+      "test_summaries": []
+    },
+    "logs/jazzy-final.log.gz": {
+      "sha256": "aa808acfb9c4e9f9da79981e34147fb09a3edeeb96d2b6985f416a6a4fb6bd2d",
+      "raw_sha256": "da77ff256a568e4a17bcc1ae68eec19b5d1ac9169c82de10db0b2327c9732281",
+      "test_summaries": [
+        "test result: ok. 49 passed; 0 failed; 0 ignored; 0 measured; 730 filtered out; finished in 0.54s",
+        "test result: ok. 49 passed; 0 failed; 0 ignored; 0 measured; 730 filtered out; finished in 0.51s",
+        "test result: ok. 49 passed; 0 failed; 0 ignored; 0 measured; 730 filtered out; finished in 0.52s",
+        "test result: ok. 49 passed; 0 failed; 0 ignored; 0 measured; 730 filtered out; finished in 0.50s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 0.04s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 0.43s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out; finished in 0.23s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.03s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.02s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 771 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 14.44s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 40.58s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.73s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 40.68s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.03s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.03s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 771 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 14.04s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.03s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 1.93s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 778 filtered out; finished in 0.03s",
+        "test result: ok. 771 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 18.16s"
+      ]
+    },
+    "logs/kilted-final.log.gz": {
+      "sha256": "3552f2c8d506604a25821c6e501a67e3ddcdd0119bba737b7235227ae46f39f4",
+      "raw_sha256": "0f9cbf4e3f9fbdac99d0bb6d4728b33270b17db0b28183943627b88649008840",
+      "test_summaries": [
+        "test result: ok. 49 passed; 0 failed; 0 ignored; 0 measured; 734 filtered out; finished in 0.52s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 782 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 782 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 782 filtered out; finished in 0.03s",
+        "test result: ok. 142 passed; 0 failed; 0 ignored; 0 measured; 641 filtered out; finished in 2.57s",
+        "test result: ok. 49 passed; 0 failed; 0 ignored; 0 measured; 734 filtered out; finished in 1.10s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 782 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 782 filtered out; finished in 0.01s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 782 filtered out; finished in 0.03s",
+        "test result: ok. 142 passed; 0 failed; 0 ignored; 0 measured; 641 filtered out; finished in 4.47s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 0.29s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 0.15s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out; finished in 0.10s"
+      ]
+    },
+    "logs/no-ros-final.log.gz": {
+      "sha256": "e1097202d159950e6646c1518f167978c12404476684f444d9c4abefb1af3ad6",
+      "raw_sha256": "0325c758cdcd36bc00294957fc4aa80eded30d577d64fdf88b1eb96e8f05be59",
+      "test_summaries": [
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 0.09s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out; finished in 0.09s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out; finished in 0.37s",
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 0.09s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 0.09s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out; finished in 0.09s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 0.03s"
+      ]
+    },
+    "logs/no-ros-unit-link-failure.log.gz": {
+      "sha256": "822e981a9e5569e2220214b063f30272170ee395df1e83afe85740a214dfeb13",
+      "raw_sha256": "cdac156766ed4363ae202952638ababfe533c0c103516f3031b66e4dffb3d628",
+      "test_summaries": [
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ]
+    }
+  }
+}

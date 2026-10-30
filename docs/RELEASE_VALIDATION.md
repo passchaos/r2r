@@ -1,5 +1,34 @@
 # Optimized runtime validation
 
+## Bounded reentrant callback groups (2026-10-30)
+
+[Reentrant groups](CALLBACK_GROUPS.md#bounded-reentrant-groups) allow shared
+Fn + Send + Sync subscription/service/timer bodies to overlap within a group-wide
+invocation bound. One native owner remains responsible for Node/wait sets.
+Every lane owns its inputs and reusable service response buffer. Timer selection
+is released after synchronized advancement, with one-shot and lifecycle
+cancellation applied before another lane can select the next deadline.
+
+The nineteen new cases cover same-source worker concurrency, independent native
+reply storage and exact request identities, finalization during two blocked
+handlers, bounded timer overlap, native timestamps, stale lifecycle selections,
+cancel/restart, close/publication retirement, mixed group recovery and panic
+cleanup. The final Jazzy module gate executes 49 cases under both RMWs in debug
+and release; workspace and both optimized full suites pass 771 main-library cases
+with eight existing manual measurements ignored. All 27 Rustdoc cases, both
+complete examples and warning-denied all-target Clippy pass.
+
+Native Humble/Fast DDS passes 47 module/139 executor cases; Kilted/both RMWs pass
+49/142. Examples, public compiler boundaries and Clippy pass. A true no-ROS gate
+compiles all targets and verifies 59 public documentation objects and 257 methods.
+That environment supports compilation through saved declarations; linking the
+complete unit-test binary still requires ROS native symbols. Native-only helper
+warnings in doc-only test compilation do not affect the native Clippy gates.
+
+[Reentrant evidence](validation/reentrant-groups-2026-10-30/README.md) retains exact
+counts, source/SDK hashes and raw compressed logs. Independent isolated C++
+performance comparisons remain required for the full goal.
+
 ## Same-Node callback groups (2026-10-30)
 
 [Callback groups](CALLBACK_GROUPS.md) run scoped native subscriptions, typed/native
@@ -20,7 +49,7 @@ Rustdoc and Clippy pass in those native environments. The no-ROS gate verifies
 sequence/storage, finalized-service send rejection, exact invocation timestamps,
 lifecycle selection epochs and input retirement/backpressure oracles. The
 performance isolation prerequisite failed external contention before measurement;
-reentrant groups and isolated representative C++ comparisons remain open.
+At that predecessor checkpoint, reentrant groups and isolated representative C++ comparisons remained open.
 
 r2r validates runtime behavior with debug assertions disabled as well as with the default
 test profile. The Jazzy quality job runs the complete library suite with `cargo test --release`.

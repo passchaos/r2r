@@ -9,10 +9,13 @@ use std::{
 };
 
 mod input;
+mod reentrant;
 mod scheduler;
 pub(in crate::nodes) mod sources;
 mod task;
 pub(crate) use input::Producer;
+use reentrant::OwnedGroup;
+pub use reentrant::ReentrantCallbackGroup;
 pub use scheduler::Failure as CallbackWorkerError;
 pub use sources::{
     CallbackQueueOptions, GroupedService, GroupedSubscription, GroupedSubscriptionOptions,
@@ -20,19 +23,20 @@ pub use sources::{
 };
 pub use task::{CallbackExecutorTask, CallbackExecutorTaskError};
 
-/// Drives owned Nodes and mutually exclusive callback groups on a fixed worker budget.
+/// Drives owned Nodes and exclusive or bounded reentrant groups on a fixed worker budget.
 ///
 /// The budget includes the native wait job. One worker exclusively owns the
 /// Executor/Nodes during each native wait and dispatch; ready group jobs can run
-/// on other workers, and the native job can move between workers. A group keeps
-/// its handlers serial while different groups can progress concurrently.
+/// on other workers, and the native job can move between workers. CallbackGroup
+/// keeps its handlers serial; ReentrantCallbackGroup owns independent invocation
+/// lanes for shared handlers, bounded by its concurrency and available workers.
 /// Streams and application futures stay on their chosen Rust runtime.
 ///
 /// Configure entities and groups before spawning. Stop returns Node IDs, group
 /// IDs and handler state for reuse; reset cancellation before the next run.
 /// Native or callback failure cancels peers and releases ownership before
 /// returning an error. Cancellation is cooperative for a handler already running.
-/// Reentrant groups and live configuration changes are separate capabilities.
+/// Configuration requires stopped ownership.
 ///
 /// ```no_run
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -55,7 +59,7 @@ pub use task::{CallbackExecutorTask, CallbackExecutorTaskError};
 /// ```
 pub struct CallbackExecutor {
     native: Executor,
-    groups: Vec<CallbackGroup>,
+    groups: Vec<OwnedGroup>,
     group_indexes: HashMap<CallbackGroupId, usize>,
     workers: usize,
     running: Arc<Mutex<std::sync::Weak<scheduler::Scheduler>>>,
@@ -138,6 +142,15 @@ impl CallbackExecutor {
     /// Transfers configured handlers into a mutually exclusive scheduling group.
     /// A group is owned by this executor until stopped ownership is recovered.
     pub fn add_group(&mut self, group: CallbackGroup) -> Result<CallbackGroupId> {
+        self.add_owned_group(group.into())
+    }
+    /// Transfers immutable shared handlers into a bounded reentrant group.
+    pub fn add_reentrant_group(
+        &mut self, group: ReentrantCallbackGroup,
+    ) -> Result<CallbackGroupId> {
+        self.add_owned_group(group.into())
+    }
+    fn add_owned_group(&mut self, group: OwnedGroup) -> Result<CallbackGroupId> {
         let id = group.id();
         if self.group_indexes.contains_key(&id) {
             return Err(Error::RCL_RET_INVALID_ARGUMENT);
@@ -152,7 +165,34 @@ impl CallbackExecutor {
             .group_indexes
             .get(&id)
             .ok_or(Error::RCL_RET_INVALID_ARGUMENT)?;
-        Ok(&mut self.groups[index])
+        self.groups[index]
+            .exclusive_mut()
+            .ok_or(Error::RCL_RET_INVALID_ARGUMENT)
+    }
+    /// Borrows a stopped reentrant group without weakening its shared-handler type.
+    pub fn reentrant_group_mut(
+        &mut self, id: CallbackGroupId,
+    ) -> Result<&mut ReentrantCallbackGroup> {
+        let index = *self
+            .group_indexes
+            .get(&id)
+            .ok_or(Error::RCL_RET_INVALID_ARGUMENT)?;
+        self.groups[index]
+            .reentrant_mut()
+            .ok_or(Error::RCL_RET_INVALID_ARGUMENT)
+    }
+    /// Configures a Node and its stopped reentrant group in one disjoint borrow.
+    pub fn node_and_reentrant_group_mut(
+        &mut self, node: ExecutorNodeId, group: CallbackGroupId,
+    ) -> Result<(&mut Node, &mut ReentrantCallbackGroup)> {
+        let index = *self
+            .group_indexes
+            .get(&group)
+            .ok_or(Error::RCL_RET_INVALID_ARGUMENT)?;
+        let group = self.groups[index]
+            .reentrant_mut()
+            .ok_or(Error::RCL_RET_INVALID_ARGUMENT)?;
+        Ok((self.native.node_mut(node)?, group))
     }
     /// Borrows disjoint Node/group configuration together, avoiding split-borrow
     /// workarounds when adding entities after stop.
@@ -163,7 +203,10 @@ impl CallbackExecutor {
             .group_indexes
             .get(&group)
             .ok_or(Error::RCL_RET_INVALID_ARGUMENT)?;
-        Ok((self.native.node_mut(node)?, &mut self.groups[index]))
+        let group = self.groups[index]
+            .exclusive_mut()
+            .ok_or(Error::RCL_RET_INVALID_ARGUMENT)?;
+        Ok((self.native.node_mut(node)?, group))
     }
     /// Creates weak controls that remain usable across stop/restart.
     pub fn handle(&mut self) -> CallbackExecutorHandle {
@@ -172,7 +215,7 @@ impl CallbackExecutor {
             groups: self
                 .groups
                 .iter()
-                .map(|group| Arc::downgrade(&group.cancelled))
+                .map(|group| Arc::downgrade(group.cancelled()))
                 .collect::<Vec<_>>()
                 .into(),
             running: self.running.clone(),
@@ -188,7 +231,7 @@ impl CallbackExecutor {
         self.native.reset_cancel();
         for group in &self.groups {
             group
-                .cancelled
+                .cancelled()
                 .store(false, std::sync::atomic::Ordering::Release);
         }
     }

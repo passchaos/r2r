@@ -3,15 +3,42 @@
 use super::*;
 use crossbeam_queue::ArrayQueue;
 use futures::task::AtomicWaker;
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering};
 use std::task::Waker;
 
 struct Shared<T> {
     queue: ArrayQueue<T>,
     gate: AtomicU8,
-    consumer_wake: AtomicWaker,
+    consumer_wake: ConsumerWakes,
+    consumers: AtomicUsize,
     producer_waiting: AtomicBool,
     native_wake: Mutex<Option<Waker>>,
+}
+
+enum ConsumerWakes {
+    Single(AtomicWaker),
+    Multiple(Box<[AtomicWaker]>),
+}
+impl ConsumerWakes {
+    fn at(&self, index: usize) -> &AtomicWaker {
+        match self {
+            Self::Single(wake) => {
+                debug_assert_eq!(index, 0);
+                wake
+            }
+            Self::Multiple(wakes) => &wakes[index],
+        }
+    }
+    fn wake(&self) {
+        match self {
+            Self::Single(wake) => wake.wake(),
+            Self::Multiple(wakes) => {
+                for wake in wakes {
+                    wake.wake();
+                }
+            }
+        }
+    }
 }
 
 pub(in crate::nodes) trait Control: Send + Sync {
@@ -67,7 +94,10 @@ pub(super) struct Consumer<T, F> {
     shared: Arc<Shared<T>>,
     cancelled: Arc<AtomicBool>,
     callback: F,
+    index: usize,
 }
+
+pub(super) type PreparedInputs<T, F> = (Producer<T>, Vec<Consumer<T, F>>);
 
 // No field is structurally pinned or exposed through a pin projection. The
 // callback is always invoked through FnMut, which requires an ordinary mutable borrow.
@@ -79,13 +109,7 @@ pub(super) fn channel<T, F>(
     if capacity == 0 || capacity >= usize::MAX >> 2 {
         return Err(Error::RCL_RET_INVALID_ARGUMENT);
     }
-    let shared = Arc::new(Shared {
-        queue: ArrayQueue::new(capacity),
-        gate: AtomicU8::new(0),
-        consumer_wake: AtomicWaker::new(),
-        producer_waiting: AtomicBool::new(false),
-        native_wake: Mutex::new(None),
-    });
+    let shared = shared(capacity, 1)?;
     Ok((
         Producer {
             shared: shared.clone(),
@@ -94,8 +118,56 @@ pub(super) fn channel<T, F>(
             shared,
             cancelled,
             callback,
+            index: 0,
         },
     ))
+}
+
+fn shared<T>(capacity: usize, consumers: usize) -> Result<Arc<Shared<T>>> {
+    if capacity == 0 || capacity >= usize::MAX >> 2 || consumers == 0 {
+        return Err(Error::RCL_RET_INVALID_ARGUMENT);
+    }
+    Ok(Arc::new(Shared {
+        queue: ArrayQueue::new(capacity),
+        gate: AtomicU8::new(0),
+        consumer_wake: if consumers == 1 {
+            ConsumerWakes::Single(AtomicWaker::new())
+        } else {
+            (0..consumers)
+                .map(|_| AtomicWaker::new())
+                .collect::<Vec<_>>()
+                .into_boxed_slice()
+                .into()
+        },
+        consumers: AtomicUsize::new(consumers),
+        producer_waiting: AtomicBool::new(false),
+        native_wake: Mutex::new(None),
+    }))
+}
+
+impl From<Box<[AtomicWaker]>> for ConsumerWakes {
+    fn from(wakes: Box<[AtomicWaker]>) -> Self {
+        Self::Multiple(wakes)
+    }
+}
+
+/// Receivers share input ownership, never callback mutable state. Each receiver
+/// gets one independently constructed FnMut adapter around a shared Fn handler.
+pub(super) fn channel_many<T, F>(
+    capacity: usize, cancelled: Arc<AtomicBool>, callbacks: Vec<F>,
+) -> Result<PreparedInputs<T, F>> {
+    let shared = shared(capacity, callbacks.len())?;
+    let consumers = callbacks
+        .into_iter()
+        .enumerate()
+        .map(|(index, callback)| Consumer {
+            shared: shared.clone(),
+            cancelled: cancelled.clone(),
+            callback,
+            index,
+        })
+        .collect();
+    Ok((Producer { shared }, consumers))
 }
 
 impl<T> Shared<T> {
@@ -174,7 +246,11 @@ where
     type Output = Result<()>;
     fn poll(self: Pin<&mut Self>, context: &mut TaskContext<'_>) -> Poll<Self::Output> {
         let consumer = self.get_mut();
-        consumer.shared.consumer_wake.register(context.waker());
+        consumer
+            .shared
+            .consumer_wake
+            .at(consumer.index)
+            .register(context.waker());
         if consumer.cancelled.load(Ordering::Acquire) {
             return Poll::Pending;
         }
@@ -198,10 +274,18 @@ where
 
 impl<T, F> Drop for Consumer<T, F> {
     fn drop(&mut self) {
+        consumer_wake_release(&self.shared, self.index);
+        if self.shared.consumers.fetch_sub(1, Ordering::AcqRel) != 1 {
+            return;
+        }
         self.shared.gate.fetch_or(CLOSED, Ordering::AcqRel);
         while let Some(input) = self.shared.queue.pop() {
             drop(input);
         }
         self.shared.wake_native();
     }
+}
+
+fn consumer_wake_release<T>(shared: &Shared<T>, index: usize) {
+    shared.consumer_wake.at(index).take();
 }

@@ -17,6 +17,7 @@ const FINISHED: u8 = 4;
 pub(super) enum Work {
     Native(Box<Executor>),
     Group(Box<CallbackGroup>),
+    Reentrant(Box<super::reentrant::Lane>),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -33,12 +34,14 @@ pub enum Failure {
 struct State(AtomicU8);
 
 struct Slot {
+    group: Option<usize>,
     state: State,
     work: Mutex<Option<Work>>,
     wake: std::sync::OnceLock<Waker>,
 }
 
 pub(super) struct Scheduler {
+    groups: Mutex<Vec<Option<OwnedGroup>>>,
     slots: Vec<Slot>,
     ready: ArrayQueue<usize>,
     stopped: AtomicBool,
@@ -78,8 +81,8 @@ impl Drop for Owned<'_> {
 }
 
 impl Scheduler {
-    pub(super) fn new(
-        mut native: Option<Executor>, groups: Vec<CallbackGroup>, workers: usize,
+    pub(super) fn new<G: Into<OwnedGroup>>(
+        mut native: Option<Executor>, groups: Vec<G>, workers: usize,
     ) -> Result<Arc<Self>> {
         if workers == 0 {
             return Err(Error::RCL_RET_INVALID_ARGUMENT);
@@ -91,21 +94,51 @@ impl Scheduler {
             }
             None => (futures::task::noop_waker(), None, None),
         };
-        let group_flags = groups.iter().map(|group| group.cancelled.clone()).collect();
+        let groups: Vec<OwnedGroup> = groups.into_iter().map(Into::into).collect();
+        let group_flags = groups
+            .iter()
+            .map(|group| group.cancelled().clone())
+            .collect();
         let precancelled = native.as_ref().is_some_and(Executor::is_cancelled)
             || groups
                 .iter()
-                .any(|group| group.cancelled.load(Ordering::Acquire));
-        let work: Vec<_> = native
+                .any(|group| group.cancelled().load(Ordering::Acquire));
+        let mut work: Vec<(Option<usize>, Work)> = native
             .into_iter()
-            .map(|native| Work::Native(Box::new(native)))
-            .chain(groups.into_iter().map(|group| Work::Group(Box::new(group))))
+            .map(|native| (None, Work::Native(Box::new(native))))
             .collect();
+        let mut ownership = Vec::with_capacity(groups.len());
+        for (group_index, group) in groups.into_iter().enumerate() {
+            match group {
+                OwnedGroup::Exclusive(group) => {
+                    work.push((Some(group_index), Work::Group(Box::new(group))));
+                    ownership.push(None);
+                }
+                OwnedGroup::Reentrant(mut group) => {
+                    let lanes = std::mem::take(&mut group.lanes);
+                    for (index, callbacks) in lanes.into_iter().enumerate() {
+                        group.lanes.push(FuturesUnordered::new());
+                        work.push((
+                            Some(group_index),
+                            Work::Reentrant(Box::new(super::reentrant::Lane {
+                                group: group_index,
+                                index,
+                                id: group.id,
+                                callbacks,
+                            })),
+                        ));
+                    }
+                    ownership.push(Some(OwnedGroup::Reentrant(group)));
+                }
+            }
+        }
         let count = work.len();
         let scheduler = Arc::new(Self {
+            groups: Mutex::new(ownership),
             slots: work
                 .into_iter()
-                .map(|work| Slot {
+                .map(|(group, work)| Slot {
+                    group,
                     state: State(AtomicU8::new(QUEUED)),
                     work: Mutex::new(Some(work)),
                     wake: std::sync::OnceLock::new(),
@@ -275,6 +308,16 @@ impl Scheduler {
                     })
                 }
             },
+            Work::Reentrant(lane) => match lane.poll(&mut context) {
+                Poll::Pending => false,
+                Poll::Ready(Ok(())) => true,
+                Poll::Ready(Err(source)) => {
+                    return Err(Failure::Group {
+                        id: lane.id,
+                        source,
+                    })
+                }
+            },
         };
         drop(owned);
         if finished {
@@ -316,9 +359,9 @@ impl Scheduler {
 
     /// Call only after collecting every worker; slot values remain exclusively
     /// owned even after cancellation and callback unwinding.
-    pub(super) fn recover(&self) -> (Option<Executor>, Vec<CallbackGroup>) {
+    pub(super) fn recover(&self) -> (Option<Executor>, Vec<OwnedGroup>) {
         let mut native = None;
-        let mut groups = Vec::new();
+        let mut groups = std::mem::take(&mut *self.groups.lock());
         for slot in &self.slots {
             match slot
                 .work
@@ -327,9 +370,23 @@ impl Scheduler {
                 .expect("completed work ownership missing")
             {
                 Work::Native(executor) => native = Some(*executor),
-                Work::Group(group) => groups.push(*group),
+                Work::Group(group) => {
+                    groups[slot.group.unwrap()] = Some(OwnedGroup::Exclusive(*group))
+                }
+                Work::Reentrant(lane) => {
+                    let OwnedGroup::Reentrant(group) = groups[lane.group].as_mut().unwrap() else {
+                        unreachable!()
+                    };
+                    group.lanes[lane.index] = lane.callbacks;
+                }
             }
         }
-        (native, groups)
+        (
+            native,
+            groups
+                .into_iter()
+                .map(|group| group.expect("recovered callback group missing"))
+                .collect(),
+        )
     }
 }

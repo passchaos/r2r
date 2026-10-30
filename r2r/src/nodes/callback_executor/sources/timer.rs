@@ -10,14 +10,17 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
+mod exclusive;
 mod native;
+mod reentrant;
 use native::{Invocation, NativeTimer};
 
 /// Owns a native timer whose selected invocation runs in a callback group.
 ///
 /// Native advancement occurs on the callback worker immediately before user
-/// invocation. Only one invocation is queued or running for this timer; native
-/// waiting omits it until completion. Controls synchronize with advancement and
+/// invocation. Only one selection awaits advancement. Exclusive groups retain
+/// selection through the whole handler; reentrant groups release it after native
+/// advancement so subsequent deadlines can overlap user work. Controls synchronize with advancement and
 /// finalization and wake the current native owner. Lifecycle-created timers
 /// retain their activation generation and manual pause in the native resource.
 /// Dropping the token closes pending input and schedules native finalization.
@@ -197,6 +200,30 @@ impl Node {
         H::Tick: Send + 'static,
         H::Permit: Send + 'static,
     {
+        let native = self.allocate_grouped_timer(period, options, clock_type, generation)?;
+        let selected = native.clone();
+        let (producer, consumer) = group.prepare_input(1, move |generation| {
+            let _invocation = Invocation(&selected);
+            let Some(permit) = handler.permit() else {
+                return Ok(());
+            };
+            if let Some(tick) = selected.advance::<H>(generation)? {
+                handler.invoke(tick, permit)?;
+            }
+            Ok(())
+        })?;
+        let timer = self.install_grouped_timer(group.id(), native, producer);
+        let registry = self.grouped_callbacks.as_ref().unwrap();
+        group
+            .sources
+            .push((registry.node_id, Arc::downgrade(&timer.control)));
+        group.commit_input(consumer);
+        Ok(timer)
+    }
+    fn allocate_grouped_timer(
+        &mut self, period: Duration, options: CallbackTimerOptions, clock_type: ClockType,
+        generation: Option<Generation>,
+    ) -> Result<Arc<NativeTimer>> {
         let period = duration_to_rcl_nanos(period)?;
         let clock = match clock_type {
             ClockType::RosTime => self.ros_clock.clone(),
@@ -213,17 +240,6 @@ impl Node {
             generation,
             wake: Mutex::new(None),
         });
-        let selected = native.clone();
-        let (producer, consumer) = group.prepare_input(1, move |generation| {
-            let _invocation = Invocation(&selected);
-            let Some(permit) = handler.permit() else {
-                return Ok(());
-            };
-            if let Some(tick) = selected.advance::<H>(generation)? {
-                handler.invoke(tick, permit)?;
-            }
-            Ok(())
-        })?;
         {
             let mut clock = native.clock.lock();
             let mut context = self.context.context_handle.lock();
@@ -241,10 +257,16 @@ impl Node {
             native.initialized.store(true, Ordering::Release);
         }
         native.synchronize()?;
+        Ok(native)
+    }
+    fn install_grouped_timer(
+        &mut self, group: CallbackGroupId, native: Arc<NativeTimer>,
+        producer: Producer<Option<u64>>,
+    ) -> GroupedTimer {
         let control = producer.control();
         let mut source = Box::new(TimerSource {
             id: uuid::Uuid::new_v4(),
-            group: group.id(),
+            group,
             native: native.clone(),
             input: producer,
         });
@@ -252,128 +274,10 @@ impl Node {
         let registry = self.grouped_callbacks.get_or_insert_with(Default::default);
         registry.indexes.insert(source.id, registry.rows.len());
         registry.rows.push(source);
-        group
-            .sources
-            .push((registry.node_id, Arc::downgrade(&control)));
-        group.commit_input(consumer);
-        Ok(GroupedTimer {
+        GroupedTimer {
             native: Arc::downgrade(&native),
             control,
-            clock_type,
-        })
-    }
-    /// Registers a steady-clock callback in a mutually exclusive group.
-    pub fn create_wall_timer_callback_in_group<F: FnMut() -> Result<()> + Send + 'static>(
-        &mut self, group: &mut CallbackGroup, period: Duration, callback: F,
-    ) -> Result<GroupedTimer> {
-        self.create_wall_timer_callback_in_group_with_options(
-            group,
-            period,
-            CallbackTimerOptions::default(),
-            callback,
-        )
-    }
-    /// Registers a wall callback with explicit startup and one-shot policy.
-    pub fn create_wall_timer_callback_in_group_with_options<
-        F: FnMut() -> Result<()> + Send + 'static,
-    >(
-        &mut self, group: &mut CallbackGroup, period: Duration, options: CallbackTimerOptions,
-        callback: F,
-    ) -> Result<GroupedTimer> {
-        self.register_grouped_timer(
-            group,
-            period,
-            options,
-            ClockType::SteadyTime,
-            crate::nodes::timer_callbacks::native::Plain(callback),
-        )
-    }
-    /// Registers a callback driven by this Node's managed ROS clock.
-    pub fn create_timer_callback_in_group<F: FnMut() -> Result<()> + Send + 'static>(
-        &mut self, group: &mut CallbackGroup, period: Duration, callback: F,
-    ) -> Result<GroupedTimer> {
-        self.register_grouped_timer(
-            group,
-            period,
-            CallbackTimerOptions::default(),
-            ClockType::RosTime,
-            crate::nodes::timer_callbacks::native::Plain(callback),
-        )
-    }
-    /// Registers a ROS-clock callback with startup and one-shot policy.
-    pub fn create_timer_callback_in_group_with_options<
-        F: FnMut() -> Result<()> + Send + 'static,
-    >(
-        &mut self, group: &mut CallbackGroup, period: Duration, options: CallbackTimerOptions,
-        callback: F,
-    ) -> Result<GroupedTimer> {
-        self.register_grouped_timer(
-            group,
-            period,
-            options,
-            ClockType::RosTime,
-            crate::nodes::timer_callbacks::native::Plain(callback),
-        )
-    }
-    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
-    /// Captures native expected/actual call timestamps at worker advancement.
-    pub fn create_timer_callback_in_group_with_info<
-        F: FnMut(TimerCallInfo) -> Result<()> + Send + 'static,
-    >(
-        &mut self, group: &mut CallbackGroup, period: Duration, callback: F,
-    ) -> Result<GroupedTimer> {
-        self.register_grouped_timer(
-            group,
-            period,
-            CallbackTimerOptions::default(),
-            ClockType::RosTime,
-            crate::nodes::timer_callbacks::native::WithInfo(callback),
-        )
-    }
-    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
-    /// Registers timestamped ROS-clock invocation with startup/one-shot policy.
-    pub fn create_timer_callback_in_group_with_info_and_options<
-        F: FnMut(TimerCallInfo) -> Result<()> + Send + 'static,
-    >(
-        &mut self, group: &mut CallbackGroup, period: Duration, options: CallbackTimerOptions,
-        callback: F,
-    ) -> Result<GroupedTimer> {
-        self.register_grouped_timer(
-            group,
-            period,
-            options,
-            ClockType::RosTime,
-            crate::nodes::timer_callbacks::native::WithInfo(callback),
-        )
-    }
-    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
-    /// Registers timestamped steady-clock invocation in the group.
-    pub fn create_wall_timer_callback_in_group_with_info<
-        F: FnMut(TimerCallInfo) -> Result<()> + Send + 'static,
-    >(
-        &mut self, group: &mut CallbackGroup, period: Duration, callback: F,
-    ) -> Result<GroupedTimer> {
-        self.create_wall_timer_callback_in_group_with_info_and_options(
-            group,
-            period,
-            CallbackTimerOptions::default(),
-            callback,
-        )
-    }
-    #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
-    /// Registers timestamped wall invocation with startup/one-shot policy.
-    pub fn create_wall_timer_callback_in_group_with_info_and_options<
-        F: FnMut(TimerCallInfo) -> Result<()> + Send + 'static,
-    >(
-        &mut self, group: &mut CallbackGroup, period: Duration, options: CallbackTimerOptions,
-        callback: F,
-    ) -> Result<GroupedTimer> {
-        self.register_grouped_timer(
-            group,
-            period,
-            options,
-            ClockType::SteadyTime,
-            crate::nodes::timer_callbacks::native::WithInfo(callback),
-        )
+            clock_type: native.clock_type,
+        }
     }
 }

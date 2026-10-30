@@ -5,8 +5,9 @@ mutually exclusive and reentrant groups, convenient native factories, complete
 shutdown/ownership recovery, and measured scaling against equivalent rclcpp
 applications. The implementation includes native grouped subscriptions, services, timers and
 owned task completion. [Recorded validation](../validation/callback-groups-2026-10-30/README.md)
-covers public API, optimized/native compatibility and full gates. Reentrant
-groups and independent performance comparisons remain separate work.
+covers the predecessor exclusive groups. Bounded reentrant groups add shared
+handlers and independent invocation lanes. Independent performance comparisons
+remain required.
 
 ## Ownership and scheduling
 
@@ -26,6 +27,16 @@ ready token. The ready ring has one slot per job; it cannot grow with message
 volume. Wakers and boxed job values are allocated during scheduler construction.
 Invocation creates no job box or replacement waker allocation.
 
+A reentrant group expands to a fixed number of owned lane slots. Each lane
+holds independent receiver futures around a shared Fn + Send + Sync callback.
+The group cancellation flag and source associations remain in retained group
+metadata. Recovery refills lanes at their original indices and reconstructs
+mixed exclusive/reentrant groups in their original order. Actual workers are
+bounded by the configured budget and the number of nonempty executable lanes.
+A source uses one native producer and a multi-consumer ArrayQueue; receiver
+wakers are allocated once, and last-receiver retirement closes the source.
+The single-consumer path keeps its inline AtomicWaker.
+
 Callback wakers are primed before native waiting, including the one-worker
 configuration. Ready publication unparks registered workers with persistent
 thread tokens and interrupts the native wait through its cached observer guard.
@@ -39,7 +50,7 @@ publication races an empty check or precedes parking. Allocation/resource and
 scaling evidence must guide any replacement with targeted idle-worker wakeups;
 an unsynchronized idle counter must not reintroduce a lost-wake window.
 
-## Native input boundaries to implement
+## Native input boundaries
 
 Native sources retain sole RCL endpoint ownership in the Node. Subscription
 sources take independently initialized `NativeMsg` containers into a fixed
@@ -56,7 +67,7 @@ input is retained or returned intact; buffer pressure never silently discards
 a taken sample.
 
 Service requests retain native sequence/writer metadata and independently
-owned request storage. Each handler retains its native response buffer.
+owned request storage. Each exclusive handler or reentrant lane retains its own native response buffer.
 Response send and endpoint finalization need a shared, synchronized native
 lifetime boundary; application handlers run outside that boundary's mutex.
 Node destruction closes pending inputs and prevents use of a finalized native
@@ -64,7 +75,9 @@ service. Existing native metadata initialization and distribution conditions
 remain required.
 
 Timer work needs a stable native lifetime, at most one selected invocation,
-and safe clock/advancement synchronization. Native advancement and timestamp
+and safe clock/advancement synchronization. Reentrant lanes release selection
+after synchronized advancement, before entering shared user work; exclusive
+handlers release after their body. One-shot cancellation occurs before release. Native advancement and timestamp
 metadata must correspond to the selected invocation. Managed timers retain
 their generation permit before advancement and user invocation, rejecting
 obsolete activation without consuming one-shot readiness. Endpoint finalization
@@ -96,8 +109,16 @@ The complete example checks 32 native forwards and RPC responses during a blocke
 handler with stopped reuse. Full Jazzy suites pass 752 library cases; the no-ROS
 gate verifies 58 public documentation artifacts and 226 methods.
 
-Details, raw logs and source hashes are in the recorded validation. The isolation
-prerequisite failed external contention before measurement. Reentrant groups,
+Details, raw logs and source hashes are in the recorded validation. The predecessor isolation
+prerequisite failed external contention before measurement.
 live configuration, a native runtime reactor and allocation/resource scaling
 with CPU-pinned interleaved Rust/rclcpp application comparisons remain required
 by the complete goal.
+
+The [reentrant validation](../validation/reentrant-groups-2026-10-30/README.md)
+adds nineteen cases and retains all predecessor gates. Final Jazzy module gates
+execute 49 cases in debug/release under each RMW; workspace and optimized full
+library suites execute 771 cases. Humble executes 47 module/139 executor cases,
+and Kilted executes 49/142 under both RMWs. The true no-ROS gate verifies 59
+public documentation artifacts and 257 methods. Independent source/SDK hashes
+and compressed logs accompany these results.

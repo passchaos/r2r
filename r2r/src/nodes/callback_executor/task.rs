@@ -54,7 +54,7 @@ pub(super) fn spawn(
     if executor
         .groups
         .iter()
-        .flat_map(|group| &group.sources)
+        .flat_map(OwnedGroup::sources)
         .any(|(node, control)| {
             control
                 .upgrade()
@@ -72,7 +72,7 @@ pub(super) fn spawn(
         workers,
         running,
     } = executor;
-    let count = workers.min(1 + groups.iter().filter(|group| !group.is_empty()).count());
+    let count = workers.min(1 + groups.iter().map(OwnedGroup::units).sum::<usize>());
     let scheduler = scheduler::Scheduler::new(Some(native), groups, count)?;
     *running.lock() = Arc::downgrade(&scheduler);
     // The weak running link exists before threads start. Recheck persistent

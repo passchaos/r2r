@@ -45,6 +45,7 @@ REQUIRED_DOCUMENTATION = (
     "enum.CallbackExecutorTaskError.html",
     "enum.CallbackWorkerError.html",
     "struct.CallbackGroup.html",
+    "struct.ReentrantCallbackGroup.html",
     "struct.CallbackGroupId.html",
     "struct.CallbackQueueOptions.html",
     "struct.GroupedSubscription.html",
@@ -98,6 +99,7 @@ REQUIRED_METHODS = {
     "struct.CallbackExecutorHandle.html": ("cancel", "is_cancelled"),
     "struct.CallbackExecutorTask.html": ("handle", "worker_count", "cancel", "is_finished", "stop"),
     "struct.CallbackGroup.html": ("new", "id", "len", "is_empty"),
+    "struct.ReentrantCallbackGroup.html": ("new", "id", "concurrency", "is_empty"),
     "struct.CallbackQueueOptions.html": ("capacity", "max_inputs_per_spin"),
     "struct.GroupedSubscriptionOptions.html": ("queue", "endpoint"),
     "struct.GroupedSubscription.html": ("topic_name", "actual_qos", "get_publisher_count", "wait_for_publishers", "wait_for_publishers_with_timeout", "qos_events", "is_valid"),
@@ -149,6 +151,24 @@ REQUIRED_METHODS["struct.LifecycleNode.html"] += (
 )
 
 
+REQUIRED_METHODS["struct.CallbackExecutor.html"] += (
+    "add_reentrant_group", "reentrant_group_mut", "node_and_reentrant_group_mut",
+)
+REENTRANT_TIMERS = (
+    "create_wall_timer_reentrant_callback", "create_wall_timer_reentrant_callback_with_options",
+    "create_timer_reentrant_callback", "create_timer_reentrant_callback_with_options",
+    "create_wall_timer_reentrant_callback_with_info", "create_wall_timer_reentrant_callback_with_info_and_options",
+    "create_timer_reentrant_callback_with_info", "create_timer_reentrant_callback_with_info_and_options",
+)
+REQUIRED_METHODS["struct.LifecycleNode.html"] += REENTRANT_TIMERS
+REQUIRED_METHODS["struct.Node.html"] += REENTRANT_TIMERS + (
+    "subscribe_reentrant_callback", "subscribe_reentrant_callback_with_options",
+    "subscribe_native_reentrant_callback", "subscribe_native_reentrant_callback_with_options",
+    "create_service_reentrant_callback", "create_service_reentrant_callback_with_options",
+    "create_service_native_reentrant_callback", "create_service_native_reentrant_callback_with_options",
+)
+
+
 def documentation_environment():
     environment = os.environ.copy()
     for variable in ROS_ENVIRONMENT:
@@ -173,6 +193,7 @@ def check(environment=None):
         ["cargo", "test", "-p", "r2r", "--doc", "--features", "doc-only", "ParallelExecutor"],
         ["cargo", "test", "-p", "r2r", "--doc", "--features", "doc-only", "CallbackExecutor"],
         ["cargo", "test", "-p", "r2r", "--doc", "--features", "doc-only", "subscribe_native_callback_in_group"],
+        ["cargo", "test", "-p", "r2r", "--doc", "--features", "doc-only", "ReentrantCallbackGroup"],
         ["cargo", "doc", "-p", "r2r", "--no-deps", "--features", "doc-only"],
     )
     for command in commands:

@@ -58,7 +58,7 @@ pub(crate) use callback_executor::sources::GroupedTimerActivation;
 pub use callback_executor::{
     CallbackExecutor, CallbackExecutorHandle, CallbackExecutorTask, CallbackExecutorTaskError,
     CallbackGroup, CallbackGroupId, CallbackQueueOptions, CallbackWorkerError, GroupedService,
-    GroupedSubscription, GroupedSubscriptionOptions, GroupedTimer,
+    GroupedSubscription, GroupedSubscriptionOptions, GroupedTimer, ReentrantCallbackGroup,
 };
 mod creation;
 mod parameter_api;

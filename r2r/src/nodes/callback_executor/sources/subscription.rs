@@ -1,5 +1,6 @@
 use super::*;
 use std::{any::TypeId, marker::PhantomData};
+mod reentrant;
 
 struct SubscriptionSource<T: WrappedTypesupport> {
     group_id: CallbackGroupId,

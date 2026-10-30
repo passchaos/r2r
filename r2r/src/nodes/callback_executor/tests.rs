@@ -6,6 +6,18 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 mod lifecycle;
 #[cfg(not(feature = "doc-only"))]
 mod native;
+mod reentrant_input;
+#[cfg(not(feature = "doc-only"))]
+mod reentrant_lifecycle;
+#[cfg(not(feature = "doc-only"))]
+mod reentrant_native;
+mod reentrant_scheduling;
+#[cfg(not(feature = "doc-only"))]
+mod reentrant_service;
+#[cfg(not(feature = "doc-only"))]
+mod reentrant_task;
+#[cfg(not(feature = "doc-only"))]
+mod reentrant_timer;
 mod scheduling;
 #[cfg(not(feature = "doc-only"))]
 mod service;
@@ -13,6 +25,31 @@ mod service;
 mod task;
 #[cfg(not(feature = "doc-only"))]
 mod timer;
+
+#[cfg(not(feature = "doc-only"))]
+fn poll_reentrant(
+    group: &mut ReentrantCallbackGroup, context: &mut TaskContext<'_>,
+) -> Poll<Result<()>> {
+    let mut pending = false;
+    for lane in &mut group.lanes {
+        loop {
+            match Pin::new(&mut *lane).poll_next(context) {
+                Poll::Pending => {
+                    pending = true;
+                    break;
+                }
+                Poll::Ready(None) => break,
+                Poll::Ready(Some(Ok(()))) => {}
+                Poll::Ready(Some(Err(error))) => return Poll::Ready(Err(error)),
+            }
+        }
+    }
+    if pending {
+        Poll::Pending
+    } else {
+        Poll::Ready(Ok(()))
+    }
+}
 
 #[test]
 fn callback_group_input_is_bounded_and_preserves_rejected_payload_ownership() {

@@ -198,7 +198,7 @@ pub use nodes::TimerCallInfo;
 pub use nodes::{
     CallbackExecutor, CallbackExecutorHandle, CallbackExecutorTask, CallbackExecutorTaskError,
     CallbackGroup, CallbackGroupId, CallbackQueueOptions, CallbackWorkerError, GroupedService,
-    GroupedSubscription, GroupedSubscriptionOptions, GroupedTimer,
+    GroupedSubscription, GroupedSubscriptionOptions, GroupedTimer, ReentrantCallbackGroup,
 };
 pub use nodes::{
     CallbackTimer, CallbackTimerOptions, Executor, ExecutorHandle, ExecutorNodeId, ExecutorTask,
