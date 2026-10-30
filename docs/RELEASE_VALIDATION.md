@@ -1,5 +1,28 @@
 # Optimized runtime validation
 
+## Callback group application comparison (2026-10-30)
+
+[Native callback-group applications](../tools/bench_ros/CALLBACK_GROUPS.md) now
+compare one service/client Node in independent Rust/rclcpp binaries with identical
+worker budgets, request windows, compute inputs and per-request oracles. An
+explicit overlap challenge precedes warmup. Captured client/server request IDs,
+independent returned-value checking and stage intervals enforce actual work and
+concurrency. The optional probe measures complete-process allocations/CPU; memory
+uses application VmHWM rather than a potentially inherited ru_maxrss floor.
+
+All five Jazzy/Humble/Kilted RMW environments pass 20 checked application runs
+and 1280 request traces each, plus benchmark Clippy. Ninety-four performance-tool
+cases and both probe oracles pass; Jazzy all-target Clippy and true no-ROS
+all-target/public-documentation gates pass. An original C++ four-worker timeout
+remains unexplained after larger and repeated-lifecycle diagnostics; its captured
+failure is retained. Final isolation failed external compilation before A/B,
+so smoke records establish no C++ performance advantage.
+
+[Complete comparison evidence](validation/callback-group-comparison-2026-10-30/README.md)
+records corrected memory semantics, raw traces, final source/binary hashes and
+an ELF dependency audit. Rust's default linking of unused interface packages is
+a concrete next memory/startup target while retaining typed/untyped capability.
+
 ## Bounded reentrant callback groups (2026-10-30)
 
 [Reentrant groups](CALLBACK_GROUPS.md#bounded-reentrant-groups) allow shared

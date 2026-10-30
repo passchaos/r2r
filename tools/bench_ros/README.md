@@ -82,3 +82,10 @@ They are not individual-message tail-latency measurements. `native_copy_pointer_
 observes pointer changes; an allocator can reuse an address, so it is not an allocation counter.
 Reproducibility records establish the workload and environment, not performance on other hardware
 or middleware. Keep reports scoped to the stages actually measured.
+
+[Same-Node callback group applications](CALLBACK_GROUPS.md) compare exclusive and
+bounded reentrant native service work with rclcpp MultiThreadedExecutor, explicit
+same-handler overlap, independent result/native-ID oracles, stage traces and
+all-process allocation/CPU/threads/application-memory evidence. The formal runner
+requires independently spaced idle samples and continuous isolation monitoring;
+smoke timing remains unqualified.

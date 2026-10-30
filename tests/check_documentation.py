@@ -180,6 +180,7 @@ def check(environment=None):
     environment = documentation_environment() if environment is None else environment
     commands = (
         ["python3", "tools/test_refresh_bindings.py"],
+        ["python3", "-m", "unittest", "discover", "-s", "tools/bench_ros", "-p", "test_callback_groups.py"],
         ["python3", "-m", "unittest", "discover", "-s", "tools/bench_ros", "-p", "test_pubsub_pipeline.py"],
         ["python3", "-m", "unittest", "discover", "-s", "tools/ros_oracles", "-p", "test_qos_events.py"],
         ["python3", "-m", "unittest", "discover", "-s", "tools/ros_oracles", "-p", "test_type_descriptions.py"],

@@ -1,0 +1,144 @@
+{
+  "recorded_utc": "2026-10-30T05:22:52.321563+00:00",
+  "parent_commit": "d4bb307c3a69b56a0f84fe48f91d1b3ad9185aa7",
+  "scope": "same-Node native service callback-group application benchmark and strict verification; broad Rust/C++ superiority remains unproven",
+  "protocol_verification": "pass",
+  "final_native_environment_matrix": {
+    "jazzy": [
+      "rmw_cyclonedds_cpp",
+      "rmw_fastrtps_cpp"
+    ],
+    "humble": [
+      "rmw_fastrtps_cpp"
+    ],
+    "kilted": [
+      "rmw_cyclonedds_cpp",
+      "rmw_fastrtps_cpp"
+    ]
+  },
+  "records_each_environment": 20,
+  "request_traces_each_environment": 1280,
+  "tools_unittest_cases": 94,
+  "callback_and_build_counterexample_cases": 18,
+  "probe_oracles": [
+    "normal",
+    "epoch_testing"
+  ],
+  "all_target_jazzy_clippy": "pass",
+  "native_compatibility_bench_clippy": "pass",
+  "no_ros_all_targets_and_documentation": "pass",
+  "no_ros_public_artifacts": 59,
+  "no_ros_public_methods": 257,
+  "initial_cpp_four_worker_timeout": {
+    "resolved": false,
+    "failure_excerpt": "initial-cpp-timeout-tool-output.json.gz",
+    "partial_numeric_records_available": false,
+    "larger_diagnostic_runs": 20,
+    "larger_diagnostic_request_traces": 5120,
+    "short_lived_diagnostic_runs": 200,
+    "short_lived_diagnostic_request_traces": 12800,
+    "note": "diagnostics did not reproduce the original failure; it is retained as an unresolved reliability boundary"
+  },
+  "rss_calibration": "application VmHWM snapshot used for memory gate; raw ru_maxrss retained because inherited pre-exec peak can mask application differences",
+  "dynamic_link_audit": "dynamic-link-audit.json",
+  "performance": {
+    "isolation_passed": false,
+    "measurement_started": false,
+    "observations": 5,
+    "load1_range": [
+      4.48291015625,
+      5.72900390625
+    ],
+    "failure_file": "performance-isolation-failure.json",
+    "rclcpp_advantage_proven": false
+  },
+  "reports": {
+    "callback-group-final-rmw_cyclonedds_cpp.json": {
+      "records": 20,
+      "measured_traces": 1280,
+      "rmw": "rmw_cyclonedds_cpp",
+      "distro": "jazzy",
+      "source_mismatches": [],
+      "performance_qualified": false
+    },
+    "callback-group-final-rmw_fastrtps_cpp.json": {
+      "records": 20,
+      "measured_traces": 1280,
+      "rmw": "rmw_fastrtps_cpp",
+      "distro": "jazzy",
+      "source_mismatches": [],
+      "performance_qualified": false
+    },
+    "callback-group-reentrant-diagnostic.json": {
+      "records": 20,
+      "measured_traces": 5120,
+      "rmw": "rmw_cyclonedds_cpp",
+      "distro": "jazzy",
+      "source_mismatches": [],
+      "performance_qualified": false
+    },
+    "callback-group-startup-diagnostic.json": {
+      "records": 200,
+      "measured_traces": 12800,
+      "rmw": "rmw_cyclonedds_cpp",
+      "distro": "jazzy",
+      "source_mismatches": [],
+      "performance_qualified": false
+    },
+    "humble-protocol-rmw_fastrtps_cpp.json": {
+      "records": 20,
+      "measured_traces": 1280,
+      "rmw": "rmw_fastrtps_cpp",
+      "distro": "humble",
+      "source_mismatches": [],
+      "performance_qualified": false
+    },
+    "kilted-protocol-rmw_cyclonedds_cpp.json": {
+      "records": 20,
+      "measured_traces": 1280,
+      "rmw": "rmw_cyclonedds_cpp",
+      "distro": "kilted",
+      "source_mismatches": [],
+      "performance_qualified": false
+    },
+    "kilted-protocol-rmw_fastrtps_cpp.json": {
+      "records": 20,
+      "measured_traces": 1280,
+      "rmw": "rmw_fastrtps_cpp",
+      "distro": "kilted",
+      "source_mismatches": [],
+      "performance_qualified": false
+    }
+  },
+  "artifact_sha256": {
+    "dynamic-link-audit.json": "abb8fabf3450f557615d23b184da79332a85084b2607799cae241572266b3c06",
+    "performance-isolation-failure.json": "bd1e07602e859942bf1cd7a1337b012d2e38cfb66de5a1c05e229caaeeb95bb9",
+    "run-performance.bash": "97cad3d32f3ef6034b9a7c995523ac8d08167752b520dcbf967fa4fa1c4e4e32",
+    "run-jazzy.bash": "9767055869f7c54b1c49d66d5c77c4f0536700cefd1b3494f72124b871fd1494",
+    "source-manifest.json": "480a5c909b4f76c36eaa58d899d420fe102b5c230f4748af1f09824478262e1c",
+    "probe-oracles.json": "295fe26f7d8e14798a39f5c985746c63baeaa49aaacf168df4117e85387d34af",
+    "run-compat.bash": "63e18b7e5da633022b63ec089430e6b7624a48f8f5458d841717575f1dd01d9f",
+    "initial-cpp-timeout-tool-output.json.gz": "3d22d95982e076ac6a6a830574ae4dca2245d8dd1c515a9705eb26bebbbe1b98",
+    "protocol/callback-group-reentrant-diagnostic.json": "271bff01da0ebba6ef086860841daee07c3e397d4ee18fef1663df02876a6d0f",
+    "protocol/kilted-protocol-rmw_fastrtps_cpp.json": "dc4251756268e5a148329b8f490667adbd32210f7b9cfc4f32247c64d6d98a66",
+    "protocol/humble-protocol-rmw_fastrtps_cpp.json": "bfa5d1d2c4fa3692ca6aae90ce0445bcfa59900856e93665ae48409cb6c1c129",
+    "protocol/humble-protocol-rmw_fastrtps_cpp.traces.json.gz": "39c09720a456a26da4e1a881c7741c691d4bf81fe2f3fc37b90a73c1aa3fe198",
+    "protocol/kilted-protocol-rmw_cyclonedds_cpp.json": "4eb27030e991713b27c11caf45cd944489e0aa94c64a8e4ccbda3330ee22cffa",
+    "protocol/callback-group-reentrant-diagnostic.traces.json.gz": "5c628b5900665dde359b566f1a7b876a4b68b393335e411d5cbc5ac47c90dec5",
+    "protocol/callback-group-startup-diagnostic.json": "be211cc9d9538ae7dafecef2c0b582a87497f8e9b25ed16c6bea923a42b7db30",
+    "protocol/callback-group-final-rmw_cyclonedds_cpp.traces.json.gz": "3c9a076d4b73fbdbafeda1bde546b7061ce7ba5d556b9f237464082678fbc9a4",
+    "protocol/callback-group-final-rmw_cyclonedds_cpp.json": "7710d8ca3521c6cfe642a7f1059fa3e021822f1be7f55fd408c33910b5af94ff",
+    "protocol/kilted-protocol-rmw_fastrtps_cpp.traces.json.gz": "4fdfebc31ad98f74e0ab1254906fb61d535283bf04a020596e942dd3e4f63c77",
+    "protocol/callback-group-final-rmw_fastrtps_cpp.traces.json.gz": "3da94e25ca70b43780229238c3876c687248b1300a4466da32795fe6e748c60e",
+    "protocol/kilted-protocol-rmw_cyclonedds_cpp.traces.json.gz": "e51a02ab97fbf33f56a340666d0d5f1d3101ed8818b46141c9b668845955447b",
+    "protocol/callback-group-startup-diagnostic.traces.json.gz": "3b970e90f7a2a6d393b39b4997fa15db0479fbbae9f6f51402dd094166245941",
+    "protocol/callback-group-final-rmw_fastrtps_cpp.json": "400e55677562ee886df0b74d9e708b79a088b231a36cb64344f9dceaa1e41e9f",
+    "logs/no-ros.log.gz": "2f893b30747eb8cae4d68dbe3ff259cde63d851926dc216aa8b5822ae7d37532",
+    "logs/performance-preflight.log.gz": "1dbf2d31cdf96e2c44304ea0dcb2e06f8d1736bc10ad1d1d79ca3f25f7fc96c8",
+    "logs/callback-group-startup-diagnostic.log.gz": "ee216b7b96a3703c766c00a153faad848b5c63cb1b1d5fb82801fbb50952a2a8",
+    "logs/kilted.log.gz": "7c88e697363f51e5ffd1ad6c8c8cb27f14e605b88a463ffd00810a66d7f2cdf4",
+    "logs/callback-group-final-jazzy-validation.log.gz": "b98faf750e8f07290bdc4236444532a8c8aba67471fcfaa2d343c4bb240133d4",
+    "logs/humble.log.gz": "df43db55da7b36064f9bf79c49110832bf9e398a26fd5eecafa9eef7682fca4f",
+    "logs/callback-group-reentrant-diagnostic.log.gz": "0b9d7d5d6eee03dc458df7213fe1f61d1064dc15e776c5cd45c89c919163861c"
+  }
+}
