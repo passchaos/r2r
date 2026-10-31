@@ -129,6 +129,7 @@ impl Node {
             result_requests: HashMap::new(),
             goal_request_buffer: NativeBuffer::default(),
             result_request_buffer: NativeBuffer::default(),
+            feedback_buffer: NativeBuffer::default(),
             cancel_request_channel_capacity,
             maintenance_wake_owner: Arc::downgrade(&self.dropped_action_servers),
         };

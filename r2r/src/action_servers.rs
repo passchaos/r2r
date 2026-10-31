@@ -640,6 +640,7 @@ where
     clock: Arc<Mutex<Clock>>,
     cancel_requests: mpsc::Receiver<ActionServerCancelRequest>,
     response: GoalRequestResponseGuard,
+    feedback_buffer: NativeBuffer<WrappedNativeMsg<T::FeedbackMessage>>,
 }
 
 /// Cancel-request stream returned for one accepted typed action goal.
@@ -785,6 +786,7 @@ where
                 uuid: self.uuid,
                 action_type: PhantomData,
             }),
+            feedback_buffer: self.feedback_buffer,
         };
 
         if let Err(err) = server.publish_status() {
@@ -1028,6 +1030,7 @@ where
             <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
         >,
     >,
+    pub(crate) feedback_buffer: NativeBuffer<WrappedNativeMsg<T::FeedbackMessage>>,
     pub cancel_request_channel_capacity: usize,
     pub(crate) maintenance_wake_owner: cancel::WakeOwner,
 }
@@ -1498,6 +1501,7 @@ where
             .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?;
         let sender_slot = Arc::clone(&self.goal_request_sender);
         let conversion_server = Arc::clone(&server);
+        let feedback_buffer = self.feedback_buffer.clone();
         Ok(Some(request_conversion_delivery(
             sender_slot,
             sender,
@@ -1541,6 +1545,7 @@ where
                         request_id,
                         response_sent: false,
                     },
+                    feedback_buffer,
                 })
             },
             move |mut request| {
@@ -1910,6 +1915,7 @@ where
     pub uuid: uuid::Uuid,
     pub goal: T::Goal,
     lifecycle: Arc<ServerGoalLifecycle<T>>,
+    feedback_buffer: NativeBuffer<WrappedNativeMsg<T::FeedbackMessage>>,
 }
 
 struct ServerGoalLifecycle<T>
@@ -2046,7 +2052,14 @@ where
             uuid: *self.uuid.as_bytes(),
         };
         let feedback_msg = T::make_feedback_msg(uuid_msg, msg);
-        let mut native_msg = WrappedNativeMsg::<T::FeedbackMessage>::try_from(&feedback_msg)?;
+        let mut native_msg = self
+            .feedback_buffer
+            .checkout(WrappedNativeMsg::<T::FeedbackMessage>::try_new)?;
+        if let Err(error) = feedback_msg.try_copy_to_native(&mut native_msg) {
+            // A custom fallible conversion only promises destructible storage after failure.
+            native_msg.retire();
+            return Err(error);
+        }
         let ret = unsafe {
             rcl_action_publish_feedback(action_server.lock().handle(), native_msg.void_ptr_mut())
         };
@@ -2915,6 +2928,7 @@ mod tests {
                 uuid,
                 action_type: PhantomData,
             }),
+            feedback_buffer: NativeBuffer::default(),
         }
     }
 
@@ -3679,5 +3693,7 @@ mod tests {
     }
 }
 
+#[cfg(test)]
+mod feedback_buffer_tests;
 #[cfg(test)]
 mod request_buffer_tests;

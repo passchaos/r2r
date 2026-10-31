@@ -76,6 +76,12 @@ lock, and the bounded request drivers execute each completion before the next ta
 fixed-size stage removes two allocations/frees and 36 requested bytes per goal after warmup while
 preserving public streams, goal handles and result semantics.
 
+Typed action servers also retain one native feedback container shared across accepted goals.
+Feedback conversion remains outside the server lock, and a fallible copy retires the partially
+updated container before publication. The fixed-size stage removes two allocation/free calls and
+168 requested bytes per feedback after warmup while preserving per-goal payloads and the existing
+publication error behavior.
+
 Generated batch native containers now reset through a replacement-first in-place transaction:
 symbol resolution and temporary initialization finish before old contents are finalized, so failure
 leaves the old message valid while success preserves the outer address. The four-message allocation

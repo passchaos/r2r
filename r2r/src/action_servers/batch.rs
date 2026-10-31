@@ -146,6 +146,7 @@ where
                         uuid: request.uuid,
                         action_type: PhantomData,
                     }),
+                    feedback_buffer: request.feedback_buffer,
                 },
                 request.cancel_requests,
             ));

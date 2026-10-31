@@ -268,6 +268,8 @@ def check(environment=None):
          "docs/validation/typed-action-lifecycle-native-reuse-2026-11-01/allocation-stage.json"],
         ["python3", "tools/bench_ros/typed_action_server_request_native_reuse_stage.py", "verify", "--require-current-sources",
          "docs/validation/typed-action-server-request-native-reuse-2026-11-01/allocation-stage.json"],
+        ["python3", "tools/bench_ros/typed_action_server_feedback_native_reuse_stage.py", "verify", "--require-current-sources",
+         "docs/validation/typed-action-server-feedback-native-reuse-2026-11-01/allocation-stage.json"],
         ["python3", "tools/bench_ros/native_batch_reset_stage.py", "verify", "--require-current-sources",
          "docs/validation/batch-subscriptions-2026-10-31/reset-allocation-stage.json"],
         ["python3", "tools/bench_ros/native_batch_sparse_reset_stage.py", "verify", "--require-current-sources",
