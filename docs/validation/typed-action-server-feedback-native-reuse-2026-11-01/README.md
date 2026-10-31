@@ -8,7 +8,10 @@ retires its partially updated container instead of exposing it to a later public
 
 A real Fibonacci client drives two accepted goals with four and three feedback publications
 through a tracked server. It requires one native feedback allocation across both goals and verifies
-that explicit server destruction releases the cached container.
+that explicit server destruction releases the cached container. Two additional cases cover the
+failure and concurrency contracts: a failed native copy retires its partially updated container
+before the next publication, and two cloned goal handles publishing concurrently share the slot
+safely (at most one extra container, with the displaced container retired).
 
 The five-repetition no-RCL/DDS stage fills 10,000 feedback messages per path:
 

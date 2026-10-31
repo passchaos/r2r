@@ -23,7 +23,7 @@ run_native() {
       for r2r_rmw in $R2R_RMWS; do
         export RMW_IMPLEMENTATION="$r2r_rmw"
         cargo test --offline --locked -p r2r --lib \
-          typed_action_server_reuses_feedback_native_storage_across_goals \
+          feedback_buffer_tests \
           -- --test-threads=1
       done
       cargo clippy --offline --locked -p r2r --lib -- -D warnings

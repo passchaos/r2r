@@ -43,8 +43,8 @@ def main():
         source = ROOT / relative
         if not source.is_file() or digest(source) != expected:
             raise RuntimeError(f"source digest mismatch: {relative}")
-    if (results["native_gates"]["jazzy"]["cases_passed_per_rmw_release"] != 1
-            or results["full_release"]["passed_per_rmw"] != 828
+    if (results["native_gates"]["jazzy"]["cases_passed_per_rmw_release"] != 4
+            or results["full_release"]["passed_per_rmw"] != 830
             or results["full_release"]["ignored_per_rmw"] != 24
             or results["no_ros_gate"]["public_documentation_artifacts"] != 84
             or results["no_ros_gate"]["required_documented_methods"] != 341

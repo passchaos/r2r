@@ -16,10 +16,10 @@ cargo fmt --all -- --check
 for r2r_rmw in rmw_cyclonedds_cpp rmw_fastrtps_cpp; do
   export RMW_IMPLEMENTATION="$r2r_rmw"
   cargo test --offline --locked -p r2r --lib \
-    typed_action_server_reuses_feedback_native_storage_across_goals \
+    feedback_buffer_tests \
     -- --test-threads=1
   cargo test --offline --locked --release -p r2r --lib \
-    typed_action_server_reuses_feedback_native_storage_across_goals \
+    feedback_buffer_tests \
     -- --test-threads=1
 done
 cargo clippy --offline --locked -p r2r --lib --tests -- -D warnings

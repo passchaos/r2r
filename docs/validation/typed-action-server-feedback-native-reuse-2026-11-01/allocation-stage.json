@@ -10,7 +10,7 @@
     "probe_sha256": "85283f1184b00c227e02c8c56eec9283051265a779511c39c6c8cf4272baa59e",
     "source_sha256": {
       "r2r/src/action_servers.rs": "3be4ee3ff7472696359e18ae7978fb94c75f59199706be55acdd6974155d363e",
-      "r2r/src/action_servers/feedback_buffer_tests.rs": "245877c34c859d97ce961cd02b73f1274a4ae7359c47a9459021e54ce6daf4a5",
+      "r2r/src/action_servers/feedback_buffer_tests.rs": "8cd5fcb083835cfafa27f5be1b853e16242ac0fa35e35303f0b8a005f58cb14e",
       "r2r/src/nodes/action_server_api.rs": "e644ec4e922804324c7954942af6289572e05157558cf68569c8c751a746d3bb",
       "r2r/src/msg_types.rs": "47fd4f92e2d16912e36dfd7074893ba07365915b5ba7ed62761394555d2003af",
       "r2r/src/native_buffer.rs": "e651c556e0fccf8a47a7e646e80e5532353eb97938833eb1ce4a9c79c24b2885",
@@ -21,14 +21,14 @@
     },
     "raw_log": {
       "file": "allocation-stage.log.gz",
-      "sha256": "c9d4b73e9e9a9f0583ecca8be9f58f25200996bc80d3e992184352a15b3985bd"
+      "sha256": "e3b8d5589a7a5758bccfc0e15dc161f7d533b8dcceea8e3f2fce19b9a29fb8a1"
     }
   },
   "records": [
     {
       "allocations": 20000,
       "boundary": "typed action server feedback native fill; no RCL/DDS",
-      "elapsed_ns": 1263053,
+      "elapsed_ns": 1325119,
       "frees": 20000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -38,7 +38,7 @@
     {
       "allocations": 0,
       "boundary": "typed action server feedback native fill; no RCL/DDS",
-      "elapsed_ns": 519218,
+      "elapsed_ns": 536059,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -48,7 +48,7 @@
     {
       "allocations": 20000,
       "boundary": "typed action server feedback native fill; no RCL/DDS",
-      "elapsed_ns": 1252676,
+      "elapsed_ns": 1281038,
       "frees": 20000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -58,7 +58,7 @@
     {
       "allocations": 0,
       "boundary": "typed action server feedback native fill; no RCL/DDS",
-      "elapsed_ns": 528224,
+      "elapsed_ns": 547477,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -68,7 +68,7 @@
     {
       "allocations": 20000,
       "boundary": "typed action server feedback native fill; no RCL/DDS",
-      "elapsed_ns": 4253680,
+      "elapsed_ns": 1294480,
       "frees": 20000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -78,7 +78,7 @@
     {
       "allocations": 0,
       "boundary": "typed action server feedback native fill; no RCL/DDS",
-      "elapsed_ns": 519298,
+      "elapsed_ns": 525343,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -88,7 +88,7 @@
     {
       "allocations": 20000,
       "boundary": "typed action server feedback native fill; no RCL/DDS",
-      "elapsed_ns": 1320313,
+      "elapsed_ns": 1301394,
       "frees": 20000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -98,7 +98,7 @@
     {
       "allocations": 0,
       "boundary": "typed action server feedback native fill; no RCL/DDS",
-      "elapsed_ns": 519119,
+      "elapsed_ns": 543771,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -108,7 +108,7 @@
     {
       "allocations": 20000,
       "boundary": "typed action server feedback native fill; no RCL/DDS",
-      "elapsed_ns": 1251863,
+      "elapsed_ns": 1348761,
       "frees": 20000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -118,7 +118,7 @@
     {
       "allocations": 0,
       "boundary": "typed action server feedback native fill; no RCL/DDS",
-      "elapsed_ns": 523899,
+      "elapsed_ns": 594321,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -131,13 +131,13 @@
       "allocations": 20000,
       "frees": 20000,
       "requested_bytes": 1680000,
-      "elapsed_ns": 1263053
+      "elapsed_ns": 1301394
     },
     "reused_native": {
       "allocations": 0,
       "frees": 0,
       "requested_bytes": 0,
-      "elapsed_ns": 519298
+      "elapsed_ns": 543771
     }
   }
 }
