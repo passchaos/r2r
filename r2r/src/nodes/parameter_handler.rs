@@ -439,6 +439,15 @@ impl Node {
                         }
                     }
                 }
+                {
+                    let mut descriptors = self.parameter_descriptors.lock();
+                    provider.register_parameter_descriptors("", None, &mut descriptors)?;
+                    for (name, descriptor) in descriptors.iter() {
+                        if let Some(parameter) = params.get(name) {
+                            validate_parameter_update(name, &parameter.value, descriptor, false)?;
+                        }
+                    }
+                }
                 provider.register_parameters("", None, &mut params)?;
                 let candidates = params
                     .keys()

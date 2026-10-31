@@ -2,6 +2,33 @@ use super::*;
 use crate::LifecycleNode;
 
 #[test]
+fn callback_group_lifecycle_reset_events_include_generation_restarts() {
+    let context = Context::create().unwrap();
+    let mut node = LifecycleNode::create(context, "callback_group_lifecycle_resets", "").unwrap();
+    let mut group = CallbackGroup::new();
+    let timer = node
+        .create_wall_timer_callback_in_group(&mut group, Duration::from_secs(30), || Ok(()))
+        .unwrap();
+    let mut events = timer.observe_resets().unwrap();
+    assert!(events.next().now_or_never().is_none());
+
+    node.configure().unwrap();
+    node.activate().unwrap();
+    node.try_spin_once(Duration::ZERO).unwrap();
+    assert_eq!(events.next().now_or_never(), Some(Some(TimerReset { count: 1, total: 1 })));
+
+    node.deactivate().unwrap();
+    node.activate().unwrap();
+    node.try_spin_once(Duration::ZERO).unwrap();
+    assert_eq!(events.next().now_or_never(), Some(Some(TimerReset { count: 1, total: 2 })));
+    timer.reset().unwrap();
+    assert_eq!(events.next().now_or_never(), Some(Some(TimerReset { count: 1, total: 3 })));
+
+    drop(node);
+    assert_eq!(events.next().now_or_never(), Some(None));
+}
+
+#[test]
 fn callback_group_lifecycle_timer_rejects_old_selection_and_preserves_one_shot_manual_state() {
     let context = Context::create().unwrap();
     let mut node = LifecycleNode::create(context, "callback_group_lifecycle_epoch", "").unwrap();

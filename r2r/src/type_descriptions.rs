@@ -46,7 +46,7 @@ pub fn message_type_hash<T: WrappedTypesupport>() -> Result<TopicTypeHash> {
     }
     #[cfg(not(r2r__ros__distro__humble))]
     {
-        let support = T::get_ts();
+        let support = T::try_get_ts()?;
         let get = support
             .get_type_hash_func
             .ok_or(Error::RCL_RET_UNSUPPORTED)?;
@@ -62,7 +62,7 @@ pub fn service_type_hash<T: WrappedServiceTypeSupport>() -> Result<TopicTypeHash
     }
     #[cfg(not(r2r__ros__distro__humble))]
     {
-        let support = T::get_ts();
+        let support = T::try_get_ts()?;
         let get = support
             .get_type_hash_func
             .ok_or(Error::RCL_RET_UNSUPPORTED)?;
@@ -78,7 +78,7 @@ pub fn action_type_hash<T: WrappedActionTypeSupport>() -> Result<TopicTypeHash> 
     }
     #[cfg(not(r2r__ros__distro__humble))]
     {
-        let support = T::get_ts();
+        let support = T::try_get_ts()?;
         let get = support
             .get_type_hash_func
             .ok_or(Error::RCL_RET_UNSUPPORTED)?;

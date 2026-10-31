@@ -37,6 +37,7 @@ def pipeline_workspace_sources(source, benchmark="pubsub_pipeline"):
             if (source / crate / name).exists():
                 paths.append(source / crate / name)
         paths.extend(sorted((source / crate / "src").rglob("*.rs")))
+        paths.extend(sorted((source / crate / "build").rglob("*.rs")))
         paths.extend(sorted((source / crate / "bindings").rglob("*.rs")))
     return sorted(set(paths))
 
@@ -47,6 +48,26 @@ def snapshot_inputs(root,paths):
 def require_unchanged_inputs(root,snapshot):
     changed=[name for name,sha in snapshot.items() if not (root/name).is_file() or hashlib.sha256((root/name).read_bytes()).hexdigest()!=sha]
     if changed:raise RuntimeError("benchmark inputs changed during compilation: "+", ".join(changed))
+
+def build_jobs(env,default=4):
+    raw=env.get("R2R_BUILD_JOBS",env.get("CARGO_BUILD_JOBS",str(default)))
+    try:jobs=int(raw)
+    except ValueError as error:raise RuntimeError(f"invalid build parallelism: {raw}") from error
+    if jobs<1:raise RuntimeError(f"invalid build parallelism: {raw}")
+    return jobs
+
+def pubsub_receive_configuration(source, requested):
+    if requested not in {"stream", "native_callback", "reusable_typed", "batch_typed"}:
+        raise RuntimeError(f"invalid pubsub receive path: {requested}")
+    callback_source = source / "r2r/src/nodes/subscription_api.rs"
+    callback_text = callback_source.read_text() if callback_source.exists() else ""
+    if requested == "native_callback" and "pub fn subscribe_native_callback" in callback_text:
+        return "native_callback", " --cfg r2r_bench_native_callbacks"
+    if requested == "reusable_typed" and "pub fn subscribe_reusable" in callback_text:
+        return "reusable_typed", " --cfg r2r_bench_reusable_typed"
+    if requested == "batch_typed" and "pub fn subscribe_batches" in callback_text:
+        return "batch_typed", " --cfg r2r_bench_batch_typed"
+    return "stream", ""
 
 def rust_binary(source, target, destination, env, workload="codec"):
     build_env = env.copy()
@@ -69,10 +90,13 @@ def rust_binary(source, target, destination, env, workload="codec"):
             flags += " --cfg r2r_bench_native_views"
         build_env["RUSTFLAGS"] = flags.strip()
     if workload == "pubsub_pipeline":
-        flags = build_env.get("RUSTFLAGS", "") + " --check-cfg=cfg(r2r_bench_native_callbacks)"
-        callback_source = source / "r2r/src/nodes/subscription_api.rs"
-        if callback_source.exists() and "pub fn subscribe_native_callback" in callback_source.read_text():
-            flags += " --cfg r2r_bench_native_callbacks"
+        receive_path = build_env.get("R2R_BENCH_PUBSUB_RECEIVE_PATH", "native_callback")
+        _, receive_cfg = pubsub_receive_configuration(source, receive_path)
+        flags = (build_env.get("RUSTFLAGS", "")
+                 + " --check-cfg=cfg(r2r_bench_native_callbacks)"
+                 + " --check-cfg=cfg(r2r_bench_reusable_typed)"
+                 + " --check-cfg=cfg(r2r_bench_batch_typed)")
+        flags += receive_cfg
         build_env["RUSTFLAGS"] = flags.strip()
     if workload in {"codec", "codec_strings"}:
         flags = build_env.get("RUSTFLAGS", "") + " --check-cfg=cfg(r2r_bench_serializer)"
@@ -80,10 +104,16 @@ def rust_binary(source, target, destination, env, workload="codec"):
             flags += " --cfg r2r_bench_serializer"
         build_env["RUSTFLAGS"] = flags.strip()
     if workload == "action_feedback":
-        flags = build_env.get("RUSTFLAGS", "") + " --check-cfg=cfg(r2r_bench_action_batches)"
+        flags = (build_env.get("RUSTFLAGS", "")
+                 + " --check-cfg=cfg(r2r_bench_action_batches)"
+                 + " --check-cfg=cfg(r2r_bench_native_action_feedback)")
         batch_source = source / "r2r/src/action_servers/batch.rs"
         if batch_source.exists() and "pub fn execute_batch" in batch_source.read_text():
             flags += " --cfg r2r_bench_action_batches"
+        client_source = source / "r2r/src/action_clients.rs"
+        if (client_source.exists()
+                and "pub fn send_goal_request_native_feedback" in client_source.read_text()):
+            flags += " --cfg r2r_bench_native_action_feedback"
         build_env["RUSTFLAGS"] = flags.strip()
     if workload == "service":
         flags = build_env.get("RUSTFLAGS", "") + " --check-cfg=cfg(r2r_bench_service_callbacks)"
@@ -175,7 +205,10 @@ def main():
         manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_native_views); --cfg r2r_bench_native_views only where the view API exists"
     if args.workload == "pubsub_pipeline":
         manifests["native_callback_api_detection"] = "nodes/subscription_api.rs contains public subscribe_native_callback: scoped native callback receive/forward; absent: owned typed stream fallback"
-        manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_native_callbacks); --cfg enables scoped native callbacks only where the public API exists"
+        manifests["reusable_typed_api_detection"] = "nodes/subscription_api.rs contains public subscribe_reusable: capacity-reusing typed stream; absent: owned typed stream fallback"
+        manifests["batch_typed_api_detection"] = "nodes/subscription_api.rs contains public subscribe_batches: rcl_take_sequence typed batch stream; absent: owned typed stream fallback"
+        manifests["requested_receive_path"] = env.get("R2R_BENCH_PUBSUB_RECEIVE_PATH", "native_callback")
+        manifests["benchmark_cfg"] = "declares native_callbacks, reusable_typed and batch_typed; enables only the explicitly requested public API, otherwise stream fallback"
     if args.workload == "service":
         manifests["service_callback_api_detection"] = "nodes/service_callbacks.rs contains create_service_native_callback: native request/reused response; absent: owned service stream"
         manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_service_callbacks); --cfg enables native service callbacks only where their API exists"
@@ -184,7 +217,8 @@ def main():
         manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_serializer); --cfg r2r_bench_serializer only when serializer API exists"
     if args.workload == "action_feedback":
         manifests["batch_api_detection"] = "action_servers/batch.rs contains public execute_batch: use batched accept/execute/terminal status snapshots; absent: identical harness falls back to per-goal operations"
-        manifests["benchmark_cfg"] = "--check-cfg=cfg(r2r_bench_action_batches); --cfg enables batched status snapshots only where the public API exists"
+        manifests["native_feedback_api_detection"] = "action_clients.rs contains public send_goal_request_native_feedback: selectable native delivered feedback; absent: owned delivery only"
+        manifests["benchmark_cfg"] = "--check-cfg declares action_batches and native_action_feedback; --cfg enables each only where its public API exists"
     benchmark = BENCHMARKS[args.workload]
     manifests["candidate"] = rust_binary(root, output / "candidate-cargo", output / "r2r-candidate", env, args.workload)
     if args.baseline_ref:
@@ -228,7 +262,8 @@ def main():
     ros_prefix = f"/opt/ros/{env['ROS_DISTRO']}"
     command(["cmake", "-S", str(root / "tools/bench_ros"), "-B", str(output / "cpp"), "-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_PREFIX_PATH={ros_prefix}", "-DPython3_EXECUTABLE=/usr/bin/python3", f"-DR2R_BUILD_SERVICE_BENCH={'ON' if args.workload == 'service' else 'OFF'}", f"-DR2R_BUILD_PUBSUB_PIPELINE_BENCH={'ON' if args.workload == 'pubsub_pipeline' else 'OFF'}", f"-DR2R_BUILD_ACTION_BENCH={'ON' if args.workload == 'action' else 'OFF'}", f"-DR2R_BUILD_ACTION_FEEDBACK_BENCH={'ON' if args.workload == 'action_feedback' else 'OFF'}", f"-DR2R_BUILD_EXECUTOR_BENCH={'ON' if args.workload == 'executor' else 'OFF'}", f"-DR2R_BUILD_STRING_BENCH={'ON' if args.workload == 'codec_strings' else 'OFF'}", f"-DR2R_BUILD_CALLBACK_GROUP_BENCH={'ON' if args.workload == 'callback_groups' else 'OFF'}", f"-DR2R_BUILD_ALLOCATION_PROBE={'ON' if args.with_probe else 'OFF'}"], root, env)
     cpp_binary = CPP_BINARIES[args.workload]
-    command(["cmake", "--build", str(output / "cpp"), "--target", cpp_binary, "-j", "4"], root, env)
+    jobs=str(build_jobs(env))
+    command(["cmake", "--build", str(output / "cpp"), "--target", cpp_binary, "-j", jobs], root, env)
     if callback_cpp_snapshot is not None:require_unchanged_inputs(root,callback_cpp_snapshot)
     shutil.copy2(output / f"cpp/{cpp_binary}", output / "rclcpp-comparison")
     manifests["cpp_source_sha256"] = {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in [root / "tools/bench_ros/CMakeLists.txt", root / "tools/bench_ros" / CPP_SOURCES[args.workload]]}
@@ -242,7 +277,7 @@ def main():
         dependencies=[*sorted((root/"tools/bench_ros/callback_group_support").rglob("*.hpp")),root/"tools/bench_ros/codec_support/probe.hpp",root/"tools/bench_ros/probe/probe.h"]
         manifests["cpp_source_sha256"].update({str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in dependencies})
     if args.with_probe:
-        command(["cmake", "--build", str(output / "cpp"), "--target", "r2r_bench_probe", "-j", "2"], root, env)
+        command(["cmake", "--build", str(output / "cpp"), "--target", "r2r_bench_probe", "-j", jobs], root, env)
         shutil.copy2(output / "cpp/libr2r_bench_probe.so", output / "libr2r_bench_probe.so")
         manifests["probe_source_sha256"] = {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted((root / "tools/bench_ros/probe").glob("probe.*"))}
     if args.workload == "callback_groups":

@@ -6,6 +6,9 @@ pub(super) struct TypeDescriptionService {
     node: *mut rcl_node_t,
     id: uuid::Uuid,
     response: WrappedNativeMsg<GetTypeDescription::Response>,
+    #[cfg(not(feature = "doc-only"))]
+    finish_response:
+        unsafe extern "C" fn(*mut <GetTypeDescription::Response as WrappedTypesupport>::CStruct),
     sources: crate::type_descriptions::sources::SourceFiles,
 }
 
@@ -17,13 +20,20 @@ impl TypeDescriptionService {
     pub(super) fn create(
         node: &mut rcl_node_t, id: uuid::Uuid, qos: Option<QosProfile>,
     ) -> Result<Arc<Mutex<dyn Service_>>> {
+        #[cfg(not(feature = "doc-only"))]
+        let finish_response =
+            r2r_msg_gen::r2r_resolve_type_description_interfaces__srv__GetTypeDescription_Response__fini()
+                .map_err(|error| Error::NativeTypeSupport {
+                    interface: "type_description_interfaces/srv/GetTypeDescription_Response".into(),
+                    err: error.to_string(),
+                })?;
         let response = WrappedNativeMsg::try_new()?;
         let mut handle = unsafe { rcl_get_zero_initialized_service() };
         if let Some(qos) = qos {
             handle = create_service_helper(
                 node,
                 "~/get_type_description",
-                GetTypeDescription::Service::get_ts(),
+                GetTypeDescription::Service::try_get_ts()?,
                 qos,
             )?;
         } else {
@@ -34,6 +44,8 @@ impl TypeDescriptionService {
             node,
             id,
             response,
+            #[cfg(not(feature = "doc-only"))]
+            finish_response,
             sources: Default::default(),
         })))
     }
@@ -64,6 +76,9 @@ impl Service_ for TypeDescriptionService {
         unsafe {
             // RCL initializes an uninitialized response. Retire the previous initialized fields
             // first: handing it a freshly created or populated response would leak those fields.
+            #[cfg(not(feature = "doc-only"))]
+            (self.finish_response)(self.response.msg);
+            #[cfg(feature = "doc-only")]
             type_description_interfaces__srv__GetTypeDescription_Response__fini(
                 self.response.msg.cast(),
             );

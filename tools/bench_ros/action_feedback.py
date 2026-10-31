@@ -16,6 +16,7 @@ import uuid
 import xml.etree.ElementTree as ET
 
 from action_support.validation import language_pairs, validate_probe
+from pubsub_pipeline import DEFAULT_FORBIDDEN_PROCESS_NAMES, IsolationMonitor, wait_for_isolation
 
 SERVER_STAGES = ("accept", "start_wait", "execute", "feedback_publish", "feedback_wait", "terminal")
 
@@ -38,7 +39,8 @@ def matrix_pairs(baseline, scope):
 def validate_endpoint(result, role, rmw, elements, goal_window, feedback_per_goal,
                       iterations, warmup, implementation=None, instrumented=None,
                       server_stages=False, status_qos=None, result_timeout_ms=None,
-                      status_batch_size=None, status_path=None, status_sync=None):
+                      status_batch_size=None, status_path=None, status_sync=None,
+                      feedback_delivery=None):
     if implementation is not None and result.get("implementation") != implementation:
         raise RuntimeError("language implementation mismatch")
     identity = (result.get("role"), result.get("rmw"), result.get("elements"),
@@ -57,6 +59,14 @@ def validate_endpoint(result, role, rmw, elements, goal_window, feedback_per_goa
             raise RuntimeError("undeclared action feedback status sync")
     elif result.get("status_sync") != status_sync:
         raise RuntimeError("action feedback status sync mismatch")
+    if role == "ping":
+        if feedback_delivery is None:
+            if "feedback_delivery" in result:
+                raise RuntimeError("undeclared action feedback delivery path")
+        elif result.get("feedback_delivery") != feedback_delivery:
+            raise RuntimeError("action feedback delivery path mismatch")
+    elif "feedback_delivery" in result:
+        raise RuntimeError("feedback delivery path is only valid for the client endpoint")
     if status_qos is None:
         if "status_qos" in result:
             raise RuntimeError("undeclared action feedback status QoS")
@@ -153,22 +163,53 @@ def regression_failures(summary, sizes, windows, maximum):
     return failures
 
 
+def rclcpp_failures(summary, sizes, windows, maximum):
+    failures = []
+    for elements in sizes:
+        for goal_window in windows:
+            rust = next(row for row in summary if row["elements"] == elements
+                        and row["goal_window"] == goal_window
+                        and row["ping_language"] == row["echo_language"] == "rust")
+            cpp = next(row for row in summary if row["elements"] == elements
+                       and row["goal_window"] == goal_window
+                       and row["ping_language"] == row["echo_language"] == "cpp")
+            ratios = {field: rust[field] / cpp[field]
+                      for field in ["rtt_ns_p50", "rtt_ns_p95", "rtt_ns_p99",
+                                    "feedback_ns_p50", "feedback_ns_p95", "feedback_ns_p99"]}
+            ratios["inverse_throughput"] = (
+                cpp["feedback_messages_per_second"] / rust["feedback_messages_per_second"]
+            )
+            if any(ratio > maximum for ratio in ratios.values()):
+                failures.append({"elements": elements, "goal_window": goal_window,
+                                 "ratios": ratios})
+    return failures
+
+
 def pair(ping, echo, cpu_ping, cpu_echo, env, elements, goal_window, feedback_per_goal,
          iterations, warmup, prefix, instrumented, server_stages=True, status_qos="default",
-         ping_status_path="per_goal", echo_status_path="per_goal", status_sync="required"):
+         ping_status_path="per_goal", echo_status_path="per_goal", status_sync="required",
+         ping_feedback_delivery="owned", echo_feedback_delivery="owned"):
     parameters = [str(elements), str(goal_window), str(feedback_per_goal),
                   str(iterations), str(warmup), prefix]
     with tempfile.TemporaryDirectory(prefix="r2r-action-feedback-") as directory:
         output = Path(directory) / "echo.json"
         errors = Path(directory) / "echo.log"
+        ping_env = env.copy()
+        echo_env = env.copy()
+        ping_env["R2R_ACTION_FEEDBACK_DELIVERY"] = (
+            ping_feedback_delivery if ping_feedback_delivery in {"owned", "native"} else "owned"
+        )
+        echo_env["R2R_ACTION_FEEDBACK_DELIVERY"] = (
+            echo_feedback_delivery if echo_feedback_delivery in {"owned", "native"} else "owned"
+        )
         with output.open("w") as out, errors.open("w") as err:
             responder = subprocess.Popen(
                 ["taskset", "-c", str(cpu_echo), str(echo), "echo", *parameters],
-                env=env, stdout=out, stderr=err)
+                env=echo_env, stdout=out, stderr=err)
             try:
                 initiator = subprocess.run(
                     ["taskset", "-c", str(cpu_ping), str(ping), "ping", *parameters],
-                    env=env, text=True, capture_output=True, timeout=300)
+                    env=ping_env, text=True, capture_output=True, timeout=300)
                 if initiator.returncode:
                     raise RuntimeError(
                         f"ping failed ({initiator.returncode}): {initiator.stderr}\n"
@@ -191,7 +232,8 @@ def pair(ping, echo, cpu_ping, cpu_echo, env, elements, goal_window, feedback_pe
                       status_qos=status_qos,
                       result_timeout_ms=int(env["R2R_ACTION_FEEDBACK_RESULT_TIMEOUT_MS"]),
                       status_batch_size=int(env["R2R_ACTION_FEEDBACK_STATUS_BATCH_SIZE"]),
-                      status_path=ping_status_path, status_sync=status_sync)
+                      status_path=ping_status_path, status_sync=status_sync,
+                      feedback_delivery=ping_feedback_delivery)
     validate_endpoint(echo_result, "echo", env["RMW_IMPLEMENTATION"], elements,
                       goal_window, feedback_per_goal, iterations, warmup,
                       instrumented=instrumented, server_stages=server_stages,
@@ -220,6 +262,7 @@ def main():
     parser.add_argument("--probe", type=Path)
     parser.add_argument("--build-manifest", type=Path)
     parser.add_argument("--max-regression", type=float)
+    parser.add_argument("--max-rclcpp-ratio", type=float)
     parser.add_argument("--matrix-scope", choices=["full", "regression", "server"], default="full")
     parser.add_argument("--status-qos", choices=["default", "reliable_volatile", "best_effort_volatile"], default="default")
     parser.add_argument("--result-timeout-ms", type=int, default=10_000)
@@ -227,6 +270,16 @@ def main():
     parser.add_argument("--rust-status-path", choices=["per_goal", "batched"], default="batched")
     parser.add_argument("--baseline-status-path", choices=["per_goal", "batched"], default="per_goal")
     parser.add_argument("--status-sync", choices=["required", "none"], default="required")
+    parser.add_argument("--rust-feedback-delivery", choices=["owned", "native"], default="native")
+    parser.add_argument("--baseline-feedback-delivery", choices=["owned", "native"], default="owned")
+    parser.add_argument("--isolation-samples", type=int, default=0,
+                        help="required consecutive idle samples before measurement (zero disables)")
+    parser.add_argument("--isolation-interval", type=float, default=20.0)
+    parser.add_argument("--isolation-timeout", type=float, default=300.0)
+    parser.add_argument("--isolation-max-load1", type=float, default=2.0)
+    parser.add_argument("--isolation-monitor-interval", type=float, default=0.25)
+    parser.add_argument("--isolation-forbid-comm",
+                        default=",".join(DEFAULT_FORBIDDEN_PROCESS_NAMES))
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     sizes = [int(value) for value in args.sizes.split(",")]
@@ -256,14 +309,40 @@ def main():
         parser.error("regression matrix scope requires an independent baseline")
     if args.matrix_scope == "server" and args.max_regression is not None:
         parser.error("server diagnostic scope does not define a regression gate")
+    if args.max_rclcpp_ratio is not None and (
+            args.matrix_scope != "full" or not math.isfinite(args.max_rclcpp_ratio)
+            or args.max_rclcpp_ratio <= 0):
+        parser.error("an rclcpp limit needs full scope and a finite positive ratio")
     if args.probe and args.max_regression is not None:
         parser.error("instrumented runs cannot enforce latency regression gates")
+    if args.probe and args.max_rclcpp_ratio is not None:
+        parser.error("instrumented runs cannot enforce an rclcpp latency gate")
+    forbidden_names = tuple(dict.fromkeys(
+        name.strip() for name in args.isolation_forbid_comm.split(",") if name.strip()))
+    if (args.isolation_samples < 0 or not math.isfinite(args.isolation_interval)
+            or args.isolation_interval <= 0 or not math.isfinite(args.isolation_timeout)
+            or args.isolation_timeout <= 0 or not math.isfinite(args.isolation_max_load1)
+            or args.isolation_max_load1 < 0
+            or not math.isfinite(args.isolation_monitor_interval)
+            or args.isolation_monitor_interval <= 0
+            or (args.isolation_samples and not forbidden_names)):
+        parser.error("invalid performance isolation configuration")
+    if ((args.max_regression is not None or args.max_rclcpp_ratio is not None)
+            and (args.isolation_samples < 3 or args.isolation_max_load1 > 2
+                 or args.isolation_monitor_interval > 0.25)):
+        parser.error("formal performance gates require strict continuous isolation")
     binaries = {"rust": args.rust.resolve(), "cpp": args.cpp.resolve()}
     if args.baseline_rust:
         binaries["baseline"] = args.baseline_rust.resolve()
     status_paths = {"rust": args.rust_status_path, "cpp": "per_goal"}
     if args.baseline_rust:
         status_paths["baseline"] = args.baseline_status_path
+    feedback_delivery_paths = {
+        "rust": args.rust_feedback_delivery,
+        "cpp": "rclcpp_callback",
+    }
+    if args.baseline_rust:
+        feedback_delivery_paths["baseline"] = args.baseline_feedback_delivery
     env = os.environ.copy()
     env.update(RMW_IMPLEMENTATION=args.rmw, ROS_DOMAIN_ID=str(args.domain_id), ROS_LOCALHOST_ONLY="1")
     env.pop("CYCLONEDDS_URI", None)
@@ -278,7 +357,10 @@ def main():
     root = Path(__file__).resolve().parents[2]
     sources = [Path("r2r/benches/action_feedback_roundtrip.rs"),
                Path("tools/bench_ros/action_feedback.cpp"),
-               Path("tools/bench_ros/action_feedback.py")]
+               Path("tools/bench_ros/action_feedback.py"),
+               Path("tools/bench_ros/verify_action_feedback.py"),
+               Path("tools/bench_ros/pubsub_pipeline.py"),
+               Path("tools/bench_ros/callback_group_support/validation.py")]
     metadata = {
         "started_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "workload": "action_feedback", "cpu_ping": args.cpu_ping, "cpu_echo": args.cpu_echo,
@@ -309,6 +391,7 @@ def main():
         "result_timeout_ms": args.result_timeout_ms,
         "status_batch_size": args.status_batch_size,
         "status_paths": status_paths,
+        "feedback_delivery_paths": feedback_delivery_paths,
         "status_sync": args.status_sync,
         "server_stage_labels": list(SERVER_STAGES),
         "server_stage_boundaries": {
@@ -330,6 +413,25 @@ def main():
     packages = ["rclcpp", "rclcpp_action", "rcl_action", "rcl", "rmw", "example_interfaces", args.rmw]
     metadata["ros_packages"] = {name: ET.parse(prefix / name / "package.xml").findtext("version") for name in packages}
     pairs = matrix_pairs(args.baseline_rust is not None, args.matrix_scope)
+    monitor = None
+    if args.isolation_samples:
+        try:
+            preflight = wait_for_isolation(
+                args.isolation_samples, args.isolation_interval, args.isolation_timeout,
+                args.isolation_max_load1, forbidden_names)
+        except RuntimeError as error:
+            metadata["isolation_gate"] = {
+                "passed": False,
+                "preflight_error": str(error),
+                "measurement_started": False,
+            }
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(json.dumps({"metadata": metadata, "records": [],
+                                               "summary": []}, indent=2) + "\n")
+            raise
+        monitor = IsolationMonitor(
+            forbidden_names, args.isolation_monitor_interval, args.isolation_max_load1)
+        monitor.start()
     records, traces = [], []
     for elements in sizes:
         for goal_window in windows:
@@ -341,12 +443,14 @@ def main():
                         binaries[ping_label], binaries[echo_label], args.cpu_ping, args.cpu_echo,
                         env, elements, goal_window, args.feedback_per_goal, args.iterations,
                         args.warmup, run_prefix, bool(args.probe), True, args.status_qos,
-                        status_paths[ping_label], status_paths[echo_label], args.status_sync)
+                        status_paths[ping_label], status_paths[echo_label], args.status_sync,
+                        feedback_delivery_paths[ping_label], feedback_delivery_paths[echo_label])
                     validate_endpoint(ping, "ping", args.rmw, elements, goal_window,
                                       args.feedback_per_goal, args.iterations, args.warmup,
                                       "rclcpp" if ping_label == "cpp" else "r2r", bool(args.probe), True,
                                       args.status_qos, args.result_timeout_ms,
-                                      args.status_batch_size, status_paths[ping_label], args.status_sync)
+                                      args.status_batch_size, status_paths[ping_label], args.status_sync,
+                                      feedback_delivery_paths[ping_label])
                     validate_endpoint(echo, "echo", args.rmw, elements, goal_window,
                                       args.feedback_per_goal, args.iterations, args.warmup,
                                       "rclcpp" if echo_label == "cpp" else "r2r", bool(args.probe), True,
@@ -364,6 +468,13 @@ def main():
                     print(f"{ping_label}/{echo_label} elements={elements} goals={goal_window} "
                           f"repetition={repetition + 1}/{args.repetitions}: "
                           f"feedback p50={ping['feedback_ns_p50']} ns p99={ping['feedback_ns_p99']} ns", flush=True)
+    if monitor is not None:
+        runtime_isolation = monitor.finish()
+        metadata["isolation_gate"] = {
+            "passed": preflight["passed"] and runtime_isolation["passed"],
+            "preflight": preflight,
+            "monitor": runtime_isolation,
+        }
     fields = ["rtt_ns_p50", "rtt_ns_p95", "rtt_ns_p99", "feedback_ns_p50",
               "feedback_ns_p95", "feedback_ns_p99", "roundtrips_per_second",
               "feedback_messages_per_second"]
@@ -399,10 +510,25 @@ def main():
     if args.max_regression is not None:
         metadata["regression_gate"] = {"maximum_ratio": args.max_regression,
                                        "passed": not failures, "failures": failures}
+    cpp_failures = (rclcpp_failures(summary, sizes, windows, args.max_rclcpp_ratio)
+                    if args.max_rclcpp_ratio is not None else [])
+    if args.max_rclcpp_ratio is not None:
+        metadata["rclcpp_gate"] = {
+            "maximum_ratio": args.max_rclcpp_ratio,
+            "fields": ["rtt_ns_p50", "rtt_ns_p95", "rtt_ns_p99",
+                       "feedback_ns_p50", "feedback_ns_p95", "feedback_ns_p99",
+                       "inverse_throughput"],
+            "passed": not cpp_failures,
+            "failures": cpp_failures,
+        }
     args.output.write_text(json.dumps({"metadata": metadata, "records": records, "summary": summary}, indent=2) + "\n")
     print(json.dumps(summary, indent=2))
-    if failures:
-        raise RuntimeError(f"action feedback regression gate failed: {failures}")
+    isolation_failed = ("isolation_gate" in metadata
+                        and not metadata["isolation_gate"]["passed"])
+    if failures or cpp_failures or isolation_failed:
+        raise RuntimeError(
+            f"action feedback gate failed: regression={failures}, rclcpp={cpp_failures}, "
+            f"isolation={isolation_failed}")
 
 
 if __name__ == "__main__":

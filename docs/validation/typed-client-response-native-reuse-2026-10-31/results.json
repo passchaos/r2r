@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "feature": {
+    "plain_api": "Client<T>::request",
+    "metadata_api": "Client<T>::request_with_info",
+    "public_api_unchanged": true,
+    "one_slot_native_response_cache": true,
+    "cache_owned_by_native_endpoint": true,
+    "decode_remains_after_client_unlock": true,
+    "owned_rust_responses_remain_independent": true,
+    "plain_and_metadata_futures_share_cache": true,
+    "explicit_endpoint_destruction_releases_cache": true
+  },
+  "resource_constraints": {
+    "single_cpu_compilation": true,
+    "cargo_build_jobs": 1,
+    "rayon_threads": 1,
+    "virtual_memory_limit_kib": 10485760,
+    "container_memory_bytes": 10000000000,
+    "container_memory_swap_bytes": 10000000000
+  },
+  "native_gates": {
+    "jazzy": {
+      "rmws": [
+        "rmw_cyclonedds_cpp",
+        "rmw_fastrtps_cpp"
+      ],
+      "cases_passed_per_rmw_debug": 1,
+      "cases_passed_per_rmw_release": 1,
+      "focused_clippy_with_tests_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-jazzy.log.gz",
+      "artifact_sha256": "f3e125330c37dc19713c95e51fd78585ae499f17283076c712a5e65d7c37118d",
+      "uncompressed_sha256": "0a3c198fd6f0e70291485081eee39afb8b8113b5d4c26f3e6732b42fbf46eb6a"
+    },
+    "humble": {
+      "rmws": [
+        "rmw_fastrtps_cpp"
+      ],
+      "cases_passed_per_rmw": 1,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-humble.log.gz",
+      "artifact_sha256": "c936e2f58dd95e7749919958d7f9ea1c1e49fd04d98b0dd537b2922ef3e09a15",
+      "uncompressed_sha256": "9cdcd9d659720232974613d647370e790c7a04b511f95aca221fe4945ae09a32"
+    },
+    "kilted": {
+      "rmws": [
+        "rmw_cyclonedds_cpp",
+        "rmw_fastrtps_cpp"
+      ],
+      "cases_passed_per_rmw": 1,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-kilted.log.gz",
+      "artifact_sha256": "a978104393b1972c77a6a632e6ef525b2709aedf0bcd806b63ce60e39c991d45",
+      "uncompressed_sha256": "1bb7133824b2dc7137be602dde3fab7df97a4fac803dd8238ed8b7ae3e55a736"
+    }
+  },
+  "full_release": {
+    "passed_per_rmw": 822,
+    "ignored_per_rmw": 20,
+    "rmws": {
+      "rmw_cyclonedds_cpp": {
+        "exit_code": 0,
+        "artifact": "logs/full-release-cyclonedds.log.gz",
+        "artifact_sha256": "358d7887323eff7055967f9baa6512d2d13f7cf7573f4618895d102ba8a1cfe9",
+        "uncompressed_sha256": "e0223580f99680408f452de647eedba653855e0e18dacf91440a0180ce469d31"
+      },
+      "rmw_fastrtps_cpp": {
+        "exit_code": 0,
+        "artifact": "logs/full-release-fastdds.log.gz",
+        "artifact_sha256": "f351f9e6cdf171e93eabc1f6bacc449c6835cb27e729ef47521db0797dd1e070",
+        "uncompressed_sha256": "8e9dca7f7115a94327be690c985a1c777d814616c326ba8439f4520bba1c77ea"
+      }
+    }
+  },
+  "workspace_clippy": {
+    "all_targets": true,
+    "warnings_denied": true,
+    "exit_code": 0,
+    "artifact": "logs/final-clippy.log.gz",
+    "artifact_sha256": "8121e662ee8b710b40a8398c42d526bb2582ce5efac80189d191ec32b7ec7f62",
+    "uncompressed_sha256": "f2016adc2f41e57627d6e2a17c2731f1e2fe63030dcc9675f30a76e5247c4e0d"
+  },
+  "no_ros_gate": {
+    "public_documentation_artifacts": 84,
+    "required_documented_methods": 341,
+    "all_targets_compiled": true,
+    "exit_code": 0,
+    "artifact": "logs/final-no-ros.log.gz",
+    "artifact_sha256": "0325b54daf4315177b35f5ce805a0561d58ce275e5aca9cd07263a662c5f1926",
+    "uncompressed_sha256": "51ea24212e8ad3475fb336ea64b6ffbd786cdb04eb7699ed0ee89ca04c0af460"
+  },
+  "allocation_stage": {
+    "timing_qualified": false,
+    "repetitions": 5,
+    "iterations_per_repetition": 10000,
+    "string_bytes": 4096,
+    "fresh_native_allocations": 40000,
+    "reused_native_allocations": 10000,
+    "allocation_reduction_per_response": 3,
+    "fresh_native_frees": 30000,
+    "reused_native_frees": 10000,
+    "free_reduction_per_response": 2,
+    "fresh_native_requested_bytes": 82260000,
+    "reused_native_requested_bytes": 40960000,
+    "requested_byte_reduction": 41300000,
+    "requested_byte_reduction_per_response": 4130,
+    "requested_byte_reduction_percent": 50.20666180330781,
+    "artifact": "allocation-stage.json",
+    "artifact_sha256": "e26aa50ffd33b8c770f369b8c97a96642a0e30d39b11dc28a43396fe5a9071ac",
+    "raw_log_artifact": "allocation-stage.log.gz",
+    "raw_log_sha256": "1b2900fb453b10a09619cc31506a4b9ef676c32b10c1c08c6dec500683ab444b",
+    "probe_report_artifact": "probe-report.json",
+    "probe_report_sha256": "48aa1cac6cbedc5b69f87a9e03d5df3f6c7f0900b45ebb764b7c48c8a4800ef4"
+  },
+  "source_sha256": {
+    "r2r/src/clients.rs": "4347d059a54c62e339fc07f0044b9c2feb15ab0cd6600ba55c033fbfcc30bab0",
+    "r2r/src/clients/native_response_buffer_tests.rs": "ad1df3f822da5b2571ce50f41005d8c9a366807654c47a15a50dd9163301f41b",
+    "r2r/src/msg_types.rs": "47fd4f92e2d16912e36dfd7074893ba07365915b5ba7ed62761394555d2003af",
+    "r2r/src/native_buffer.rs": "e651c556e0fccf8a47a7e646e80e5532353eb97938833eb1ce4a9c79c24b2885",
+    "r2r/src/nodes/client_api.rs": "42c11f3200c54fb92df37e14db359bede3fca712bac34e3024608978803f754d",
+    "r2r/src/lib.rs": "c1d0b15e9eef13e98f7142408fe74862ddee144cc9550237b7d6676355c22101",
+    "README.md": "804327d9ac4535471dda12675408630438f366979cd91bada21556b851a65ec8",
+    "docs/DOCUMENTATION_BUILDS.md": "e5495b1e948c4d72bc5a96a52ceb3265f770c3c306acb4e05a55e28517fd79b2",
+    "docs/RELEASE_VALIDATION.md": "f23d3e1a101ee14a3c679cf529e629d5a44f0454faa7e8d5aec9d6c0df129da3",
+    "docs/ROADMAP.md": "43e5f42ace5a1ae3fa71e4b993ef1641a8a1c3dce968f1549b8970a70ecf280c",
+    "docs/RUST_ROS2_COMPARISON.md": "64f86f9fa16464b745db5fe54416ade123ce7de05e99d15198cb62a22d116d01",
+    "tests/check_documentation.py": "b87c8eef33a8251b39d4a0940679d05903b5a749ec9c32633aa20579f311ab96",
+    "tools/bench_ros/typed_client_response_native_reuse_stage.py": "2d275bfefa7f40d5a40674f1eec50cb4d1b1b504c1f6b83109d2f60b0e1f91a4",
+    "docs/validation/typed-client-response-native-reuse-2026-10-31/README.md": "4169e567bc432cca30f8989ebfae2dc9fe3634355b7d073499dfb85c3995cf12",
+    "docs/validation/typed-client-response-native-reuse-2026-10-31/run-jazzy.bash": "6845d8c2c7f1178def5c266dfcb84bc7482060c49e808b656e6cf243da09456b",
+    "docs/validation/typed-client-response-native-reuse-2026-10-31/run-compat.bash": "42e5dc11d04106c8b8970378e1372ceb1325ecfa0f720846d88f3af42b985fe6",
+    "docs/validation/typed-client-response-native-reuse-2026-10-31/run-no-ros.bash": "45ac6ed102bc670bb14db686cb4df7de2358946b2a23154821489a745b6ff969",
+    "docs/validation/typed-client-response-native-reuse-2026-10-31/verify.py": "b44d4315aa70b27753853e1644a61b641a09205b56af228121afad5e8b8bbba0"
+  }
+}

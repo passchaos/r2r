@@ -1,0 +1,24 @@
+{
+  "removed_search_prefix": "/opt/ros/interfaces/lib",
+  "workload": {
+    "kind": "exclusive",
+    "workers": 1,
+    "window": 1,
+    "operations": 0,
+    "iterations": 4,
+    "warmup": 2,
+    "rmw": "rmw_cyclonedds_cpp"
+  },
+  "baseline": {
+    "binary_sha256": "53ee111ba8c213da7904a112b9dab99ffc1a91fe1c3523fe52ee57cc71f8e287",
+    "exit_code": 127,
+    "stderr": "error while loading shared libraries: libailab_vlm_interface__rosidl_typesupport_c.so: cannot open shared object file: No such file or directory"
+  },
+  "candidate": {
+    "binary_sha256": "4a6b3324d25aad0e199c6cd2df7fb426378b23c2364035b149572a5b014d0ec3",
+    "exit_code": 0,
+    "received": 6,
+    "measured_responses": 4,
+    "checksum": 15
+  }
+}

@@ -106,7 +106,7 @@ impl<T: 'static + WrappedServiceTypeSupport> Client<T> {
             return Err(Error::RCL_RET_INVALID_ARGUMENT);
         }
         let mut client = client.lock();
-        configure_client(&mut client.rcl_handle, T::get_ts(), node, state, event_qos)
+        configure_client(&mut client.rcl_handle, T::try_get_ts()?, node, state, event_qos)
     }
 }
 

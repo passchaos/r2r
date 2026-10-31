@@ -7,6 +7,8 @@ pub(super) trait NativeTimer {
     fn clock_type(&self) -> ClockType;
     fn handle(&self) -> *const rcl_timer_t;
     fn handle_mut(self: Pin<&mut Self>) -> *mut rcl_timer_t;
+    fn reset_state(&self) -> &timer_resets::TimerResetSlot;
+    fn reset(self: Pin<&mut Self>) -> Result<()>;
     fn call(self: Pin<&mut Self>) -> Result<()>;
     fn destroy(self: Pin<&mut Self>);
 }
@@ -70,6 +72,7 @@ pub(super) struct Timer<H: Handler> {
     clock_type: ClockType,
     _owned_clock: Option<Clock>,
     options: CallbackTimerOptions,
+    reset_state: timer_resets::TimerResetSlot,
     handler: H,
 }
 
@@ -85,6 +88,7 @@ impl<H: Handler + Send + 'static> Timer<H> {
             clock_type,
             _owned_clock: None,
             options,
+            reset_state: timer_resets::TimerResetSlot::new(),
             handler,
         })
     }
@@ -120,6 +124,7 @@ impl<H: Handler> Timer<H> {
         self.alive.store(false, Ordering::Release);
         if self.initialized {
             self.initialized = false;
+            self.reset_state.close(&self.native.handle);
             let ret = unsafe { rcl_timer_fini(&mut self.native.handle) };
             if ret != RCL_RET_OK as i32 {
                 log::error!("could not finalize callback timer: {ret}");
@@ -143,6 +148,13 @@ impl<H: Handler + Send + 'static> NativeTimer for Timer<H> {
     }
     fn handle_mut(self: Pin<&mut Self>) -> *mut rcl_timer_t {
         &mut unsafe { self.get_unchecked_mut() }.native.handle
+    }
+    fn reset_state(&self) -> &timer_resets::TimerResetSlot {
+        &self.reset_state
+    }
+    fn reset(self: Pin<&mut Self>) -> Result<()> {
+        let timer = unsafe { self.get_unchecked_mut() };
+        timer.reset_state.reset(&mut timer.native.handle)
     }
     fn call(self: Pin<&mut Self>) -> Result<()> {
         let timer = unsafe { self.get_unchecked_mut() };

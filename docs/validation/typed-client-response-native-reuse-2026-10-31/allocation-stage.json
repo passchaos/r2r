@@ -1,0 +1,154 @@
+{
+  "metadata": {
+    "boundary": "typed client native response fill, owned decode and validation; no RCL/DDS",
+    "timing_qualified": false,
+    "iterations": 10000,
+    "string_bytes": 4096,
+    "repetitions": 5,
+    "cpu": 0,
+    "single_cpu_affinity": true,
+    "virtual_memory_limit_bytes": 10737418240,
+    "probe_sha256": "85283f1184b00c227e02c8c56eec9283051265a779511c39c6c8cf4272baa59e",
+    "source_sha256": {
+      "r2r/src/clients.rs": "4347d059a54c62e339fc07f0044b9c2feb15ab0cd6600ba55c033fbfcc30bab0",
+      "r2r/src/clients/native_response_buffer_tests.rs": "ad1df3f822da5b2571ce50f41005d8c9a366807654c47a15a50dd9163301f41b",
+      "r2r/src/msg_types.rs": "47fd4f92e2d16912e36dfd7074893ba07365915b5ba7ed62761394555d2003af",
+      "r2r/src/native_buffer.rs": "e651c556e0fccf8a47a7e646e80e5532353eb97938833eb1ce4a9c79c24b2885",
+      "r2r/src/nodes/client_api.rs": "42c11f3200c54fb92df37e14db359bede3fca712bac34e3024608978803f754d",
+      "r2r/benches/support/allocation_probe.rs": "5b9bb562e8c6ab7bee6427be15af5134d13cefd557b6bc13e1e2f102c864f56d",
+      "tools/bench_ros/typed_client_response_native_reuse_stage.py": "2d275bfefa7f40d5a40674f1eec50cb4d1b1b504c1f6b83109d2f60b0e1f91a4",
+      "tools/bench_ros/probe/probe.c": "fb969b91fc6e8f4755e4932f89044c1d35dc1dc5b5a9ff2175735e877bcb6394",
+      "tools/bench_ros/probe/probe.h": "1e158b3e377055c8b746728a4920a74523bbf0958054d04c926d79becbb8fe8a"
+    },
+    "raw_log": {
+      "file": "allocation-stage.log.gz",
+      "sha256": "1b2900fb453b10a09619cc31506a4b9ef676c32b10c1c08c6dec500683ab444b"
+    }
+  },
+  "records": [
+    {
+      "allocations": 40000,
+      "boundary": "typed client native response fill, owned decode and validation; no RCL/DDS",
+      "elapsed_ns": 4005050,
+      "frees": 30000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 82260000,
+      "string_bytes": 4096,
+      "repetition": 0
+    },
+    {
+      "allocations": 10000,
+      "boundary": "typed client native response fill, owned decode and validation; no RCL/DDS",
+      "elapsed_ns": 2322191,
+      "frees": 10000,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 40960000,
+      "string_bytes": 4096,
+      "repetition": 0
+    },
+    {
+      "allocations": 40000,
+      "boundary": "typed client native response fill, owned decode and validation; no RCL/DDS",
+      "elapsed_ns": 2912014,
+      "frees": 30000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 82260000,
+      "string_bytes": 4096,
+      "repetition": 1
+    },
+    {
+      "allocations": 10000,
+      "boundary": "typed client native response fill, owned decode and validation; no RCL/DDS",
+      "elapsed_ns": 1987571,
+      "frees": 10000,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 40960000,
+      "string_bytes": 4096,
+      "repetition": 1
+    },
+    {
+      "allocations": 40000,
+      "boundary": "typed client native response fill, owned decode and validation; no RCL/DDS",
+      "elapsed_ns": 2914202,
+      "frees": 30000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 82260000,
+      "string_bytes": 4096,
+      "repetition": 2
+    },
+    {
+      "allocations": 10000,
+      "boundary": "typed client native response fill, owned decode and validation; no RCL/DDS",
+      "elapsed_ns": 1904340,
+      "frees": 10000,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 40960000,
+      "string_bytes": 4096,
+      "repetition": 2
+    },
+    {
+      "allocations": 40000,
+      "boundary": "typed client native response fill, owned decode and validation; no RCL/DDS",
+      "elapsed_ns": 2900516,
+      "frees": 30000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 82260000,
+      "string_bytes": 4096,
+      "repetition": 3
+    },
+    {
+      "allocations": 10000,
+      "boundary": "typed client native response fill, owned decode and validation; no RCL/DDS",
+      "elapsed_ns": 1913448,
+      "frees": 10000,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 40960000,
+      "string_bytes": 4096,
+      "repetition": 3
+    },
+    {
+      "allocations": 40000,
+      "boundary": "typed client native response fill, owned decode and validation; no RCL/DDS",
+      "elapsed_ns": 2913104,
+      "frees": 30000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 82260000,
+      "string_bytes": 4096,
+      "repetition": 4
+    },
+    {
+      "allocations": 10000,
+      "boundary": "typed client native response fill, owned decode and validation; no RCL/DDS",
+      "elapsed_ns": 1902532,
+      "frees": 10000,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 40960000,
+      "string_bytes": 4096,
+      "repetition": 4
+    }
+  ],
+  "summary": {
+    "fresh_native": {
+      "allocations": 40000,
+      "frees": 30000,
+      "requested_bytes": 82260000,
+      "elapsed_ns": 2913104
+    },
+    "reused_native": {
+      "allocations": 10000,
+      "frees": 10000,
+      "requested_bytes": 40960000,
+      "elapsed_ns": 1913448
+    }
+  }
+}

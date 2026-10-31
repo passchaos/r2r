@@ -1,3 +1,4 @@
+use futures::FutureExt;
 use r2r::{
     parking_lot::{Mutex, MutexGuard},
     Context, ContextOptions, Error, Node,
@@ -21,6 +22,8 @@ fn shutdown_is_shared_idempotent_and_defers_finalization() {
     context.shutdown().unwrap();
     assert!(!context.is_valid());
     assert!(!clone.is_valid());
+    #[cfg(unix)]
+    assert!(matches!(context.install_signal_handler(), Err(Error::RCL_RET_NOT_INIT)));
     clone.shutdown().unwrap();
 
     assert!(matches!(Context::create(), Err(Error::RCL_RET_ALREADY_SHUTDOWN)));
@@ -151,4 +154,58 @@ fn shutdown_completes_background_task_and_rejects_new_spawn() {
     ));
     shutdown.join().unwrap();
     worker.join().unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn process_signal_shuts_down_context_and_wakes_background_executor() {
+    let _lock = context_test_lock();
+    let context = Context::create().unwrap();
+    context.install_signal_handler().unwrap();
+    let node = Node::create(context.clone(), "signal_shutdown_background_task", "").unwrap();
+    let mut executor = r2r::Executor::new(context.clone());
+    executor.add_node(node).unwrap();
+    let task = executor.spawn().unwrap();
+    let (finished, completed) = std::sync::mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        finished.send(futures::executor::block_on(task)).unwrap();
+    });
+
+    signal_hook::low_level::raise(signal_hook::consts::SIGINT).unwrap();
+
+    let executor = completed
+        .recv_timeout(Duration::from_secs(5))
+        .expect("SIGINT did not wake the background executor")
+        .unwrap();
+    assert_eq!(executor.len(), 1);
+    assert!(!context.is_valid());
+    worker.join().unwrap();
+    drop(executor);
+    drop(context);
+
+    let fresh = Context::create().unwrap();
+    fresh.install_signal_handler().unwrap();
+    let shutdown = fresh.wait_for_shutdown();
+    signal_hook::low_level::raise(signal_hook::consts::SIGTERM).unwrap();
+    futures::executor::block_on(shutdown);
+    assert!(!fresh.is_valid(), "SIGTERM did not retarget the process handler");
+}
+
+#[test]
+fn shutdown_future_is_immediate_cancel_safe_and_does_not_retain_context() {
+    let _lock = context_test_lock();
+    let context = Context::create().unwrap();
+    let canceled = context.wait_for_shutdown();
+    drop(canceled);
+    let wait = context.wait_for_shutdown();
+    context.shutdown().unwrap();
+    futures::executor::block_on(wait);
+    assert!(context.wait_for_shutdown().now_or_never().is_some());
+    drop(context);
+
+    let context = Context::create().unwrap();
+    let wait = context.wait_for_shutdown();
+    drop(context);
+    futures::executor::block_on(wait);
+    assert!(Context::create().unwrap().is_valid());
 }

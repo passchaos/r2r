@@ -10,7 +10,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use crate::{error::*, msg_types::*, Node, QosProfile};
+use crate::{error::*, msg_types::*, native_buffer::NativeBuffer, Node, QosProfile};
 use r2r_rcl::*;
 pub(crate) mod callback;
 pub use callback::{CallbackService, CallbackServiceOptions};
@@ -279,6 +279,7 @@ where
     request_id: rmw_request_id_t,
     request_info: ServiceRequestInfo,
     service: Weak<Mutex<dyn Service_>>,
+    response_buffer: NativeBuffer<WrappedNativeMsg<T::Response>>,
     response_sent: Arc<AtomicBool>,
 }
 
@@ -381,9 +382,16 @@ where
             .service
             .upgrade()
             .ok_or(Error::RCL_RET_SERVICE_INVALID)?;
+        let mut native_msg = self
+            .response_buffer
+            .checkout(WrappedNativeMsg::<T::Response>::try_new)?;
+        if let Err(error) = msg.try_copy_to_native(&mut native_msg) {
+            native_msg.retire();
+            return Err(error);
+        }
         with_prepared_service(
             &service,
-            || WrappedNativeMsg::<T::Response>::try_from(&msg),
+            || Ok(native_msg),
             |service, native_msg| {
                 self.response_sent
                     .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
@@ -453,6 +461,8 @@ where
     pub rcl_handle: rcl_service_t,
     pub sender: Arc<Mutex<Option<mpsc::Sender<ServiceRequest<T>>>>>,
     pub(crate) id: uuid::Uuid,
+    pub(crate) request_buffer: NativeBuffer<WrappedNativeMsg<T::Request>>,
+    pub(crate) response_buffer: NativeBuffer<WrappedNativeMsg<T::Response>>,
 }
 
 pub struct UntypedService {
@@ -585,7 +595,7 @@ where
     ) -> Result<()> {
         crate::service_introspection::configure_service(
             &mut self.rcl_handle,
-            T::get_ts(),
+            T::try_get_ts()?,
             node,
             state,
             event_qos,
@@ -628,7 +638,9 @@ where
         }
 
         let mut request_info = crate::native_metadata::service_info();
-        let mut request_msg = WrappedNativeMsg::<T::Request>::try_new()?;
+        let mut request_msg = self
+            .request_buffer
+            .checkout(WrappedNativeMsg::<T::Request>::try_new)?;
 
         let ret = unsafe {
             rcl_take_request_with_info(
@@ -647,6 +659,7 @@ where
         let request_id = request_info.request_id;
         let request_info = ServiceRequestInfo::from(&request_info);
         let service = Arc::downgrade(&service);
+        let response_buffer = self.response_buffer.clone();
         let sender = self
             .sender
             .lock()
@@ -661,6 +674,7 @@ where
                 request_id,
                 request_info,
                 service,
+                response_buffer,
                 response_sent: Arc::new(AtomicBool::new(false)),
             },
             "service request",
@@ -771,6 +785,7 @@ mod tests {
                 sequence_number: 0,
             },
             service: Arc::downgrade(&service),
+            response_buffer: NativeBuffer::default(),
             response_sent: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -1016,3 +1031,6 @@ mod tests {
         ));
     }
 }
+
+#[cfg(test)]
+mod native_buffer_tests;

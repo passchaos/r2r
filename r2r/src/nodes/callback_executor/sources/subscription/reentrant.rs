@@ -20,7 +20,7 @@ impl Node {
     /// Configures bounded input and endpoint policy for shared typed work.
     pub fn subscribe_reentrant_callback_with_options<T, F>(
         &mut self, group: &mut ReentrantCallbackGroup, topic: &str, qos: QosProfile,
-        options: impl Into<GroupedSubscriptionOptions>, callback: F,
+        options: impl Into<SubscriptionConfiguration<GroupedSubscriptionOptions>>, callback: F,
     ) -> Result<GroupedSubscription>
     where
         T: WrappedTypesupport + 'static,
@@ -56,7 +56,8 @@ impl Node {
     /// Uses one bounded native input ring and independent invocation receivers.
     pub fn subscribe_native_reentrant_callback_with_options<T, F>(
         &mut self, group: &mut ReentrantCallbackGroup, topic: &str, qos: QosProfile,
-        options: impl Into<GroupedSubscriptionOptions>, callback: F,
+        configuration: impl Into<SubscriptionConfiguration<GroupedSubscriptionOptions>>,
+        callback: F,
     ) -> Result<GroupedSubscription>
     where
         T: WrappedTypesupport + 'static,
@@ -65,9 +66,9 @@ impl Node {
             + Sync
             + 'static,
     {
-        let options = options.into();
-        let endpoint = options.endpoint.validate()?;
-        let queue = options.queue.validate()?;
+        let configuration = configuration.into();
+        let endpoint = configuration.endpoint.endpoint.validate()?;
+        let queue = configuration.endpoint.queue.validate()?;
         let callback = Arc::new(callback);
         let callbacks: Vec<_> = (0..group.concurrency())
             .map(|_| {
@@ -81,10 +82,11 @@ impl Node {
         let handle = create_subscription_helper(
             self.node_handle.as_mut(),
             topic,
-            T::get_ts(),
+            T::try_get_ts()?,
             qos,
             endpoint.ignore_local_publications,
             endpoint.unique_network_flow,
+            configuration.content_filter.as_ref(),
         )?;
         let control = producer.control();
         let mut row = Box::new(SubscriptionSource::<T> {

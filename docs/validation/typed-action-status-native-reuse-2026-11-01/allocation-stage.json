@@ -1,0 +1,155 @@
+{
+  "metadata": {
+    "boundary": "typed action status native fill, direct decode and validation; no RCL/DDS",
+    "timing_qualified": false,
+    "iterations": 10000,
+    "statuses": 128,
+    "repetitions": 5,
+    "cpu": 0,
+    "single_cpu_affinity": true,
+    "virtual_memory_limit_bytes": 10737418240,
+    "probe_sha256": "85283f1184b00c227e02c8c56eec9283051265a779511c39c6c8cf4272baa59e",
+    "source_sha256": {
+      "r2r/src/action_clients.rs": "a9b0461128a4d17cafa6c69e5527bab92be167fb058ff096eeeed313ad08cfbb",
+      "r2r/src/action_clients/status.rs": "4b43d11f8e91e2fe74b06dd46ba7505d1b777600524887ac3a782ab2b577dcb8",
+      "r2r/src/action_clients/status_buffer_tests.rs": "cce1f59d13eb7f3241f7bda7b2b428bb72b82a04c8b337df2bfaf792cf1e5cc4",
+      "r2r/src/msg_types.rs": "47fd4f92e2d16912e36dfd7074893ba07365915b5ba7ed62761394555d2003af",
+      "r2r/src/native_buffer.rs": "e651c556e0fccf8a47a7e646e80e5532353eb97938833eb1ce4a9c79c24b2885",
+      "r2r/src/nodes/action_client_api.rs": "12d56784614cdde9171dc62d0ff66a3aef611a1ec9316652a9e4076aecdc1855",
+      "r2r/benches/support/allocation_probe.rs": "5b9bb562e8c6ab7bee6427be15af5134d13cefd557b6bc13e1e2f102c864f56d",
+      "tools/bench_ros/typed_action_status_native_reuse_stage.py": "edbfb3092a4bafc92d77f105371eb7c046206bf9e507a0b06b3f1e53f639aaca",
+      "tools/bench_ros/probe/probe.c": "fb969b91fc6e8f4755e4932f89044c1d35dc1dc5b5a9ff2175735e877bcb6394",
+      "tools/bench_ros/probe/probe.h": "1e158b3e377055c8b746728a4920a74523bbf0958054d04c926d79becbb8fe8a"
+    },
+    "raw_log": {
+      "file": "allocation-stage.log.gz",
+      "sha256": "542d0d693cee9aafbd8cf5ca6256626dd2f6b92fd31da37c8819c03c96436f02"
+    }
+  },
+  "records": [
+    {
+      "allocations": 30000,
+      "boundary": "typed action status native fill, direct decode and validation; no RCL/DDS",
+      "elapsed_ns": 11274331,
+      "frees": 30000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 57840000,
+      "statuses": 128,
+      "repetition": 0
+    },
+    {
+      "allocations": 10000,
+      "boundary": "typed action status native fill, direct decode and validation; no RCL/DDS",
+      "elapsed_ns": 2412472,
+      "frees": 10000,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 21760000,
+      "statuses": 128,
+      "repetition": 0
+    },
+    {
+      "allocations": 30000,
+      "boundary": "typed action status native fill, direct decode and validation; no RCL/DDS",
+      "elapsed_ns": 11287647,
+      "frees": 30000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 57840000,
+      "statuses": 128,
+      "repetition": 1
+    },
+    {
+      "allocations": 10000,
+      "boundary": "typed action status native fill, direct decode and validation; no RCL/DDS",
+      "elapsed_ns": 2386722,
+      "frees": 10000,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 21760000,
+      "statuses": 128,
+      "repetition": 1
+    },
+    {
+      "allocations": 30000,
+      "boundary": "typed action status native fill, direct decode and validation; no RCL/DDS",
+      "elapsed_ns": 11282817,
+      "frees": 30000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 57840000,
+      "statuses": 128,
+      "repetition": 2
+    },
+    {
+      "allocations": 10000,
+      "boundary": "typed action status native fill, direct decode and validation; no RCL/DDS",
+      "elapsed_ns": 2387970,
+      "frees": 10000,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 21760000,
+      "statuses": 128,
+      "repetition": 2
+    },
+    {
+      "allocations": 30000,
+      "boundary": "typed action status native fill, direct decode and validation; no RCL/DDS",
+      "elapsed_ns": 11397093,
+      "frees": 30000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 57840000,
+      "statuses": 128,
+      "repetition": 3
+    },
+    {
+      "allocations": 10000,
+      "boundary": "typed action status native fill, direct decode and validation; no RCL/DDS",
+      "elapsed_ns": 2410039,
+      "frees": 10000,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 21760000,
+      "statuses": 128,
+      "repetition": 3
+    },
+    {
+      "allocations": 30000,
+      "boundary": "typed action status native fill, direct decode and validation; no RCL/DDS",
+      "elapsed_ns": 11253108,
+      "frees": 30000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 57840000,
+      "statuses": 128,
+      "repetition": 4
+    },
+    {
+      "allocations": 10000,
+      "boundary": "typed action status native fill, direct decode and validation; no RCL/DDS",
+      "elapsed_ns": 2407495,
+      "frees": 10000,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 21760000,
+      "statuses": 128,
+      "repetition": 4
+    }
+  ],
+  "summary": {
+    "fresh_native": {
+      "allocations": 30000,
+      "frees": 30000,
+      "requested_bytes": 57840000,
+      "elapsed_ns": 11282817
+    },
+    "reused_native": {
+      "allocations": 10000,
+      "frees": 10000,
+      "requested_bytes": 21760000,
+      "elapsed_ns": 2407495
+    }
+  }
+}

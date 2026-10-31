@@ -22,41 +22,38 @@ pub(super) fn dispatch_client_ready(
             |client, uuid| client.forget_goal(uuid),
         ));
     }
-    let result = complete_action_client_operation(
-        ac,
-        |ac, completions| {
-            if ready.status {
-                errors.record(
-                    ac.handle_status_msg(ac_ref.clone())
-                        .map(|ready| completions.extend(ready)),
-                );
-            }
-            if ready.goal_response {
-                errors.record(collect_action_client_responses(
-                    ac,
-                    completions,
-                    |ac, completions| ac.handle_goal_response(ac_ref.clone(), completions),
-                ));
-            }
-            if ready.cancel_response {
-                errors.record(collect_action_client_responses(
-                    ac,
-                    completions,
-                    |ac, completions| ac.handle_cancel_response(completions),
-                ));
-            }
-            if ready.result_response {
-                errors.record(collect_action_client_responses(
-                    ac,
-                    completions,
-                    |ac, completions| ac.handle_result_response(ac_ref.clone(), completions),
-                ));
-            }
-            Ok(())
-        },
-        |client, uuid| client.forget_goal(uuid),
-    );
-    errors.record(result);
+    if ready.status {
+        errors.record(complete_action_client_operation(
+            ac,
+            |client, completions| {
+                client
+                    .handle_status_msg(ac_ref.clone())
+                    .map(|ready| completions.extend(ready))
+            },
+            |client, uuid| client.forget_goal(uuid),
+        ));
+    }
+    if ready.goal_response {
+        errors.record(complete_action_client_response_batch(
+            ac,
+            |client, completions| client.handle_goal_response(ac_ref.clone(), completions),
+            |client, uuid| client.forget_goal(uuid),
+        ));
+    }
+    if ready.cancel_response {
+        errors.record(complete_action_client_response_batch(
+            ac,
+            ActionClient_::handle_cancel_response,
+            |client, uuid| client.forget_goal(uuid),
+        ));
+    }
+    if ready.result_response {
+        errors.record(complete_action_client_response_batch(
+            ac,
+            |client, completions| client.handle_result_response(ac_ref.clone(), completions),
+            |client, uuid| client.forget_goal(uuid),
+        ));
+    }
 }
 
 impl WaitEntities<'_> {

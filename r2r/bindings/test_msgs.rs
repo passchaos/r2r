@@ -74,6 +74,9 @@ pub mod action {
             ) -> Option<[u8; 16]> {
                 Some(msg.goal_id.uuid)
             }
+            fn supports_native_feedback_delivery() -> bool {
+                true
+            }
             fn destructure_result_response_msg(
                 msg: GetResult::Response,
             ) -> (i8, Result) {
@@ -933,6 +936,9 @@ pub mod action {
                 msg: &<FeedbackMessage as WrappedTypesupport>::CStruct,
             ) -> Option<[u8; 16]> {
                 Some(msg.goal_id.uuid)
+            }
+            fn supports_native_feedback_delivery() -> bool {
+                true
             }
             fn destructure_result_response_msg(
                 msg: GetResult::Response,

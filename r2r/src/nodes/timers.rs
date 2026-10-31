@@ -104,6 +104,7 @@ pub(crate) struct Timer_ {
     timer_handle: Pin<Box<RclTimer>>,
     _clock: Option<Clock>, // Some(clock) if the timer owns the clock, just here to be dropped properly later.
     sender: mpsc::Sender<TimerTick>,
+    reset_state: timer_resets::TimerResetSlot,
     pub(in crate::nodes) id: uuid::Uuid,
     #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
     clock_type: ClockType,
@@ -134,6 +135,16 @@ impl Timer_ {
             .as_mut()
             .map_unchecked_mut(|s| &mut s.handle)
             .get_unchecked_mut()
+    }
+
+    fn reset(&mut self) -> Result<()> {
+        let handle = unsafe {
+            self.timer_handle
+                .as_mut()
+                .map_unchecked_mut(|timer| &mut timer.handle)
+                .get_unchecked_mut()
+        };
+        self.reset_state.reset(handle)
     }
 
     pub(in crate::nodes) fn handle_incoming(&mut self) -> Result<bool> {
@@ -185,6 +196,7 @@ impl Timer_ {
 
 impl Drop for Timer_ {
     fn drop(&mut self) {
+        self.reset_state.close(self.get_handle());
         let _ret = unsafe { rcl_timer_fini(self.get_handle_mut()) };
     }
 }
@@ -284,9 +296,17 @@ impl Timer {
 
     /// Restarts the timer from the current clock time, also resuming a canceled timer.
     pub fn reset(&self, node: &mut Node) -> Result<()> {
+        node.timer_mut(self.id)?.reset()
+    }
+
+    /// Observes every reset of this timer as a lossless asynchronous stream.
+    ///
+    /// The first item includes resets that happened before registration. Only
+    /// one observer may be alive at a time. Lifecycle activation resets are
+    /// included when this timer is wrapped by [`crate::LifecycleTimer`].
+    pub fn observe_resets(&self, node: &mut Node) -> Result<TimerResetEvents> {
         let timer = node.timer_mut(self.id)?;
-        let ret = unsafe { rcl_timer_reset(timer.get_handle_mut()) };
-        check_rcl_ret(ret)
+        timer.reset_state.observe(timer.get_handle())
     }
 
     /// Returns whether the timer is currently canceled.
@@ -430,6 +450,7 @@ impl Node {
             timer_handle,
             _clock: Some(clock), // The timer owns the clock.
             sender: tx,
+            reset_state: timer_resets::TimerResetSlot::new(),
             id: uuid::Uuid::new_v4(),
             #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
             clock_type: ClockType::SteadyTime,
@@ -472,6 +493,7 @@ impl Node {
             timer_handle,
             _clock: None, // The timer does not own the clock (the node owns it).
             sender: tx,
+            reset_state: timer_resets::TimerResetSlot::new(),
             id: uuid::Uuid::new_v4(),
             #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
             clock_type: ClockType::RosTime,

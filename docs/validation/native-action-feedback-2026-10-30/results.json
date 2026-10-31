@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "feature": {
+    "delivery": "typed native action feedback RAII stream",
+    "owned_api_unchanged": true,
+    "generated_payload_decode_on_native_delivery": false,
+    "native_container_recycled_on_drop": true,
+    "custom_type_without_native_identity": "RCL_RET_UNSUPPORTED before goal transmission"
+  },
+  "resource_constraints": {
+    "single_cpu_compilation": true,
+    "cargo_build_jobs": 1,
+    "rayon_threads": 1,
+    "virtual_memory_limit_kib": 10485760,
+    "container_memory_bytes": 10000000000,
+    "container_memory_swap_bytes": 10000000000
+  },
+  "native_gates": {
+    "jazzy": {
+      "rmws": [
+        "rmw_cyclonedds_cpp",
+        "rmw_fastrtps_cpp"
+      ],
+      "action_client_tests_passed_per_rmw": 86,
+      "manual_measurements_ignored_per_rmw": 7,
+      "real_rcl_cases_passed_per_rmw": 1,
+      "example_passed_per_rmw": true,
+      "exit_code": 0,
+      "artifact": "logs/final-jazzy.log.gz",
+      "artifact_sha256": "3c48a2b4640a809e87cafedd933f1e5efc1f77fff0f6a4aca04e91331ed18efe",
+      "uncompressed_sha256": "9e1e92bbdc0cd43c1999c6dc3cb7a7a8dd16724b2289f5808a777c2d2479f9f4"
+    },
+    "humble": {
+      "rmws": [
+        "rmw_fastrtps_cpp"
+      ],
+      "focused_native_tests_passed": 11,
+      "manual_measurements_ignored": 4,
+      "real_rcl_cases_passed_per_rmw": 1,
+      "example_passed_per_rmw": true,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-humble.log.gz",
+      "artifact_sha256": "99dc9f07ad1eede722255a3b5d76d0ba04e55d0c1a6748179fd727cb081ea695",
+      "uncompressed_sha256": "fe08349a3676d427bd9933ac702de0cd9a68728d6a271aa52a813d8c4731176b"
+    },
+    "kilted": {
+      "rmws": [
+        "rmw_cyclonedds_cpp",
+        "rmw_fastrtps_cpp"
+      ],
+      "focused_native_tests_passed": 11,
+      "manual_measurements_ignored": 4,
+      "real_rcl_cases_passed_per_rmw": 1,
+      "example_passed_per_rmw": true,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-kilted.log.gz",
+      "artifact_sha256": "f6bb8beecb96f149aec0d0627d4ffb30a6df2dd5345e7013e8233f897419e62e",
+      "uncompressed_sha256": "c3f9b2b19226db753c1fc6a8247ca1ee9cd910158135f4d56f9abf7a5b49be51"
+    }
+  },
+  "workspace_clippy": {
+    "all_targets": true,
+    "warnings_denied": true,
+    "exit_code": 0,
+    "artifact": "logs/final-clippy.log.gz",
+    "artifact_sha256": "a92b439b4ef126f4cdf1142ff2b7069420b9e42fa3b104e5ba129276a4e4c741",
+    "uncompressed_sha256": "be62cdeddb771c789905bbd2b844cfc39d13fd8efe24191b0d731a7e8f97e7d4"
+  },
+  "no_ros_gate": {
+    "public_documentation_artifacts": 84,
+    "required_documented_methods": 341,
+    "action_feedback_tool_tests_passed": 10,
+    "all_targets_compiled": true,
+    "exit_code": 0,
+    "artifact": "logs/final-no-ros.log.gz",
+    "artifact_sha256": "c2c75b677e0f4cac07712afaf53cda115ee63a33cdc81b93924e4201d1644010",
+    "uncompressed_sha256": "733094c24d1c22528ca9435f7ad9cf3dd8dd659674322f36cb1d488f418b9fab"
+  },
+  "benchmark_protocol": {
+    "timing_qualified": false,
+    "cyclonedds": {
+      "records": 4,
+      "batch_samples": 8,
+      "artifact": "protocol-cyclonedds.json",
+      "artifact_sha256": "0ef2abc2881a5335bb10e1db7ea27d3361e9c4b44882c051af84c7678d352990",
+      "samples_artifact": "protocol-cyclonedds.samples.json.gz",
+      "samples_sha256": "82a97275861df4bca859c0b3e1d0914af7560879c4aab142408c2f0be60ff767"
+    },
+    "fastdds": {
+      "records": 4,
+      "batch_samples": 8,
+      "artifact": "protocol-fastdds.json",
+      "artifact_sha256": "8e0664fee64cec390ab22ee98edf365b708c4bd5e5a3d3d86536ee91ac4db496",
+      "samples_artifact": "protocol-fastdds.samples.json.gz",
+      "samples_sha256": "74669b60ddfee16c59d4753cadac9df56a41400d9a70e83da07722920328ba05"
+    },
+    "owned_native_same_binary": {
+      "records": 2,
+      "batch_samples": 4,
+      "artifact": "protocol-owned-native-ab.json",
+      "artifact_sha256": "e72c375421e95ae34f5cc422de5ef00fb1dff501aa50e83577473f7a579eded3",
+      "samples_artifact": "protocol-owned-native-ab.samples.json.gz",
+      "samples_sha256": "e5783c0a81c24c76dea2942cb7f5f79cd8439d175d9ebade14624bfc915b46f6"
+    },
+    "build_manifest_sha256": "3b582010aa4ef955331d54846c386d0cf331a822c840bff2928ac55d73d27519",
+    "rust_binary_sha256": "17416b8e70741d7852fdfbd647cbe143084f5270d1393c4242a46f6df33f073a",
+    "rclcpp_binary_sha256": "68e7d6c0b5b1e16285b0c9e8263d57ddc4a24be26fd761dcc3da47b9f4cca934"
+  },
+  "allocation_stage": {
+    "timing_qualified": false,
+    "repetitions": 5,
+    "iterations_per_repetition": 10000,
+    "elements": 4096,
+    "owned_allocations": 50000,
+    "native_allocations": 30000,
+    "allocation_reduction_per_message": 2,
+    "owned_requested_bytes": 165600000,
+    "native_requested_bytes": 1680000,
+    "requested_byte_reduction": 163920000,
+    "requested_byte_reduction_percent": 98.98550724637681,
+    "artifact": "allocation-stage.json",
+    "artifact_sha256": "129bcbf0bcb726d07147ccd8c78755b6d767a780a2cdfb1a701798ad4f8ba861",
+    "raw_log_artifact": "allocation-stage.log.gz",
+    "raw_log_sha256": "c4321028f395a52c51cb1a9192e9c9086ee1532c6eeeebb710bb7ad38069f552",
+    "probe_report_artifact": "probe-report.json",
+    "probe_report_sha256": "b4a57aed08873a3203a15696d2f119a61b11e10d930816c3ff965c3d89f1783e"
+  },
+  "formal_performance": {
+    "measurement_started": false,
+    "requested_repetitions": 5,
+    "requested_iterations": 1000,
+    "owned_native_maximum_ratio": 1.05,
+    "rclcpp_maximum_ratio": 1.0,
+    "required_isolation_samples": 3,
+    "maximum_load1": 2.0,
+    "observed_load1": 90.4599609375,
+    "competing_processes": {
+      "zig": 13
+    },
+    "artifact": "formal-isolation-failure.json",
+    "artifact_sha256": "af21e49e0be8ff69677d4227b0e29cee5be631add3c2d49902cd208421cf3f45"
+  },
+  "source_sha256": {
+    "r2r/src/action_clients.rs": "a9b0461128a4d17cafa6c69e5527bab92be167fb058ff096eeeed313ad08cfbb",
+    "r2r/src/action_clients/native_feedback.rs": "355ea5974ff93d1bc92feb2678bccaf38f7cd28a90c2d5acb92806df9db2a160",
+    "r2r/src/msg_types.rs": "47fd4f92e2d16912e36dfd7074893ba07365915b5ba7ed62761394555d2003af",
+    "r2r/src/nodes/action_client_api.rs": "12d56784614cdde9171dc62d0ff66a3aef611a1ec9316652a9e4076aecdc1855",
+    "r2r/src/nodes/feedback_overflow_tests.rs": "68e2e74542530b1fc12d35e93876446c85c6c7dd0e1ab3d9f4be24dd7563e710",
+    "r2r/examples/action_native_feedback.rs": "447d7495dd081c9e71d07d0df97f0c640a76dbe6972220725beb26aa355c8f0f",
+    "r2r_msg_gen/src/lib.rs": "114ff409c67be24a6c733e4a6f497ccfd40fbf6066aa3ab2bdbf242d3538b39e",
+    "tools/bench_ros/action_feedback.py": "d2f09f0a78aeaf694e4a31f78f06869b31407778ec0db88cc8343384ee3bf0b8",
+    "tools/bench_ros/action_feedback.cpp": "c01dfe7d9b801f2a0b3f1e45d7bcda1bc2d7e1e0de4b22a9b90a0b0298869803",
+    "tools/bench_ros/verify_action_feedback.py": "4a7b998bd5dd212cc065cff4b37898e0b773167cc031960fb0aaeb2b2b9c9e0e",
+    "tools/bench_ros/test_action_feedback.py": "b8e0191aba8a354344835719eb09d5984f2e14efd7e8c6b3369483a276fe4e0f",
+    "tools/bench_ros/build.py": "a53f4d30db04705a9432a81d4a3a8ea9c5077d605aaebf1b4e2a868e59d61676",
+    "tests/check_documentation.py": "6c4632ffeabaac28028a47e9d64b649745a30103faf3cceefc1be921822fd7ab",
+    "docs/validation/native-action-feedback-2026-10-30/verify.py": "c8bba6651ad6450d554f58deae52a03e63335d4e01cc856297ab7c69ae8684cb",
+    "tools/bench_ros/native_action_feedback_stage.py": "38b877d3b14b85fd89c2509478c23f6659860f067f6c607a2291dcf65a1c721b",
+    "docs/validation/native-action-feedback-2026-10-30/README.md": "5ebab33a9da3cfae15c896a99c1801a1344f8b7718770efb06b20f67fd18b6d5"
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "feature": {
+    "native_middleware_filtering": true,
+    "creation_time_filtering": true,
+    "retained_history_filtered_during_init": true,
+    "silently_ignored_native_option_rejected": true,
+    "local_fallback": false,
+    "runtime_replace_without_recreation": true,
+    "clear_supported": true,
+    "maximum_expression_parameters": 100,
+    "tokens": [
+      "Subscription<T>",
+      "NativeCallbackSubscription",
+      "GroupedSubscription"
+    ],
+    "stream_paths": [
+      "typed",
+      "native",
+      "runtime-typed JSON",
+      "serialized"
+    ],
+    "group_policies": [
+      "mutually exclusive",
+      "bounded reentrant"
+    ]
+  },
+  "resource_constraints": {
+    "single_cpu_compilation": true,
+    "cargo_build_jobs": 1,
+    "rayon_threads": 1,
+    "virtual_memory_limit_kib": 10485760,
+    "container_memory_bytes": 10000000000,
+    "container_memory_swap_bytes": 10000000000
+  },
+  "native_gates": {
+    "jazzy": {
+      "rmws": [
+        "rmw_cyclonedds_cpp",
+        "rmw_fastrtps_cpp"
+      ],
+      "content_filter_support": {
+        "rmw_cyclonedds_cpp": "unsupported",
+        "rmw_fastrtps_cpp": "supported"
+      },
+      "cases_passed_per_rmw_debug": 6,
+      "cases_passed_per_rmw_release": 6,
+      "example_passed_per_rmw": true,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-jazzy.log.gz",
+      "artifact_sha256": "b7b989f2e5d4a551336ae15c4184656127d059e1a9455fbcb7d08edc9ff7bba0",
+      "uncompressed_sha256": "4eb5cfeca13fd83f09f636da9ccac8ce5da6000d8f87f17bf8093b6133fe5914"
+    },
+    "humble": {
+      "rmws": [
+        "rmw_fastrtps_cpp"
+      ],
+      "content_filter_support": {
+        "rmw_fastrtps_cpp": "supported"
+      },
+      "cases_passed_per_rmw": 6,
+      "example_passed_per_rmw": true,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-humble.log.gz",
+      "artifact_sha256": "44567533cfb8a56c0dcb98fd7c49f094c8a674aeb5b26f1621f71bee6794eec9",
+      "uncompressed_sha256": "008ca55aa30f167d81882ee5f736d6c2dd7c6e38d7eb794ea24083294212d456"
+    },
+    "kilted": {
+      "rmws": [
+        "rmw_cyclonedds_cpp",
+        "rmw_fastrtps_cpp"
+      ],
+      "content_filter_support": {
+        "rmw_cyclonedds_cpp": "unsupported",
+        "rmw_fastrtps_cpp": "supported"
+      },
+      "cases_passed_per_rmw": 6,
+      "example_passed_per_rmw": true,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-kilted.log.gz",
+      "artifact_sha256": "f2cfe3e5ac3cb09d67ecbeeb3c579b442077f4bd7fc7c432920e343e6bf0ecaf",
+      "uncompressed_sha256": "30b59d3f10001ee105bcc9d776a5e709c32da1892d76111eaf4cc06097bead8b"
+    }
+  },
+  "workspace_clippy": {
+    "all_targets": true,
+    "warnings_denied": true,
+    "exit_code": 0,
+    "artifact": "logs/final-clippy.log.gz",
+    "artifact_sha256": "a92b439b4ef126f4cdf1142ff2b7069420b9e42fa3b104e5ba129276a4e4c741",
+    "uncompressed_sha256": "be62cdeddb771c789905bbd2b844cfc39d13fd8efe24191b0d731a7e8f97e7d4"
+  },
+  "no_ros_gate": {
+    "public_documentation_artifacts": 84,
+    "required_documented_methods": 341,
+    "all_targets_compiled": true,
+    "exit_code": 0,
+    "artifact": "logs/final-no-ros.log.gz",
+    "artifact_sha256": "c2c75b677e0f4cac07712afaf53cda115ee63a33cdc81b93924e4201d1644010",
+    "uncompressed_sha256": "733094c24d1c22528ca9435f7ad9cf3dd8dd659674322f36cb1d488f418b9fab"
+  },
+  "source_sha256": {
+    "r2r/src/subscribers.rs": "8b8b9393498c613496ff4542bd7abfe9a2df2e26853f4754638775e12238d81f",
+    "r2r/src/subscribers/native_callback.rs": "e3089d81812c6c67043735fc160e8f763317c9b50a18b235b8f66921e6bb9657",
+    "r2r/src/subscribers/content_filter_tests.rs": "60540bd8c1635d9fb57b3be3a89be661ed904f24caee2cc5b517ffcf4fd3aaee",
+    "r2r/src/nodes/subscription_api.rs": "6800c58b252e9a8948123df3a06498720b5557dd00b7ad81bceb76fb238d2b81",
+    "r2r/src/nodes/callback_executor/sources.rs": "caa67cbd28be5d1c21b50175061b5792149db7742835444d74d8c923daf12a83",
+    "r2r/src/nodes/callback_executor/sources/subscription.rs": "2f9b0b13978277b98cf1ee0d6260bb8e3c0281d787af540b9bda88caea4e09cb",
+    "r2r/src/nodes/callback_executor/sources/subscription/reentrant.rs": "3308fb75c15b935f76a0f282afc0e49d03b2ae403e81b6c15b88b0b212ec3615",
+    "r2r/src/time_source.rs": "04960bf56200a3c48e024786159ca7bc44278ef315f0f8f6493a7c4758629789",
+    "r2r/src/nodes.rs": "ca4f18f5e8cec7133f8a346c683a8eeae62964a64096bd7b540e96a1eb4b209e",
+    "r2r/src/lib.rs": "c1d0b15e9eef13e98f7142408fe74862ddee144cc9550237b7d6676355c22101",
+    "r2r/examples/content_filtered_subscription.rs": "7606daa27c345cd1b17bb3837dcb09d8e99d9fbbe98c85f8dd7f0aa008bce810",
+    "docs/CONTENT_FILTERED_SUBSCRIPTIONS.md": "9bc5e683d4536e9ed30eae1e87104ea6c9e41d0191a754ff3ac6257e0fb26528",
+    "README.md": "804327d9ac4535471dda12675408630438f366979cd91bada21556b851a65ec8",
+    "tests/check_documentation.py": "b87c8eef33a8251b39d4a0940679d05903b5a749ec9c32633aa20579f311ab96",
+    "docs/validation/content-filtered-subscriptions-2026-10-31/README.md": "ff254bc26db30d9140013a5dc4e52640aca5341187589e01195ae0fca533363b",
+    "docs/validation/content-filtered-subscriptions-2026-10-31/run-jazzy.bash": "36d7804eca3b4bbfe7420a6b70341240b3ad4bb0b6d3e0b3532ae6f48f1699b5",
+    "docs/validation/content-filtered-subscriptions-2026-10-31/run-compat.bash": "182bb1ff25b61f65862fd9f8d8289275c1f62ecc2a709d7a32b6c9e37ad753c1",
+    "docs/validation/content-filtered-subscriptions-2026-10-31/run-no-ros.bash": "ac794a523adf52048ed0b3c8c60e859793810dba2f3cac6e2542980cfa5720b1",
+    "docs/validation/content-filtered-subscriptions-2026-10-31/verify.py": "7f64135eaf31afa256af4afb61d0e774cabf42c5f05c98805d968eac235e47b1"
+  }
+}

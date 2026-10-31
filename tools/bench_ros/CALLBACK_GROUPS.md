@@ -53,6 +53,40 @@ python3 tools/bench_ros/callback_groups.py \
 python3 tools/bench_ros/callback_groups.py --verify target/callback-group-protocol.json
 ```
 
+## Cold-process readiness
+
+The optional startup marker is emitted only when the runner sets
+`R2R_BENCH_STARTUP_MARKER`. It is flushed after the self-contained service is
+discoverable and before the first request. Normal benchmark output remains one
+JSON document and is unchanged. The cold-process runner records four explicit
+boundaries:
+
+- parent process creation to the ready marker, including executable loading,
+  ROS/RMW initialization and discovery;
+- benchmark `main` entry to the ready marker, excluding executable loading;
+- the first exact request/response exchange inside the binary;
+- parent process creation through successful shutdown and exit.
+
+Every process still executes the normal identity, value, count and stage-trace
+oracles. Rust/rclcpp order alternates, source and binary hashes are checked both
+before and after the matrix, and traces are stored separately with a digest.
+
+```sh
+python3 tools/bench_ros/callback_group_startup.py \
+    --rust target/callback-group-comparison/r2r-candidate \
+    --cpp target/callback-group-comparison/rclcpp-comparison \
+    --build-manifest target/callback-group-comparison/build-manifest.json \
+    --cpus 24,25,26,27 --case exclusive:1:1:0 --repetitions 10 \
+    --output target/callback-group-startup.json
+python3 tools/bench_ros/callback_group_startup.py \
+    --verify target/callback-group-startup.json
+```
+
+Formal startup promotion requires at least 30 interleaved repetitions, three
+independently spaced idle samples, continuous isolation monitoring, no source
+drift and no regression in ready/process p50, p95 or p99, VmHWM or thread count.
+The validation script runs this unchanged gate under both Jazzy RMWs.
+
 Cases use kind:workers:window:operations. Default cases cover exclusive and
 reentrant execution with empty and CPU-consuming bodies. Choose CPUs available
 on the host; the orchestrator reserves other CPUs. Rust/C++ order alternates

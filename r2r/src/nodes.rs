@@ -57,8 +57,9 @@ mod callback_executor;
 pub(crate) use callback_executor::sources::GroupedTimerActivation;
 pub use callback_executor::{
     CallbackExecutor, CallbackExecutorHandle, CallbackExecutorTask, CallbackExecutorTaskError,
-    CallbackGroup, CallbackGroupId, CallbackQueueOptions, CallbackWorkerError, GroupedService,
-    GroupedSubscription, GroupedSubscriptionOptions, GroupedTimer, ReentrantCallbackGroup,
+    CallbackGroup, CallbackGroupId, CallbackGroupTask, CallbackQueueOptions, CallbackWorkerError,
+    GroupedService, GroupedSubscription, GroupedSubscriptionOptions, GroupedTimer,
+    ReentrantCallbackGroup,
 };
 mod creation;
 mod parameter_api;
@@ -80,6 +81,7 @@ mod service_callbacks;
 mod spin;
 mod subscription_api;
 pub(crate) mod timer_callbacks;
+mod timer_resets;
 mod timers;
 mod type_descriptions;
 mod wait_set;
@@ -90,6 +92,7 @@ pub(crate) use graph::c_string_from_ptr;
 pub use graph::{TopicEndpointInfo, TopicEndpointType, TopicTypeHash};
 pub use ros_sleep::RosSleep;
 pub use timer_callbacks::{CallbackTimer, CallbackTimerOptions};
+pub use timer_resets::{TimerReset, TimerResetEvents};
 #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
 pub use timers::TimerCallInfo;
 pub(crate) use timers::{future_with_timeout, Timer_};
@@ -105,6 +108,8 @@ mod action_cancel_tests;
 mod action_server_scheduling_tests;
 #[cfg(all(test, r2r__example_interfaces__action__Fibonacci))]
 mod feedback_overflow_tests;
+#[cfg(all(test, not(feature = "doc-only")))]
+mod timer_reset_tests;
 
 /// A ROS Node.
 ///
@@ -532,6 +537,7 @@ mod tests {
     use super::*;
     use crate::{ActionGoalOptions, GoalStatus};
     use futures::{executor::LocalPool, task::LocalSpawnExt};
+    use r2r_macros::RosParams as DeriveRosParams;
     use std::task::Poll;
 
     #[test]
@@ -598,6 +604,18 @@ mod tests {
     }
 
     struct DerivedOverrideParams {
+        count: i64,
+    }
+
+    #[derive(DeriveRosParams, Debug)]
+    struct DerivedDescriptorParams {
+        /// Calibrated gain
+        #[ros_param(
+            floating_point_range(from = 0.0, to = 1.0, step = 0.1),
+            additional_constraints = "finite calibration"
+        )]
+        gain: f64,
+        #[ros_param(read_only, integer_range(from = 0, to = 100, step = 5))]
         count: i64,
     }
 
@@ -2161,6 +2179,136 @@ mod tests {
             Err(Error::ParameterConstraintViolation { .. })
         ));
         assert!(node.get_parameter_descriptor("missing").is_err());
+    }
+
+    #[test]
+    fn derived_parameter_descriptors_validate_overrides_and_live_updates() {
+        use rcl_interfaces::{
+            msg,
+            srv::{DescribeParameters, SetParameters},
+        };
+
+        fn drive<T>(
+            node: &mut Node, pool: &mut LocalPool, future: impl Future<Output = Result<T>>,
+        ) -> T {
+            let mut future = Box::pin(future);
+            loop {
+                node.try_spin_once(Duration::from_millis(10)).unwrap();
+                pool.run_until_stalled();
+                if let Some(result) = future.as_mut().now_or_never() {
+                    return result.unwrap();
+                }
+            }
+        }
+
+        let parameter = |name: &str, value: ParameterValue| msg::Parameter {
+            name: name.into(),
+            value: value.into_parameter_value_msg(),
+        };
+        let context = Context::create().unwrap();
+        let mut node = Node::create_with_options(
+            context.clone(),
+            "derived_descriptor_test",
+            "",
+            NodeOptions::default()
+                .use_global_arguments(false)
+                .parameter_override("gain", 0.4_f64),
+        )
+        .unwrap();
+        let parameters = Arc::new(Mutex::new(DerivedDescriptorParams {
+            gain: 0.2,
+            count: 10,
+        }));
+        let (handler, _events) = node
+            .make_derived_parameter_handler(parameters.clone())
+            .unwrap();
+
+        let gain = node.get_parameter_descriptor("gain").unwrap();
+        assert_eq!(gain.description, "Calibrated gain");
+        assert_eq!(gain.additional_constraints, "finite calibration");
+        assert_eq!(gain.floating_point_range.len(), 1);
+        assert_eq!(gain.floating_point_range[0].step, 0.1);
+        let count = node.get_parameter_descriptor("count").unwrap();
+        assert!(count.read_only);
+        assert_eq!(count.integer_range[0].from_value, 0);
+        assert_eq!(count.integer_range[0].to_value, 100);
+        assert_eq!(count.integer_range[0].step, 5);
+        assert_eq!(parameters.lock().gain, 0.4);
+
+        node.set_parameter("gain", 0.5_f64).unwrap();
+        assert_eq!(parameters.lock().gain, 0.5);
+        assert!(matches!(
+            node.set_parameter("gain", 0.55_f64),
+            Err(Error::ParameterConstraintViolation { name, .. }) if name == "gain"
+        ));
+        assert_eq!(parameters.lock().gain, 0.5);
+        assert!(matches!(
+            node.set_parameter("count", 15_i64),
+            Err(Error::ParameterConstraintViolation { name, .. }) if name == "count"
+        ));
+        assert_eq!(parameters.lock().count, 10);
+
+        let describe = node
+            .create_client::<DescribeParameters::Service>(
+                "derived_descriptor_test/describe_parameters",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let set = node
+            .create_client::<SetParameters::Service>(
+                "derived_descriptor_test/set_parameters",
+                QosProfile::default(),
+            )
+            .unwrap();
+        let mut pool = LocalPool::new();
+        pool.spawner().spawn_local(handler).unwrap();
+        let described = drive(
+            &mut node,
+            &mut pool,
+            describe
+                .request(&DescribeParameters::Request {
+                    names: vec!["gain".into(), "count".into()],
+                })
+                .unwrap(),
+        );
+        assert_eq!(described.descriptors, [gain, count]);
+        let response = drive(
+            &mut node,
+            &mut pool,
+            set.request(&SetParameters::Request {
+                parameters: vec![
+                    parameter("gain", ParameterValue::Double(0.6)),
+                    parameter("count", ParameterValue::Integer(15)),
+                    parameter("gain", ParameterValue::Double(0.65)),
+                ],
+            })
+            .unwrap(),
+        );
+        assert!(response.results[0].successful);
+        assert!(!response.results[1].successful);
+        assert!(!response.results[2].successful);
+        assert_eq!(parameters.lock().gain, 0.6);
+        assert_eq!(parameters.lock().count, 10);
+
+        let mut invalid = Node::create_with_options(
+            context,
+            "invalid_derived_descriptor_test",
+            "",
+            NodeOptions::default()
+                .use_global_arguments(false)
+                .parameter_override("gain", 0.55_f64),
+        )
+        .unwrap();
+        let invalid_parameters = Arc::new(Mutex::new(DerivedDescriptorParams {
+            gain: 0.2,
+            count: 10,
+        }));
+        assert!(matches!(
+            invalid.make_derived_parameter_handler(invalid_parameters.clone()),
+            Err(Error::ParameterConstraintViolation { name, .. }) if name == "gain"
+        ));
+        assert_eq!(invalid_parameters.lock().gain, 0.2);
+        assert!(!invalid.parameter_handler_started);
     }
 
     #[test]
@@ -4182,58 +4330,6 @@ mod tests {
         panic!("subscription did not receive a loaned message");
     }
 
-    #[test]
-    fn subscriptions_support_runtime_content_filters_when_available() {
-        let context = Context::create().unwrap();
-        let mut node = Node::create(context.clone(), "content_filter_test", "").unwrap();
-        let mut other = Node::create(context, "content_filter_other", "").unwrap();
-        let topic = format!("/content_filter_{}", uuid::Uuid::new_v4().simple());
-        let publisher = node
-            .create_publisher::<crate::std_msgs::msg::Int32>(&topic, QosProfile::default())
-            .unwrap();
-        let mut subscription = node
-            .subscribe::<crate::std_msgs::msg::Int32>(&topic, QosProfile::default())
-            .unwrap();
-        let filter = ContentFilterOptions::new("data > %0").expression_parameters(["10"]);
-
-        assert!(matches!(
-            subscription.set_content_filter(&mut other, &filter),
-            Err(Error::RCL_RET_SUBSCRIPTION_INVALID)
-        ));
-        match subscription.set_content_filter(&mut node, &filter) {
-            Err(Error::RCL_RET_UNSUPPORTED) => {
-                assert!(!subscription.is_content_filter_enabled(&node).unwrap());
-                return;
-            }
-            Err(err) => panic!("unexpected content filter error: {err}"),
-            Ok(()) => {}
-        }
-
-        assert!(subscription.is_content_filter_enabled(&node).unwrap());
-        assert_eq!(subscription.get_content_filter(&node).unwrap(), filter);
-        for _ in 0..100 {
-            node.try_spin_once(Duration::from_millis(10)).unwrap();
-            if publisher.get_subscription_count().unwrap() > 0 {
-                break;
-            }
-        }
-        publisher
-            .publish(&crate::std_msgs::msg::Int32 { data: 1 })
-            .unwrap();
-        publisher
-            .publish(&crate::std_msgs::msg::Int32 { data: 42 })
-            .unwrap();
-        let received = loop {
-            node.try_spin_once(Duration::from_millis(10)).unwrap();
-            if let Some(message) = subscription.next().now_or_never().flatten() {
-                break message;
-            }
-        };
-        assert_eq!(received.data, 42);
-        subscription.clear_content_filter(&mut node).unwrap();
-        assert!(!subscription.is_content_filter_enabled(&node).unwrap());
-    }
-
     #[cfg(not(r2r__ros__distro__humble))]
     #[test]
     fn publishers_and_subscriptions_report_matching_changes() {
@@ -5233,6 +5329,20 @@ mod tests {
             .unwrap();
 
         let feedback_topic = "/configured_action/_action/feedback";
+        graph::wait_for_graph_condition(&mut node, |node| {
+            let publishers = node
+                .get_publishers_info_by_topic(feedback_topic, false)
+                .unwrap();
+            let subscriptions = node
+                .get_subscriptions_info_by_topic(feedback_topic, false)
+                .unwrap();
+            publishers.iter().any(|endpoint| {
+                endpoint.qos_profile.reliability == QosProfile::sensor_data().reliability
+            }) && !subscriptions.is_empty()
+                && subscriptions.iter().all(|endpoint| {
+                    endpoint.qos_profile.reliability == QosProfile::sensor_data().reliability
+                })
+        });
         let publishers = node
             .get_publishers_info_by_topic(feedback_topic, false)
             .unwrap();

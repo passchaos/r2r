@@ -73,7 +73,10 @@ python3 docs/validation/callback-groups-2026-10-30/run-isolation-preflight.py
 ```
 
 Cancellation remains cooperative for user work already executing. Reentrant
-groups, live configuration and native reactor integration remain open.
+groups were completed by the following bounded-reentrant slice, and transactional
+live configuration is now covered by the
+[parameter-callback validation](../parameter-callbacks-2026-10-30/README.md).
+Native reactor integration remains open.
 Allocation/resource scaling and CPU-pinned interleaved Rust/rclcpp comparisons
 are still required for the complete goal; capability closure and routing
 structure do not establish C++ performance leadership.

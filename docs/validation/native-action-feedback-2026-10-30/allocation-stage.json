@@ -1,0 +1,151 @@
+{
+  "metadata": {
+    "boundary": "final typed feedback completion, channel send/receive and payload validation; reusable preinitialized native message; no RCL/DDS",
+    "timing_qualified": false,
+    "iterations": 10000,
+    "elements": 4096,
+    "repetitions": 5,
+    "cpu": 0,
+    "single_cpu_affinity": true,
+    "virtual_memory_limit_bytes": 10737418240,
+    "probe_sha256": "85283f1184b00c227e02c8c56eec9283051265a779511c39c6c8cf4272baa59e",
+    "source_sha256": {
+      "r2r/src/action_clients.rs": "a9b0461128a4d17cafa6c69e5527bab92be167fb058ff096eeeed313ad08cfbb",
+      "r2r/src/action_clients/native_feedback.rs": "355ea5974ff93d1bc92feb2678bccaf38f7cd28a90c2d5acb92806df9db2a160",
+      "r2r/benches/support/allocation_probe.rs": "5b9bb562e8c6ab7bee6427be15af5134d13cefd557b6bc13e1e2f102c864f56d",
+      "tools/bench_ros/native_action_feedback_stage.py": "38b877d3b14b85fd89c2509478c23f6659860f067f6c607a2291dcf65a1c721b",
+      "tools/bench_ros/probe/probe.c": "fb969b91fc6e8f4755e4932f89044c1d35dc1dc5b5a9ff2175735e877bcb6394",
+      "tools/bench_ros/probe/probe.h": "1e158b3e377055c8b746728a4920a74523bbf0958054d04c926d79becbb8fe8a"
+    },
+    "raw_log": {
+      "file": "allocation-stage.log.gz",
+      "sha256": "c4321028f395a52c51cb1a9192e9c9086ee1532c6eeeebb710bb7ad38069f552"
+    }
+  },
+  "records": [
+    {
+      "allocations": 50000,
+      "boundary": "final typed feedback completion, channel send/receive and payload validation; reusable preinitialized native message; no RCL/DDS",
+      "delivery": "owned",
+      "elapsed_ns": 5666298,
+      "elements": 4096,
+      "frees": 50000,
+      "iterations": 10000,
+      "requested_bytes": 165600000,
+      "repetition": 0
+    },
+    {
+      "allocations": 30000,
+      "boundary": "final typed feedback completion, channel send/receive and payload validation; reusable preinitialized native message; no RCL/DDS",
+      "delivery": "native",
+      "elapsed_ns": 3400747,
+      "elements": 4096,
+      "frees": 30000,
+      "iterations": 10000,
+      "requested_bytes": 1680000,
+      "repetition": 0
+    },
+    {
+      "allocations": 50000,
+      "boundary": "final typed feedback completion, channel send/receive and payload validation; reusable preinitialized native message; no RCL/DDS",
+      "delivery": "owned",
+      "elapsed_ns": 5542815,
+      "elements": 4096,
+      "frees": 50000,
+      "iterations": 10000,
+      "requested_bytes": 165600000,
+      "repetition": 1
+    },
+    {
+      "allocations": 30000,
+      "boundary": "final typed feedback completion, channel send/receive and payload validation; reusable preinitialized native message; no RCL/DDS",
+      "delivery": "native",
+      "elapsed_ns": 3422247,
+      "elements": 4096,
+      "frees": 30000,
+      "iterations": 10000,
+      "requested_bytes": 1680000,
+      "repetition": 1
+    },
+    {
+      "allocations": 50000,
+      "boundary": "final typed feedback completion, channel send/receive and payload validation; reusable preinitialized native message; no RCL/DDS",
+      "delivery": "owned",
+      "elapsed_ns": 5540962,
+      "elements": 4096,
+      "frees": 50000,
+      "iterations": 10000,
+      "requested_bytes": 165600000,
+      "repetition": 2
+    },
+    {
+      "allocations": 30000,
+      "boundary": "final typed feedback completion, channel send/receive and payload validation; reusable preinitialized native message; no RCL/DDS",
+      "delivery": "native",
+      "elapsed_ns": 3403274,
+      "elements": 4096,
+      "frees": 30000,
+      "iterations": 10000,
+      "requested_bytes": 1680000,
+      "repetition": 2
+    },
+    {
+      "allocations": 50000,
+      "boundary": "final typed feedback completion, channel send/receive and payload validation; reusable preinitialized native message; no RCL/DDS",
+      "delivery": "owned",
+      "elapsed_ns": 5522085,
+      "elements": 4096,
+      "frees": 50000,
+      "iterations": 10000,
+      "requested_bytes": 165600000,
+      "repetition": 3
+    },
+    {
+      "allocations": 30000,
+      "boundary": "final typed feedback completion, channel send/receive and payload validation; reusable preinitialized native message; no RCL/DDS",
+      "delivery": "native",
+      "elapsed_ns": 3416308,
+      "elements": 4096,
+      "frees": 30000,
+      "iterations": 10000,
+      "requested_bytes": 1680000,
+      "repetition": 3
+    },
+    {
+      "allocations": 50000,
+      "boundary": "final typed feedback completion, channel send/receive and payload validation; reusable preinitialized native message; no RCL/DDS",
+      "delivery": "owned",
+      "elapsed_ns": 5518353,
+      "elements": 4096,
+      "frees": 50000,
+      "iterations": 10000,
+      "requested_bytes": 165600000,
+      "repetition": 4
+    },
+    {
+      "allocations": 30000,
+      "boundary": "final typed feedback completion, channel send/receive and payload validation; reusable preinitialized native message; no RCL/DDS",
+      "delivery": "native",
+      "elapsed_ns": 3518385,
+      "elements": 4096,
+      "frees": 30000,
+      "iterations": 10000,
+      "requested_bytes": 1680000,
+      "repetition": 4
+    }
+  ],
+  "summary": {
+    "owned": {
+      "allocations": 50000,
+      "frees": 50000,
+      "requested_bytes": 165600000,
+      "elapsed_ns": 5540962
+    },
+    "native": {
+      "allocations": 30000,
+      "frees": 30000,
+      "requested_bytes": 1680000,
+      "elapsed_ns": 3416308
+    }
+  }
+}

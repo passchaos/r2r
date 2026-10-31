@@ -1,0 +1,169 @@
+{
+  "schema_version": 1,
+  "feature": {
+    "api": "Node::subscribe_reusable",
+    "options_api": "Node::subscribe_reusable_with_options",
+    "sample": "ReusableSubscriptionSample<T>",
+    "generated_update_method": "WrappedTypesupport::update_from_native",
+    "handwritten_type_source_compatible": true,
+    "existing_subscribe_unchanged": true,
+    "one_slot_native_and_rust_pools": true,
+    "retained_samples_independently_owned": true,
+    "sample_outlives_endpoint": true,
+    "default_typed_api_unchanged": true,
+    "default_typed_internal_native_decode_reuse": true,
+    "default_typed_results_remain_owned": true
+  },
+  "resource_constraints": {
+    "single_cpu_compilation": true,
+    "cargo_build_jobs": 1,
+    "rayon_threads": 1,
+    "virtual_memory_limit_kib": 10485760,
+    "container_memory_bytes": 10000000000,
+    "container_memory_swap_bytes": 10000000000
+  },
+  "native_gates": {
+    "jazzy": {
+      "rmws": [
+        "rmw_cyclonedds_cpp",
+        "rmw_fastrtps_cpp"
+      ],
+      "generator_cases_passed_per_rmw_debug": 2,
+      "typed_stream_cases_passed_per_rmw_debug": 1,
+      "default_typed_native_reuse_cases_passed_per_rmw_debug": 1,
+      "generator_cases_passed_per_rmw_release": 2,
+      "typed_stream_cases_passed_per_rmw_release": 1,
+      "default_typed_native_reuse_cases_passed_per_rmw_release": 1,
+      "example_passed_per_rmw": true,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-jazzy.log.gz",
+      "artifact_sha256": "5ca34345baf0f378da837f311819537ecbfa7e613e3886ad19b0abedd5c2827b",
+      "uncompressed_sha256": "dfd2713007d02387ce30d38a0f48ec0e058842eccaa85bccf64d3920481e759f"
+    },
+    "humble": {
+      "rmws": [
+        "rmw_fastrtps_cpp"
+      ],
+      "generator_cases_passed_per_rmw": 4,
+      "typed_stream_cases_passed_per_rmw": 1,
+      "default_typed_native_reuse_cases_passed_per_rmw": 1,
+      "example_passed_per_rmw": true,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-humble.log.gz",
+      "artifact_sha256": "8712dd8066536c5ac9d374d66ca88355168f1bba3154ad1844a63bea2743a5ca",
+      "uncompressed_sha256": "89ab37a8fafbab2428da53c9306229e6e019a07ff842ce9231c1ab0f0813e34a"
+    },
+    "kilted": {
+      "rmws": [
+        "rmw_cyclonedds_cpp",
+        "rmw_fastrtps_cpp"
+      ],
+      "generator_cases_passed_per_rmw": 4,
+      "typed_stream_cases_passed_per_rmw": 1,
+      "default_typed_native_reuse_cases_passed_per_rmw": 1,
+      "example_passed_per_rmw": true,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-kilted.log.gz",
+      "artifact_sha256": "ec9e365a6d6da7f95ba0bec74bb447c12e5a4b7d7d43447b0a4bbe67b77e5120",
+      "uncompressed_sha256": "6af12edd313933110728b9758247606f752f29ebefae95364c1ba4684bffea72"
+    }
+  },
+  "full_release": {
+    "passed_per_rmw": 822,
+    "ignored_per_rmw": 20,
+    "rmws": {
+      "rmw_cyclonedds_cpp": {
+        "exit_code": 0,
+        "artifact": "logs/full-release-cyclonedds.log.gz",
+        "artifact_sha256": "358d7887323eff7055967f9baa6512d2d13f7cf7573f4618895d102ba8a1cfe9",
+        "uncompressed_sha256": "e0223580f99680408f452de647eedba653855e0e18dacf91440a0180ce469d31"
+      },
+      "rmw_fastrtps_cpp": {
+        "exit_code": 0,
+        "artifact": "logs/full-release-fastdds.log.gz",
+        "artifact_sha256": "f351f9e6cdf171e93eabc1f6bacc449c6835cb27e729ef47521db0797dd1e070",
+        "uncompressed_sha256": "8e9dca7f7115a94327be690c985a1c777d814616c326ba8439f4520bba1c77ea"
+      }
+    }
+  },
+  "workspace_clippy": {
+    "all_targets": true,
+    "warnings_denied": true,
+    "exit_code": 0,
+    "artifact": "logs/final-clippy.log.gz",
+    "artifact_sha256": "1e76eb6c6a788c6e59e8d75cf8432ff95cbd56d48d927b09a5ee55e21b34928c",
+    "uncompressed_sha256": "2ea8526852e754ce96969489ffb7a755dc260fb5dad21fd676fa9c7f2ae9922b"
+  },
+  "no_ros_gate": {
+    "public_documentation_artifacts": 84,
+    "required_documented_methods": 341,
+    "all_targets_compiled": true,
+    "exit_code": 0,
+    "artifact": "logs/final-no-ros.log.gz",
+    "artifact_sha256": "fd71da9dce501fd47168b75c9b4a03c715ddf12f05e1a526c8adcdc6c8d8b7ae",
+    "uncompressed_sha256": "1cfc55c60703f7e36563a7252cd4b95900dfddb3ea939935cc23cfface5eee23"
+  },
+  "allocation_stage": {
+    "timing_qualified": false,
+    "repetitions": 5,
+    "iterations_per_repetition": 10000,
+    "elements": 4096,
+    "fresh_allocations": 30000,
+    "reusable_allocations": 20000,
+    "allocation_reduction_per_sample": 1,
+    "fresh_requested_bytes": 329200000,
+    "reusable_requested_bytes": 1600000,
+    "requested_byte_reduction": 327600000,
+    "requested_byte_reduction_percent": 99.51397326852977,
+    "artifact": "allocation-stage.json",
+    "artifact_sha256": "4a67a09bbe4303e02f8956c6aa6118b1e575bc7167609087782a11cecdaef599",
+    "raw_log_artifact": "allocation-stage.log.gz",
+    "raw_log_sha256": "e4d2df14cfea4407c8b0272d8efffccdcc21ad2cde5eae0de5f5e20bcd8abe24",
+    "probe_report_artifact": "probe-report.json",
+    "probe_report_sha256": "48aa1cac6cbedc5b69f87a9e03d5df3f6c7f0900b45ebb764b7c48c8a4800ef4"
+  },
+  "default_typed_native_reuse_stage": {
+    "timing_qualified": false,
+    "repetitions": 5,
+    "iterations_per_repetition": 10000,
+    "elements": 4096,
+    "fresh_native_allocations": 50000,
+    "reused_native_allocations": 30000,
+    "allocation_reduction_per_sample": 2,
+    "fresh_native_requested_bytes": 656720000,
+    "reused_native_requested_bytes": 328480000,
+    "requested_byte_reduction": 328240000,
+    "requested_byte_reduction_percent": 49.98172737239615,
+    "artifact": "default-typed-native-reuse-stage.json",
+    "artifact_sha256": "b8ce6a2913be58b2b8767f436a91cad4c4f2a65771295da3d8537a879e29665e",
+    "raw_log_artifact": "default-typed-native-reuse-stage.log.gz",
+    "raw_log_sha256": "3a2e4b5c91e708bcf9e247b35f1e92e5abb77927c7bc1b0d3951662cdbe6c8b3",
+    "probe_report_artifact": "probe-report.json",
+    "probe_report_sha256": "48aa1cac6cbedc5b69f87a9e03d5df3f6c7f0900b45ebb764b7c48c8a4800ef4"
+  },
+  "source_sha256": {
+    "r2r/src/msg_types.rs": "47fd4f92e2d16912e36dfd7074893ba07365915b5ba7ed62761394555d2003af",
+    "r2r/src/native_buffer.rs": "e651c556e0fccf8a47a7e646e80e5532353eb97938833eb1ce4a9c79c24b2885",
+    "r2r/src/subscribers.rs": "8b8b9393498c613496ff4542bd7abfe9a2df2e26853f4754638775e12238d81f",
+    "r2r/src/subscribers/reusable_native_tests.rs": "eb09de9b29238b291cd21a80006dcef669d915cbcb3b6471343a65f6d6168cc6",
+    "r2r/src/nodes/subscription_api.rs": "6800c58b252e9a8948123df3a06498720b5557dd00b7ad81bceb76fb238d2b81",
+    "r2r/src/lib.rs": "c1d0b15e9eef13e98f7142408fe74862ddee144cc9550237b7d6676355c22101",
+    "r2r/build.rs": "48a766162bf52406c91a954a8bc1dbdb492fe95955743ba1a76c03bfa134417f",
+    "r2r_msg_gen/src/lib.rs": "114ff409c67be24a6c733e4a6f497ccfd40fbf6066aa3ab2bdbf242d3538b39e",
+    "r2r_msg_gen/src/native_support.rs": "b571c665067960c73f997a736befdcc1b79ec8d53904055e4b4c0a8d49ba5012",
+    "r2r/examples/reusable_typed_subscription.rs": "8c063788b38c0467ea073f1fb7f956b32c2eeeb569c98f1f282f5b08a7eee703",
+    "docs/REUSABLE_TYPED_SUBSCRIPTIONS.md": "2b7085f22bf00e6c338875bec8b5e374b2a7fc5e681750ddfc2dae6dce2eb86f",
+    "README.md": "804327d9ac4535471dda12675408630438f366979cd91bada21556b851a65ec8",
+    "tests/check_documentation.py": "b87c8eef33a8251b39d4a0940679d05903b5a749ec9c32633aa20579f311ab96",
+    "tools/bench_ros/typed_subscription_reuse_stage.py": "d156448191dc1e8218e7f814304ddcdaf3d165cb0dee18ded2fd9321d03894fe",
+    "tools/bench_ros/typed_subscription_native_reuse_stage.py": "38dd9cbf5c00c2580e8500ac1d8650ddae716668f46dad29db9557617a110251",
+    "docs/validation/reusable-typed-subscriptions-2026-10-31/README.md": "c082b91a1734b8cef6087ccbce0f4916f3827ee160426631772ad53212f258e9",
+    "docs/validation/reusable-typed-subscriptions-2026-10-31/run-jazzy.bash": "d788cba10b67c4f871f2450b1083e895ae59c9950d7b774d2cf6e425db479c85",
+    "docs/validation/reusable-typed-subscriptions-2026-10-31/run-compat.bash": "18ebd6473077b0507510e8df11cdb7159c63c75c8c3f78e9481843c6ed0bbb50",
+    "docs/validation/reusable-typed-subscriptions-2026-10-31/run-no-ros.bash": "461f139348d1e567d49a21388bf3f93abe95a0914471909cb7f48f2df9f6db30",
+    "docs/validation/reusable-typed-subscriptions-2026-10-31/verify.py": "a576a02b01dd2b9169181e6589096cea4dba45f6edf25a57edba513436727b44"
+  }
+}

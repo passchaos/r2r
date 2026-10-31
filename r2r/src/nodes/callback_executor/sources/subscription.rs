@@ -139,7 +139,7 @@ impl Node {
     /// Registers typed group work with explicit native input/ring bounds.
     pub fn subscribe_callback_in_group_with_options<T, F>(
         &mut self, group: &mut CallbackGroup, topic: &str, qos: QosProfile,
-        options: CallbackQueueOptions, mut callback: F,
+        options: impl Into<SubscriptionConfiguration<GroupedSubscriptionOptions>>, mut callback: F,
     ) -> Result<GroupedSubscription>
     where
         T: WrappedTypesupport + 'static,
@@ -193,7 +193,8 @@ impl Node {
     /// Invalid buffering fails before creating a subscription or group task.
     pub fn subscribe_native_callback_in_group_with_options<T, F>(
         &mut self, group: &mut CallbackGroup, topic: &str, qos: QosProfile,
-        options: impl Into<GroupedSubscriptionOptions>, mut callback: F,
+        configuration: impl Into<SubscriptionConfiguration<GroupedSubscriptionOptions>>,
+        mut callback: F,
     ) -> Result<GroupedSubscription>
     where
         T: WrappedTypesupport + 'static,
@@ -201,9 +202,9 @@ impl Node {
             + Send
             + 'static,
     {
-        let options = options.into();
-        let endpoint = options.endpoint.validate()?;
-        let options = options.queue.validate()?;
+        let configuration = configuration.into();
+        let endpoint = configuration.endpoint.endpoint.validate()?;
+        let options = configuration.endpoint.queue.validate()?;
         let (producer, consumer) = group.prepare_input(
             options.capacity,
             move |(message, info): (WrappedNativeMsg<T>, MessageInfo)| {
@@ -213,10 +214,11 @@ impl Node {
         let handle = create_subscription_helper(
             self.node_handle.as_mut(),
             topic,
-            T::get_ts(),
+            T::try_get_ts()?,
             qos,
             endpoint.ignore_local_publications,
             endpoint.unique_network_flow,
+            configuration.content_filter.as_ref(),
         )?;
         let control = producer.control();
         let mut row = Box::new(SubscriptionSource::<T> {

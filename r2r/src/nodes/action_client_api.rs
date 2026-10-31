@@ -111,7 +111,7 @@ impl Node {
         let mut client_handle = create_action_client_helper(
             self.node_handle.as_mut(),
             action_name,
-            T::get_ts(),
+            T::try_get_ts()?,
             &options,
         )?;
         let action_capacities = match action_client_wait_set_capacities(&client_handle) {
@@ -144,7 +144,20 @@ impl Node {
                     options.feedback_overflow_policy,
                 ),
             )),
+            native_feedback_senders: HashMap::new(),
+            canceled_native_feedback_goals: Arc::new(Mutex::new(
+                ActionClientMaintenanceQueue::new(Arc::clone(&maintenance_notifier)),
+            )),
+            pending_native_feedback_goals: Arc::new(Mutex::new(
+                PendingFeedbackQueue::with_overflow_policy(
+                    Arc::clone(&maintenance_notifier),
+                    options.feedback_overflow_policy,
+                ),
+            )),
             feedback_native_buffer: Default::default(),
+            goal_response_native_buffer: Default::default(),
+            status_native_buffer: Default::default(),
+            result_response_native_buffer: Default::default(),
             result_senders: HashMap::new(),
             canceled_result_goals: Arc::new(Mutex::new(ActionClientMaintenanceQueue::new(
                 Arc::clone(&maintenance_notifier),

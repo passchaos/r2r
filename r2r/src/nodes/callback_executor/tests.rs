@@ -23,6 +23,8 @@ mod scheduling;
 mod service;
 #[cfg(not(feature = "doc-only"))]
 mod task;
+#[cfg(all(not(feature = "doc-only"), r2r__example_interfaces__action__Fibonacci))]
+mod task_action;
 #[cfg(not(feature = "doc-only"))]
 mod timer;
 

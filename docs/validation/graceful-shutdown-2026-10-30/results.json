@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "signals": [
+    "SIGINT",
+    "SIGTERM"
+  ],
+  "resource_constraints": {
+    "single_cpu_affinity": true,
+    "cargo_build_jobs": 1,
+    "rayon_threads": 1,
+    "virtual_memory_limit_kib": 10485760,
+    "container_memory_bytes": 10000000000
+  },
+  "native_gates": {
+    "jazzy": {
+      "rmws": [
+        "rmw_cyclonedds_cpp"
+      ],
+      "tests_passed_per_rmw": 9,
+      "child_process_sigint_passed": true,
+      "example_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-jazzy.log.gz",
+      "artifact_sha256": "cc0ba54bd9ae694729eacc7abc20cd91994d2902b91795aac950d78d06ea3fab",
+      "uncompressed_sha256": "e37aeacc5d87ae5f0b24e37a541b07808dbce5f5d59ad853d58422a6200c8acc"
+    },
+    "humble": {
+      "rmws": [
+        "rmw_fastrtps_cpp"
+      ],
+      "tests_passed_per_rmw": 9,
+      "example_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-humble.log.gz",
+      "artifact_sha256": "6baa5d551ca439d9bebb39c156e9978e0794a29699c0b808cd96f16a8764c4a8",
+      "uncompressed_sha256": "64feb2c48a4f1510a3ab7cbefafd77872db04a4880dfa32c42a1bf45c39ab320"
+    },
+    "kilted": {
+      "rmws": [
+        "rmw_cyclonedds_cpp",
+        "rmw_fastrtps_cpp"
+      ],
+      "tests_passed_per_rmw": 9,
+      "example_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-kilted.log.gz",
+      "artifact_sha256": "caca20c256a24ae4030b9277918f0c56d475152a610034029a5e1e7065a1f149",
+      "uncompressed_sha256": "c542114bcfa5d0445865bfb59c021ac2d9561529e448c913554ee2b2df657102"
+    }
+  },
+  "no_ros_gate": {
+    "public_documentation_artifacts": 67,
+    "required_documented_methods": 276,
+    "exit_code": 0,
+    "artifact": "logs/no-ros.log.gz",
+    "artifact_sha256": "1bea8dc2dab8394412c91d35549d1fd6ea2f770b190b2728ea0e69e6972e2141",
+    "uncompressed_sha256": "5cb6e7066bc9628453e5b21a4dcc2e6c2bafb96db22111c84e1ab6a999726d20"
+  },
+  "source_sha256": {
+    "r2r/Cargo.toml": "48800c0843dc98d95924c9b323f1fe3ddd0755f23baa9ca67b394e55933ad091",
+    "Cargo.lock": "c8b374e6a2ee1fe0e2917630e751ee27aa9c45a16f9c4f266ff9ab5a4bfcd7ae",
+    "r2r/src/context.rs": "3b8507c8d66bcaed56a2920a4e9a86d5652d1d99416570a5907ba17061cd7b9f",
+    "r2r/src/lib.rs": "c1d0b15e9eef13e98f7142408fe74862ddee144cc9550237b7d6676355c22101",
+    "r2r/src/error.rs": "afb76b8ef6867866a510a15391434e935a7fe26e05d7aed085e49fdcc05c3406",
+    "r2r/tests/context_shutdown.rs": "74ccac017e555fc4c4fe7b8684996c532b35abed4e2b3773a7d97c09c750eaa6",
+    "r2r/examples/graceful_shutdown.rs": "7e59dd99057fe6b27becab83f426fb79e7bd58419ffd1b67aee484f9db169d20",
+    "docs/GRACEFUL_SHUTDOWN.md": "1f54eaf6b5c58e81e58570bd382081d56d8e3f8c06957867db65a28d9ba9ce4b",
+    "tests/check_documentation.py": "b87c8eef33a8251b39d4a0940679d05903b5a749ec9c32633aa20579f311ab96",
+    "docs/validation/graceful-shutdown-2026-10-30/run-jazzy.bash": "67f1e882e8ca7d13f5263c2f111f1a97f5b00d458bb7105a662bc7990c28e9d0",
+    "docs/validation/graceful-shutdown-2026-10-30/run-compat.bash": "e6f0b545adb517b5f8c2c8366ebf49750775f519b58e09939ac8d4f9ef78d9a6"
+  }
+}

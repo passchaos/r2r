@@ -62,6 +62,12 @@ impl GroupedTimer {
     pub fn reset(&self) -> Result<()> {
         self.native()?.control(true)
     }
+    /// Observes manual and lifecycle-driven native resets as a lossless stream.
+    /// Only one observer may be alive at a time.
+    pub fn observe_resets(&self) -> Result<TimerResetEvents> {
+        let native = self.native()?;
+        native.with_handle(|handle| native.reset_state.observe(handle))
+    }
     /// Current native cancellation state.
     pub fn is_canceled(&self) -> Result<bool> {
         self.native()?.with_handle(|handle| {
@@ -238,6 +244,7 @@ impl Node {
             clock_type,
             oneshot: options.oneshot,
             generation,
+            reset_state: timer_resets::TimerResetSlot::new(),
             wake: Mutex::new(None),
         });
         {

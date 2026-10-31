@@ -75,6 +75,7 @@
 // this crate depend on, which seem like bad user experience.
 pub extern crate indexmap;
 pub extern crate parking_lot;
+extern crate self as r2r;
 pub extern crate uuid;
 
 mod error;
@@ -96,9 +97,10 @@ mod subscribers;
 pub use subscribers::ContentFilterOptions;
 pub use subscribers::{
     LivelinessChangedStatus, LoanedSubscriptionMessage, MessageInfo, MessageLostStatus,
-    NativeCallbackSubscription, NativeCallbackSubscriptionOptions, ReceivedMessage,
-    RequestedDeadlineMissedStatus, RequestedIncompatibleQosStatus, Subscription,
-    SubscriptionOptions,
+    NativeCallbackSubscription, NativeCallbackSubscriptionOptions, NativeSubscriptionBatch,
+    NativeSubscriptionSample, ReceivedMessage, RequestedDeadlineMissedStatus,
+    RequestedIncompatibleQosStatus, ReusableSubscriptionSample, Subscription, SubscriptionBatch,
+    SubscriptionConfiguration, SubscriptionOptions,
 };
 
 mod type_descriptions;
@@ -112,6 +114,10 @@ pub use type_descriptions::{type_description_hash, TypeDescriptionClient};
 mod qos_events;
 pub use qos_events::{PublisherEventKind, QosEvent, QosEventStream, SubscriptionEventKind};
 
+#[cfg(test)]
+#[path = "../benches/support/allocation_probe.rs"]
+mod allocation_probe;
+mod native_buffer;
 mod native_metadata;
 mod notifications;
 mod publishers;
@@ -158,8 +164,8 @@ pub use action_common::{
 
 mod action_clients;
 pub use action_clients::{
-    ActionClient, ActionClientGoal, ActionClientGoalResponse, ActionFeedbackStream,
-    ActionResultFuture,
+    ActionClient, ActionClientGoal, ActionClientGoalResponse, ActionClientNativeGoalResponse,
+    ActionFeedbackStream, ActionNativeFeedback, ActionNativeFeedbackStream, ActionResultFuture,
 };
 
 mod action_clients_untyped;
@@ -176,7 +182,7 @@ pub use action_servers::{
 };
 
 mod context;
-pub use context::{Context, ContextOptions};
+pub use context::{Context, ContextOptions, ContextShutdown};
 
 mod parameters;
 pub use parameters::{
@@ -197,16 +203,17 @@ mod nodes;
 pub use nodes::TimerCallInfo;
 pub use nodes::{
     CallbackExecutor, CallbackExecutorHandle, CallbackExecutorTask, CallbackExecutorTaskError,
-    CallbackGroup, CallbackGroupId, CallbackQueueOptions, CallbackWorkerError, GroupedService,
-    GroupedSubscription, GroupedSubscriptionOptions, GroupedTimer, ReentrantCallbackGroup,
+    CallbackGroup, CallbackGroupId, CallbackGroupTask, CallbackQueueOptions, CallbackWorkerError,
+    GroupedService, GroupedSubscription, GroupedSubscriptionOptions, GroupedTimer,
+    ReentrantCallbackGroup,
 };
 pub use nodes::{
     CallbackTimer, CallbackTimerOptions, Executor, ExecutorHandle, ExecutorNodeId, ExecutorTask,
     ExecutorTaskError, FutureExecutionOptions, Node, NodeOptions, ParallelExecutor,
     ParallelExecutorHandle, ParallelExecutorTask, ParallelExecutorTaskError,
     ParameterCallbackHandle, ParameterHandlerOptions, ParameterPostSetCallbackHandle,
-    ParameterPreSetCallbackHandle, Timer, TimerOptions, TopicEndpointInfo, TopicEndpointType,
-    TopicTypeHash,
+    ParameterPreSetCallbackHandle, Timer, TimerOptions, TimerReset, TimerResetEvents,
+    TopicEndpointInfo, TopicEndpointType, TopicTypeHash,
 };
 
 mod lifecycle;

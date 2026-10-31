@@ -22,6 +22,9 @@ pub(super) fn typed_state(
         feedback_senders,
         canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
         pending_feedback_goals: pending,
+        native_feedback_senders: HashMap::new(),
+        canceled_native_feedback_goals: Arc::new(Mutex::new(Default::default())),
+        pending_native_feedback_goals: Arc::new(Mutex::new(Default::default())),
         result_requests: HashMap::new(),
         result_request_sequences: HashMap::new(),
         result_senders: HashMap::new(),
@@ -29,6 +32,9 @@ pub(super) fn typed_state(
         goal_status: HashMap::new(),
         feedback_channel_capacity: 0,
         feedback_native_buffer: Default::default(),
+        goal_response_native_buffer: Default::default(),
+        status_native_buffer: Default::default(),
+        result_response_native_buffer: Default::default(),
         poll_available_channels: AvailabilityWaiters::default(),
     }))
 }

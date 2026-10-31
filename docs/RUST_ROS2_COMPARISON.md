@@ -1,4 +1,4 @@
-# Rust ROS 2 client library comparison (2026-10-28)
+# Rust ROS 2 client library comparison (2026-10-31)
 
 Surveyed the four practical Rust options: `r2r` (this repo),
 `rclrs`/`ros2_rust` (the official ROS 2 working-group client),
@@ -26,7 +26,7 @@ base but permanently chases protocol parity.
 | `rclrs` | **Callbacks** registered on entities, driven by an `Executor`; a `Worker` pattern for shared state; async variants exist | Callbacks are the idiom, mirroring rclcpp |
 | `safe_drive` | Both **callbacks and async/await**; a starvation-free, TLA+-verified single-threaded scheduler | Formal no-starvation/no-deadlock guarantees |
 | `ros2-client` | **async/await only** ("there are no callbacks"), plus mio polling | Tokio-style; `.spin()` only services background work |
-| `r2r` | **Futures/streams** on typed/untyped entities; `Node::spin_once` and a multi-node `Executor`; external Rust futures wake the native wait via a guard condition | No callback registration: subscriptions/services are streams, clients are futures |
+| `r2r` | **Futures/streams plus opt-in scoped callbacks and callback groups**; `Node::spin_once`, shared multi-node execution and fixed-budget group execution; external Rust futures wake native waits | Streams/futures remain the default; subscription/service/timer handlers and runtime-agnostic action/application futures can execute under mutually exclusive or bounded group ownership |
 
 r2r's stream/future model is the most idiomatic-Rust of the four and is also
 the architectural basis of the multi-node executor: one native wait covers
@@ -38,11 +38,11 @@ rclrs deliberately optimizes for familiarity over idiomatic Rust.
 
 | Area | r2r | rclrs | safe_drive | ros2-client |
 | --- | --- | --- | --- | --- |
-| Pub/sub, QoS, loaned messages | yes | yes (incl. loaned) | yes, zero-copy + custom allocator | yes |
+| Pub/sub, QoS, loaned messages | yes, incl. safe native/typed sequence-take batches | yes (incl. loaned) | yes, zero-copy + custom allocator | yes |
 | Services/clients | typed + untyped + raw | yes (async variants) | yes | yes |
 | Actions | yes | yes | yes | yes (async required) |
 | Parameters | full services + typed `RosParams` derive + parameter clients | mandatory/optional/read-only | basic | local + remote parameter services |
-| Timers/clocks/sim time | yes | repeating/one-shot/inert | yes | ROS/steady/sim |
+| Timers/clocks/sim time | yes, incl. lossless async reset events on Humble+ | repeating/one-shot/inert | yes | ROS/steady/sim |
 | Graph queries/endpoints/QoS events | broad, incl. type hashes and network-flow endpoints | topic/node discovery | limited | discovery events (async) |
 | Lifecycle | **yes** (native services + managed publisher, 2026-10-28) | no documented support | no | no |
 | Service introspection events | Iron+ | no | no | no |
@@ -101,7 +101,9 @@ points at where to keep extending the lead:
 - **Lean into the idiomatic-Rust differentiator.** Streams/futures plus the
   unified executor are the thing rclrs deliberately does not offer. Examples
   and docs should foreground that shape; lifecycle already follows it
-  (services are inline `Service_` impls, not hidden rcl callbacks).
+  (services are inline `Service_` impls, not hidden rcl callbacks). Safe
+  `rcl_take_sequence` batch streams now extend that differentiator beyond the
+  individual-take public subscription shape exposed by rclcpp Jazzy.
 - **Adopt the ideas competitors got right:** rclrs's documented
   callback+async duality and worker pattern; safe_drive's formal scheduling
   arguments (a written starvation/liveness argument for the shared wait
@@ -109,8 +111,8 @@ points at where to keep extending the lead:
   (r2r inherits `rmw_zenoh` for free but has no evidence matrix for it).
 - **Close real gaps relative to the ROS world, not relative to other Rust
   clients:** lifecycle-managed timers, the Humble/Kilted runtime matrix,
-  allocation accounting on hot paths, and an entity-scaling benchmark before
-  any registry/slotmap change. No competing Rust library does these today,
+  continued allocation accounting on hot paths (default typed publish/subscribe and typed
+  client/service plus typed action goal request/response, result request/response and status paths now recycle internal native containers), and an entity-scaling benchmark before any registry/slotmap change. No competing Rust library does these today,
   so completing them is direct differentiation rather than catch-up.
 
 ## Should r2r rewrite rcl/rmw away? (2026-10-28 decision: no)

@@ -1,0 +1,155 @@
+{
+  "metadata": {
+    "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
+    "timing_qualified": false,
+    "iterations": 10000,
+    "elements": 4096,
+    "repetitions": 5,
+    "cpu": 0,
+    "single_cpu_affinity": true,
+    "virtual_memory_limit_bytes": 10737418240,
+    "probe_sha256": "85283f1184b00c227e02c8c56eec9283051265a779511c39c6c8cf4272baa59e",
+    "source_sha256": {
+      "r2r/src/msg_types.rs": "47fd4f92e2d16912e36dfd7074893ba07365915b5ba7ed62761394555d2003af",
+      "r2r/src/native_buffer.rs": "e651c556e0fccf8a47a7e646e80e5532353eb97938833eb1ce4a9c79c24b2885",
+      "r2r/src/subscribers.rs": "8b8b9393498c613496ff4542bd7abfe9a2df2e26853f4754638775e12238d81f",
+      "r2r/src/subscribers/reusable_native_tests.rs": "eb09de9b29238b291cd21a80006dcef669d915cbcb3b6471343a65f6d6168cc6",
+      "r2r_msg_gen/src/lib.rs": "114ff409c67be24a6c733e4a6f497ccfd40fbf6066aa3ab2bdbf242d3538b39e",
+      "r2r_msg_gen/src/native_support.rs": "b571c665067960c73f997a736befdcc1b79ec8d53904055e4b4c0a8d49ba5012",
+      "r2r/benches/support/allocation_probe.rs": "5b9bb562e8c6ab7bee6427be15af5134d13cefd557b6bc13e1e2f102c864f56d",
+      "tools/bench_ros/typed_subscription_reuse_stage.py": "d156448191dc1e8218e7f814304ddcdaf3d165cb0dee18ded2fd9321d03894fe",
+      "tools/bench_ros/probe/probe.c": "fb969b91fc6e8f4755e4932f89044c1d35dc1dc5b5a9ff2175735e877bcb6394",
+      "tools/bench_ros/probe/probe.h": "1e158b3e377055c8b746728a4920a74523bbf0958054d04c926d79becbb8fe8a"
+    },
+    "raw_log": {
+      "file": "allocation-stage.log.gz",
+      "sha256": "e4d2df14cfea4407c8b0272d8efffccdcc21ad2cde5eae0de5f5e20bcd8abe24"
+    }
+  },
+  "records": [
+    {
+      "allocations": 30000,
+      "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "fresh",
+      "elapsed_ns": 9596166,
+      "elements": 4096,
+      "frees": 30000,
+      "iterations": 10000,
+      "requested_bytes": 329200000,
+      "repetition": 0
+    },
+    {
+      "allocations": 20000,
+      "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "reusable",
+      "elapsed_ns": 9446457,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "requested_bytes": 1600000,
+      "repetition": 0
+    },
+    {
+      "allocations": 30000,
+      "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "fresh",
+      "elapsed_ns": 10769656,
+      "elements": 4096,
+      "frees": 30000,
+      "iterations": 10000,
+      "requested_bytes": 329200000,
+      "repetition": 1
+    },
+    {
+      "allocations": 20000,
+      "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "reusable",
+      "elapsed_ns": 10154208,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "requested_bytes": 1600000,
+      "repetition": 1
+    },
+    {
+      "allocations": 30000,
+      "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "fresh",
+      "elapsed_ns": 9480705,
+      "elements": 4096,
+      "frees": 30000,
+      "iterations": 10000,
+      "requested_bytes": 329200000,
+      "repetition": 2
+    },
+    {
+      "allocations": 20000,
+      "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "reusable",
+      "elapsed_ns": 9473479,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "requested_bytes": 1600000,
+      "repetition": 2
+    },
+    {
+      "allocations": 30000,
+      "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "fresh",
+      "elapsed_ns": 9479275,
+      "elements": 4096,
+      "frees": 30000,
+      "iterations": 10000,
+      "requested_bytes": 329200000,
+      "repetition": 3
+    },
+    {
+      "allocations": 20000,
+      "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "reusable",
+      "elapsed_ns": 9507351,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "requested_bytes": 1600000,
+      "repetition": 3
+    },
+    {
+      "allocations": 30000,
+      "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "fresh",
+      "elapsed_ns": 9509322,
+      "elements": 4096,
+      "frees": 30000,
+      "iterations": 10000,
+      "requested_bytes": 329200000,
+      "repetition": 4
+    },
+    {
+      "allocations": 20000,
+      "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "reusable",
+      "elapsed_ns": 9416526,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "requested_bytes": 1600000,
+      "repetition": 4
+    }
+  ],
+  "summary": {
+    "fresh": {
+      "allocations": 30000,
+      "frees": 30000,
+      "requested_bytes": 329200000,
+      "elapsed_ns": 9509322
+    },
+    "reusable": {
+      "allocations": 20000,
+      "frees": 20000,
+      "requested_bytes": 1600000,
+      "elapsed_ns": 9473479
+    }
+  }
+}

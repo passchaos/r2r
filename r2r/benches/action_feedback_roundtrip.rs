@@ -1,13 +1,17 @@
 use std::{
+    future::Future,
     pin::Pin,
     time::{Duration, Instant},
 };
 
 use futures::{FutureExt, StreamExt};
+#[cfg(r2r_bench_native_action_feedback)]
+use r2r::ActionNativeFeedbackStream;
 use r2r::{
     example_interfaces::{action::Fibonacci, srv::AddTwoInts},
-    ActionClientOptions, ActionGoalOptions, ActionServerCancelRequest, ActionServerGoal,
-    ActionServerOptions, Context, GoalStatus, Node, NodeOptions, QosProfile,
+    ActionClientGoal, ActionClientOptions, ActionFeedbackStream, ActionGoalOptions,
+    ActionResultFuture, ActionServerCancelRequest, ActionServerGoal, ActionServerOptions, Context,
+    GoalStatus, Node, NodeOptions, QosProfile,
 };
 
 #[path = "support/action_driver.rs"]
@@ -30,6 +34,39 @@ struct Config<'a> {
     name: &'a str,
     status_batch_size: usize,
     status_sync: bool,
+    feedback_delivery: &'static str,
+}
+
+enum FeedbackObservation {
+    Owned(
+        ActionClientGoal<Fibonacci::Action>,
+        ActionResultFuture<Fibonacci::Action>,
+        ActionFeedbackStream<Fibonacci::Action>,
+    ),
+    #[cfg(r2r_bench_native_action_feedback)]
+    Native(
+        ActionClientGoal<Fibonacci::Action>,
+        ActionResultFuture<Fibonacci::Action>,
+        ActionNativeFeedbackStream<Fibonacci::Action>,
+    ),
+}
+
+impl FeedbackObservation {
+    fn goal(&self) -> &ActionClientGoal<Fibonacci::Action> {
+        match self {
+            Self::Owned(goal, ..) => goal,
+            #[cfg(r2r_bench_native_action_feedback)]
+            Self::Native(goal, ..) => goal,
+        }
+    }
+}
+
+fn feedback_delivery_override() -> Result<&'static str, &'static str> {
+    match std::env::var("R2R_ACTION_FEEDBACK_DELIVERY").as_deref() {
+        Err(std::env::VarError::NotPresent) | Ok("owned") => Ok("owned"),
+        Ok("native") => Ok("native"),
+        _ => Err("invalid R2R_ACTION_FEEDBACK_DELIVERY"),
+    }
 }
 
 fn status_qos_override() -> Result<(&'static str, Option<QosProfile>), &'static str> {
@@ -213,6 +250,7 @@ fn run(
         name,
         status_batch_size,
         status_sync,
+        feedback_delivery,
     } = config;
     let total = iterations + warmup;
     let total_goals = total
@@ -383,10 +421,29 @@ fn run(
             measured_start = Instant::now();
         }
         let before = Instant::now();
-        let mut responses = Vec::with_capacity(goal_window);
+        let mut responses: Vec<Pin<Box<dyn Future<Output = r2r::Result<FeedbackObservation>>>>> =
+            Vec::with_capacity(goal_window);
         for goal_index in 0..goal_window {
             let order = (batch * goal_window + goal_index + 1) as i32;
-            responses.push(client.send_goal_request(Fibonacci::Goal { order })?);
+            if feedback_delivery == "native" {
+                #[cfg(r2r_bench_native_action_feedback)]
+                {
+                    let response =
+                        client.send_goal_request_native_feedback(Fibonacci::Goal { order })?;
+                    responses.push(Box::pin(async move {
+                        let (goal, result, feedback) = response.await?;
+                        Ok(FeedbackObservation::Native(goal, result, feedback))
+                    }));
+                    continue;
+                }
+                #[cfg(not(r2r_bench_native_action_feedback))]
+                return Err("native feedback delivery is unavailable in this r2r build".into());
+            }
+            let response = client.send_goal_request(Fibonacci::Goal { order })?;
+            responses.push(Box::pin(async move {
+                let (goal, result, feedback) = response.await?;
+                Ok(FeedbackObservation::Owned(goal, result, feedback))
+            }));
         }
         let mut observations = Vec::with_capacity(goal_window);
         for response in responses {
@@ -394,10 +451,9 @@ fn run(
         }
         if status_sync {
             let status_deadline = Instant::now() + DEADLINE;
-            while !observations
-                .iter()
-                .all(|(goal, _, _)| matches!(goal.get_status(), Ok(GoalStatus::Executing)))
-            {
+            while !observations.iter().all(|observation| {
+                matches!(observation.goal().get_status(), Ok(GoalStatus::Executing))
+            }) {
                 if Instant::now() >= status_deadline {
                     return Err("executing status deadline expired".into());
                 }
@@ -411,15 +467,36 @@ fn run(
         })?;
         assert_eq!(driver.drive(node, start)?.sum, batch as i64);
         for update in 0..feedback_per_goal {
-            for (goal_index, (_, _, feedback)) in observations.iter_mut().enumerate() {
-                let message = driver.drive(node, async {
-                    feedback
-                        .next()
-                        .await
-                        .ok_or(r2r::Error::RCL_RET_ACTION_CLIENT_INVALID)
-                })?;
+            for (goal_index, observation) in observations.iter_mut().enumerate() {
                 let order = (batch * goal_window + goal_index + 1) as i32;
-                validate_payload(&message.sequence, order, update, elements);
+                match observation {
+                    FeedbackObservation::Owned(_, _, feedback) => {
+                        let message = driver.drive(node, async {
+                            feedback
+                                .next()
+                                .await
+                                .ok_or(r2r::Error::RCL_RET_ACTION_CLIENT_INVALID)
+                        })?;
+                        validate_payload(&message.sequence, order, update, elements);
+                    }
+                    #[cfg(r2r_bench_native_action_feedback)]
+                    FeedbackObservation::Native(goal, _, feedback) => {
+                        let message = driver.drive(node, async {
+                            feedback
+                                .next()
+                                .await
+                                .ok_or(r2r::Error::RCL_RET_ACTION_CLIENT_INVALID)
+                        })?;
+                        assert_eq!(message.goal_id(), goal.uuid);
+                        let sequence = &message.feedback.sequence;
+                        assert!(sequence.size <= sequence.capacity);
+                        assert!(sequence.size <= isize::MAX as usize);
+                        assert!(sequence.size == 0 || !sequence.data.is_null());
+                        let values =
+                            unsafe { std::slice::from_raw_parts(sequence.data, sequence.size) };
+                        validate_payload(values, order, update, elements);
+                    }
+                }
             }
         }
         let feedback_elapsed = feedback_before.elapsed().as_nanos() as u64;
@@ -428,12 +505,23 @@ fn run(
             b: 1,
         })?;
         assert_eq!(driver.drive(node, acknowledged)?.sum, batch as i64 + 1);
-        for (goal_index, (_goal, result, mut feedback)) in observations.into_iter().enumerate() {
-            let (status, result) = driver.drive(node, result)?;
+        for (goal_index, observation) in observations.into_iter().enumerate() {
             let order = (batch * goal_window + goal_index + 1) as i32;
-            assert_eq!(status, GoalStatus::Succeeded);
-            assert_eq!(result.sequence, [order]);
-            assert!(feedback.next().now_or_never().flatten().is_none());
+            match observation {
+                FeedbackObservation::Owned(_goal, result, mut feedback) => {
+                    let (status, result) = driver.drive(node, result)?;
+                    assert_eq!(status, GoalStatus::Succeeded);
+                    assert_eq!(result.sequence, [order]);
+                    assert!(feedback.next().now_or_never().flatten().is_none());
+                }
+                #[cfg(r2r_bench_native_action_feedback)]
+                FeedbackObservation::Native(_goal, result, mut feedback) => {
+                    let (status, result) = driver.drive(node, result)?;
+                    assert_eq!(status, GoalStatus::Succeeded);
+                    assert_eq!(result.sequence, [order]);
+                    assert!(feedback.next().now_or_never().flatten().is_none());
+                }
+            }
             goal_checksum = goal_checksum.wrapping_add(order as u64);
         }
         let elapsed = before.elapsed().as_nanos() as u64;
@@ -456,6 +544,7 @@ fn run(
     let measured_feedback = iterations * goal_window * feedback_per_goal;
     Ok(serde_json::json!({
         "implementation":"r2r","role":role,"rmw":rmw,"elements":elements,
+        "feedback_delivery":feedback_delivery,
         "status_path":STATUS_PATH,
         "status_qos":status_qos_label,
         "result_timeout_ms":result_timeout_ms,
@@ -524,6 +613,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("goal count overflow")?;
     let status_batch_size = status_batch_size_override(goal_window)?;
     let status_sync = status_sync_override()?;
+    let feedback_delivery = feedback_delivery_override()?;
     if !matches!(role.as_str(), "ping" | "echo")
         || elements > 1_000_000
         || !(1..=64).contains(&goal_window)
@@ -555,6 +645,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 name: &args[6],
                 status_batch_size,
                 status_sync,
+                feedback_delivery,
             },
         )?
     );

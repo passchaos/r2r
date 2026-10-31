@@ -12,6 +12,7 @@ repository = "https://github.com/sequenceplanner/r2r"
 documentation = "https://docs.rs/r2r/latest/r2r"
 
 [dependencies]
+libloading = "0.8.9"
 r2r_rcl = { path = "../r2r_rcl", version = "0.9.7" }
 r2r_common = { path = "../r2r_common", version = "0.9.7" }
 phf = { version = "0.11.1", features = ["macros"] }

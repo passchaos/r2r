@@ -1,0 +1,166 @@
+{
+  "metadata": {
+    "boundary": "four generated native messages reinitialized and refilled with 4096 u64 values; no RCL/DDS/channel",
+    "timing_qualified": false,
+    "iterations": 10000,
+    "batch_size": 4,
+    "elements": 4096,
+    "repetitions": 5,
+    "cpu": 0,
+    "single_cpu_affinity": true,
+    "virtual_memory_limit_bytes": 10737418240,
+    "probe_sha256": "85283f1184b00c227e02c8c56eec9283051265a779511c39c6c8cf4272baa59e",
+    "source_sha256": {
+      "r2r/build.rs": "48a766162bf52406c91a954a8bc1dbdb492fe95955743ba1a76c03bfa134417f",
+      "r2r/src/msg_types.rs": "47fd4f92e2d16912e36dfd7074893ba07365915b5ba7ed62761394555d2003af",
+      "r2r/src/subscribers/batch.rs": "68918b0f377a12fe3ba7131c37ddbcee4f521a41c53f6d3fdd91f10cc2aeb711",
+      "r2r/src/subscribers/batch_tests.rs": "4dafbdc5f5de8ba590b182d364fc537006575d4d1e6e78e7f73d789a962715af",
+      "r2r_msg_gen/src/lib.rs": "114ff409c67be24a6c733e4a6f497ccfd40fbf6066aa3ab2bdbf242d3538b39e",
+      "r2r_msg_gen/src/native_support.rs": "b571c665067960c73f997a736befdcc1b79ec8d53904055e4b4c0a8d49ba5012",
+      "r2r/benches/support/allocation_probe.rs": "5b9bb562e8c6ab7bee6427be15af5134d13cefd557b6bc13e1e2f102c864f56d",
+      "tools/bench_ros/native_batch_reset_stage.py": "af6855b611ecdb0aef1cdfca230212e619547e0d214ab453e7efa181be50fd6f",
+      "tools/bench_ros/probe/probe.c": "fb969b91fc6e8f4755e4932f89044c1d35dc1dc5b5a9ff2175735e877bcb6394",
+      "tools/bench_ros/probe/probe.h": "1e158b3e377055c8b746728a4920a74523bbf0958054d04c926d79becbb8fe8a"
+    },
+    "raw_log": {
+      "file": "reset-allocation-stage.log.gz",
+      "sha256": "0e2b475a4c833d6704dcab59459dc22f58c4fd6548b19fab46a4dee4f502f4df"
+    }
+  },
+  "records": [
+    {
+      "allocations": 90000,
+      "batch_size": 4,
+      "boundary": "four generated native messages reinitialized and refilled with 4096 u64 values; no RCL/DDS/channel",
+      "elapsed_ns": 33678640,
+      "elements": 4096,
+      "frees": 90000,
+      "iterations": 10000,
+      "refresh": "replacement",
+      "requested_bytes": 1313920000,
+      "repetition": 0
+    },
+    {
+      "allocations": 40000,
+      "batch_size": 4,
+      "boundary": "four generated native messages reinitialized and refilled with 4096 u64 values; no RCL/DDS/channel",
+      "elapsed_ns": 29692548,
+      "elements": 4096,
+      "frees": 40000,
+      "iterations": 10000,
+      "refresh": "in_place",
+      "requested_bytes": 1310720000,
+      "repetition": 0
+    },
+    {
+      "allocations": 90000,
+      "batch_size": 4,
+      "boundary": "four generated native messages reinitialized and refilled with 4096 u64 values; no RCL/DDS/channel",
+      "elapsed_ns": 33662973,
+      "elements": 4096,
+      "frees": 90000,
+      "iterations": 10000,
+      "refresh": "replacement",
+      "requested_bytes": 1313920000,
+      "repetition": 1
+    },
+    {
+      "allocations": 40000,
+      "batch_size": 4,
+      "boundary": "four generated native messages reinitialized and refilled with 4096 u64 values; no RCL/DDS/channel",
+      "elapsed_ns": 29657372,
+      "elements": 4096,
+      "frees": 40000,
+      "iterations": 10000,
+      "refresh": "in_place",
+      "requested_bytes": 1310720000,
+      "repetition": 1
+    },
+    {
+      "allocations": 90000,
+      "batch_size": 4,
+      "boundary": "four generated native messages reinitialized and refilled with 4096 u64 values; no RCL/DDS/channel",
+      "elapsed_ns": 33656752,
+      "elements": 4096,
+      "frees": 90000,
+      "iterations": 10000,
+      "refresh": "replacement",
+      "requested_bytes": 1313920000,
+      "repetition": 2
+    },
+    {
+      "allocations": 40000,
+      "batch_size": 4,
+      "boundary": "four generated native messages reinitialized and refilled with 4096 u64 values; no RCL/DDS/channel",
+      "elapsed_ns": 29699992,
+      "elements": 4096,
+      "frees": 40000,
+      "iterations": 10000,
+      "refresh": "in_place",
+      "requested_bytes": 1310720000,
+      "repetition": 2
+    },
+    {
+      "allocations": 90000,
+      "batch_size": 4,
+      "boundary": "four generated native messages reinitialized and refilled with 4096 u64 values; no RCL/DDS/channel",
+      "elapsed_ns": 33707400,
+      "elements": 4096,
+      "frees": 90000,
+      "iterations": 10000,
+      "refresh": "replacement",
+      "requested_bytes": 1313920000,
+      "repetition": 3
+    },
+    {
+      "allocations": 40000,
+      "batch_size": 4,
+      "boundary": "four generated native messages reinitialized and refilled with 4096 u64 values; no RCL/DDS/channel",
+      "elapsed_ns": 29609170,
+      "elements": 4096,
+      "frees": 40000,
+      "iterations": 10000,
+      "refresh": "in_place",
+      "requested_bytes": 1310720000,
+      "repetition": 3
+    },
+    {
+      "allocations": 90000,
+      "batch_size": 4,
+      "boundary": "four generated native messages reinitialized and refilled with 4096 u64 values; no RCL/DDS/channel",
+      "elapsed_ns": 34165489,
+      "elements": 4096,
+      "frees": 90000,
+      "iterations": 10000,
+      "refresh": "replacement",
+      "requested_bytes": 1313920000,
+      "repetition": 4
+    },
+    {
+      "allocations": 40000,
+      "batch_size": 4,
+      "boundary": "four generated native messages reinitialized and refilled with 4096 u64 values; no RCL/DDS/channel",
+      "elapsed_ns": 29656494,
+      "elements": 4096,
+      "frees": 40000,
+      "iterations": 10000,
+      "refresh": "in_place",
+      "requested_bytes": 1310720000,
+      "repetition": 4
+    }
+  ],
+  "summary": {
+    "replacement": {
+      "allocations": 90000,
+      "frees": 90000,
+      "requested_bytes": 1313920000,
+      "elapsed_ns": 33678640
+    },
+    "in_place": {
+      "allocations": 40000,
+      "frees": 40000,
+      "requested_bytes": 1310720000,
+      "elapsed_ns": 29657372
+    }
+  }
+}

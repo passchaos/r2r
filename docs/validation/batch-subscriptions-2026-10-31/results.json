@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "feature": {
+    "typed_api": "Node::subscribe_batches",
+    "typed_options_api": "Node::subscribe_batches_with_options",
+    "native_api": "Node::subscribe_native_batches",
+    "native_options_api": "Node::subscribe_native_batches_with_options",
+    "typed_item": "SubscriptionBatch<T>",
+    "native_item": "NativeSubscriptionBatch<T>",
+    "native_operation": "rcl_take_sequence",
+    "ordered_metadata": true,
+    "one_sequence_per_spin_pass": true,
+    "zero_batch_rejected_before_endpoint_creation": true,
+    "retained_batches_independently_owned": true,
+    "batches_outlive_endpoint": true,
+    "creation_and_runtime_content_filter_helpers": true
+  },
+  "storage_contract": {
+    "rmw_message_pointer_array_reused": true,
+    "rmw_message_info_array_reused": true,
+    "generated_native_message_containers_reinitialized_in_place": true,
+    "generated_outer_message_addresses_reused": true,
+    "replacement_initialized_before_old_contents_finalized": true,
+    "handwritten_type_fallback_replaces_containers": true,
+    "native_nested_capacity_reuse_claimed": false,
+    "typed_generated_dynamic_capacity_reused": true,
+    "cyclonedds_nested_container_second_take_workaround": true
+  },
+  "resource_constraints": {
+    "single_cpu_compilation": true,
+    "cargo_build_jobs": 1,
+    "rayon_threads": 1,
+    "virtual_memory_limit_kib": 10485760,
+    "container_memory_bytes": 10000000000,
+    "container_memory_swap_bytes": 10000000000
+  },
+  "native_gates": {
+    "jazzy": {
+      "rmws": [
+        "rmw_cyclonedds_cpp",
+        "rmw_fastrtps_cpp"
+      ],
+      "batch_cases_passed_per_rmw_debug": 6,
+      "batch_cases_passed_per_rmw_release": 6,
+      "native_reset_cases_passed_per_rmw": 2,
+      "generator_reset_cases_passed": 1,
+      "content_filter_cases_passed_per_rmw": 1,
+      "example_passed_per_rmw": true,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-jazzy.log.gz",
+      "artifact_sha256": "307a001ec8b2967d6150b0bd5e640c25da5f5030c5c414299c4ebbde0c1412c3",
+      "uncompressed_sha256": "e56d82f47a1239e5bba29b5034b7f9f787b28c21ed365705ae6d84485a8eb22e"
+    },
+    "humble": {
+      "rmws": [
+        "rmw_fastrtps_cpp"
+      ],
+      "batch_cases_passed_per_rmw": 6,
+      "native_reset_cases_passed_per_rmw": 2,
+      "generator_reset_cases_passed": 1,
+      "content_filter_cases_passed_per_rmw": 1,
+      "example_passed_per_rmw": true,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-humble.log.gz",
+      "artifact_sha256": "7feb4b139ee762a602ac8c2323460cd60d5cb04d307394f2b45b1bbe827ee7fc",
+      "uncompressed_sha256": "44afae51156d3d2863af08d76745fd4b6db1195a6a910186175e51fe753e8dc6"
+    },
+    "kilted": {
+      "rmws": [
+        "rmw_cyclonedds_cpp",
+        "rmw_fastrtps_cpp"
+      ],
+      "batch_cases_passed_per_rmw": 6,
+      "native_reset_cases_passed_per_rmw": 2,
+      "generator_reset_cases_passed": 1,
+      "content_filter_cases_passed_per_rmw": 1,
+      "example_passed_per_rmw": true,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-kilted.log.gz",
+      "artifact_sha256": "7fd7962b997308e1fc350d985bb26fc7de55b79931b51352af803d2a0e17457c",
+      "uncompressed_sha256": "fbf8beac51515a4221a02c05d95778615c13e5a6b050f60c73d57724fe529352"
+    }
+  },
+  "workspace_clippy": {
+    "all_targets": true,
+    "warnings_denied": true,
+    "exit_code": 0,
+    "artifact": "logs/final-clippy.log.gz",
+    "artifact_sha256": "a92b439b4ef126f4cdf1142ff2b7069420b9e42fa3b104e5ba129276a4e4c741",
+    "uncompressed_sha256": "be62cdeddb771c789905bbd2b844cfc39d13fd8efe24191b0d731a7e8f97e7d4"
+  },
+  "no_ros_gate": {
+    "public_documentation_artifacts": 84,
+    "required_documented_methods": 341,
+    "batch_rustdoc_cases_passed": 1,
+    "all_targets_compiled": true,
+    "exit_code": 0,
+    "artifact": "logs/final-no-ros.log.gz",
+    "artifact_sha256": "c2c75b677e0f4cac07712afaf53cda115ee63a33cdc81b93924e4201d1644010",
+    "uncompressed_sha256": "733094c24d1c22528ca9435f7ad9cf3dd8dd659674322f36cb1d488f418b9fab"
+  },
+  "reset_allocation_stage": {
+    "timing_qualified": false,
+    "repetitions": 5,
+    "iterations_per_repetition": 10000,
+    "batch_size": 4,
+    "elements": 4096,
+    "replacement_allocations": 90000,
+    "in_place_allocations": 40000,
+    "allocation_reduction_per_batch": 5,
+    "replacement_frees": 90000,
+    "in_place_frees": 40000,
+    "requested_byte_reduction": 3200000,
+    "artifact": "reset-allocation-stage.json",
+    "artifact_sha256": "f926ae2c865ce5662e6b23d1e4f89e0a4d848df083ede2e643b075c1abc66573",
+    "raw_log_artifact": "reset-allocation-stage.log.gz",
+    "raw_log_sha256": "0e2b475a4c833d6704dcab59459dc22f58c4fd6548b19fab46a4dee4f502f4df"
+  },
+  "source_sha256": {
+    "r2r/src/msg_types.rs": "47fd4f92e2d16912e36dfd7074893ba07365915b5ba7ed62761394555d2003af",
+    "r2r/src/subscribers/batch.rs": "68918b0f377a12fe3ba7131c37ddbcee4f521a41c53f6d3fdd91f10cc2aeb711",
+    "r2r/src/subscribers/batch_tests.rs": "4dafbdc5f5de8ba590b182d364fc537006575d4d1e6e78e7f73d789a962715af",
+    "r2r/src/subscribers.rs": "8b8b9393498c613496ff4542bd7abfe9a2df2e26853f4754638775e12238d81f",
+    "r2r/src/nodes/subscription_api.rs": "6800c58b252e9a8948123df3a06498720b5557dd00b7ad81bceb76fb238d2b81",
+    "r2r/src/lib.rs": "c1d0b15e9eef13e98f7142408fe74862ddee144cc9550237b7d6676355c22101",
+    "r2r/build.rs": "48a766162bf52406c91a954a8bc1dbdb492fe95955743ba1a76c03bfa134417f",
+    "r2r_msg_gen/src/lib.rs": "114ff409c67be24a6c733e4a6f497ccfd40fbf6066aa3ab2bdbf242d3538b39e",
+    "r2r_msg_gen/src/native_support.rs": "b571c665067960c73f997a736befdcc1b79ec8d53904055e4b4c0a8d49ba5012",
+    "r2r/examples/batch_subscription.rs": "2d255bc58323a7eebc006db8b160d8cf72a75cb68e5eba1836335ac8084705c8",
+    "docs/BATCH_SUBSCRIPTIONS.md": "15aa2e15630ef1dc8283d003124d43af4ae36de1321257fab9ce2f73b6e3b49e",
+    "docs/CONTENT_FILTERED_SUBSCRIPTIONS.md": "9bc5e683d4536e9ed30eae1e87104ea6c9e41d0191a754ff3ac6257e0fb26528",
+    "README.md": "804327d9ac4535471dda12675408630438f366979cd91bada21556b851a65ec8",
+    "docs/ROADMAP.md": "43e5f42ace5a1ae3fa71e4b993ef1641a8a1c3dce968f1549b8970a70ecf280c",
+    "docs/RELEASE_VALIDATION.md": "f23d3e1a101ee14a3c679cf529e629d5a44f0454faa7e8d5aec9d6c0df129da3",
+    "docs/DOCUMENTATION_BUILDS.md": "e5495b1e948c4d72bc5a96a52ceb3265f770c3c306acb4e05a55e28517fd79b2",
+    "docs/RUST_ROS2_COMPARISON.md": "64f86f9fa16464b745db5fe54416ade123ce7de05e99d15198cb62a22d116d01",
+    "tests/check_documentation.py": "b87c8eef33a8251b39d4a0940679d05903b5a749ec9c32633aa20579f311ab96",
+    "tools/bench_ros/native_batch_reset_stage.py": "af6855b611ecdb0aef1cdfca230212e619547e0d214ab453e7efa181be50fd6f",
+    "docs/validation/batch-subscriptions-2026-10-31/README.md": "b16fb2aa2f893521bfa2cff86607fa361b9013883c9b263af8b1aee237db7485",
+    "docs/validation/batch-subscriptions-2026-10-31/run-jazzy.bash": "bba3386ad60d36d4ed2624439d729fe6edbc4d1571484e322a7228272b5ac5c4",
+    "docs/validation/batch-subscriptions-2026-10-31/run-compat.bash": "9ac5a69516d9a0256e7865a9c11985f10bb847977c21d15b82ba07ffae375084",
+    "docs/validation/batch-subscriptions-2026-10-31/run-no-ros.bash": "ea7526f4bd9e69523ade916d2f4344b1f83751386a3ee09bd046f2aae76c8582",
+    "docs/validation/batch-subscriptions-2026-10-31/verify.py": "23e428c0e85128d7a0dd9ef7e8098e17ebf46d0629be92eee49630073ba384ea"
+  },
+  "sparse_reset_stage": {
+    "timing_qualified": false,
+    "repetitions": 5,
+    "iterations_per_repetition": 10000,
+    "capacity": 16,
+    "taken": 1,
+    "elements": 4096,
+    "full_capacity_refresh_calls": 160000,
+    "taken_prefix_refresh_calls": 10000,
+    "refresh_call_reduction": 150000,
+    "refresh_call_reduction_per_batch": 15,
+    "full_capacity_allocations": 10012,
+    "taken_prefix_allocations": 10000,
+    "artifact": "sparse-reset-stage.json",
+    "artifact_sha256": "76ea27fe44f5b42a9857926b9b5cdc7c816102faabcd5a91454081ba5dd24d84",
+    "raw_log_artifact": "sparse-reset-stage.log.gz",
+    "raw_log_sha256": "e6bf7c56478221280b0f0e8228d2e231bbe929b38508ba2548382dfef26e59e4"
+  }
+}

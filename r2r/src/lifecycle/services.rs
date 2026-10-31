@@ -39,7 +39,7 @@ impl LifecycleService {
         runtime: Arc<LifecycleRuntime>,
     ) -> Result<Arc<Mutex<dyn Service_>>> {
         let rcl_handle =
-            create_service_helper(node, service_name, kind.type_support(), QosProfile::default())?;
+            create_service_helper(node, service_name, kind.type_support()?, QosProfile::default())?;
         Ok(Arc::new(Mutex::new(LifecycleService {
             rcl_handle,
             kind,

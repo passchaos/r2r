@@ -1,0 +1,154 @@
+{
+  "metadata": {
+    "boundary": "default typed publisher Rust-to-native preparation and payload validation; no RCL/DDS",
+    "timing_qualified": false,
+    "iterations": 10000,
+    "elements": 4096,
+    "repetitions": 5,
+    "cpu": 0,
+    "single_cpu_affinity": true,
+    "virtual_memory_limit_bytes": 10737418240,
+    "probe_sha256": "85283f1184b00c227e02c8c56eec9283051265a779511c39c6c8cf4272baa59e",
+    "source_sha256": {
+      "r2r/src/msg_types.rs": "47fd4f92e2d16912e36dfd7074893ba07365915b5ba7ed62761394555d2003af",
+      "r2r/src/native_buffer.rs": "e651c556e0fccf8a47a7e646e80e5532353eb97938833eb1ce4a9c79c24b2885",
+      "r2r/src/publishers.rs": "0515847a8810dee73d3bf42ceca6cc43fc6d0b0869f1c73c7d2d1d6bf5533f74",
+      "r2r/src/publishers/typed_native_buffer_tests.rs": "1fdb737289539b6f0f9a917de0025a75507a01c8047d2cc23a01d6a7b62a3b89",
+      "r2r/src/nodes/publisher_api.rs": "f1c792a2f0d3bbed1e44684f760c4e1a366de9526ccfd68f54a0715791b5e6c4",
+      "r2r/benches/support/allocation_probe.rs": "5b9bb562e8c6ab7bee6427be15af5134d13cefd557b6bc13e1e2f102c864f56d",
+      "tools/bench_ros/typed_publisher_native_reuse_stage.py": "fb57e5a67da9584fde76d2231ecfc2b1605aa40cdde8cc24b9ef87ef591f1f52",
+      "tools/bench_ros/probe/probe.c": "fb969b91fc6e8f4755e4932f89044c1d35dc1dc5b5a9ff2175735e877bcb6394",
+      "tools/bench_ros/probe/probe.h": "1e158b3e377055c8b746728a4920a74523bbf0958054d04c926d79becbb8fe8a"
+    },
+    "raw_log": {
+      "file": "allocation-stage.log.gz",
+      "sha256": "1a637d50b7d1a429430131f0634130c91b2c45daab9bd0df7d50a7d3eb749e5a"
+    }
+  },
+  "records": [
+    {
+      "allocations": 20000,
+      "boundary": "default typed publisher Rust-to-native preparation and payload validation; no RCL/DDS",
+      "elapsed_ns": 8325533,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 328240000,
+      "repetition": 0
+    },
+    {
+      "allocations": 0,
+      "boundary": "default typed publisher Rust-to-native preparation and payload validation; no RCL/DDS",
+      "elapsed_ns": 7162771,
+      "elements": 4096,
+      "frees": 0,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 0,
+      "repetition": 0
+    },
+    {
+      "allocations": 20000,
+      "boundary": "default typed publisher Rust-to-native preparation and payload validation; no RCL/DDS",
+      "elapsed_ns": 8282211,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 328240000,
+      "repetition": 1
+    },
+    {
+      "allocations": 0,
+      "boundary": "default typed publisher Rust-to-native preparation and payload validation; no RCL/DDS",
+      "elapsed_ns": 7282601,
+      "elements": 4096,
+      "frees": 0,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 0,
+      "repetition": 1
+    },
+    {
+      "allocations": 20000,
+      "boundary": "default typed publisher Rust-to-native preparation and payload validation; no RCL/DDS",
+      "elapsed_ns": 8266978,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 328240000,
+      "repetition": 2
+    },
+    {
+      "allocations": 0,
+      "boundary": "default typed publisher Rust-to-native preparation and payload validation; no RCL/DDS",
+      "elapsed_ns": 7161736,
+      "elements": 4096,
+      "frees": 0,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 0,
+      "repetition": 2
+    },
+    {
+      "allocations": 20000,
+      "boundary": "default typed publisher Rust-to-native preparation and payload validation; no RCL/DDS",
+      "elapsed_ns": 8334934,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 328240000,
+      "repetition": 3
+    },
+    {
+      "allocations": 0,
+      "boundary": "default typed publisher Rust-to-native preparation and payload validation; no RCL/DDS",
+      "elapsed_ns": 7231330,
+      "elements": 4096,
+      "frees": 0,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 0,
+      "repetition": 3
+    },
+    {
+      "allocations": 20000,
+      "boundary": "default typed publisher Rust-to-native preparation and payload validation; no RCL/DDS",
+      "elapsed_ns": 8266667,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 328240000,
+      "repetition": 4
+    },
+    {
+      "allocations": 0,
+      "boundary": "default typed publisher Rust-to-native preparation and payload validation; no RCL/DDS",
+      "elapsed_ns": 7290846,
+      "elements": 4096,
+      "frees": 0,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 0,
+      "repetition": 4
+    }
+  ],
+  "summary": {
+    "fresh_native": {
+      "allocations": 20000,
+      "frees": 20000,
+      "requested_bytes": 328240000,
+      "elapsed_ns": 8282211
+    },
+    "reused_native": {
+      "allocations": 0,
+      "frees": 0,
+      "requested_bytes": 0,
+      "elapsed_ns": 7231330
+    }
+  }
+}

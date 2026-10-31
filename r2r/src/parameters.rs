@@ -644,9 +644,10 @@ pub(crate) fn validate_parameter_update(
 /// ROS parameter.
 pub struct Parameter {
     pub value: ParameterValue,
+    /// Legacy leaf description retained for hand-written `RosParams` implementations.
+    /// Derived fields register richer ROS descriptors through
+    /// [`RosParams::register_parameter_descriptors`].
     pub description: &'static str,
-    // TODO: Add other fields like min, max, step. Use field
-    // attributes for defining them.
 }
 
 impl Parameter {
@@ -673,6 +674,17 @@ pub trait RosParams {
     fn register_parameters(
         &mut self, prefix: &str, param: Option<Parameter>, params: &mut IndexMap<String, Parameter>,
     ) -> Result<()>;
+    /// Registers descriptors for derived parameters.
+    ///
+    /// The default keeps existing hand-written `RosParams` implementations source compatible.
+    /// Derived structs and built-in leaf parameter types override it so `#[ros_param(...)]`
+    /// metadata reaches the same descriptor validation path as explicit Node declarations.
+    fn register_parameter_descriptors(
+        &self, _prefix: &str, _descriptor: Option<ParameterDescriptor>,
+        _descriptors: &mut IndexMap<String, ParameterDescriptor>,
+    ) -> Result<()> {
+        Ok(())
+    }
     fn get_parameter(&mut self, param_name: &str) -> Result<ParameterValue>;
     fn set_parameter(&mut self, param_name: &str, param_val: &ParameterValue) -> Result<()>;
     fn check_parameter(&self, param_name: &str, param_val: &ParameterValue) -> Result<()>;
@@ -741,6 +753,27 @@ macro_rules! impl_ros_params {
                 }
                 param.value = $param_value_type($to_param_conv(self)?);
                 params.insert(prefix.to_owned(), param);
+                Ok(())
+            }
+
+            fn register_parameter_descriptors(
+                &self, prefix: &str, descriptor: Option<ParameterDescriptor>,
+                descriptors: &mut IndexMap<String, ParameterDescriptor>,
+            ) -> Result<()> {
+                if prefix.is_empty() {
+                    return Err(Error::InvalidParameterName {
+                        name: prefix.to_owned(),
+                    });
+                }
+                if !descriptors.contains_key(prefix) {
+                    let mut descriptor = descriptor.unwrap_or_default();
+                    descriptor.name = prefix.into();
+                    descriptor.type_ = $param_value_type($to_param_conv(self)?)
+                        .parameter_type()
+                        .into();
+                    descriptor.dynamic_typing = false;
+                    descriptors.insert(prefix.to_owned(), descriptor);
+                }
                 Ok(())
             }
 

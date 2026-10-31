@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "timing_qualified": false,
+  "candidate_binary_sha256": "4a6b3324d25aad0e199c6cd2df7fb426378b23c2364035b149572a5b014d0ec3",
+  "baseline_binary_sha256": "53ee111ba8c213da7904a112b9dab99ffc1a91fe1c3523fe52ee57cc71f8e287",
+  "probe_sha256": "7602fb54d07cf65818e4e5da8bab16034cbe181fa2d896e61b7a48bc07fe1592",
+  "direct_dependencies": {
+    "baseline_total": 86,
+    "baseline_interface_libraries": 74,
+    "candidate_total": 12,
+    "candidate_interface_libraries": 0,
+    "artifact": "dependencies.json",
+    "artifact_sha256": "35a0ccf6a16abe64bf359178ebb73df87eb6bc2d6a598774e3ddc41794d4de26"
+  },
+  "restricted_library": {
+    "baseline_exit_code": 127,
+    "candidate_exit_code": 0,
+    "candidate_measured_responses": 4,
+    "artifact": "restricted-library.json"
+  },
+  "protocol": {
+    "applications": 16,
+    "exact_request_traces": 1024,
+    "source_mismatches": [],
+    "artifact": "candidate-protocol.json",
+    "artifact_sha256": "21da9742768712fbcbd7db80ad25b9bcd5f42a7885976355e76f20a86106ee33",
+    "traces_artifact": "candidate-protocol.traces.json.gz",
+    "traces_sha256": "c6de859fec74430e44ae7d92397f3758c2b64b7156f2ce3453123a266aba1dff"
+  },
+  "resource_diagnostics": {
+    "cpus": [
+      24,
+      25,
+      26,
+      27
+    ],
+    "repetitions_per_side": 4,
+    "artifact": "resource-stage.json.gz",
+    "artifact_sha256": "acfdf40e3dcd27de97c5cf8d0ae176ae66199bf8aeb611c13e3a0ae625ebb804",
+    "cases": [
+      {
+        "kind": "exclusive",
+        "workers": 2,
+        "window": 4,
+        "operations": 0,
+        "baseline_vmhwm_kib": [
+          19496,
+          19436,
+          19472,
+          19396
+        ],
+        "candidate_vmhwm_kib": [
+          14616,
+          14456,
+          14688,
+          14704
+        ],
+        "baseline_median_vmhwm_kib": 19454,
+        "candidate_median_vmhwm_kib": 14652,
+        "reduction_percent": 24.7
+      },
+      {
+        "kind": "reentrant",
+        "workers": 4,
+        "window": 8,
+        "operations": 16384,
+        "baseline_vmhwm_kib": [
+          19620,
+          19488,
+          19512,
+          19476
+        ],
+        "candidate_vmhwm_kib": [
+          14744,
+          14704,
+          14816,
+          14648
+        ],
+        "baseline_median_vmhwm_kib": 19500,
+        "candidate_median_vmhwm_kib": 14724,
+        "reduction_percent": 24.5
+      }
+    ]
+  },
+  "build_manifest": {
+    "artifact": "build-manifest.json",
+    "artifact_sha256": "a1fbe75c29b2f7cd6c3171efc7c412bb7048186ef6b04d19656d5fa3668b206d"
+  },
+  "jazzy_gate": {
+    "single_cpu_affinity": true,
+    "cargo_build_jobs": 1,
+    "rayon_threads": 1,
+    "virtual_memory_limit_kib": 10485760,
+    "rmws": [
+      "rmw_cyclonedds_cpp",
+      "rmw_fastrtps_cpp"
+    ],
+    "exit_code": 0,
+    "artifact": "logs/final-jazzy.log.gz",
+    "artifact_sha256": "723bd6239b7d9bae57b2e7d10236cbf850277ab59c66384feae7d896d0484de7",
+    "uncompressed_sha256": "75fa3e95886cde0f116271243982387c9a2d64abcbd95ece3e126a1e484f22f0"
+  },
+  "compatibility_gates": {
+    "humble": {
+      "rmws": [
+        "rmw_fastrtps_cpp"
+      ],
+      "generator_tests_passed": 5,
+      "message_tests_passed": 42,
+      "untyped_tests_passed": 37,
+      "type_description_boundary_tests_passed": 3,
+      "callback_executor_tests_passed": 47,
+      "reentrant_example_passed": true,
+      "all_targets_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-humble.log.gz",
+      "artifact_sha256": "6449bffda2c9d24b9ea854fcb259a722cd256de9563d13cfb40d0617c0c2ea67",
+      "uncompressed_sha256": "a03161a05610842c5395626e54977bbc5dc8058e1fbae92e2d8288e3e0699041"
+    },
+    "kilted": {
+      "rmws": [
+        "rmw_cyclonedds_cpp",
+        "rmw_fastrtps_cpp"
+      ],
+      "generator_tests_passed": 5,
+      "per_rmw": {
+        "message_tests_passed": 46,
+        "untyped_tests_passed": 38,
+        "type_description_tests_passed": 12,
+        "callback_executor_tests_passed": 49,
+        "reentrant_example_passed": true
+      },
+      "all_targets_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-kilted.log.gz",
+      "artifact_sha256": "0934a2d2e117c509e4790379c8f1e0cecf4ef74f0d9907543ce2e0e29e417d60",
+      "uncompressed_sha256": "4b6faa30a4179039fc4d66256d3edb7bb950ec2eac1c3752a306855216dd6bae"
+    }
+  },
+  "no_ros_gate": {
+    "ros_installation_present": false,
+    "public_documentation_artifacts": 67,
+    "required_documented_methods": 276,
+    "exit_code": 0,
+    "artifact": "logs/final-no-ros.log.gz",
+    "artifact_sha256": "1bea8dc2dab8394412c91d35549d1fd6ea2f770b190b2728ea0e69e6972e2141",
+    "uncompressed_sha256": "5cb6e7066bc9628453e5b21a4dcc2e6c2bafb96db22111c84e1ab6a999726d20"
+  }
+}

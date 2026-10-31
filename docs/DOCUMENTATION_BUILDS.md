@@ -25,16 +25,28 @@ python3 tests/check_documentation.py
 It removes ROS discovery, middleware and library-path variables for its child
 processes, then runs snapshot transaction tests, workspace compilation with all
 targets, common-library tests, the two pure message-path generator tests, two compile-fail
-`NativeMessageRef` ownership doctests and Rustdoc. It checks 58 public documentation artifacts and 226 specific methods,
+`NativeMessageRef` ownership doctests and Rustdoc. It checks 84 public documentation artifacts and 341 specific methods,
 including lifecycle native/loaned publication and destruction, configurable
 managed publishers/timers, service introspection, simulated-time controls and
 owned background task completion/cancellation/errors, bounded parallel Node groups and their
 ownership compile-fail examples, action feedback overflow policy and
 typed and runtime-typed batched action-server acceptance/execution/terminal completion, and scoped
-native subscription callback ownership/options, borrowed-native publication native QoS event streams, type-description schema/hash/source queries and cancellable ROS-clock sleeps.
+native subscription callback ownership/options, native/typed sequence-take batch ownership and failure-safe generated native reinitialization, callback-group future tasks, content-filtered stream/callback/group/batch subscriptions, derived parameter descriptors, borrowed-native publication, native action-feedback leases, native QoS event streams, type-description schema/hash/source queries and cancellable ROS-clock sleeps.
+The inventory also checks ordinary/callback/group/lifecycle timer reset-event streams, their coalesced counters and Humble-compatible API surface.
 The main library now uses the default Rustdoc test setting, so ordinary workspace tests also
 execute its API examples and ownership compile-fail cases. The no-ROS gate also runs the pipeline harness counterexamples, including raw-sample integrity, source drift,
-finite performance ratios and preflight/runtime isolation requirements.
+finite performance ratios and preflight/runtime isolation requirements, plus deterministic full-
+capacity versus taken-prefix native batch reset work accounting and the ordinary typed
+subscription's source-aware native decode-container allocation stage, plus the ordinary typed
+publisher and typed client-request native preparation reuse stages.
+The same source-aware gate covers typed service request-take and response-preparation reuse.
+Typed client response-take reuse is checked separately from request preparation and preserves the
+owned response plus optional metadata surface.
+The gate also checks typed action SendGoal request reuse and its pre-registration failure boundary.
+Typed action status reuse is verified across real goal lifecycles and detached direct-native decode.
+Typed action result-response reuse is checked with retained owned results and endpoint destruction.
+Typed action result-request/goal-response reuse additionally checks per-take completion ordering,
+copy-failure retirement and a zero-allocation steady lifecycle boundary.
 
 The `docs_no_ros` CI job runs this same gate in Ubuntu 24.04 with the
 repository-pinned Rust 1.85 toolchain and no ROS installation. The refreshed

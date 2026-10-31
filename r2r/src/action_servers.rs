@@ -24,6 +24,7 @@ use crate::{
         generated_msgs::{action_msgs, builtin_interfaces, unique_identifier_msgs},
         *,
     },
+    native_buffer::NativeBuffer,
     Node,
 };
 use r2r_actions::*;
@@ -1017,6 +1018,16 @@ where
     pub(crate) goals: HashMap<uuid::Uuid, OwnedGoalHandle>,
     pub result_msgs: HashMap<uuid::Uuid, Box<dyn VoidPtr>>,
     pub result_requests: HashMap<uuid::Uuid, Vec<rmw_request_id_t>>,
+    pub(crate) goal_request_buffer: NativeBuffer<
+        WrappedNativeMsg<
+            <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Request,
+        >,
+    >,
+    pub(crate) result_request_buffer: NativeBuffer<
+        WrappedNativeMsg<
+            <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
+        >,
+    >,
     pub cancel_request_channel_capacity: usize,
     pub(crate) maintenance_wake_owner: cancel::WakeOwner,
 }
@@ -1461,9 +1472,11 @@ where
         }
 
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let mut request_msg = WrappedNativeMsg::<
-            <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Request,
-        >::try_new()?;
+        let mut request_msg = self.goal_request_buffer.checkout(
+            WrappedNativeMsg::<
+                <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Request,
+            >::try_new,
+        )?;
         let ret = unsafe {
             rcl_action_take_goal_request(
                 &self.rcl_handle,
@@ -1735,9 +1748,11 @@ where
         &mut self, server: Arc<Mutex<dyn ActionServer_>>,
     ) -> Result<ActionServerTakeResult> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let mut request_msg = WrappedNativeMsg::<
-            <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
-        >::try_new()?;
+        let mut request_msg = self.result_request_buffer.checkout(
+            WrappedNativeMsg::<
+                <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
+            >::try_new,
+        )?;
         let ret = unsafe {
             rcl_action_take_result_request(
                 &self.rcl_handle,
@@ -3663,3 +3678,6 @@ mod tests {
         panic!("client did not receive the abandoned goal result");
     }
 }
+
+#[cfg(test)]
+mod request_buffer_tests;

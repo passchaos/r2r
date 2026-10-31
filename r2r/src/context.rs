@@ -2,11 +2,16 @@ use parking_lot::{Condvar, Mutex};
 use std::{
     ffi::CString,
     fmt::Debug,
+    future::Future,
     ops::{Deref, DerefMut},
+    pin::Pin,
+    sync::atomic::{AtomicBool, Ordering},
     sync::{Arc, OnceLock},
+    task::{Context as TaskContext, Poll},
 };
 
 use crate::{error::*, log_guard, utils::mark_logging_initialized};
+use futures::{future::FusedFuture, task::AtomicWaker};
 use r2r_rcl::*;
 
 /// Options used to initialize the process-wide ROS context.
@@ -66,6 +71,65 @@ pub struct Context {
     shutdown_changed: Arc<Condvar>,
 }
 
+struct ContextShutdownState {
+    complete: AtomicBool,
+    waker: AtomicWaker,
+}
+
+impl ContextShutdownState {
+    fn complete(&self) {
+        self.complete.store(true, Ordering::Release);
+        self.waker.wake();
+    }
+}
+
+impl ShutdownWake for ContextShutdownState {
+    fn wake_shutdown(&self) {}
+
+    fn after_shutdown(&self) {
+        self.complete();
+    }
+}
+
+/// A runtime-agnostic future that completes after its ROS context shuts down.
+///
+/// The registration is weak: this future neither retains nor delays native Context finalization.
+/// Dropping it cancels only this observation. It may be fused or selected with application work.
+pub struct ContextShutdown {
+    state: Arc<ContextShutdownState>,
+}
+
+impl std::fmt::Debug for ContextShutdown {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ContextShutdown")
+            .field("complete", &self.is_terminated())
+            .finish()
+    }
+}
+
+impl Future for ContextShutdown {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, context: &mut TaskContext<'_>) -> Poll<()> {
+        if self.state.complete.load(Ordering::Acquire) {
+            return Poll::Ready(());
+        }
+        self.state.waker.register(context.waker());
+        if self.state.complete.load(Ordering::Acquire) {
+            Poll::Ready(())
+        } else {
+            Poll::Pending
+        }
+    }
+}
+
+impl FusedFuture for ContextShutdown {
+    fn is_terminated(&self) -> bool {
+        self.state.complete.load(Ordering::Acquire)
+    }
+}
+
 // Memory corruption (double free and others) was observed creating multiple
 // `Context` objects in a single thread
 //
@@ -74,6 +138,13 @@ pub struct Context {
 
 static CONTEXT: OnceLock<Mutex<WeakContextHandle>> = OnceLock::new();
 static CONTEXT_SHUTDOWN_CHANGED: OnceLock<Arc<Condvar>> = OnceLock::new();
+
+#[cfg(unix)]
+static SIGNAL_CONTEXT: OnceLock<Mutex<WeakContextHandle>> = OnceLock::new();
+#[cfg(unix)]
+static SIGNAL_HANDLER_STARTED: OnceLock<()> = OnceLock::new();
+#[cfg(unix)]
+static SIGNAL_HANDLER_INIT: Mutex<()> = Mutex::new(());
 
 type WeakContextHandle = std::sync::Weak<Mutex<ContextHandle>>;
 
@@ -128,22 +199,61 @@ impl Context {
     /// nodes and the final [`Context`] clone are dropped. Calling this method more than once is
     /// harmless.
     pub fn shutdown(&self) -> Result<()> {
-        let (result, observers) = {
-            let mut context = self.context_handle.lock();
-            let observers = context
-                .shutdown_wakes
-                .iter()
-                .filter_map(|wake| wake.upgrade())
-                .collect::<Vec<_>>();
-            (context.request_shutdown(), observers)
-        };
+        let result = self.context_handle.lock().request_shutdown();
         self.shutdown_changed.notify_all();
-        if result.is_ok() {
-            for observer in observers {
-                observer.after_shutdown();
+        match result {
+            Ok(observers) => {
+                for observer in observers {
+                    observer.after_shutdown();
+                }
+                Ok(())
             }
+            Err(error) => Err(error),
         }
-        result
+    }
+
+    /// Returns a future that completes after this context shuts down.
+    ///
+    /// The future is runtime-agnostic and does not poll, sleep or retain the Context. Manual
+    /// shutdown, process signals installed with [`Context::install_signal_handler`] and implicit
+    /// finalization of the last Context owner all complete it. Creating it after shutdown returns
+    /// an immediately ready future.
+    pub fn wait_for_shutdown(&self) -> ContextShutdown {
+        let state = Arc::new(ContextShutdownState {
+            complete: AtomicBool::new(false),
+            waker: AtomicWaker::new(),
+        });
+        let wake: Arc<dyn ShutdownWake> = state.clone();
+        let mut context = self.context_handle.lock();
+        if unsafe { rcl_context_is_valid(context.handle.as_ref()) } {
+            context.register_shutdown_wake(Arc::downgrade(&wake));
+        } else {
+            state.complete();
+        }
+        ContextShutdown { state }
+    }
+
+    /// Installs a process-wide SIGINT/SIGTERM handler that shuts down the current ROS context.
+    ///
+    /// This is opt-in because Unix signal disposition is shared by the whole process. Install it
+    /// early, before starting unrelated threads or another signal-handling library. Repeated calls
+    /// are harmless and retarget the process handler to the current shared context. The handler is
+    /// intentionally retained for the process lifetime, matching rclcpp's process-level behavior.
+    ///
+    /// The async-signal-safe handler only wakes a dedicated thread. RCL shutdown, mutex locking and
+    /// executor/Node notifications happen on that ordinary thread. A signal therefore interrupts
+    /// empty native waits and background executors through the same path as [`Context::shutdown`].
+    #[cfg(unix)]
+    pub fn install_signal_handler(&self) -> Result<()> {
+        let context = self.context_handle.lock();
+        if !unsafe { rcl_context_is_valid(context.handle.as_ref()) } {
+            return Err(Error::RCL_RET_NOT_INIT);
+        }
+        *SIGNAL_CONTEXT
+            .get_or_init(|| Mutex::new(WeakContextHandle::new()))
+            .lock() = Arc::downgrade(&self.context_handle);
+        drop(context);
+        ensure_signal_handler()
     }
 
     pub(crate) fn wait_for_shutdown_or_timeout(&self, timeout: std::time::Duration) -> Result<()> {
@@ -162,6 +272,52 @@ impl Context {
             Err(Error::RCL_RET_NOT_INIT)
         }
     }
+}
+
+#[cfg(unix)]
+fn ensure_signal_handler() -> Result<()> {
+    if SIGNAL_HANDLER_STARTED.get().is_some() {
+        return Ok(());
+    }
+    let _initializing = SIGNAL_HANDLER_INIT.lock();
+    if SIGNAL_HANDLER_STARTED.get().is_some() {
+        return Ok(());
+    }
+    let mut signals = signal_hook::iterator::Signals::new([
+        signal_hook::consts::SIGINT,
+        signal_hook::consts::SIGTERM,
+    ])
+    .map_err(|error| Error::SignalHandler {
+        err: error.to_string(),
+    })?;
+    std::thread::Builder::new()
+        .name("r2r-signal-shutdown".into())
+        .spawn(move || {
+            for _ in signals.forever() {
+                let context_handle = SIGNAL_CONTEXT
+                    .get()
+                    .and_then(|target| target.lock().upgrade());
+                let shutdown_changed = CONTEXT_SHUTDOWN_CHANGED.get().map(Arc::clone);
+                if let (Some(context_handle), Some(shutdown_changed)) =
+                    (context_handle, shutdown_changed)
+                {
+                    let context = Context {
+                        context_handle,
+                        shutdown_changed,
+                    };
+                    if let Err(error) = context.shutdown() {
+                        log::error!(
+                            "could not shut down ROS context after process signal: {error}"
+                        );
+                    }
+                }
+            }
+        })
+        .map_err(|error| Error::SignalHandler {
+            err: error.to_string(),
+        })?;
+    let _ = SIGNAL_HANDLER_STARTED.set(());
+    Ok(())
 }
 
 impl Clone for Context {
@@ -186,7 +342,12 @@ impl Drop for Context {
         }
 
         *shared = WeakContextHandle::new();
-        self.context_handle.lock().finalize();
+        drop(shared);
+        let observers = self.context_handle.lock().finalize();
+        self.shutdown_changed.notify_all();
+        for observer in observers {
+            observer.after_shutdown();
+        }
     }
 }
 
@@ -319,20 +480,25 @@ impl ContextHandle {
         })
     }
 
-    fn request_shutdown(&mut self) -> Result<()> {
+    fn request_shutdown(&mut self) -> Result<Vec<Arc<dyn ShutdownWake>>> {
         if !self.initialized || !unsafe { rcl_context_is_valid(self.handle.as_mut()) } {
-            return Ok(());
+            return Ok(Vec::new());
         }
 
+        let observers = self
+            .shutdown_wakes
+            .iter()
+            .filter_map(|wake| wake.upgrade())
+            .collect::<Vec<_>>();
         // Signal registered waits while native guard handles still belong to a valid context.
         // Registrations are weak; node/waker lifetimes do not form a context reference cycle.
-        for wake in self.shutdown_wakes.iter().filter_map(|wake| wake.upgrade()) {
+        for wake in &observers {
             wake.wake_shutdown();
         }
         let ret = unsafe { rcl_shutdown(self.handle.as_mut()) };
         if ret == RCL_RET_OK as i32 {
             self.shutdown_wakes.clear();
-            Ok(())
+            Ok(observers)
         } else {
             Err(Error::from_rcl_error(ret))
         }
@@ -343,19 +509,21 @@ impl ContextHandle {
         self.shutdown_wakes.push(wake);
     }
 
-    fn finalize(&mut self) {
+    fn finalize(&mut self) -> Vec<Arc<dyn ShutdownWake>> {
         if !self.initialized {
-            return;
+            return Vec::new();
         }
 
-        if let Err(err) = self.request_shutdown() {
-            log::error!("could not shut down ROS context: {err}");
-        }
+        let observers = self.request_shutdown().unwrap_or_else(|error| {
+            log::error!("could not shut down ROS context: {error}");
+            Vec::new()
+        });
         let ret = unsafe { rcl_context_fini(self.handle.as_mut()) };
         if ret != RCL_RET_OK as i32 {
             log::error!("could not finalize ROS context: {}", Error::from_rcl_error(ret));
         }
         self.initialized = false;
+        observers
     }
 }
 
@@ -375,7 +543,13 @@ impl DerefMut for ContextHandle {
 
 impl Drop for ContextHandle {
     fn drop(&mut self) {
-        self.finalize();
+        let observers = self.finalize();
+        if let Some(changed) = CONTEXT_SHUTDOWN_CHANGED.get() {
+            changed.notify_all();
+        }
+        for observer in observers {
+            observer.after_shutdown();
+        }
     }
 }
 

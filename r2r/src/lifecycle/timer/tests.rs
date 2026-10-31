@@ -5,6 +5,7 @@ use std::sync::{
 use std::time::Duration;
 
 use futures::{
+    stream::StreamExt,
     task::{waker_ref, ArcWake},
     Future, FutureExt,
 };
@@ -45,6 +46,36 @@ fn activate(node: &mut LifecycleNode) {
     assert_eq!(node.configure().unwrap(), CallbackReturn::Success);
     assert_eq!(node.activate().unwrap(), CallbackReturn::Success);
     spin(node);
+}
+
+#[test]
+fn lifecycle_timer_reset_events_include_activation_and_manual_restarts() {
+    let mut node = simulated("lc_timer_reset_events");
+    let timer = node.create_timer(Duration::from_millis(10)).unwrap();
+    let mut events = timer.observe_resets(&mut node).unwrap();
+    assert!(events.next().now_or_never().is_none());
+
+    activate(&mut node);
+    assert_eq!(
+        events.next().now_or_never(),
+        Some(Some(crate::TimerReset { count: 1, total: 1 }))
+    );
+
+    node.deactivate().unwrap();
+    node.activate().unwrap();
+    spin(&mut node);
+    assert_eq!(
+        events.next().now_or_never(),
+        Some(Some(crate::TimerReset { count: 1, total: 2 }))
+    );
+
+    timer.reset(&mut node).unwrap();
+    assert_eq!(
+        events.next().now_or_never(),
+        Some(Some(crate::TimerReset { count: 1, total: 3 }))
+    );
+    timer.destroy(&mut node);
+    assert_eq!(events.next().now_or_never(), Some(None));
 }
 
 #[test]

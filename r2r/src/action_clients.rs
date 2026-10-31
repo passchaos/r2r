@@ -26,6 +26,7 @@ use crate::{
         generated_msgs::{action_msgs, builtin_interfaces, unique_identifier_msgs},
         *,
     },
+    native_buffer::{NativeBuffer, NativeLease},
     Node,
 };
 use r2r_actions::*;
@@ -48,7 +49,7 @@ use feedback::{feedback_completion, take_ready_pending_feedback};
 mod feedback_routing_tests;
 #[cfg(test)]
 mod feedback_tests;
-mod status;
+pub(crate) mod status;
 
 pub(crate) struct ActionClientCompletion {
     notify: Box<dyn FnOnce() -> Result<bool>>,
@@ -331,8 +332,20 @@ pub(crate) fn take_canceled_feedback_goals_with_progress<T>(
     canceled_feedback: &CanceledFeedbackQueue,
     feedback_senders: &HashMap<uuid::Uuid, FeedbackSender<T>>,
 ) -> (Vec<uuid::Uuid>, bool) {
-    let (candidates, unexamined) =
-        cancellation::take_batch_with_progress(canceled_feedback, MAX_ACTION_FEEDBACK_PER_SPIN);
+    let (canceled, unexamined, _) = take_canceled_feedback_goals_with_budget(
+        canceled_feedback,
+        feedback_senders,
+        MAX_ACTION_FEEDBACK_PER_SPIN,
+    );
+    (canceled, unexamined)
+}
+
+fn take_canceled_feedback_goals_with_budget<T>(
+    canceled_feedback: &CanceledFeedbackQueue,
+    feedback_senders: &HashMap<uuid::Uuid, FeedbackSender<T>>, limit: usize,
+) -> (Vec<uuid::Uuid>, bool, usize) {
+    let (candidates, unexamined) = cancellation::take_batch_with_progress(canceled_feedback, limit);
+    let examined = candidates.len();
     let mut canceled = Vec::new();
     let mut retry = Vec::new();
     for uuid in candidates {
@@ -349,18 +362,43 @@ pub(crate) fn take_canceled_feedback_goals_with_progress<T>(
     if !retry.is_empty() {
         canceled_feedback.lock().extend(retry);
     }
-    (canceled, unexamined)
+    (canceled, unexamined, examined)
 }
 
 pub(crate) const MAX_ACTION_RESPONSES_PER_SPIN: usize = 16;
 pub(crate) const MAX_ACTION_FEEDBACK_PER_SPIN: usize = 16;
 
-pub(crate) fn collect_action_client_responses<C: ?Sized>(
-    client: &mut C, completions: &mut Vec<ActionClientCompletion>,
-    mut take: impl FnMut(&mut C, &mut Vec<ActionClientCompletion>) -> Result<ActionClientTakeResult>,
+#[cfg(test)]
+thread_local! {
+    static TYPED_STATUS_NATIVE_TAKES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn reset_typed_status_native_take_count() {
+    TYPED_STATUS_NATIVE_TAKES.with(|count| count.set(0));
+}
+
+#[cfg(test)]
+pub(crate) fn typed_status_native_take_count() -> usize {
+    TYPED_STATUS_NATIVE_TAKES.with(std::cell::Cell::get)
+}
+
+pub(crate) fn complete_action_client_response_batch<T: ?Sized>(
+    client: &Mutex<T>,
+    mut operation: impl FnMut(
+        &mut T,
+        &mut Vec<ActionClientCompletion>,
+    ) -> Result<ActionClientTakeResult>,
+    mut cleanup_goal: impl FnMut(&mut T, &uuid::Uuid) -> Vec<ActionClientCompletion>,
 ) -> Result<()> {
     for _ in 0..MAX_ACTION_RESPONSES_PER_SPIN {
-        match take(client, completions)? {
+        let mut completions = Vec::new();
+        let take_result = { operation(&mut *client.lock(), &mut completions) };
+        let completion_result =
+            run_action_client_completions(client, completions, &mut cleanup_goal);
+        let take_result = take_result?;
+        completion_result?;
+        match take_result {
             ActionClientTakeResult::Taken => {}
             ActionClientTakeResult::Idle | ActionClientTakeResult::Backpressured => break,
         }
@@ -484,13 +522,16 @@ where
     }
 }
 
-pub(crate) fn action_status_completion(
-    client: Arc<Mutex<dyn ActionClient_>>,
-    status_array: WrappedNativeMsg<action_msgs::msg::GoalStatusArray>,
-) -> ActionClientCompletion {
+pub(crate) fn action_status_completion<N>(
+    client: Arc<Mutex<dyn ActionClient_>>, status_array: N,
+    decode: impl FnOnce(&N) -> Result<Vec<(uuid::Uuid, GoalStatus)>> + 'static,
+) -> ActionClientCompletion
+where
+    N: 'static,
+{
     ActionClientCompletion {
         notify: Box::new(move || {
-            let updates = status::decode_native(&status_array)?;
+            let updates = decode(&status_array)?;
             let cleanup = { client.lock().apply_status_updates(&updates) };
             run_detached_action_client_completions(cleanup);
             Ok(true)
@@ -595,6 +636,16 @@ where
 {
     client: Weak<Mutex<WrappedActionClient<T>>>,
     lifecycle: Arc<ActionClientHandleLifecycle>,
+    goal_request_buffer: NativeBuffer<
+        WrappedNativeMsg<
+            <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Request,
+        >,
+    >,
+    result_request_buffer: NativeBuffer<
+        WrappedNativeMsg<
+            <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
+        >,
+    >,
 }
 
 pub(crate) struct ActionClientHandleLifecycle {
@@ -626,6 +677,8 @@ where
         Self {
             client: self.client.clone(),
             lifecycle: Arc::clone(&self.lifecycle),
+            goal_request_buffer: self.goal_request_buffer.clone(),
+            result_request_buffer: self.result_request_buffer.clone(),
         }
     }
 }
@@ -704,6 +757,82 @@ where
     }
 }
 
+/// One feedback sample backed directly by the native ROS message taken by the action client.
+///
+/// No owned [`T::Feedback`](WrappedActionTypeSupport::Feedback) value is constructed. The
+/// native storage remains valid until this item is dropped, at which point it is returned to the
+/// client's bounded reuse slot. Keeping several samples alive can require additional native
+/// message containers, while dropping or coalescing them releases those containers normally.
+///
+/// The item dereferences to the generated native feedback-message struct, including both the
+/// goal identity and feedback payload. Its fields are read-only through safe Rust.
+pub struct ActionNativeFeedback<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    uuid: uuid::Uuid,
+    message: native_feedback::NativeFeedbackLease<WrappedNativeMsg<T::FeedbackMessage>>,
+}
+
+impl<T> ActionNativeFeedback<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    /// Returns the goal identity read from the native feedback envelope.
+    pub fn goal_id(&self) -> uuid::Uuid {
+        self.uuid
+    }
+
+    /// Returns a scoped native view suitable for APIs accepting [`NativeMessageRef`].
+    pub fn native_message(&self) -> NativeMessageRef<'_, T::FeedbackMessage> {
+        NativeMessageRef::from_owned(&self.message)
+    }
+}
+
+impl<T> std::ops::Deref for ActionNativeFeedback<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    type Target = <T::FeedbackMessage as WrappedTypesupport>::CStruct;
+
+    fn deref(&self) -> &Self::Target {
+        &self.message
+    }
+}
+
+/// Feedback stream that delivers native ROS storage without constructing owned Rust payloads.
+pub struct ActionNativeFeedbackStream<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    receiver: mpsc::Receiver<ActionNativeFeedback<T>>,
+    registration: FeedbackStreamRegistration,
+}
+
+impl<T> Stream for ActionNativeFeedbackStream<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    type Item = ActionNativeFeedback<T>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let result = Pin::new(&mut self.receiver).poll_next(cx);
+        if matches!(result, Poll::Ready(None)) {
+            self.registration.disarm();
+        }
+        result
+    }
+}
+
+impl<T> Drop for ActionNativeFeedbackStream<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    fn drop(&mut self) {
+        self.receiver.close();
+    }
+}
+
 impl<T> Drop for ActionFeedbackStream<T>
 where
     T: WrappedActionTypeSupport,
@@ -726,6 +855,19 @@ where
     pub feedback: Option<ActionFeedbackStream<T>>,
 }
 
+/// Accepted typed action goal with an opt-in native feedback stream.
+pub struct ActionClientNativeGoalResponse<T>
+where
+    T: WrappedActionTypeSupport,
+{
+    /// Handle for querying or canceling the accepted goal.
+    pub goal: ActionClientGoal<T>,
+    /// Eventual result when result tracking was requested.
+    pub result: Option<ActionResultFuture<T>>,
+    /// Native feedback messages when feedback tracking was requested.
+    pub feedback: Option<ActionNativeFeedbackStream<T>>,
+}
+
 struct GoalStatusRegistration<T>
 where
     T: WrappedActionTypeSupport,
@@ -736,7 +878,7 @@ where
 
 struct PendingGoalRegistration<T>
 where
-    T: WrappedActionTypeSupport,
+    T: WrappedActionTypeSupport + 'static,
 {
     client: Weak<Mutex<WrappedActionClient<T>>>,
     uuid: uuid::Uuid,
@@ -745,7 +887,7 @@ where
 
 impl<T> PendingGoalRegistration<T>
 where
-    T: WrappedActionTypeSupport,
+    T: WrappedActionTypeSupport + 'static,
 {
     fn disarm(&mut self) {
         self.armed = false;
@@ -754,7 +896,7 @@ where
 
 impl<T> Drop for PendingGoalRegistration<T>
 where
-    T: WrappedActionTypeSupport,
+    T: WrappedActionTypeSupport + 'static,
 {
     fn drop(&mut self) {
         if self.armed {
@@ -834,7 +976,11 @@ where
         Ok(client
             .feedback_senders
             .get(&self.uuid)
-            .is_some_and(|channel| !channel.lock().is_closed()))
+            .is_some_and(|channel| !channel.lock().is_closed())
+            || client
+                .native_feedback_senders
+                .get(&self.uuid)
+                .is_some_and(|channel| !channel.lock().is_closed()))
     }
 
     /// Returns whether this goal's result future is still being observed.
@@ -984,6 +1130,109 @@ where
     where
         T: WrappedActionTypeSupport,
     {
+        let response = self.send_goal_request_with_feedback(goal, options, |client, uuid| {
+            let (sender, receiver) = mpsc::channel::<T::Feedback>(client.feedback_channel_capacity);
+            let policy = client.pending_feedback_goals.lock().overflow_policy();
+            client.feedback_senders.insert(
+                uuid,
+                Arc::new(Mutex::new(FeedbackChannel::with_overflow_policy(sender, policy))),
+            );
+            ActionFeedbackStream {
+                receiver,
+                registration: FeedbackStreamRegistration::new(
+                    Arc::clone(&client.canceled_feedback_goals),
+                    uuid,
+                ),
+            }
+        })?;
+        Ok(async move {
+            let (goal, result, feedback) = response.await?;
+            Ok(ActionClientGoalResponse {
+                goal,
+                result,
+                feedback,
+            })
+        })
+    }
+
+    /// Sends a goal and delivers feedback in reusable native ROS message storage.
+    ///
+    /// This avoids constructing an owned [`T::Feedback`](WrappedActionTypeSupport::Feedback)
+    /// payload for every observed sample. Generated action types support this path directly;
+    /// custom action wrappers must provide a native feedback identity accessor or this method
+    /// returns [`Error::RCL_RET_UNSUPPORTED`] before sending the goal.
+    #[allow(clippy::type_complexity)]
+    pub fn send_goal_request_native_feedback(
+        &self, goal: T::Goal,
+    ) -> Result<
+        impl Future<
+            Output = Result<(
+                ActionClientGoal<T>,
+                ActionResultFuture<T>,
+                ActionNativeFeedbackStream<T>,
+            )>,
+        >,
+    > {
+        let response = self
+            .send_goal_request_native_feedback_with_options(goal, ActionGoalOptions::default())?;
+        Ok(async move {
+            let response = response.await?;
+            let result = response
+                .result
+                .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+            let feedback = response
+                .feedback
+                .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
+            Ok((response.goal, result, feedback))
+        })
+    }
+
+    /// Sends a goal with explicit result tracking and native feedback delivery options.
+    ///
+    /// [`ActionGoalOptions::track_feedback`] controls whether the native stream is registered;
+    /// [`ActionGoalOptions::track_result`] retains its usual result-request behavior.
+    pub fn send_goal_request_native_feedback_with_options(
+        &self, goal: T::Goal, options: ActionGoalOptions,
+    ) -> Result<impl Future<Output = Result<ActionClientNativeGoalResponse<T>>>> {
+        if options.track_feedback && !T::supports_native_feedback_delivery() {
+            return Err(Error::RCL_RET_UNSUPPORTED);
+        }
+        let response = self.send_goal_request_with_feedback(goal, options, |client, uuid| {
+            let (sender, receiver) =
+                mpsc::channel::<ActionNativeFeedback<T>>(client.feedback_channel_capacity);
+            let policy = client
+                .pending_native_feedback_goals
+                .lock()
+                .overflow_policy();
+            client.native_feedback_senders.insert(
+                uuid,
+                Arc::new(Mutex::new(FeedbackChannel::with_overflow_policy(sender, policy))),
+            );
+            ActionNativeFeedbackStream {
+                receiver,
+                registration: FeedbackStreamRegistration::new(
+                    Arc::clone(&client.canceled_native_feedback_goals),
+                    uuid,
+                ),
+            }
+        })?;
+        Ok(async move {
+            let (goal, result, feedback) = response.await?;
+            Ok(ActionClientNativeGoalResponse {
+                goal,
+                result,
+                feedback,
+            })
+        })
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn send_goal_request_with_feedback<F>(
+        &self, goal: T::Goal, options: ActionGoalOptions,
+        register_feedback: impl FnOnce(&mut WrappedActionClient<T>, uuid::Uuid) -> F,
+    ) -> Result<
+        impl Future<Output = Result<(ActionClientGoal<T>, Option<ActionResultFuture<T>>, Option<F>)>>,
+    > {
         let client = self
             .client
             .upgrade()
@@ -991,6 +1240,7 @@ where
 
         let uuid = uuid::Uuid::new_v4();
         let fut_client = Weak::clone(&self.client);
+        let result_request_buffer = self.result_request_buffer.clone();
         with_prepared_action_client(
             &client,
             || {
@@ -998,7 +1248,14 @@ where
                     uuid: *uuid.as_bytes(),
                 };
                 let request_msg = T::make_goal_request_msg(uuid_msg, goal);
-                WrappedNativeMsg::try_from(&request_msg)
+                let mut native_msg = self
+                    .goal_request_buffer
+                    .checkout(WrappedNativeMsg::try_new)?;
+                if let Err(error) = request_msg.try_copy_to_native(&mut native_msg) {
+                    native_msg.retire();
+                    return Err(error);
+                }
+                Ok(native_msg)
             },
             move |client, native_msg| {
                 let mut seq_no = 0i64;
@@ -1017,22 +1274,9 @@ where
 
                 let (goal_req_sender, goal_req_receiver) =
                     oneshot::channel::<(bool, builtin_interfaces::msg::Time)>();
-                let feedback = options.track_feedback.then(|| {
-                    let (sender, receiver) =
-                        mpsc::channel::<T::Feedback>(client.feedback_channel_capacity);
-                    let policy = client.pending_feedback_goals.lock().overflow_policy();
-                    client.feedback_senders.insert(
-                        uuid,
-                        Arc::new(Mutex::new(FeedbackChannel::with_overflow_policy(sender, policy))),
-                    );
-                    ActionFeedbackStream {
-                        receiver,
-                        registration: FeedbackStreamRegistration::new(
-                            Arc::clone(&client.canceled_feedback_goals),
-                            uuid,
-                        ),
-                    }
-                });
+                let feedback = options
+                    .track_feedback
+                    .then(|| register_feedback(client, uuid));
                 let result = options.track_result.then(|| {
                     let (sender, receiver) = oneshot::channel::<(GoalStatus, T::Result)>();
                     client.result_senders.insert(uuid, sender);
@@ -1059,7 +1303,8 @@ where
                                     let c = fut_client
                                         .upgrade()
                                         .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)?;
-                                    let native_msg = prepare_result_request::<T>(uuid)?;
+                                    let native_msg =
+                                        prepare_result_request::<T>(&result_request_buffer, uuid)?;
                                     let (result, completions) =
                                         { c.lock().send_result_request_native(uuid, native_msg) };
                                     run_detached_action_client_completions(completions);
@@ -1071,8 +1316,8 @@ where
                                 });
                                 pending_registration.disarm();
 
-                                Ok(ActionClientGoalResponse {
-                                    goal: ActionClientGoal {
+                                Ok((
+                                    ActionClientGoal {
                                         client: fut_client,
                                         uuid,
                                         accepted_at: stamp,
@@ -1080,7 +1325,7 @@ where
                                     },
                                     result,
                                     feedback,
-                                })
+                                ))
                             } else {
                                 Err(Error::RCL_RET_ACTION_GOAL_REJECTED)
                             }
@@ -1128,6 +1373,38 @@ where
         self.validate_owner(node)?;
         Node::validate_timeout(timeout)?;
         let response = self.send_goal_request_with_options(goal, options)?;
+        node.with_timeout(response, timeout)
+    }
+
+    /// Sends a goal with native feedback and waits up to `timeout` for acceptance.
+    ///
+    /// The timeout covers only the goal response; it does not limit feedback or result handling.
+    #[allow(clippy::type_complexity)]
+    pub fn send_goal_request_native_feedback_with_timeout(
+        &self, node: &mut Node, goal: T::Goal, timeout: std::time::Duration,
+    ) -> Result<
+        impl Future<
+            Output = Result<(
+                ActionClientGoal<T>,
+                ActionResultFuture<T>,
+                ActionNativeFeedbackStream<T>,
+            )>,
+        >,
+    > {
+        self.validate_owner(node)?;
+        Node::validate_timeout(timeout)?;
+        let response = self.send_goal_request_native_feedback(goal)?;
+        node.with_timeout(response, timeout)
+    }
+
+    /// Sends a goal with native feedback options and bounds acceptance by `timeout`.
+    pub fn send_goal_request_native_feedback_with_options_and_timeout(
+        &self, node: &mut Node, goal: T::Goal, options: ActionGoalOptions,
+        timeout: std::time::Duration,
+    ) -> Result<impl Future<Output = Result<ActionClientNativeGoalResponse<T>>>> {
+        self.validate_owner(node)?;
+        Node::validate_timeout(timeout)?;
+        let response = self.send_goal_request_native_feedback_with_options(goal, options)?;
         node.with_timeout(response, timeout)
     }
 
@@ -1212,6 +1489,8 @@ where
             active_availability_clients,
             explicitly_destroyed: AtomicBool::new(false),
         }),
+        goal_request_buffer: NativeBuffer::default(),
+        result_request_buffer: NativeBuffer::default(),
     }
 }
 
@@ -1229,8 +1508,22 @@ where
     pub feedback_senders: HashMap<uuid::Uuid, FeedbackSender<T::Feedback>>,
     pub canceled_feedback_goals: CanceledFeedbackQueue,
     pub pending_feedback_goals: Arc<Mutex<PendingFeedbackQueue>>,
+    pub native_feedback_senders: HashMap<uuid::Uuid, FeedbackSender<ActionNativeFeedback<T>>>,
+    pub canceled_native_feedback_goals: CanceledFeedbackQueue,
+    pub pending_native_feedback_goals: Arc<Mutex<PendingFeedbackQueue>>,
     pub feedback_native_buffer:
         native_feedback::NativeFeedbackBuffer<WrappedNativeMsg<T::FeedbackMessage>>,
+    pub goal_response_native_buffer: NativeBuffer<
+        WrappedNativeMsg<
+            <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
+        >,
+    >,
+    pub status_native_buffer: NativeBuffer<WrappedNativeMsg<action_msgs::msg::GoalStatusArray>>,
+    pub result_response_native_buffer: NativeBuffer<
+        WrappedNativeMsg<
+            <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
+        >,
+    >,
     pub result_requests: HashMap<i64, uuid::Uuid>,
     pub result_request_sequences: HashMap<uuid::Uuid, i64>,
     pub result_senders: HashMap<uuid::Uuid, ResultSender<T::Result>>,
@@ -1306,7 +1599,7 @@ pub trait ActionClient_ {
     }
 }
 
-impl<T> WrappedActionClient<T>
+impl<T: 'static> WrappedActionClient<T>
 where
     T: WrappedActionTypeSupport,
 {
@@ -1365,14 +1658,33 @@ where
         self.feedback_senders.remove(uuid)
     }
 
+    fn take_native_feedback_sender(
+        &mut self, uuid: &uuid::Uuid,
+    ) -> Option<FeedbackSender<ActionNativeFeedback<T>>> {
+        self.native_feedback_senders.remove(uuid)
+    }
+
+    fn close_feedback_observers(&mut self, uuid: &uuid::Uuid) -> Vec<ActionClientCompletion> {
+        let mut completions = Vec::with_capacity(2);
+        if let Some(channel) = self.take_feedback_sender(uuid) {
+            completions.push(close_feedback_completion(channel));
+        }
+        if let Some(channel) = self.take_native_feedback_sender(uuid) {
+            completions.push(close_feedback_completion(channel));
+        }
+        completions
+    }
+
+    fn has_feedback_observer(&self, uuid: &uuid::Uuid) -> bool {
+        self.feedback_senders.contains_key(uuid) || self.native_feedback_senders.contains_key(uuid)
+    }
+
     fn forget_goal(&mut self, uuid: &uuid::Uuid) -> Vec<ActionClientCompletion> {
         let mut completions = Vec::new();
         if let Some(sender) = self.take_goal_response_by_uuid(uuid) {
             completions.push(drop_action_client_resources_completion(vec![sender]));
         }
-        if let Some(channel) = self.take_feedback_sender(uuid) {
-            completions.push(close_feedback_completion(channel));
-        }
+        completions.extend(self.close_feedback_observers(uuid));
         if let Some(sender) = self.result_senders.remove(uuid) {
             completions.push(drop_action_client_resources_completion(vec![sender]));
         }
@@ -1381,25 +1693,19 @@ where
         completions
     }
 
-    fn forget_result(&mut self, uuid: &uuid::Uuid) -> Option<ActionClientCompletion> {
+    fn forget_result(&mut self, uuid: &uuid::Uuid) -> Vec<ActionClientCompletion> {
         self.result_senders.remove(uuid);
         self.remove_result_request_by_uuid(uuid);
         if self.get_goal_status(uuid).is_terminal() {
-            return self
-                .take_feedback_sender(uuid)
-                .map(close_feedback_completion);
+            return self.close_feedback_observers(uuid);
         }
-        None
+        Vec::new()
     }
 
     fn finish_goal(
         &mut self, uuid: &uuid::Uuid, status: GoalStatus,
     ) -> Vec<ActionClientCompletion> {
-        let feedback = self
-            .take_feedback_sender(uuid)
-            .map(close_feedback_completion)
-            .into_iter()
-            .collect();
+        let feedback = self.close_feedback_observers(uuid);
         self.result_senders.remove(uuid);
         self.remove_result_request_by_uuid(uuid);
         if let Some(tracked_status) = self.goal_status.get_mut(uuid) {
@@ -1417,16 +1723,13 @@ where
                 *tracked_status = *status;
             }
             if status.is_terminal()
-                && self.feedback_senders.contains_key(uuid)
+                && self.has_feedback_observer(uuid)
                 && self
                     .result_senders
                     .get(uuid)
                     .is_none_or(|sender| sender.is_canceled())
             {
-                completions.extend(
-                    self.take_feedback_sender(uuid)
-                        .map(close_feedback_completion),
-                );
+                completions.extend(self.close_feedback_observers(uuid));
             }
         }
         completions
@@ -1458,13 +1761,7 @@ where
         for sequence in canceled_cancels {
             self.cancel_response_channels.remove(&sequence);
         }
-        let (canceled_feedback, feedback_left) = take_canceled_feedback_goals_with_progress(
-            &self.canceled_feedback_goals,
-            &self.feedback_senders,
-        );
-        for uuid in canceled_feedback {
-            self.feedback_senders.remove(&uuid);
-        }
+        let feedback_left = self.prune_canceled_feedback_observers_with_progress();
         let (canceled_results, results_left) = take_canceled_result_goals_with_progress(
             &self.canceled_result_goals,
             &self.result_senders,
@@ -1473,6 +1770,27 @@ where
             completions.extend(self.forget_result(&uuid));
         }
         (completions, cancels_left || feedback_left || results_left)
+    }
+
+    fn prune_canceled_feedback_observers_with_progress(&mut self) -> bool {
+        let (canceled_feedback, feedback_left, examined) = take_canceled_feedback_goals_with_budget(
+            &self.canceled_feedback_goals,
+            &self.feedback_senders,
+            MAX_ACTION_FEEDBACK_PER_SPIN,
+        );
+        for uuid in canceled_feedback {
+            self.feedback_senders.remove(&uuid);
+        }
+        let (canceled_native_feedback, native_feedback_left, _) =
+            take_canceled_feedback_goals_with_budget(
+                &self.canceled_native_feedback_goals,
+                &self.native_feedback_senders,
+                MAX_ACTION_FEEDBACK_PER_SPIN - examined,
+            );
+        for uuid in canceled_native_feedback {
+            self.native_feedback_senders.remove(&uuid);
+        }
+        feedback_left || native_feedback_left
     }
 
     fn prune_canceled_cancel_requests(&mut self) {
@@ -1485,18 +1803,36 @@ where
     }
 
     fn prune_canceled_feedback(&mut self) {
-        for uuid in
-            take_canceled_feedback_goals(&self.canceled_feedback_goals, &self.feedback_senders)
-        {
-            self.feedback_senders.remove(&uuid);
-        }
+        self.prune_canceled_feedback_observers_with_progress();
     }
 
     fn pending_feedback_completion(&mut self) -> (PendingFeedbackAction, bool) {
-        take_ready_pending_feedback_with_progress(
+        let (owned, owned_continuation) = take_ready_pending_feedback_with_progress(
             &self.pending_feedback_goals,
             &self.feedback_senders,
-        )
+        );
+        if matches!(&owned, PendingFeedbackAction::Deliver(_)) {
+            return (owned, owned_continuation);
+        }
+        let (native, native_continuation) = take_ready_pending_feedback_with_progress(
+            &self.pending_native_feedback_goals,
+            &self.native_feedback_senders,
+        );
+        if matches!(&native, PendingFeedbackAction::Deliver(_)) {
+            return (native, owned_continuation || native_continuation);
+        }
+        let action = if matches!(&owned, PendingFeedbackAction::Backpressured)
+            || matches!(&native, PendingFeedbackAction::Backpressured)
+        {
+            PendingFeedbackAction::Backpressured
+        } else if matches!(&owned, PendingFeedbackAction::Continue)
+            || matches!(&native, PendingFeedbackAction::Continue)
+        {
+            PendingFeedbackAction::Continue
+        } else {
+            PendingFeedbackAction::None
+        };
+        (action, owned_continuation || native_continuation)
     }
 
     fn finish_result_request_send(
@@ -1538,8 +1874,10 @@ where
 
     fn send_result_request_native(
         &mut self, uuid: uuid::Uuid,
-        native_msg: WrappedNativeMsg<
-            <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
+        native_msg: NativeLease<
+            WrappedNativeMsg<
+                <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
+            >,
         >,
     ) -> (Result<()>, Vec<ActionClientCompletion>) {
         let result = {
@@ -1607,9 +1945,11 @@ where
         completions: &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let mut response_msg = WrappedNativeMsg::<
-            <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
-        >::try_new()?;
+        let mut response_msg = self.goal_response_native_buffer.checkout(
+            WrappedNativeMsg::<
+                <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
+            >::try_new,
+        )?;
 
         let ret = unsafe {
             rcl_action_take_goal_response(
@@ -1713,6 +2053,15 @@ where
         if action_client_take_succeeded(ret)? {
             if let Some(id) = T::native_feedback_uuid(&feedback_msg) {
                 let uuid = uuid::Uuid::from_bytes(id);
+                if let Some(channel) = self.native_feedback_senders.get(&uuid).cloned() {
+                    completions.push(native_feedback::native_delivery::<T>(
+                        feedback_msg,
+                        Some(channel),
+                        Arc::clone(&self.pending_native_feedback_goals),
+                        uuid,
+                    ));
+                    return Ok(ActionClientTakeResult::Taken);
+                }
                 completions.push(native_feedback::completion(
                     feedback_msg,
                     self.feedback_senders.get(&uuid).cloned(),
@@ -1744,10 +2093,18 @@ where
     fn handle_status_msg(
         &mut self, client: Arc<Mutex<dyn ActionClient_>>,
     ) -> Result<Vec<ActionClientCompletion>> {
-        let mut status_array = WrappedNativeMsg::<action_msgs::msg::GoalStatusArray>::try_new()?;
+        let mut status_array = self
+            .status_native_buffer
+            .checkout(WrappedNativeMsg::<action_msgs::msg::GoalStatusArray>::try_new)?;
         let ret = unsafe { rcl_action_take_status(&self.rcl_handle, status_array.void_ptr_mut()) };
         if action_client_take_succeeded(ret)? {
-            Ok(vec![action_status_completion(client, status_array)])
+            #[cfg(test)]
+            TYPED_STATUS_NATIVE_TAKES.with(|count| count.set(count.get() + 1));
+            Ok(vec![action_status_completion(
+                client,
+                status_array,
+                |status_array| status::decode_native(status_array),
+            )])
         } else {
             Ok(Vec::new())
         }
@@ -1758,9 +2115,11 @@ where
         completions: &mut Vec<ActionClientCompletion>,
     ) -> Result<ActionClientTakeResult> {
         let mut request_id = MaybeUninit::<rmw_request_id_t>::uninit();
-        let mut response_msg = WrappedNativeMsg::<
-            <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
-        >::try_new()?;
+        let mut response_msg = self.result_response_native_buffer.checkout(
+            WrappedNativeMsg::<
+                <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
+            >::try_new,
+        )?;
 
         let ret = unsafe {
             rcl_action_take_result_response(
@@ -1819,8 +2178,10 @@ where
     fn has_pending_maintenance(&self) -> bool {
         !self.canceled_cancel_requests.lock().is_empty()
             || !self.canceled_feedback_goals.lock().is_empty()
+            || !self.canceled_native_feedback_goals.lock().is_empty()
             || !self.canceled_result_goals.lock().is_empty()
             || !self.pending_feedback_goals.lock().is_empty()
+            || !self.pending_native_feedback_goals.lock().is_empty()
     }
 
     fn disable_maintenance_notifications(&self) {
@@ -1861,6 +2222,7 @@ where
         !self.goal_response_channels.is_empty()
             || !self.cancel_response_channels.is_empty()
             || !self.feedback_senders.is_empty()
+            || !self.native_feedback_senders.is_empty()
             || !self.result_senders.is_empty()
             || !self.goal_status.is_empty()
             || !self.poll_available_channels.is_empty()
@@ -1898,10 +2260,17 @@ pub(crate) fn prepare_cancel_request(
 }
 
 fn prepare_result_request<T>(
+    buffer: &NativeBuffer<
+        WrappedNativeMsg<
+            <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
+        >,
+    >,
     uuid: uuid::Uuid,
 ) -> Result<
-    WrappedNativeMsg<
-        <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
+    NativeLease<
+        WrappedNativeMsg<
+            <<T as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Request,
+        >,
     >,
 >
 where
@@ -1910,7 +2279,13 @@ where
     let uuid_msg = unique_identifier_msgs::msg::UUID {
         uuid: *uuid.as_bytes(),
     };
-    WrappedNativeMsg::try_from(&T::make_result_request_msg(uuid_msg))
+    let request = T::make_result_request_msg(uuid_msg);
+    let mut native = buffer.checkout(WrappedNativeMsg::try_new)?;
+    if let Err(error) = request.try_copy_to_native(&mut native) {
+        native.retire();
+        return Err(error);
+    }
+    Ok(native)
 }
 
 pub(crate) fn action_client_take_succeeded(ret: rcl_ret_t) -> Result<bool> {
@@ -2121,6 +2496,99 @@ mod tests {
         task::{Context, Poll},
     };
 
+    #[derive(Clone, Debug)]
+    struct LegacyFibonacciAction;
+
+    unsafe impl WrappedActionTypeSupport for LegacyFibonacciAction {
+        type Goal = Fibonacci::Goal;
+        type Result = Fibonacci::Result;
+        type Feedback = Fibonacci::Feedback;
+        type FeedbackMessage = Fibonacci::FeedbackMessage;
+        type SendGoal = Fibonacci::SendGoal::Service;
+        type GetResult = Fibonacci::GetResult::Service;
+
+        fn get_ts() -> &'static rosidl_action_type_support_t {
+            <Fibonacci::Action as WrappedActionTypeSupport>::get_ts()
+        }
+
+        fn make_goal_request_msg(
+            goal_id: unique_identifier_msgs::msg::UUID, goal: Self::Goal,
+        ) -> <Self::SendGoal as WrappedServiceTypeSupport>::Request {
+            <Fibonacci::Action as WrappedActionTypeSupport>::make_goal_request_msg(goal_id, goal)
+        }
+
+        fn make_goal_response_msg(
+            accepted: bool, stamp: builtin_interfaces::msg::Time,
+        ) -> <Self::SendGoal as WrappedServiceTypeSupport>::Response {
+            <Fibonacci::Action as WrappedActionTypeSupport>::make_goal_response_msg(accepted, stamp)
+        }
+
+        fn make_feedback_msg(
+            goal_id: unique_identifier_msgs::msg::UUID, feedback: Self::Feedback,
+        ) -> Self::FeedbackMessage {
+            <Fibonacci::Action as WrappedActionTypeSupport>::make_feedback_msg(goal_id, feedback)
+        }
+
+        fn make_result_request_msg(
+            goal_id: unique_identifier_msgs::msg::UUID,
+        ) -> <Self::GetResult as WrappedServiceTypeSupport>::Request {
+            <Fibonacci::Action as WrappedActionTypeSupport>::make_result_request_msg(goal_id)
+        }
+
+        fn make_result_response_msg(
+            status: i8, result: Self::Result,
+        ) -> <Self::GetResult as WrappedServiceTypeSupport>::Response {
+            <Fibonacci::Action as WrappedActionTypeSupport>::make_result_response_msg(
+                status, result,
+            )
+        }
+
+        fn destructure_goal_request_msg(
+            msg: <Self::SendGoal as WrappedServiceTypeSupport>::Request,
+        ) -> (unique_identifier_msgs::msg::UUID, Self::Goal) {
+            <Fibonacci::Action as WrappedActionTypeSupport>::destructure_goal_request_msg(msg)
+        }
+
+        fn destructure_goal_response_msg(
+            msg: <Self::SendGoal as WrappedServiceTypeSupport>::Response,
+        ) -> (bool, builtin_interfaces::msg::Time) {
+            <Fibonacci::Action as WrappedActionTypeSupport>::destructure_goal_response_msg(msg)
+        }
+
+        fn destructure_feedback_msg(
+            msg: Self::FeedbackMessage,
+        ) -> (unique_identifier_msgs::msg::UUID, Self::Feedback) {
+            <Fibonacci::Action as WrappedActionTypeSupport>::destructure_feedback_msg(msg)
+        }
+
+        fn destructure_result_response_msg(
+            msg: <Self::GetResult as WrappedServiceTypeSupport>::Response,
+        ) -> (i8, Self::Result) {
+            <Fibonacci::Action as WrappedActionTypeSupport>::destructure_result_response_msg(msg)
+        }
+
+        fn destructure_result_request_msg(
+            msg: <Self::GetResult as WrappedServiceTypeSupport>::Request,
+        ) -> unique_identifier_msgs::msg::UUID {
+            <Fibonacci::Action as WrappedActionTypeSupport>::destructure_result_request_msg(msg)
+        }
+    }
+
+    #[test]
+    fn native_feedback_rejects_custom_actions_without_native_identity_before_sending() {
+        let client = make_action_client(
+            Weak::<Mutex<WrappedActionClient<LegacyFibonacciAction>>>::new(),
+            1,
+            Arc::new(Mutex::new(Default::default())),
+            Arc::new(Mutex::new(VecDeque::new())),
+        );
+        let outcome = client.send_goal_request_native_feedback_with_options(
+            Fibonacci::Goal { order: 1 },
+            ActionGoalOptions::default(),
+        );
+        assert!(matches!(outcome, Err(Error::RCL_RET_UNSUPPORTED)));
+    }
+
     #[test]
     fn goal_cancel_timeout_rejects_foreign_node_before_sending() {
         let context = crate::Context::create().unwrap();
@@ -2187,6 +2655,9 @@ mod tests {
             feedback_senders: HashMap::new(),
             canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
             pending_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            native_feedback_senders: HashMap::new(),
+            canceled_native_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            pending_native_feedback_goals: Arc::new(Mutex::new(Default::default())),
             result_senders: HashMap::new(),
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             result_requests: HashMap::new(),
@@ -2194,6 +2665,9 @@ mod tests {
             goal_status: HashMap::new(),
             feedback_channel_capacity: 1,
             feedback_native_buffer: Default::default(),
+            goal_response_native_buffer: Default::default(),
+            status_native_buffer: Default::default(),
+            result_response_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         }));
         let identity = Arc::as_ptr(&client).cast::<()>() as usize;
@@ -2230,6 +2704,9 @@ mod tests {
             feedback_senders: HashMap::new(),
             canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
             pending_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            native_feedback_senders: HashMap::new(),
+            canceled_native_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            pending_native_feedback_goals: Arc::new(Mutex::new(Default::default())),
             result_senders: HashMap::new(),
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             result_requests: HashMap::new(),
@@ -2237,6 +2714,9 @@ mod tests {
             goal_status: HashMap::new(),
             feedback_channel_capacity: 1,
             feedback_native_buffer: Default::default(),
+            goal_response_native_buffer: Default::default(),
+            status_native_buffer: Default::default(),
+            result_response_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
         let (first_sender, first_receiver) = oneshot::channel();
@@ -2264,6 +2744,9 @@ mod tests {
             feedback_senders: HashMap::new(),
             canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
             pending_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            native_feedback_senders: HashMap::new(),
+            canceled_native_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            pending_native_feedback_goals: Arc::new(Mutex::new(Default::default())),
             result_senders: HashMap::new(),
             canceled_result_goals: Arc::new(Mutex::new(Default::default())),
             result_requests: HashMap::new(),
@@ -2271,6 +2754,9 @@ mod tests {
             goal_status: HashMap::from([(uuid::Uuid::nil(), GoalStatus::Accepted)]),
             feedback_channel_capacity: 1,
             feedback_native_buffer: Default::default(),
+            goal_response_native_buffer: Default::default(),
+            status_native_buffer: Default::default(),
+            result_response_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
 
@@ -2598,27 +3084,67 @@ mod tests {
     #[test]
     fn action_response_batches_stop_at_idle_and_fairness_limit() {
         let calls = std::cell::Cell::new(0);
-        let mut client = ();
-        let mut completions = Vec::new();
-        collect_action_client_responses(&mut client, &mut completions, |_, _| {
-            let call = calls.get();
-            calls.set(call + 1);
-            if call == 2 {
-                Ok(ActionClientTakeResult::Idle)
-            } else {
-                Ok(ActionClientTakeResult::Taken)
-            }
-        })
+        let client = Mutex::new(());
+        complete_action_client_response_batch(
+            &client,
+            |_, _| {
+                let call = calls.get();
+                calls.set(call + 1);
+                if call == 2 {
+                    Ok(ActionClientTakeResult::Idle)
+                } else {
+                    Ok(ActionClientTakeResult::Taken)
+                }
+            },
+            |_, _| Vec::new(),
+        )
         .unwrap();
         assert_eq!(calls.get(), 3);
 
         calls.set(0);
-        collect_action_client_responses(&mut client, &mut completions, |_, _| {
-            calls.set(calls.get() + 1);
-            Ok(ActionClientTakeResult::Taken)
-        })
+        complete_action_client_response_batch(
+            &client,
+            |_, _| {
+                calls.set(calls.get() + 1);
+                Ok(ActionClientTakeResult::Taken)
+            },
+            |_, _| Vec::new(),
+        )
         .unwrap();
         assert_eq!(calls.get(), MAX_ACTION_RESPONSES_PER_SPIN);
+    }
+
+    #[test]
+    fn action_response_batches_complete_each_take_before_the_next_probe() {
+        let client = Mutex::new(());
+        let calls = std::cell::Cell::new(0);
+        let completed = Arc::new(AtomicUsize::new(0));
+
+        complete_action_client_response_batch(
+            &client,
+            |_, completions| {
+                let call = calls.get();
+                assert_eq!(completed.load(Ordering::SeqCst), call);
+                calls.set(call + 1);
+                if call == 2 {
+                    return Ok(ActionClientTakeResult::Idle);
+                }
+                let completed = Arc::clone(&completed);
+                completions.push(ActionClientCompletion {
+                    notify: Box::new(move || {
+                        completed.fetch_add(1, Ordering::SeqCst);
+                        Ok(true)
+                    }),
+                    cleanup_goal_on_failure: None,
+                });
+                Ok(ActionClientTakeResult::Taken)
+            },
+            |_, _| Vec::new(),
+        )
+        .unwrap();
+
+        assert_eq!(calls.get(), 3);
+        assert_eq!(completed.load(Ordering::SeqCst), 2);
     }
 
     #[test]
@@ -2836,6 +3362,45 @@ mod tests {
     }
 
     #[test]
+    fn owned_and_native_feedback_cancellation_share_one_sixteen_entry_budget() {
+        fn closed_channels(first: u128, count: u128) -> HashMap<uuid::Uuid, FeedbackSender<()>> {
+            (first..first + count)
+                .map(|value| {
+                    let (sender, receiver) = mpsc::channel(1);
+                    drop(receiver);
+                    (
+                        uuid::Uuid::from_u128(value),
+                        Arc::new(Mutex::new(FeedbackChannel::new(sender))),
+                    )
+                })
+                .collect()
+        }
+
+        let owned = closed_channels(1, 12);
+        let native = closed_channels(101, 12);
+        let owned_queue = Arc::new(Mutex::new(ActionClientMaintenanceQueue {
+            entries: owned.keys().copied().collect(),
+            ..Default::default()
+        }));
+        let native_queue = Arc::new(Mutex::new(ActionClientMaintenanceQueue {
+            entries: native.keys().copied().collect(),
+            ..Default::default()
+        }));
+
+        let (owned_canceled, owned_left, examined) =
+            take_canceled_feedback_goals_with_budget(&owned_queue, &owned, 16);
+        let (native_canceled, native_left, native_examined) =
+            take_canceled_feedback_goals_with_budget(&native_queue, &native, 16 - examined);
+
+        assert_eq!(owned_canceled.len(), 12);
+        assert!(!owned_left);
+        assert_eq!(native_canceled.len(), 4);
+        assert!(native_left);
+        assert_eq!(examined + native_examined, 16);
+        assert_eq!(native_queue.lock().len(), 8);
+    }
+
+    #[test]
     fn canceled_result_cleanup_is_bounded() {
         let canceled_results_queue = ActionClientMaintenanceQueue {
             entries: (1..=20_u128)
@@ -2866,11 +3431,13 @@ mod tests {
     }
 
     #[test]
-    fn canceled_terminal_result_closes_feedback_and_request_state() {
+    fn canceled_terminal_result_closes_owned_and_native_feedback_state() {
         let uuid = uuid::Uuid::from_u128(1);
         let canceled_results = Arc::new(Mutex::new(ActionClientMaintenanceQueue::default()));
         let (result_sender, result_receiver) = oneshot::channel();
         let (feedback_sender, mut feedback_receiver) = mpsc::channel(1);
+        let (native_feedback_sender, mut native_feedback_receiver) =
+            mpsc::channel::<ActionNativeFeedback<Fibonacci::Action>>(1);
         let mut client = WrappedActionClient::<Fibonacci::Action> {
             rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
             goal_response_channels: HashMap::new(),
@@ -2883,6 +3450,12 @@ mod tests {
                 Arc::new(Mutex::new(FeedbackChannel::new(feedback_sender))),
             )]),
             pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            native_feedback_senders: HashMap::from([(
+                uuid,
+                Arc::new(Mutex::new(FeedbackChannel::new(native_feedback_sender))),
+            )]),
+            canceled_native_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            pending_native_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::from([(10, uuid)]),
             result_request_sequences: HashMap::from([(uuid, 10)]),
             result_senders: HashMap::from([(uuid, result_sender)]),
@@ -2890,6 +3463,9 @@ mod tests {
             goal_status: HashMap::from([(uuid, GoalStatus::Succeeded)]),
             feedback_channel_capacity: 1,
             feedback_native_buffer: Default::default(),
+            goal_response_native_buffer: Default::default(),
+            status_native_buffer: Default::default(),
+            result_response_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
         let result = ActionResultFuture::<Fibonacci::Action> {
@@ -2904,14 +3480,25 @@ mod tests {
         assert!(!client.result_requests.contains_key(&10));
         assert!(!client.result_request_sequences.contains_key(&uuid));
         assert!(!client.feedback_senders.contains_key(&uuid));
+        assert!(!client.native_feedback_senders.contains_key(&uuid));
         assert!(matches!(
             Pin::new(&mut feedback_receiver)
+                .poll_next(&mut Context::from_waker(futures::task::noop_waker_ref())),
+            Poll::Pending
+        ));
+        assert!(matches!(
+            Pin::new(&mut native_feedback_receiver)
                 .poll_next(&mut Context::from_waker(futures::task::noop_waker_ref())),
             Poll::Pending
         ));
         run_detached_action_client_completions(completions);
         assert!(matches!(
             Pin::new(&mut feedback_receiver)
+                .poll_next(&mut Context::from_waker(futures::task::noop_waker_ref())),
+            Poll::Ready(None)
+        ));
+        assert!(matches!(
+            Pin::new(&mut native_feedback_receiver)
                 .poll_next(&mut Context::from_waker(futures::task::noop_waker_ref())),
             Poll::Ready(None)
         ));
@@ -3008,6 +3595,9 @@ mod tests {
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_sender)))),
             ]),
             pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            native_feedback_senders: HashMap::new(),
+            canceled_native_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            pending_native_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::new(),
@@ -3015,6 +3605,9 @@ mod tests {
             goal_status: HashMap::new(),
             feedback_channel_capacity: 1,
             feedback_native_buffer: Default::default(),
+            goal_response_native_buffer: Default::default(),
+            status_native_buffer: Default::default(),
+            result_response_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
 
@@ -3318,6 +3911,9 @@ mod tests {
                 Arc::new(Mutex::new(FeedbackChannel::new(feedback_sender))),
             )]),
             pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            native_feedback_senders: HashMap::new(),
+            canceled_native_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            pending_native_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::from([(1, target)]),
             result_request_sequences: HashMap::from([(target, 1)]),
             result_senders: HashMap::from([(target, result_sender)]),
@@ -3325,6 +3921,9 @@ mod tests {
             goal_status: HashMap::from([(target, GoalStatus::Accepted)]),
             feedback_channel_capacity: 0,
             feedback_native_buffer: Default::default(),
+            goal_response_native_buffer: Default::default(),
+            status_native_buffer: Default::default(),
+            result_response_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         }));
         let wake = Arc::new(GoalCleanupWake {
@@ -3377,6 +3976,9 @@ mod tests {
             canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::new(),
             pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            native_feedback_senders: HashMap::new(),
+            canceled_native_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            pending_native_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::new(),
@@ -3387,6 +3989,9 @@ mod tests {
             ]),
             feedback_channel_capacity: 0,
             feedback_native_buffer: Default::default(),
+            goal_response_native_buffer: Default::default(),
+            status_native_buffer: Default::default(),
+            result_response_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
 
@@ -3417,6 +4022,9 @@ mod tests {
             canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::new(),
             pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            native_feedback_senders: HashMap::new(),
+            canceled_native_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            pending_native_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::new(),
@@ -3424,6 +4032,9 @@ mod tests {
             goal_status: HashMap::from([(uuid, GoalStatus::Unknown)]),
             feedback_channel_capacity: 0,
             feedback_native_buffer: Default::default(),
+            goal_response_native_buffer: Default::default(),
+            status_native_buffer: Default::default(),
+            result_response_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         }));
         let registration = PendingGoalRegistration {
@@ -3464,6 +4075,9 @@ mod tests {
                 })),
             )]),
             pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            native_feedback_senders: HashMap::new(),
+            canceled_native_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            pending_native_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::from([(1, target)]),
             result_request_sequences: HashMap::from([(target, 1)]),
             result_senders: HashMap::from([(target, result_sender)]),
@@ -3471,6 +4085,9 @@ mod tests {
             goal_status: HashMap::from([(target, GoalStatus::Accepted)]),
             feedback_channel_capacity: 1,
             feedback_native_buffer: Default::default(),
+            goal_response_native_buffer: Default::default(),
+            status_native_buffer: Default::default(),
+            result_response_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         });
         let (sender, receiver) = oneshot::channel();
@@ -3616,6 +4233,9 @@ mod tests {
             canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
             feedback_senders: HashMap::new(),
             pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            native_feedback_senders: HashMap::new(),
+            canceled_native_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            pending_native_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::new(),
@@ -3623,6 +4243,9 @@ mod tests {
             goal_status: HashMap::new(),
             feedback_channel_capacity: 0,
             feedback_native_buffer: Default::default(),
+            goal_response_native_buffer: Default::default(),
+            status_native_buffer: Default::default(),
+            result_response_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
         let future = registered_cancel_response_future(receiver, canceled_cancels, 10);
@@ -3634,10 +4257,15 @@ mod tests {
     }
 
     #[test]
-    fn pending_work_prunes_dropped_feedback_stream() {
+    fn pending_work_prunes_dropped_owned_and_native_feedback_streams() {
         let uuid = uuid::Uuid::from_u128(1);
+        let native_uuid = uuid::Uuid::from_u128(2);
         let canceled_feedback = Arc::new(Mutex::new(ActionClientMaintenanceQueue::default()));
+        let canceled_native_feedback =
+            Arc::new(Mutex::new(ActionClientMaintenanceQueue::default()));
         let (sender, receiver) = mpsc::channel(1);
+        let (native_sender, native_receiver) =
+            mpsc::channel::<ActionNativeFeedback<Fibonacci::Action>>(1);
         let mut client = WrappedActionClient::<Fibonacci::Action> {
             rcl_handle: unsafe { rcl_action_get_zero_initialized_client() },
             goal_response_channels: HashMap::new(),
@@ -3650,6 +4278,12 @@ mod tests {
             )]),
             canceled_feedback_goals: Arc::clone(&canceled_feedback),
             pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            native_feedback_senders: HashMap::from([(
+                native_uuid,
+                Arc::new(Mutex::new(FeedbackChannel::new(native_sender))),
+            )]),
+            canceled_native_feedback_goals: Arc::clone(&canceled_native_feedback),
+            pending_native_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::new(),
@@ -3657,17 +4291,30 @@ mod tests {
             goal_status: HashMap::new(),
             feedback_channel_capacity: 1,
             feedback_native_buffer: Default::default(),
+            goal_response_native_buffer: Default::default(),
+            status_native_buffer: Default::default(),
+            result_response_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
         let stream = ActionFeedbackStream::<Fibonacci::Action> {
             receiver,
             registration: FeedbackStreamRegistration::new(canceled_feedback, uuid),
         };
+        let native_stream = ActionNativeFeedbackStream::<Fibonacci::Action> {
+            receiver: native_receiver,
+            registration: FeedbackStreamRegistration::new(canceled_native_feedback, native_uuid),
+        };
 
         drop(stream);
 
-        assert!(!client.has_pending_work());
+        assert!(client.has_pending_work());
         assert!(client.feedback_senders.is_empty());
+        assert!(client.native_feedback_senders.contains_key(&native_uuid));
+
+        drop(native_stream);
+
+        assert!(!client.has_pending_work());
+        assert!(client.native_feedback_senders.is_empty());
     }
 
     #[test]
@@ -3684,6 +4331,9 @@ mod tests {
             feedback_senders: HashMap::new(),
             canceled_feedback_goals: Arc::new(Mutex::new(Default::default())),
             pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            native_feedback_senders: HashMap::new(),
+            canceled_native_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            pending_native_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::new(),
@@ -3691,6 +4341,9 @@ mod tests {
             goal_status: HashMap::new(),
             feedback_channel_capacity: 1,
             feedback_native_buffer: Default::default(),
+            goal_response_native_buffer: Default::default(),
+            status_native_buffer: Default::default(),
+            result_response_native_buffer: Default::default(),
             poll_available_channels: waiters,
         };
 
@@ -3765,6 +4418,9 @@ mod tests {
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),
             ]),
             pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            native_feedback_senders: HashMap::new(),
+            canceled_native_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            pending_native_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::from([(10, target), (11, other)]),
             result_request_sequences: HashMap::from([(target, 10), (other, 11)]),
             result_senders: HashMap::from([(target, target_result), (other, other_result)]),
@@ -3775,6 +4431,9 @@ mod tests {
             ]),
             feedback_channel_capacity: 1,
             feedback_native_buffer: Default::default(),
+            goal_response_native_buffer: Default::default(),
+            status_native_buffer: Default::default(),
+            result_response_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         };
 
@@ -3830,6 +4489,9 @@ mod tests {
                 (other, Arc::new(Mutex::new(FeedbackChannel::new(other_feedback)))),
             ]),
             pending_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            native_feedback_senders: HashMap::new(),
+            canceled_native_feedback_goals: Arc::new(Mutex::new(Default::default())),
+            pending_native_feedback_goals: Arc::new(Mutex::new(PendingFeedbackQueue::default())),
             result_requests: HashMap::new(),
             result_request_sequences: HashMap::new(),
             result_senders: HashMap::from([(target, target_result), (other, other_result)]),
@@ -3840,6 +4502,9 @@ mod tests {
             ]),
             feedback_channel_capacity: 1,
             feedback_native_buffer: Default::default(),
+            goal_response_native_buffer: Default::default(),
+            status_native_buffer: Default::default(),
+            result_response_native_buffer: Default::default(),
             poll_available_channels: AvailabilityWaiters::default(),
         }));
         let pending = PendingGoalRegistration {
@@ -3861,3 +4526,12 @@ mod tests {
         assert_eq!(client.goal_response_sequences, HashMap::from([(other, 12)]));
     }
 }
+
+#[cfg(test)]
+mod goal_request_buffer_tests;
+
+#[cfg(test)]
+mod status_buffer_tests;
+
+#[cfg(test)]
+mod result_response_buffer_tests;

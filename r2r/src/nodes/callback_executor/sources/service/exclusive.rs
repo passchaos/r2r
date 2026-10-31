@@ -78,7 +78,7 @@ impl Node {
     {
         let options = options.validate()?;
         let mut response = WrappedNativeMsg::<T::Response>::try_new()?;
-        let support = T::get_ts();
+        let support = T::try_get_ts()?;
         let handle = create_service_helper(self.node_handle.as_mut(), name, support, qos)?;
         let native = Arc::new(NativeService {
             handle: Box::new(UnsafeCell::new(handle)),

@@ -30,6 +30,8 @@ pub enum Error {
     TypeDescriptionIdentityMismatch { expected: String, actual: String },
     #[error("this endpoint event already has an observer; drop its stream and spin cleanup before taking or observing it again")]
     QosEventAlreadyObserved,
+    #[error("this timer already has a reset observer; drop it before creating another")]
+    TimerResetAlreadyObserved,
     #[error("RCL_RET_OK")]
     RCL_RET_OK,
     #[error("RCL_RET_ERROR")]
@@ -122,6 +124,10 @@ pub enum Error {
     ClockTypeNotRosTime,
     #[error("No typesupport built for the message type: {}", msgtype)]
     InvalidMessageType { msgtype: String },
+    #[error("Native type support for {interface} could not be loaded: {err}")]
+    NativeTypeSupport { interface: String, err: String },
+    #[error("Could not install the process signal handler: {err}")]
+    SignalHandler { err: String },
     #[error("Serde error: {}", err)]
     SerdeError { err: String },
     #[error("Invalid UTF-8 in {context}: {err}")]

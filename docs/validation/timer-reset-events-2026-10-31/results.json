@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "feature": "lossless asynchronous native timer reset events",
+  "contract": {
+    "late_registration_replays_resets": true,
+    "rapid_resets_coalesce_without_loss": true,
+    "observer_handoff_preserves_unconsumed_resets": true,
+    "one_live_observer_per_timer": true,
+    "pending_event_precedes_stream_close": true,
+    "ordinary_callback_grouped_and_lifecycle_timers": true,
+    "lifecycle_activation_resets_visible": true,
+    "ffi_callback_executes_no_user_closure": true,
+    "custom_waker_panic_cannot_cross_c_abi": true,
+    "unobserved_timer_adds_no_heap_allocation": true,
+    "humble_emulation_matches_public_contract": true,
+    "jazzy_kilted_use_native_rcl_callback": true
+  },
+  "required_matrix": {
+    "jazzy": [
+      "rmw_cyclonedds_cpp",
+      "rmw_fastrtps_cpp"
+    ],
+    "humble": [
+      "rmw_fastrtps_cpp"
+    ],
+    "kilted": [
+      "rmw_cyclonedds_cpp",
+      "rmw_fastrtps_cpp"
+    ]
+  },
+  "focused_gates": {
+    "jazzy_cases_per_rmw_debug": 6,
+    "jazzy_cases_per_rmw_release": 6,
+    "humble_cases": 6,
+    "kilted_cases_per_rmw": 6,
+    "example_passed_per_environment": true,
+    "focused_clippy_passed": true,
+    "workspace_all_target_clippy_passed": true,
+    "jazzy_release_cases_passed_per_rmw": 822,
+    "jazzy_release_manual_stages_ignored_per_rmw": 20
+  },
+  "resource_constraints": {
+    "single_cpu_compilation": true,
+    "cargo_build_jobs": 1,
+    "rayon_threads": 1,
+    "virtual_memory_limit_kib": 10485760,
+    "container_memory_bytes": 10000000000,
+    "container_memory_swap_bytes": 10000000000
+  },
+  "no_ros_gate": {
+    "public_documentation_artifacts": 84,
+    "required_documented_methods": 341,
+    "all_targets_compiled": true
+  },
+  "logs": {
+    "jazzy": {
+      "artifact": "logs/final-jazzy.log.gz",
+      "artifact_sha256": "5a91f497e69af31b0155822da1ed05577aaeb38a250b6d81d8c92af36503b43f",
+      "uncompressed_sha256": "1615adbb8449c7e18b0b79f861d0dc27947424db8aa69cd3c6f26b76c60ce0e2"
+    },
+    "compat": {
+      "artifact": "logs/final-compat.log.gz",
+      "artifact_sha256": "b3095845d65322308b3508755be14e5580898723c5d800157f690aacb4cd2fd9",
+      "uncompressed_sha256": "5544ac5655be76b9a8b299418907f4b35f3bb7ee5df2151b3ff1acc07b8eb31b"
+    },
+    "no_ros": {
+      "artifact": "logs/final-no-ros.log.gz",
+      "artifact_sha256": "c2c75b677e0f4cac07712afaf53cda115ee63a33cdc81b93924e4201d1644010",
+      "uncompressed_sha256": "733094c24d1c22528ca9435f7ad9cf3dd8dd659674322f36cb1d488f418b9fab"
+    },
+    "full_release": {
+      "artifact": "logs/final-full-release.log.gz",
+      "artifact_sha256": "c4d479dadbbce964cff2930b655b2df1c3f737fb663a217c0cafa19ccd5c07ca",
+      "uncompressed_sha256": "10f4e13f9efef6d4c866db18d9406cc248280d169f5ce6f6ede456974211718a"
+    }
+  },
+  "source_sha256": {
+    "r2r/src/nodes/timer_resets.rs": "3729d18cb7a8ce0539c54c04af84e61068085e9f6169a015c12fb940893be53a",
+    "r2r/src/nodes/timer_reset_tests.rs": "b72284ab3b8628050fdc4f01431e3cd07870e9c1ddd77aa0ffcf9fb7835779d8",
+    "r2r/src/nodes/timers.rs": "2363e74a2881344066a7311d99fda95ad0c6fb7e8226507d76b0c738aa286714",
+    "r2r/src/nodes/timer_callbacks/handle.rs": "6499be7e62eacb225aad28fe0662e3cb17895859bf05bf27fbf363b5ff96a748",
+    "r2r/src/nodes/timer_callbacks/native.rs": "4d493e25d098820fda00e602b03c8fe6dde1a98d5db4fbfe458ddfb918310454",
+    "r2r/src/nodes/callback_executor/sources/timer.rs": "deeea000a494a055fb1c03ac8952e71f0debad14f04222d053919642f5f9e3a5",
+    "r2r/src/nodes/callback_executor/sources/timer/native.rs": "de62377863f63ef71406fda7e673c5f33c8433b89b8281887c56ae636f8e629c",
+    "r2r/src/nodes/callback_executor/tests/lifecycle.rs": "e9818b05f83c098c9b9187ea977b65db53a5388756a2fd3b327a7ff4ae6ead21",
+    "r2r/src/lifecycle/timer/operations.rs": "6f8f1a96e17a3c930769562f3645759ba4f972f813ac7e15b79269402cf35d40",
+    "r2r/src/lifecycle/timer/tests.rs": "62d25d61f92e6b5e8b341340d706429aaae6f7d92d4577d1f2ab1fadf6422003",
+    "r2r/src/lifecycle/callback_timer/operations.rs": "36d80b2557fd589d97557643be746fbdbd7ce67c35771e0288c07b20877fcd2c",
+    "r2r/src/lifecycle/callback_timer/tests/controls.rs": "9a24a97321c0d85a53dfec9c742e1c53239e96ca752d59c1ba235f4880f403ae",
+    "r2r/src/error.rs": "afb76b8ef6867866a510a15391434e935a7fe26e05d7aed085e49fdcc05c3406",
+    "r2r/src/lib.rs": "c1d0b15e9eef13e98f7142408fe74862ddee144cc9550237b7d6676355c22101",
+    "r2r/src/nodes.rs": "ca4f18f5e8cec7133f8a346c683a8eeae62964a64096bd7b540e96a1eb4b209e",
+    "r2r/examples/timer_reset_events.rs": "4e565ef0f57289707698a1e96252c56369961250ff3b0a5aaa1f6f8791434bb1",
+    "docs/TIMER_RESET_EVENTS.md": "1433ead4cb70bfcc759e11c7676d67dd2283ba541cc85ac4cef277fd4dbf2bc0",
+    "README.md": "804327d9ac4535471dda12675408630438f366979cd91bada21556b851a65ec8",
+    "docs/ROADMAP.md": "43e5f42ace5a1ae3fa71e4b993ef1641a8a1c3dce968f1549b8970a70ecf280c",
+    "docs/RELEASE_VALIDATION.md": "f23d3e1a101ee14a3c679cf529e629d5a44f0454faa7e8d5aec9d6c0df129da3",
+    "docs/DOCUMENTATION_BUILDS.md": "e5495b1e948c4d72bc5a96a52ceb3265f770c3c306acb4e05a55e28517fd79b2",
+    "docs/RUST_ROS2_COMPARISON.md": "64f86f9fa16464b745db5fe54416ade123ce7de05e99d15198cb62a22d116d01",
+    "tests/check_documentation.py": "b87c8eef33a8251b39d4a0940679d05903b5a749ec9c32633aa20579f311ab96",
+    "docs/validation/timer-reset-events-2026-10-31/README.md": "642df73eaeba968cde8cded327cd2f487c23ee7677d4f143beef7a078eb63836",
+    "docs/validation/timer-reset-events-2026-10-31/run-jazzy.bash": "521aefe919a9a56f0bcd10335294f891f34fda4b3182a1d1fa9c0f61b62da02f",
+    "docs/validation/timer-reset-events-2026-10-31/run-compat.bash": "c5628824160db3e8041d7188f45357bcaac951bc969287f4c940460d6b61bc71",
+    "docs/validation/timer-reset-events-2026-10-31/run-no-ros.bash": "434c346956d512f196366f57c8fe017d9ff4bf343391d04849f24e9f7ace5611",
+    "docs/validation/timer-reset-events-2026-10-31/verify.py": "decc37a8d5c30f609380ee16a7463ffc53c58719fbafb1b36ade4b6c8b0ef40c"
+  }
+}

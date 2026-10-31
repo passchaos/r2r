@@ -18,7 +18,14 @@ use std::{
     time::Duration,
 };
 
-use crate::{availability::AvailabilityWaiters, error::*, msg_types::*, nodes::Node, QosProfile};
+use crate::{
+    availability::AvailabilityWaiters,
+    error::*,
+    msg_types::*,
+    native_buffer::{NativeBuffer, NativeLease},
+    nodes::Node,
+    QosProfile,
+};
 use r2r_rcl::*;
 
 pub(crate) type ClientCompletion = Box<dyn FnOnce()>;
@@ -243,6 +250,7 @@ where
 {
     pub(crate) client: Weak<Mutex<TypedClient<T>>>,
     lifecycle: Arc<ClientHandleLifecycle>,
+    request_buffer: NativeBuffer<WrappedNativeMsg<T::Request>>,
 }
 
 pub(crate) struct ClientHandleLifecycle {
@@ -274,6 +282,7 @@ where
         Self {
             client: self.client.clone(),
             lifecycle: Arc::clone(&self.lifecycle),
+            request_buffer: self.request_buffer.clone(),
         }
     }
 }
@@ -295,6 +304,19 @@ impl<T: 'static> Client<T>
 where
     T: WrappedServiceTypeSupport,
 {
+    fn prepare_request(
+        &self, msg: &T::Request,
+    ) -> Result<NativeLease<WrappedNativeMsg<T::Request>>> {
+        let mut native_msg = self
+            .request_buffer
+            .checkout(WrappedNativeMsg::<T::Request>::try_new)?;
+        if let Err(error) = msg.try_copy_to_native(&mut native_msg) {
+            native_msg.retire();
+            return Err(error);
+        }
+        Ok(native_msg)
+    }
+
     /// Make a service request.
     ///
     /// Returns a `Future` of the `Response` type.
@@ -307,8 +329,8 @@ where
         let client_for_cleanup = Arc::downgrade(&client);
         let (sequence, receiver) = with_prepared_client(
             &client,
-            || WrappedNativeMsg::<T::Request>::try_from(msg),
-            TypedClient::request_native,
+            || self.prepare_request(msg),
+            |client, native_msg| client.request_native(&native_msg),
         )?;
         Ok(client_response_future(client_for_cleanup, sequence, receiver))
     }
@@ -321,8 +343,8 @@ where
         let client_for_cleanup = Arc::downgrade(&client);
         let (sequence, receiver) = with_prepared_client(
             &client,
-            || WrappedNativeMsg::<T::Request>::try_from(msg),
-            TypedClient::request_native_with_info,
+            || self.prepare_request(msg),
+            |client, native_msg| client.request_native_with_info(&native_msg),
         )?;
         Ok(client_response_future(client_for_cleanup, sequence, receiver))
     }
@@ -664,6 +686,7 @@ where
             active_availability_clients,
             explicitly_destroyed: AtomicBool::new(false),
         }),
+        request_buffer: NativeBuffer::default(),
     }
 }
 
@@ -690,7 +713,7 @@ where
     T: WrappedServiceTypeSupport,
 {
     fn request_native(
-        &mut self, native_msg: WrappedNativeMsg<T::Request>,
+        &mut self, native_msg: &WrappedNativeMsg<T::Request>,
     ) -> Result<(i64, oneshot::Receiver<T::Response>)>
     where
         T: WrappedServiceTypeSupport,
@@ -712,7 +735,7 @@ where
     }
 
     fn request_native_with_info(
-        &mut self, native_msg: WrappedNativeMsg<T::Request>,
+        &mut self, native_msg: &WrappedNativeMsg<T::Request>,
     ) -> Result<(i64, oneshot::Receiver<ServiceResponse<T::Response>>)> {
         let mut seq_no = 0i64;
         let result =
@@ -794,6 +817,7 @@ where
 {
     pub rcl_handle: rcl_client_t,
     pub(crate) response_channels: HashMap<i64, ClientResponseSender<T::Response>>,
+    pub(crate) response_buffer: NativeBuffer<WrappedNativeMsg<T::Response>>,
     pub poll_available_channels: AvailabilityWaiters,
     #[cfg(test)]
     pub(crate) availability_poll_count: AtomicUsize,
@@ -829,7 +853,9 @@ where
 
     fn handle_response(&mut self) -> Result<ClientResponseAction> {
         let mut response_info = crate::native_metadata::service_info();
-        let mut response_msg = WrappedNativeMsg::<T::Response>::try_new()?;
+        let mut response_msg = self
+            .response_buffer
+            .checkout(WrappedNativeMsg::<T::Response>::try_new)?;
 
         let ret = unsafe {
             rcl_take_response_with_info(
@@ -1166,6 +1192,7 @@ mod tests {
         let mut client = TypedClient::<AddTwoInts::Service> {
             rcl_handle: unsafe { rcl_get_zero_initialized_client() },
             response_channels: HashMap::new(),
+            response_buffer: NativeBuffer::default(),
             poll_available_channels: AvailabilityWaiters::default(),
             availability_poll_count: AtomicUsize::new(0),
         };
@@ -1190,6 +1217,7 @@ mod tests {
         let client = Arc::new(Mutex::new(TypedClient::<AddTwoInts::Service> {
             rcl_handle: unsafe { rcl_get_zero_initialized_client() },
             response_channels: HashMap::new(),
+            response_buffer: NativeBuffer::default(),
             poll_available_channels: AvailabilityWaiters::default(),
             availability_poll_count: AtomicUsize::new(0),
         }));
@@ -1219,6 +1247,7 @@ mod tests {
                 (10, target_sender.into()),
                 (11, other_sender.into()),
             ]),
+            response_buffer: NativeBuffer::default(),
             poll_available_channels: AvailabilityWaiters::default(),
             availability_poll_count: AtomicUsize::new(0),
         }));
@@ -1237,6 +1266,7 @@ mod tests {
         let client = Arc::new(Mutex::new(TypedClient::<AddTwoInts::Service> {
             rcl_handle: unsafe { rcl_get_zero_initialized_client() },
             response_channels: HashMap::from([(10, sender.into())]),
+            response_buffer: NativeBuffer::default(),
             poll_available_channels: AvailabilityWaiters::default(),
             availability_poll_count: AtomicUsize::new(0),
         }));
@@ -1264,6 +1294,7 @@ mod tests {
         let client = Arc::new(Mutex::new(TypedClient::<AddTwoInts::Service> {
             rcl_handle: unsafe { rcl_get_zero_initialized_client() },
             response_channels: HashMap::from([(10, old_sender.into())]),
+            response_buffer: NativeBuffer::default(),
             poll_available_channels: AvailabilityWaiters::default(),
             availability_poll_count: AtomicUsize::new(0),
         }));
@@ -1287,6 +1318,7 @@ mod tests {
         let mut client = TypedClient::<AddTwoInts::Service> {
             rcl_handle: unsafe { rcl_get_zero_initialized_client() },
             response_channels: HashMap::new(),
+            response_buffer: NativeBuffer::default(),
             poll_available_channels: AvailabilityWaiters::default(),
             availability_poll_count: AtomicUsize::new(0),
         };
@@ -1437,3 +1469,9 @@ mod tests {
         assert_eq!(prepared, 42);
     }
 }
+
+#[cfg(test)]
+mod native_request_buffer_tests;
+
+#[cfg(test)]
+mod native_response_buffer_tests;

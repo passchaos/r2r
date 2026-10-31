@@ -33,9 +33,10 @@ python3 tools/bench_ros/verify_pubsub_pipeline.py --require-performance-pass \
   target/pubsub-pipeline/cyclonedds-ab.json
 ```
 
-The builder enables `r2r_bench_native_callbacks` only when the public callback API exists.
-Endpoints report `receive_path=native_callback|stream|callback`; the runner and verifier reject a
-binary/configuration mismatch. Formal runs require three consecutive idle samples, reject active
+Set `R2R_BENCH_PUBSUB_RECEIVE_PATH=stream|native_callback|reusable_typed|batch_typed` before building the Rust
+candidate. The builder enables the selected cfg only when its public API exists; older sources fall
+back to `stream`. Endpoints report `receive_path=native_callback|reusable_typed|batch_typed|stream|callback`;
+the runner and verifier reject a binary/configuration mismatch. Formal runs require three consecutive idle samples, reject active
 compiler/linker processes before measurement, and monitor `/proc` throughout the matrix. The
 offline performance verifier also requires this isolation gate; a numerically green but contended
 report cannot pass promotion. The runner and monitor are pinned away from both measurement CPUs,
@@ -43,6 +44,19 @@ and that affinity is recorded in every report. `--require-current-sources` recom
 source hashes from the checkout, so a stale green binary/report cannot pass either. Full matrices
 omit the baseline and use all four Rust/C++ language directions. Benchmark runs clear inherited
 DDS profile files and disable intra-process transport.
+
+`reusable_typed` keeps the ordinary safe Rust message surface while recycling native and decoded
+message storage. Its current dual-RMW full-direction protocol and isolation failure are archived in
+[`reusable-typed-pipeline-2026-10-31`](../../docs/validation/reusable-typed-pipeline-2026-10-31/README.md).
+Those short runs are correctness evidence; use the same strict `--max-rclcpp-ratio 1.0` isolation
+gate for performance promotion.
+
+`batch_typed` keeps the same per-message RTT, checksum, ordering and window accounting while using
+one `rcl_take_sequence` for up to `window` messages. Ping processes settle every item in a delivered
+batch and replenish the request window per item. Echo processes keep one independent cursor per
+fanout subscription and publish a response only after all cursors reach the same sequence. The
+Rust channel holds one complete batch, so batch delivery changes the native-take/channel boundary
+without weakening the existing workload oracle.
 
 Supplying either formal ratio gate requires at least three idle preflight samples. The verifier
 rejects nonfinite regression thresholds and a passing runtime summary whose maximum observed

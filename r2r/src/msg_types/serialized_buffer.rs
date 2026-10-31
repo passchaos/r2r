@@ -121,7 +121,8 @@ impl SerializedMessageBuffer {
     pub(crate) fn serialize<T: WrappedTypesupport>(
         &mut self, message: &WrappedNativeMsg<T>,
     ) -> Result<&[u8]> {
-        let result = unsafe { rmw_serialize(message.void_ptr(), T::get_ts(), &mut self.handle) };
+        let result =
+            unsafe { rmw_serialize(message.void_ptr(), T::try_get_ts()?, &mut self.handle) };
         if result != RCL_RET_OK as i32 {
             return Err(Error::from_rcl_error(result));
         }

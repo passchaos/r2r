@@ -6,6 +6,7 @@
 #include <rmw/rmw.h>
 #include <algorithm>
 #include <array>
+#include <cstdlib>
 #include <exception>
 #include <iostream>
 #include <memory>
@@ -47,6 +48,9 @@ int main(int argc,char **argv) {
       ~Cleanup(){state.release();executor.cancel();if(pool.joinable())pool.join();rclcpp::shutdown();}
     } cleanup{state,executor,pool};
     if(!client->wait_for_service(std::chrono::seconds(10)))throw std::runtime_error("service discovery timeout");
+    if(std::getenv("R2R_BENCH_STARTUP_MARKER")) {
+      std::cout<<"{\"event\":\"ready\",\"implementation\":\"rclcpp\",\"ready_from_main_ns\":"<<state.now()<<"}\n"<<std::flush;
+    }
     const bool challenge=kind=="reentrant"&&workers>=2&&window>=2;
     if(challenge) {
       auto a=std::make_shared<Service::Request>();a->a=-3;auto b=std::make_shared<Service::Request>();b->a=-4;

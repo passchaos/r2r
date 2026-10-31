@@ -1,6 +1,7 @@
 //! Service factories, registry bookkeeping and per-service accessors.
 
 use super::*;
+use crate::native_buffer::NativeBuffer;
 
 impl Node {
     pub(crate) fn add_service(&mut self, id: uuid::Uuid, service: Arc<Mutex<dyn Service_>>) {
@@ -67,7 +68,7 @@ impl Node {
         let service_handle = create_service_helper(
             self.node_handle.as_mut(),
             service_name,
-            T::get_ts(),
+            T::try_get_ts()?,
             qos_profile,
         )?;
         let (sender, receiver) =
@@ -78,6 +79,8 @@ impl Node {
             rcl_handle: service_handle,
             sender: Arc::new(Mutex::new(Some(sender))),
             id,
+            request_buffer: NativeBuffer::default(),
+            response_buffer: NativeBuffer::default(),
         };
 
         self.add_service(id, Arc::new(Mutex::new(ws)));

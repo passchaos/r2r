@@ -15,6 +15,14 @@ include!(concat!(env!("OUT_DIR"), "/introspection_functions.rs"));
 include!(concat!(env!("OUT_DIR"), "/constants.rs"));
 
 mod introspection;
+#[cfg(test)]
+#[path = "../build/native_functions.rs"]
+mod native_function_tests;
+#[cfg(not(feature = "doc-only"))]
+#[doc(hidden)]
+pub mod native_library;
+#[cfg(any(test, not(feature = "doc-only")))]
+mod native_support;
 
 #[cfg(not(feature = "doc-only"))]
 use {
@@ -133,6 +141,7 @@ unsafe fn introspection<'a>(
     String,
     &'a [rosidl_typesupport_introspection_c__MessageMember],
 ) {
+    assert!(!ptr.is_null(), "native introspection type support unavailable");
     let members = (*ptr).data as *const rosidl_typesupport_introspection_c__MessageMembers;
     let namespace = CStr::from_ptr((*members).message_namespace_)
         .to_str()
@@ -167,6 +176,12 @@ pub fn generate_rust_service(
          {name_}"
     );
 
+    let native_support = native_support::typesupport(
+        &ident,
+        &format_ident!("rosidl_service_type_support_t"),
+        &format!("{module_}/{prefix_}/{name_}"),
+    );
+
     quote!(
         #[derive(Clone,Debug,PartialEq,Serialize,Deserialize)]
         pub struct Service();
@@ -182,11 +197,7 @@ pub fn generate_rust_service(
             ))]
             type Event = Event;
 
-            fn get_ts() -> &'static rosidl_service_type_support_t {
-                unsafe {
-                    &* #ident ()
-                }
-            }
+            #native_support
         }
 
     )
@@ -202,6 +213,12 @@ pub fn generate_rust_action(module_: &str, prefix_: &str, name_: &str) -> proc_m
          {name_}"
     );
 
+    let native_support = native_support::typesupport(
+        &ident,
+        &format_ident!("rosidl_action_type_support_t"),
+        &format!("{module_}/{prefix_}/{name_}"),
+    );
+
     quote! {
         #[derive(Clone,Debug,PartialEq,Serialize,Deserialize)]
         pub struct Action();
@@ -215,11 +232,7 @@ pub fn generate_rust_action(module_: &str, prefix_: &str, name_: &str) -> proc_m
             type SendGoal = SendGoal::Service;
             type GetResult = GetResult::Service;
 
-            fn get_ts() -> &'static rosidl_action_type_support_t {
-                unsafe {
-                    &* #ident ()
-                }
-            }
+            #native_support
 
             fn make_goal_request_msg(goal_id: unique_identifier_msgs::msg::UUID, goal: Goal) -> SendGoal::Request {
                 SendGoal::Request {
@@ -271,6 +284,10 @@ pub fn generate_rust_action(module_: &str, prefix_: &str, name_: &str) -> proc_m
                 Some(msg.goal_id.uuid)
             }
 
+            fn supports_native_feedback_delivery() -> bool {
+                true
+            }
+
             fn destructure_result_response_msg(msg: GetResult::Response) -> (i8, Result) {
                 (msg.status, msg.result)
             }
@@ -296,6 +313,7 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
     assert_eq!(prefix, prefix_);
     assert_eq!(name, name_);
 
+    let interface_name = format!("{module}/{prefix}/{name}");
     let name = format_ident!("{}", rust_message_name(&prefix, &name));
     let c_struct = format_ident!("{c_struct}");
 
@@ -491,6 +509,136 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
         }
     };
 
+    let update_from_native = {
+        let fields = c_members.into_iter().filter_map(|c_member| {
+            let member: &MessageMember = unsafe { mem::transmute(c_member) };
+            let field_name_str = member.rust_name();
+            if field_name_str == "structure_needs_at_least_one_member" {
+                return None;
+            }
+            let field_name = format_ident!("{field_name_str}");
+            let rust_field_type = member.type_id();
+            let statement = if let Some(array_info) = member.array_info() {
+                if array_info.size > 0 && !array_info.is_upper_bound {
+                    match rust_field_type {
+                        MemberType::Message => {
+                            quote! {
+                                for (target, source) in self.#field_name.iter_mut().zip(&msg.#field_name) {
+                                    target.update_from_native(source);
+                                }
+                            }
+                        }
+                        MemberType::String => {
+                            quote! {
+                                for (target, source) in self.#field_name.iter_mut().zip(&msg.#field_name) {
+                                    target.clear();
+                                    target.extend_from_slice(source.as_bytes());
+                                }
+                            }
+                        }
+                        MemberType::WString => {
+                            quote! {
+                                for (target, source) in self.#field_name.iter_mut().zip(&msg.#field_name) {
+                                    target.clear();
+                                    target.extend_from_slice(source.as_units());
+                                }
+                            }
+                        }
+                        _ => quote! {
+                            self.#field_name.copy_from_slice(&msg.#field_name);
+                        },
+                    }
+                } else {
+                    let source = quote! {
+                        let source = if msg.#field_name.data.is_null() {
+                            &[]
+                        } else {
+                            unsafe {
+                                std::slice::from_raw_parts(msg.#field_name.data, msg.#field_name.size)
+                            }
+                        };
+                    };
+                    match rust_field_type {
+                        MemberType::Message => {
+                            let (module, prefix, name, _, _) =
+                                unsafe { introspection(c_member.members_) };
+                            let path = rust_message_path(&module, &prefix, &name);
+                            quote! {
+                                #source
+                                let retained = self.#field_name.len().min(source.len());
+                                for (target, source) in self.#field_name[..retained]
+                                    .iter_mut().zip(&source[..retained])
+                                {
+                                    target.update_from_native(source);
+                                }
+                                self.#field_name.truncate(source.len());
+                                for source in &source[retained..] {
+                                    self.#field_name.push(#path::from_native(source));
+                                }
+                            }
+                        }
+                        MemberType::String => quote! {
+                            #source
+                            let retained = self.#field_name.len().min(source.len());
+                            for (target, source) in self.#field_name[..retained]
+                                .iter_mut().zip(&source[..retained])
+                            {
+                                target.clear();
+                                target.extend_from_slice(source.as_bytes());
+                            }
+                            self.#field_name.truncate(source.len());
+                            for source in &source[retained..] {
+                                self.#field_name.push(crate::RosString::from(source.as_bytes()));
+                            }
+                        },
+                        MemberType::WString => quote! {
+                            #source
+                            let retained = self.#field_name.len().min(source.len());
+                            for (target, source) in self.#field_name[..retained]
+                                .iter_mut().zip(&source[..retained])
+                            {
+                                target.clear();
+                                target.extend_from_slice(source.as_units());
+                            }
+                            self.#field_name.truncate(source.len());
+                            for source in &source[retained..] {
+                                self.#field_name.push(crate::RosWString::from(source.as_units()));
+                            }
+                        },
+                        _ => quote! {
+                            #source
+                            self.#field_name.clear();
+                            self.#field_name.extend_from_slice(source);
+                        },
+                    }
+                }
+            } else {
+                match rust_field_type {
+                    MemberType::String => quote! {
+                        self.#field_name.clear();
+                        self.#field_name.extend_from_slice(msg.#field_name.as_bytes());
+                    },
+                    MemberType::WString => quote! {
+                        self.#field_name.clear();
+                        self.#field_name.extend_from_slice(msg.#field_name.as_units());
+                    },
+                    MemberType::Message => quote! {
+                        self.#field_name.update_from_native(&msg.#field_name);
+                    },
+                    _ => quote! {
+                        self.#field_name = msg.#field_name;
+                    },
+                }
+            };
+            Some(statement)
+        });
+        quote! {
+            fn update_from_native(&mut self, #[allow(unused)] msg: &Self::CStruct) {
+                #(#fields)*
+            }
+        }
+    };
+
     let copy_to_native = {
         let stmts = c_members.into_iter().filter_map(|c_member| {
             let member: &MessageMember = unsafe { mem::transmute(c_member) };
@@ -646,38 +794,35 @@ pub fn generate_rust_msg(module_: &str, prefix_: &str, name_: &str) -> proc_macr
     let typesupport = {
         let type_support_handle =
             format_ident!("rosidl_typesupport_c__get_message_type_support_handle__{c_struct}");
+        let init_func = format_ident!("{c_struct}__init");
+        let fini_func = format_ident!("{c_struct}__fini");
         let create_func = format_ident!("{c_struct}__create");
         let destroy_func = format_ident!("{c_struct}__destroy");
+
+        let interface = interface_name;
+        let native_support = native_support::typesupport(
+            &type_support_handle,
+            &format_ident!("rosidl_message_type_support_t"),
+            &interface,
+        );
+        let native_message = native_support::message(
+            &init_func,
+            &fini_func,
+            &create_func,
+            &destroy_func,
+            &c_struct,
+            &interface,
+        );
 
         quote! {
             unsafe impl WrappedTypesupport for #name {
                 type CStruct = #c_struct;
 
-                fn get_ts() -> &'static rosidl_message_type_support_t {
-                    unsafe {
-                        &* #type_support_handle()
-                    }
-                }
-
-                fn create_msg() -> *mut #c_struct {
-                    #[cfg(not(feature = "doc-only"))]
-                    unsafe {
-                        #create_func ()
-                    }
-                    #[cfg(feature = "doc-only")]
-                    #create_func ()
-                }
-
-                fn destroy_msg(msg: *mut #c_struct) -> () {
-                    #[cfg(not(feature = "doc-only"))]
-                    unsafe {
-                        #destroy_func (msg)
-                    };
-                    #[cfg(feature = "doc-only")]
-                    #destroy_func (msg)
-                }
+                #native_support
+                #native_message
 
                 #from_native
+                #update_from_native
                 #copy_to_native
             }
         }
@@ -811,8 +956,8 @@ pub fn generate_untyped_service_helper(msgs: &[RosMsg]) -> proc_macro2::TokenStr
 
             let func = quote! {
                 #[allow(non_snake_case)]
-                fn #func_ident() -> UntypedServiceSupport {
-                    UntypedServiceSupport::new::< #rustname  >()
+                fn #func_ident() -> Result<UntypedServiceSupport> {
+                    UntypedServiceSupport::try_new::< #rustname  >()
                 }
             };
             let entry = quote! { #typename => #func_ident };
@@ -828,11 +973,11 @@ pub fn generate_untyped_service_helper(msgs: &[RosMsg]) -> proc_macro2::TokenStr
             pub fn new_from(typename: &str) -> Result<Self> {
                 #(#funcs)*
 
-                static MAP: phf::Map<&'static str, fn() -> UntypedServiceSupport> = phf::phf_map! { #(#entries),* };
+                static MAP: phf::Map<&'static str, fn() -> Result<UntypedServiceSupport>> = phf::phf_map! { #(#entries),* };
 
                 let func = MAP.get(typename)
                     .ok_or_else(|| Error::InvalidMessageType{ msgtype: typename.into() })?;
-                Ok(func())
+                func()
             }
         }
     }
@@ -860,8 +1005,8 @@ pub fn generate_untyped_action_helper(msgs: &[RosMsg]) -> proc_macro2::TokenStre
 
             let func = quote! {
                 #[allow(non_snake_case)]
-                fn #func_ident() -> UntypedActionSupport {
-                    UntypedActionSupport::new::< #rustname  >()
+                fn #func_ident() -> Result<UntypedActionSupport> {
+                    UntypedActionSupport::try_new::< #rustname  >()
                 }
             };
             let entry = quote! { #typename => #func_ident };
@@ -878,11 +1023,11 @@ pub fn generate_untyped_action_helper(msgs: &[RosMsg]) -> proc_macro2::TokenStre
             pub fn new_from(typename: &str) -> Result<Self> {
                 #(#funcs)*
 
-                static MAP: phf::Map<&'static str, fn() -> UntypedActionSupport> = phf::phf_map! { #(#entries),* };
+                static MAP: phf::Map<&'static str, fn() -> Result<UntypedActionSupport>> = phf::phf_map! { #(#entries),* };
 
                 let func = MAP.get(typename)
                     .ok_or_else(|| Error::InvalidMessageType{ msgtype: typename.into() })?;
-                Ok(func())
+                func()
             }
         }
     }

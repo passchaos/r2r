@@ -76,6 +76,19 @@ readiness. One-shot completion/manual cancel remain paused until reset. A
 callback that already acquires an active native permit may finish during a
 concurrent deactivation.
 
+## Runtime-agnostic group tasks
+
+`CallbackGroup::spawn_task` retains arbitrary `Send` futures under the same mutually exclusive
+scheduler token. `ReentrantCallbackGroup::spawn_task` places each future in the least-populated
+stable lane, bounding concurrent polls by the group's configured concurrency without requiring the
+future to be `Sync`. This is the action/integration path: an action server request stream and client
+goal/result/feedback futures can be moved into group tasks while the native Node job continues to
+own RCL wait and take dispatch. Await points yield normally; synchronous application work follows
+the chosen exclusive or per-lane ordering. Task handles provide RAII cancellation or explicit
+detach, and stop/reset preserves pending future state. See
+[callback-group tasks](CALLBACK_GROUP_TASKS.md), `callback_group_action` and
+`reentrant_group_action`.
+
 ## Bounded reentrant groups
 
 ReentrantCallbackGroup::new(concurrency) admits up to that many simultaneous

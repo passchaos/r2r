@@ -9,6 +9,7 @@ pub(super) struct NativeTimer {
     pub(super) clock_type: ClockType,
     pub(super) oneshot: bool,
     pub(super) generation: Option<Generation>,
+    pub(super) reset_state: timer_resets::TimerResetSlot,
     pub(super) wake: Mutex<Option<Waker>>,
 }
 // SAFETY: the handle has stable interior-mutable storage. One Node owns native
@@ -23,7 +24,7 @@ impl NativeTimer {
             if !generation.matches(word) {
                 check_rcl_ret(unsafe { rcl_timer_cancel(self.handle.get()) })?;
                 if Generation::requested_enabled(word) {
-                    check_rcl_ret(unsafe { rcl_timer_reset(self.handle.get()) })?;
+                    self.reset_state.reset(self.handle.get())?;
                 }
                 generation.mark_applied(word);
             }
@@ -43,7 +44,7 @@ impl NativeTimer {
                 generation.set_manual(enabled, enabled);
                 self.synchronize_locked()
             } else if enabled {
-                check_rcl_ret(unsafe { rcl_timer_reset(handle) })
+                self.reset_state.reset(handle)
             } else {
                 check_rcl_ret(unsafe { rcl_timer_cancel(handle) })
             }
@@ -70,6 +71,7 @@ impl NativeTimer {
         let _operation = self.operations.lock();
         let _clock = self.clock.lock();
         if self.initialized.swap(false, Ordering::AcqRel) {
+            self.reset_state.close(self.handle.get());
             let ret = unsafe { rcl_timer_fini(self.handle.get()) };
             if ret != RCL_RET_OK as i32 {
                 log::error!("could not finalize grouped timer: {ret}");

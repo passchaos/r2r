@@ -38,7 +38,14 @@ mod filenames {
 use filenames::*;
 
 fn main() {
+    // Cargo rebuilds the build-dependency executable when the generator changes, but does not
+    // reliably rerun this package's build script solely for that dependency-source change.
+    println!("cargo:rerun-if-changed=../r2r_msg_gen/src/lib.rs");
+    println!("cargo:rerun-if-changed=../r2r_msg_gen/src/introspection.rs");
+    println!("cargo:rerun-if-changed=../r2r_msg_gen/src/native_support.rs");
     println!("cargo:rustc-check-cfg=cfg(r2r_bench_serializer)");
+    println!("cargo:rustc-check-cfg=cfg(r2r_bench_reusable_typed)");
+    println!("cargo:rustc-check-cfg=cfg(r2r_bench_batch_typed)");
     r2r_common::print_cargo_watches();
     // Declare all the custom cfg directives we use
     // to silence cargo warnings.

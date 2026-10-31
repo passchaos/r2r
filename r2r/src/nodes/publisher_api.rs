@@ -88,7 +88,7 @@ impl Node {
         let publisher_handle = create_publisher_helper(
             self.node_handle.as_mut(),
             topic,
-            T::get_ts(),
+            T::try_get_ts()?,
             qos_profile,
             options,
             id,

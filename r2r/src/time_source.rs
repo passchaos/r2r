@@ -327,10 +327,11 @@ impl TimeSourceSubscriber {
         let subscriber = create_subscription_helper(
             node_handle,
             "/clock",
-            crate::rosgraph_msgs::msg::Clock::get_ts(),
+            crate::rosgraph_msgs::msg::Clock::try_get_ts()?,
             qos,
             false,
             crate::UniqueNetworkFlowRequirement::NotRequired,
+            None,
         )?;
         Ok(Self {
             subscriber_handle: subscriber,

@@ -11,6 +11,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[path = "build/native_functions.rs"]
+mod native_functions;
+
 const MSG_INCLUDES_FILENAME: &str = "msg_includes.h";
 const INTROSPECTION_FILENAME: &str = "introspection_functions.rs";
 const CONSTANTS_FILENAME: &str = "constants.rs";
@@ -27,6 +30,7 @@ const ACTION_SUFFICES: &[&str] = &["Goal", "Result", "Feedback", "FeedbackMessag
 
 fn main() {
     r2r_common::print_cargo_watches();
+    println!("cargo:rerun-if-changed=build/native_functions.rs");
     r2r_common::print_cargo_ros_distro();
 
     let msg_list = r2r_common::get_wanted_messages();
@@ -246,7 +250,7 @@ fn generate_bindings_file(bindgen_dir: &Path) -> Bindings {
         .derive_copy(false)
         .allowlist_function("rosidl_typesupport_c__.*")
         .allowlist_function("rosidl_typesupport_introspection_c__.*")
-        .allowlist_function(r"[\w_]*__(msg|srv|action)__[\w_]*__(create|destroy)")
+        .allowlist_function(r"[\w_]*__(msg|srv|action)__[\w_]*__(init|fini|create|destroy)")
         .allowlist_function(r"[\w_]*__(msg|srv|action)__[\w_]*__Sequence__(init|fini)")
         .allowlist_var(r"[\w_]*__(msg|srv|action)__[\w_]*__[\w_]*")
         // blacklist types that are handled by rcl bindings
@@ -283,13 +287,14 @@ fn generate_bindings_file(bindgen_dir: &Path) -> Bindings {
         });
 
     let bindings = builder.generate().expect("Unable to generate bindings");
-    bindings
-        .write_to_file(&bindings_file)
-        .expect("Couldn't write bindings!");
+    let native_file = syn::parse_file(&bindings.to_string()).expect("invalid native bindings");
+    let native_file = native_functions::transform(native_file);
+    fs::write(&bindings_file, quote!(#native_file).to_string())
+        .expect("Couldn't write native bindings!");
 
     // #[cfg(feature = "save-bindgen")]
     {
-        let content = fs::read_to_string(bindings_file).unwrap();
+        let content = bindings.to_string();
         let file = syn::parse_file(&content).expect("syn::parse_file() failed");
 
         let new_items: Vec<syn::Item> = file
@@ -532,12 +537,10 @@ fn run_dynlink(_: &[RosMsg]) {}
 fn run_dynlink(msg_list: &[RosMsg]) {
     r2r_common::print_cargo_link_search();
 
-    let msg_map = r2r_common::as_map(msg_list);
-    for module in msg_map.keys() {
-        println!("cargo:rustc-link-lib=dylib={}__rosidl_typesupport_c", module);
-        println!("cargo:rustc-link-lib=dylib={}__rosidl_typesupport_introspection_c", module);
-        println!("cargo:rustc-link-lib=dylib={}__rosidl_generator_c", module);
-    }
+    // Interface symbols resolve through process-retained libraries at first use.
+    // Build scripts still receive search paths, without forcing every interface
+    // library into the runtime executable's dependency list.
+    let _ = msg_list;
 }
 
 unsafe fn force_send<T>(value: T) -> force_send_sync::Send<T> {

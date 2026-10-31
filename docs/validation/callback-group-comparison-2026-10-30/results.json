@@ -18,17 +18,18 @@
   },
   "records_each_environment": 20,
   "request_traces_each_environment": 1280,
-  "tools_unittest_cases": 94,
-  "callback_and_build_counterexample_cases": 18,
+  "tools_unittest_cases": 99,
+  "callback_and_build_counterexample_cases": 23,
   "probe_oracles": [
     "normal",
     "epoch_testing"
   ],
   "all_target_jazzy_clippy": "pass",
+  "current_callback_bench_clippy": "pass",
   "native_compatibility_bench_clippy": "pass",
   "no_ros_all_targets_and_documentation": "pass",
-  "no_ros_public_artifacts": 59,
-  "no_ros_public_methods": 257,
+  "no_ros_public_artifacts": 62,
+  "no_ros_public_methods": 261,
   "initial_cpp_four_worker_timeout": {
     "resolved": false,
     "failure_excerpt": "initial-cpp-timeout-tool-output.json.gz",
@@ -52,7 +53,32 @@
     "failure_file": "performance-isolation-failure.json",
     "rclcpp_advantage_proven": false
   },
+  "startup_performance": {
+    "protocol_passed": true,
+    "isolation_passed": false,
+    "measurement_started": false,
+    "load1": 38.587890625,
+    "competing_processes": {
+      "zig": 4,
+      "lux-webgpu-comp": 2
+    },
+    "failure_file": "startup-isolation-failure.json"
+  },
   "reports": {
+    "callback-group-cold-startup-smoke.json": {
+      "records": 4,
+      "exact_exchanges": 4,
+      "rmw": "rmw_cyclonedds_cpp",
+      "distro": "jazzy",
+      "source_mismatches": [],
+      "performance_qualified": false,
+      "boundaries": [
+        "exec_to_ready",
+        "main_to_ready",
+        "first_exchange",
+        "exec_to_exit"
+      ]
+    },
     "callback-group-final-rmw_cyclonedds_cpp.json": {
       "records": 20,
       "measured_traces": 1280,
@@ -111,6 +137,10 @@
     }
   },
   "artifact_sha256": {
+    "run-startup-performance.bash": "b0c50f7664e4369befacde17701c0505b6677b606b0d363068e0c9329b55fc95",
+    "startup-isolation-failure.json": "f088fb56427f8ef23a3ae94a07d741d0dccd8076819310222b6e24d323691d9b",
+    "protocol/callback-group-cold-startup-smoke.json": "a7edd91d6c856aa534b5b497cf7d6d4463f7105799ad9fa2559c6a3c6d4acdaa",
+    "protocol/callback-group-cold-startup-smoke.traces.json.gz": "cfef857989ddeed7aad329e4b72656060c5bf0d8c63791951ef44ce0a57b4b5d",
     "dynamic-link-audit.json": "abb8fabf3450f557615d23b184da79332a85084b2607799cae241572266b3c06",
     "performance-isolation-failure.json": "bd1e07602e859942bf1cd7a1337b012d2e38cfb66de5a1c05e229caaeeb95bb9",
     "run-performance.bash": "97cad3d32f3ef6034b9a7c995523ac8d08167752b520dcbf967fa4fa1c4e4e32",

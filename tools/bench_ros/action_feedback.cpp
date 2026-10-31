@@ -349,7 +349,8 @@ int main(int argc,char **argv) {
     }
     if (role=="ping") {
       const double seconds=elapsed*1e-9;
-      std::cout << ",\"elapsed_ns\":" << elapsed << ",\"roundtrips_per_second\":" << iterations/seconds
+      std::cout << ",\"feedback_delivery\":\"rclcpp_callback\""
+        << ",\"elapsed_ns\":" << elapsed << ",\"roundtrips_per_second\":" << iterations/seconds
         << ",\"feedback_messages_per_second\":" << (iterations*goal_window*feedback_per_goal)/seconds
         << ",\"rtt_ns_p50\":" << percentile(samples,50) << ",\"rtt_ns_p95\":" << percentile(samples,95)
         << ",\"rtt_ns_p99\":" << percentile(samples,99) << ",\"rtt_ns_max\":" << *std::max_element(samples.begin(),samples.end())

@@ -27,7 +27,7 @@ teardown and output allocation, retaining raw ru_maxrss for context. Server
 atomic telemetry orders were also matched before final measurements. Build input
 changes are rejected before accepting executable/source provenance.
 
-Dynamic ELF dependency inspection of the current Jazzy Rust application found
+Dynamic ELF dependency inspection of the pre-lazy-loading Jazzy Rust application found
 86 direct needed libraries, including 74 interface libraries. The rclcpp binary
 had 9 direct dependencies and one interface library. The Rust binary includes
 message packages unused by this typed service workload. This identifies default
@@ -40,7 +40,21 @@ Reproduce protocol/compatibility checks, then run performance independently:
 bash docs/validation/callback-group-comparison-2026-10-30/run-jazzy.bash
 bash docs/validation/callback-group-comparison-2026-10-30/run-compat.bash
 bash docs/validation/callback-group-comparison-2026-10-30/run-performance.bash
+bash docs/validation/callback-group-comparison-2026-10-30/run-startup-performance.bash
 ```
+
+The original file named `callback-group-startup-diagnostic` contains 100
+repetitions of the ordinary 64-request workload; it is retained but is not cold
+startup evidence. The new cold-process protocol flushes a ready marker after
+self-discovery, runs one exactly checked exchange, and separately records
+exec-to-ready, main-to-ready, exchange and exec-to-exit boundaries. A four-process
+[smoke](protocol/callback-group-cold-startup-smoke.json) and its
+[compressed traces](protocol/callback-group-cold-startup-smoke.traces.json.gz)
+validate the marker/parser and provenance path without promoting externally
+contended timings. The current formal command correctly stopped before measurement at
+load1 38.59 with four Zig and two GPU compiler processes; the
+[preflight failure](startup-isolation-failure.json) retains that evidence.
+Formal sampling remains isolation-gated.
 
 | Native environment | Applications | Measured request traces | Benchmark Clippy |
 | --- | ---: | ---: | --- |
@@ -50,13 +64,15 @@ bash docs/validation/callback-group-comparison-2026-10-30/run-performance.bash
 | Kilted / CycloneDDS | 20 | 1280 | Pass |
 | Kilted / Fast DDS | 20 | 1280 | Pass |
 
-All 94 performance-tool unit tests pass, including 18 callback/build-specific cases and protocol, resource, isolation
+All 99 performance-tool unit tests pass, including 23 callback/build/startup-specific cases and protocol, resource, isolation
 and source-integrity counterexamples. The probe passes both normal and epoch/dynamic-TLS oracles.
 Jazzy all-target workspace Clippy passes with warnings denied. The true no-ROS
 all-target/documentation gate includes the new benchmark and verifier cases,
-and verifies 59 public objects and 257 methods. The library runtime was not
-changed by this slice; runtime/full-suite acceptance for the reentrant feature
-remains in the [preceding validation](../reentrant-groups-2026-10-30/README.md).
+and the recorded comparison slice verifies 62 public objects and 261 methods.
+The current workspace gate later grew to 65/272 with transactional parameter
+callbacks. The library runtime was not changed by this comparison slice;
+runtime/full-suite acceptance for the reentrant feature remains in the
+[preceding validation](../reentrant-groups-2026-10-30/README.md).
 
 The corrected four-worker diagnostic has 200 process runs/12800 request traces;
 a separate larger matrix has 20 runs/5120 traces. The original C++ timeout cause
@@ -71,12 +87,14 @@ are in [performance-isolation-failure.json](performance-isolation-failure.json).
 Current smoke diagnostics show fewer requested allocations for Rust, while its
 application VmHWM remains higher in the matched four-worker cases. These short,
 externally contended resource/timing records are retained without performance
-promotion. They direct the next investigation toward unnecessary default
+promotion. They directed the next investigation toward unnecessary default
 interface linking, with [dynamic-link-audit.json](dynamic-link-audit.json) as
-concrete evidence. Full default typed/untyped capability must survive any fix.
+concrete evidence. The resulting [lazy type-support validation](../lazy-typesupport-2026-10-30/README.md)
+removes those direct dependencies while preserving typed/untyped capability;
+isolated Rust/rclcpp performance comparison remains separate.
 
 [results.json](results.json) records exact counts and artifact hashes;
 [source-manifest.json](source-manifest.json) records build/run inputs. Protocol
 reports retain compressed individual traces and executable/probe, compiler,
-package and CPU provenance. Iron, Lyrical, Rolling, wider payloads, other ROS
-entities and networked-host application comparisons remain open.
+package and CPU provenance. Wider payloads, other ROS entities and networked-host
+application comparisons remain open.

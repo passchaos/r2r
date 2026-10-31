@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "ros_distro": "jazzy",
+  "rmw": "rmw_cyclonedds_cpp",
+  "timing_promoted": false,
+  "isolation_observation": {
+    "load1": 21.1279296875,
+    "competing_processes": {
+      "zig": 3,
+      "lux-webgpu-comp": 2
+    }
+  },
+  "resource_constraints": {
+    "single_cpu_affinity": true,
+    "cargo_build_jobs": 1,
+    "rayon_threads": 1,
+    "virtual_memory_limit_kib": 10485760
+  },
+  "gate": {
+    "optimized_benchmark_compiled": true,
+    "warning_denied_clippy_passed": true,
+    "topology_list_passed": true,
+    "topology_cases": 35,
+    "exit_code": 0,
+    "artifact": "logs/final-jazzy.log.gz",
+    "artifact_sha256": "43253b406e4b33a4a2c1565471d669a955bee80b5d7eaef9fc81b6bff68a5814",
+    "uncompressed_sha256": "5e7e422355ec3f12e39e102fe36737aca87bf4dbca9b181e1779c4445a21c9f5"
+  },
+  "matrix": {
+    "idle_action_servers": [
+      0,
+      1,
+      8,
+      32,
+      128
+    ],
+    "idle_action_clients": [
+      0,
+      1,
+      8,
+      32,
+      128
+    ],
+    "mixed_wait_set_each_kind": [
+      0,
+      1,
+      8,
+      32,
+      64
+    ],
+    "service_availability_entities": [
+      0,
+      1,
+      8,
+      32,
+      128
+    ],
+    "action_availability_entities": [
+      0,
+      1,
+      8,
+      32,
+      128
+    ],
+    "publisher_wait_entities": [
+      0,
+      1,
+      8,
+      32,
+      128
+    ],
+    "subscription_wait_entities": [
+      0,
+      1,
+      8,
+      32,
+      128
+    ],
+    "waits_per_entity": 16
+  },
+  "source_sha256": {
+    "r2r/benches/spin_idle_action_servers.rs": "1363ab63cec14d9562182c14557c02c702315b6bc980551d69ab4799356f036d",
+    "docs/ENTITY_SCALING.md": "29459bfebb98877d399a4736554fdb8552cdd004c9d5ff39567b3aba64959ccb",
+    "docs/validation/entity-scaling-2026-10-30/run-jazzy.bash": "2a9ced38ec25e5bc8582946e5290f98ab9bf4b8f3a4d0e892f55667dd15e44e4"
+  }
+}

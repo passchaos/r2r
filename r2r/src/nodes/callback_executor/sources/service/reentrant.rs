@@ -83,7 +83,7 @@ impl Node {
             .map(|_| WrappedNativeMsg::<T::Response>::try_new())
             .collect::<Result<_>>()?;
         let callback = Arc::new(callback);
-        let support = T::get_ts();
+        let support = T::try_get_ts()?;
         let handle = create_service_helper(self.node_handle.as_mut(), name, support, qos)?;
         let native = Arc::new(NativeService {
             handle: Box::new(UnsafeCell::new(handle)),

@@ -55,18 +55,47 @@ thread_local! {
 /// Implementations must return the matching, process-lifetime type support, create and
 /// destroy compatible native allocations, and only access valid `CStruct` values. Native
 /// allocations owned by [`WrappedNativeMsg`] must also be safe to move to another thread,
-/// and all static operations must be safe to call concurrently.
+/// and all static operations must be safe to call concurrently. An overridden
+/// [`Self::try_reinitialize_native`] must preserve an initialized, destructible value on every
+/// error and whenever it returns `Ok(false)`.
 pub unsafe trait WrappedTypesupport:
     Serialize + for<'de> Deserialize<'de> + Default + Debug + Clone + Send + Sync + 'static
 {
     type CStruct;
 
     fn get_ts() -> &'static rosidl_message_type_support_t;
+    /// Resolves native type support, reporting missing runtime interface libraries.
+    fn try_get_ts() -> Result<&'static rosidl_message_type_support_t> {
+        Ok(Self::get_ts())
+    }
     fn create_msg() -> *mut Self::CStruct;
+    /// Prepares a matching native constructor/finalizer before creating owned storage.
+    fn try_create_msg() -> Result<*mut Self::CStruct> {
+        Ok(Self::create_msg())
+    }
     fn destroy_msg(msg: *mut Self::CStruct);
     fn from_native(msg: &Self::CStruct) -> Self;
+    /// Updates an existing Rust message from native storage.
+    ///
+    /// Custom implementations remain source compatible through this replacement default.
+    /// Generated messages override it to retain reusable Vec/string/nested-message capacity.
+    fn update_from_native(&mut self, msg: &Self::CStruct) {
+        *self = Self::from_native(msg);
+    }
+    /// Reinitializes an owned native message in place when the implementation supports it.
+    ///
+    /// Returning `Ok(true)` guarantees that `msg` is freshly initialized and retains the same
+    /// outer address. Returning `Ok(false)` leaves it unchanged and requests a replacement
+    /// allocation. Any error must also leave `msg` initialized and safe to retry or destroy.
+    fn try_reinitialize_native(_msg: &mut Self::CStruct) -> Result<bool> {
+        Ok(false)
+    }
     fn copy_to_native(&self, msg: &mut Self::CStruct);
 
+    /// Tries to update an initialized native message from this Rust value.
+    ///
+    /// On error, `msg` must remain initialized and safe to destroy. Callers may retire the native
+    /// allocation instead of reusing partially updated fields.
     fn try_copy_to_native(&self, msg: &mut Self::CStruct) -> Result<()> {
         self.copy_to_native(msg);
         Ok(())
@@ -106,7 +135,7 @@ pub unsafe trait WrappedTypesupport:
         let result = unsafe {
             rmw_deserialize(
                 &msg_buf as *const rcl_serialized_message_t,
-                Self::get_ts(),
+                Self::try_get_ts()?,
                 native_msg.void_ptr_mut(),
             )
         };
@@ -126,6 +155,30 @@ pub(crate) fn check_rosidl_runtime_ret(success: bool) -> Result<()> {
     } else {
         Err(Error::RCL_RET_BAD_ALLOC)
     }
+}
+
+/// Builds a fresh native value before retiring the current contents, then transfers the fresh
+/// contents into the same outer address. Generated ROS initializers finalize their temporary on
+/// failure; the current value is not touched until initialization succeeds.
+///
+/// # Safety
+///
+/// Both functions must operate on `C`, `message` must be initialized, `initialize` must accept
+/// zeroed storage and clean its temporary on failure, and `finalize` must leave no live resources.
+pub(crate) unsafe fn try_reinitialize_native_message<C>(
+    message: &mut C, initialize: unsafe extern "C" fn(*mut C) -> bool,
+    finalize: unsafe extern "C" fn(*mut C),
+) -> Result<()> {
+    let mut replacement = std::mem::MaybeUninit::<C>::zeroed();
+    if !unsafe { initialize(replacement.as_mut_ptr()) } {
+        return Err(Error::RCL_RET_BAD_ALLOC);
+    }
+    let destination = std::ptr::from_mut(message);
+    unsafe {
+        finalize(destination);
+        std::ptr::copy_nonoverlapping(replacement.as_ptr(), destination, 1);
+    }
+    Ok(())
 }
 
 /// Connects a Rust service marker to its generated ROS C type support.
@@ -148,6 +201,10 @@ pub unsafe trait WrappedServiceTypeSupport: Debug + Clone + Send + Sync {
     type Event: WrappedTypesupport;
 
     fn get_ts() -> &'static rosidl_service_type_support_t;
+    /// Resolves native type support without changing custom implementation requirements.
+    fn try_get_ts() -> Result<&'static rosidl_service_type_support_t> {
+        Ok(Self::get_ts())
+    }
 }
 
 /// Connects a Rust action marker to its generated ROS C type support.
@@ -157,7 +214,9 @@ pub unsafe trait WrappedServiceTypeSupport: Debug + Clone + Send + Sync {
 /// `get_ts` and every associated service/message type must describe the same action, and
 /// the construction/destructuring methods must preserve their generated wire layouts.
 /// A native feedback UUID accessor, when provided, must agree with the destructured goal ID
-/// and access only the initialized native message's identity fields.
+/// and access only the initialized native message's identity fields. If
+/// `supports_native_feedback_delivery` returns `true`, the accessor must return `Some` for every
+/// initialized feedback message.
 pub unsafe trait WrappedActionTypeSupport: Debug + Clone + Send + Sync {
     type Goal: WrappedTypesupport;
     type Result: WrappedTypesupport;
@@ -169,6 +228,10 @@ pub unsafe trait WrappedActionTypeSupport: Debug + Clone + Send + Sync {
     type GetResult: WrappedServiceTypeSupport;
 
     fn get_ts() -> &'static rosidl_action_type_support_t;
+    /// Resolves native type support without changing custom implementation requirements.
+    fn try_get_ts() -> Result<&'static rosidl_action_type_support_t> {
+        Ok(Self::get_ts())
+    }
 
     fn make_goal_request_msg(
         goal_id: unique_identifier_msgs::msg::UUID, goal: Self::Goal,
@@ -200,6 +263,14 @@ pub unsafe trait WrappedActionTypeSupport: Debug + Clone + Send + Sync {
         _msg: &<Self::FeedbackMessage as WrappedTypesupport>::CStruct,
     ) -> Option<[u8; 16]> {
         None
+    }
+    /// Reports whether [`Self::native_feedback_uuid`] can route an initialized native
+    /// feedback message without first constructing its owned Rust payload.
+    ///
+    /// Generated action types return `true`. Custom action wrappers retain `false` until
+    /// they provide a native identity accessor that satisfies this trait's safety contract.
+    fn supports_native_feedback_delivery() -> bool {
+        false
     }
     fn destructure_result_response_msg(
         msg: <<Self as WrappedActionTypeSupport>::GetResult as WrappedServiceTypeSupport>::Response,
@@ -321,18 +392,25 @@ pub struct UntypedServiceSupport {
 }
 
 impl UntypedServiceSupport {
+    #[cfg(feature = "doc-only")]
     fn new<T>() -> Self
+    where
+        T: WrappedServiceTypeSupport,
+    {
+        Self::try_new::<T>().expect("native type support unavailable")
+    }
+    fn try_new<T>() -> Result<Self>
     where
         T: WrappedServiceTypeSupport,
     {
         let make_request_msg = WrappedNativeMsgUntyped::try_new::<T::Request>;
         let make_response_msg = WrappedNativeMsgUntyped::try_new::<T::Response>;
 
-        UntypedServiceSupport {
-            ts: T::get_ts(),
+        Ok(UntypedServiceSupport {
+            ts: T::try_get_ts()?,
             make_request_msg,
             make_response_msg,
-        }
+        })
     }
 }
 
@@ -471,12 +549,19 @@ where
 }
 
 impl UntypedActionSupport {
+    #[cfg(feature = "doc-only")]
     fn new<T>() -> Self
     where
         T: WrappedActionTypeSupport + 'static,
     {
-        UntypedActionSupport {
-            ts: T::get_ts(),
+        Self::try_new::<T>().expect("native type support unavailable")
+    }
+    fn try_new<T>() -> Result<Self>
+    where
+        T: WrappedActionTypeSupport + 'static,
+    {
+        Ok(UntypedActionSupport {
+            ts: T::try_get_ts()?,
             create_server: crate::action_servers::create_action_server_untyped_for::<T>,
             make_goal_request_msg: make_action_goal_request::<T>,
             make_goal_response_msg: make_action_goal_response::<T>,
@@ -487,7 +572,7 @@ impl UntypedActionSupport {
             make_result_request_msg: make_action_result_request::<T>,
             make_result_response_msg: make_action_result_response::<T>,
             destructure_result_response_msg: destructure_action_result_response::<T>,
-        }
+        })
     }
 }
 
@@ -530,13 +615,14 @@ impl WrappedNativeMsgUntyped {
             unsafe { msg.try_copy_to_native(&mut *(native as *mut T::CStruct)) }
         };
 
-        let msg = T::create_msg() as *mut std::os::raw::c_void;
+        let ts = T::try_get_ts()?;
+        let msg = T::try_create_msg()? as *mut std::os::raw::c_void;
         if msg.is_null() {
             return Err(Error::RCL_RET_BAD_ALLOC);
         }
 
         Ok(WrappedNativeMsgUntyped {
-            ts: T::get_ts(),
+            ts,
             msg,
             destroy,
             msg_to_json,
@@ -608,7 +694,7 @@ where
     }
 
     pub fn try_new() -> Result<Self> {
-        let msg = T::create_msg();
+        let msg = T::try_create_msg()?;
         if msg.is_null() {
             return Err(Error::RCL_RET_BAD_ALLOC);
         }
@@ -708,6 +794,29 @@ where
 mod tests {
     use super::{generated_msgs::*, *};
     use r2r_rcl::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[repr(C)]
+    struct ResetFixture {
+        value: usize,
+    }
+
+    static RESET_FINALIZATIONS: AtomicUsize = AtomicUsize::new(0);
+
+    unsafe extern "C" fn initialize_reset_fixture(message: *mut ResetFixture) -> bool {
+        unsafe { message.write(ResetFixture { value: 73 }) };
+        true
+    }
+
+    unsafe extern "C" fn fail_reset_fixture(message: *mut ResetFixture) -> bool {
+        unsafe { message.write(ResetFixture { value: 99 }) };
+        false
+    }
+
+    unsafe extern "C" fn finalize_reset_fixture(message: *mut ResetFixture) {
+        RESET_FINALIZATIONS.fetch_add(1, Ordering::Relaxed);
+        unsafe { (*message).value = 0 };
+    }
 
     #[derive(Clone, Debug, Default, Serialize, Deserialize)]
     struct CopyFailure;
@@ -747,6 +856,45 @@ mod tests {
     }
 
     #[test]
+    fn handwritten_types_keep_the_non_mutating_native_reset_fallback() {
+        let mut native = 17_u8;
+        assert!(matches!(CopyFailure::try_reinitialize_native(&mut native), Ok(false)));
+        assert_eq!(native, 17);
+    }
+
+    #[test]
+    fn native_reinitialize_prepares_replacement_before_retiring_current_value() {
+        RESET_FINALIZATIONS.store(0, Ordering::Relaxed);
+        let mut message = ResetFixture { value: 17 };
+        let address = std::ptr::from_mut(&mut message);
+        unsafe {
+            try_reinitialize_native_message(
+                &mut message,
+                initialize_reset_fixture,
+                finalize_reset_fixture,
+            )
+            .unwrap()
+        };
+        assert_eq!(std::ptr::from_mut(&mut message), address);
+        assert_eq!(message.value, 73);
+        assert_eq!(RESET_FINALIZATIONS.load(Ordering::Relaxed), 1);
+
+        let mut unchanged = ResetFixture { value: 41 };
+        assert!(matches!(
+            unsafe {
+                try_reinitialize_native_message(
+                    &mut unchanged,
+                    fail_reset_fixture,
+                    finalize_reset_fixture,
+                )
+            },
+            Err(Error::RCL_RET_BAD_ALLOC)
+        ));
+        assert_eq!(unchanged.value, 41);
+        assert_eq!(RESET_FINALIZATIONS.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
     fn action_uuid_json_rejects_wrong_fixed_array_lengths() {
         for count in [0, 15, 17] {
             let value = serde_json::json!({"uuid": vec![0; count]});
@@ -778,6 +926,154 @@ mod tests {
 
         assert!(native.data.try_to_str().is_err());
         assert_eq!(native.data.to_str(), "");
+    }
+
+    #[test]
+    fn generated_native_update_reuses_primitive_sequence_capacity() {
+        let large = std_msgs::msg::UInt64MultiArray {
+            layout: Default::default(),
+            data: (0..4096).collect(),
+        };
+        let native = WrappedNativeMsg::<std_msgs::msg::UInt64MultiArray>::try_from(&large).unwrap();
+        let mut target = std_msgs::msg::UInt64MultiArray::default();
+        target.update_from_native(&native);
+        let address = target.data.as_ptr();
+        let capacity = target.data.capacity();
+        assert_eq!(target, large);
+
+        let small = std_msgs::msg::UInt64MultiArray {
+            layout: Default::default(),
+            data: vec![7; 128],
+        };
+        let native = WrappedNativeMsg::<std_msgs::msg::UInt64MultiArray>::try_from(&small).unwrap();
+        target.update_from_native(&native);
+        assert_eq!(target, small);
+        assert_eq!(target.data.as_ptr(), address);
+        assert_eq!(target.data.capacity(), capacity);
+    }
+
+    #[test]
+    fn generated_native_reinitialize_preserves_outer_address_and_fresh_state() {
+        let source = std_msgs::msg::UInt64MultiArray {
+            layout: Default::default(),
+            data: (0..4096).collect(),
+        };
+        let mut native =
+            WrappedNativeMsg::<std_msgs::msg::UInt64MultiArray>::try_from(&source).unwrap();
+        let outer = native.msg;
+        assert_eq!(native.data.size, 4096);
+        assert!(std_msgs::msg::UInt64MultiArray::try_reinitialize_native(&mut native).unwrap());
+        assert_eq!(native.msg, outer);
+        assert_eq!(native.data.size, 0);
+        assert_eq!(native.data.capacity, 0);
+        assert_eq!(native.layout.dim.size, 0);
+
+        let replacement = std_msgs::msg::UInt64MultiArray {
+            layout: Default::default(),
+            data: vec![7; 32],
+        };
+        replacement.try_copy_to_native(&mut native).unwrap();
+        assert_eq!(native.data.to_vec(), replacement.data);
+    }
+
+    #[test]
+    fn generated_native_update_reuses_nested_sequence_and_string_capacity() {
+        let dimension = |label: String, size| std_msgs::msg::MultiArrayDimension {
+            label: crate::RosString::from(label),
+            size,
+            stride: size,
+        };
+        let large = std_msgs::msg::UInt64MultiArray {
+            layout: std_msgs::msg::MultiArrayLayout {
+                dim: vec![
+                    dimension("x".repeat(1024), 4096),
+                    dimension("tail".into(), 1),
+                ],
+                data_offset: 0,
+            },
+            data: vec![1; 4096],
+        };
+        let native = WrappedNativeMsg::<std_msgs::msg::UInt64MultiArray>::try_from(&large).unwrap();
+        let mut target = std_msgs::msg::UInt64MultiArray::default();
+        target.update_from_native(&native);
+        let dimensions = target.layout.dim.as_ptr();
+        let label = target.layout.dim[0].label.as_bytes().as_ptr();
+        assert_eq!(target, large);
+
+        let small = std_msgs::msg::UInt64MultiArray {
+            layout: std_msgs::msg::MultiArrayLayout {
+                dim: vec![dimension("short".into(), 8)],
+                data_offset: 3,
+            },
+            data: vec![2; 8],
+        };
+        let native = WrappedNativeMsg::<std_msgs::msg::UInt64MultiArray>::try_from(&small).unwrap();
+        target.update_from_native(&native);
+        assert_eq!(target, small);
+        assert_eq!(target.layout.dim.as_ptr(), dimensions);
+        assert_eq!(target.layout.dim[0].label.as_bytes().as_ptr(), label);
+    }
+
+    #[cfg(r2r__test_msgs__msg__Arrays)]
+    #[test]
+    fn generated_native_update_reuses_string_and_nested_sequence_storage() {
+        let mut large = test_msgs::msg::UnboundedSequences::default();
+        large.string_values = vec![crate::RosString::from("x".repeat(1024)), "tail".into()];
+        let mut first = test_msgs::msg::BasicTypes::default();
+        first.int32_value = 41;
+        let mut second = test_msgs::msg::BasicTypes::default();
+        second.int32_value = 42;
+        large.basic_types_values = vec![first, second];
+        let native =
+            WrappedNativeMsg::<test_msgs::msg::UnboundedSequences>::try_from(&large).unwrap();
+        let mut target = test_msgs::msg::UnboundedSequences::default();
+        target.update_from_native(&native);
+        let strings_address = target.string_values.as_ptr();
+        let first_string_address = target.string_values[0].as_bytes().as_ptr();
+        let nested_address = target.basic_types_values.as_ptr();
+        assert_eq!(target, large);
+
+        let mut small = test_msgs::msg::UnboundedSequences::default();
+        small.string_values = vec![crate::RosString::from("short")];
+        let mut nested = test_msgs::msg::BasicTypes::default();
+        nested.int32_value = -7;
+        small.basic_types_values = vec![nested];
+        let native =
+            WrappedNativeMsg::<test_msgs::msg::UnboundedSequences>::try_from(&small).unwrap();
+        target.update_from_native(&native);
+        assert_eq!(target, small);
+        assert_eq!(target.string_values.as_ptr(), strings_address);
+        assert_eq!(target.string_values[0].as_bytes().as_ptr(), first_string_address);
+        assert_eq!(target.basic_types_values.as_ptr(), nested_address);
+    }
+
+    #[cfg(r2r__test_msgs__msg__WStrings)]
+    #[test]
+    fn generated_native_update_reuses_wstring_scalar_array_and_sequence_storage() {
+        let mut large = test_msgs::msg::WStrings::default();
+        large.wstring_value = crate::RosWString::from(vec![65; 1024]);
+        large.array_of_wstrings[0] = crate::RosWString::from(vec![66; 512]);
+        large.unbounded_sequence_of_wstrings = vec![crate::RosWString::from(vec![67; 256])];
+        let native = WrappedNativeMsg::<test_msgs::msg::WStrings>::try_from(&large).unwrap();
+        let mut target = test_msgs::msg::WStrings::default();
+        target.update_from_native(&native);
+        let scalar = target.wstring_value.as_units().as_ptr();
+        let array = target.array_of_wstrings[0].as_units().as_ptr();
+        let sequence = target.unbounded_sequence_of_wstrings.as_ptr();
+        let inner = target.unbounded_sequence_of_wstrings[0].as_units().as_ptr();
+        assert_eq!(target, large);
+
+        let mut small = test_msgs::msg::WStrings::default();
+        small.wstring_value = crate::RosWString::from([1, 2]);
+        small.array_of_wstrings[0] = crate::RosWString::from([3, 4]);
+        small.unbounded_sequence_of_wstrings = vec![crate::RosWString::from([5, 6])];
+        let native = WrappedNativeMsg::<test_msgs::msg::WStrings>::try_from(&small).unwrap();
+        target.update_from_native(&native);
+        assert_eq!(target, small);
+        assert_eq!(target.wstring_value.as_units().as_ptr(), scalar);
+        assert_eq!(target.array_of_wstrings[0].as_units().as_ptr(), array);
+        assert_eq!(target.unbounded_sequence_of_wstrings.as_ptr(), sequence);
+        assert_eq!(target.unbounded_sequence_of_wstrings[0].as_units().as_ptr(), inner);
     }
 
     #[test]
@@ -1252,3 +1548,7 @@ mod service_events;
 
 #[cfg(all(test, not(feature = "doc-only")))]
 mod native_sequences;
+
+#[cfg(all(test, not(feature = "doc-only")))]
+#[path = "msg_types/native_library_tests.rs"]
+mod native_library_tests;

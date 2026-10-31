@@ -1,5 +1,383 @@
 # Optimized runtime validation
 
+The required native release matrix for the project goal is Humble, Jazzy and
+Kilted. Mentions below of unavailable Iron, Lyrical or Rolling evidence document
+historical breadth only; those releases are not acceptance blockers.
+
+## [Timer reset event streams](TIMER_RESET_EVENTS.md) (2026-10-31)
+
+Ordinary `Timer`, synchronous `CallbackTimer`, exclusive/reentrant `GroupedTimer` and both lifecycle
+wrappers expose one lossless runtime-agnostic reset-event stream. The first item includes resets
+before registration, rapid resets coalesce with exact item/total counts, dropping an observer
+preserves its consumed cursor for a replacement, and native destruction closes the stream only
+after pending delivery. Lifecycle activation/reactivation and grouped generation reconciliation use
+the same native reset boundary as explicit application calls.
+
+Jazzy and Kilted use `rcl_timer_set_on_reset_callback`; Humble lacks that symbol in both RCL and
+rclcpp, so r2r supplies the identical contract at its centralized successful-reset boundary. The C
+trampoline performs only atomic accounting and a caught stream wake—no user closure or panic can
+cross the ABI. Reset state is lazy, leaving timers that are never observed with zero additional heap
+allocations.
+
+Five focused reset/lifecycle/lazy-allocation cases plus one callback/grouped ownership case pass in
+debug and release under both Jazzy RMWs. Humble/Fast DDS and Kilted/both RMWs pass the same six debug
+cases, finite example and focused warning-denied Clippy. The complete Jazzy release library passes
+815 cases with thirteen manual stages ignored under both RMWs; workspace tests and all-target Clippy
+pass. The true no-ROS gate compiles all targets and verifies 84 public pages and 341 methods.
+[Recorded evidence](validation/timer-reset-events-2026-10-31/README.md) binds final sources and logs.
+
+## [Batched subscription streams](BATCH_SUBSCRIPTIONS.md) (2026-10-31)
+
+`subscribe_batches` and `subscribe_native_batches` expose the Humble-through-Kilted
+`rcl_take_sequence` API as ordinary async streams. Each nonempty item owns one ordered native batch
+and matching RMW metadata. Typed batches recursively update generated Rust storage; a dropped batch
+reuses all Vec/string/nested capacities, while retained peers and endpoint-outliving batches remain
+independent. Channel capacity counts batches and dispatch admits one sequence take per subscription
+per spin pass.
+
+The first real CycloneDDS reuse test found that supplying the same dynamic generated C contents
+to a second sequence take can finalize invalid nested storage. The safe implementation now recycles
+RMW sequence arrays and failure-safely reinitializes generated native messages at stable outer
+addresses before reuse; typed Rust capacity reuse remains intact. Focused burst cases cover zero-size rejection before endpoint creation, exact
+four-message order, metadata alignment, consecutive sequence takes, retained peers, shrinking
+4096-to-64-element typed storage and endpoint teardown. Both Jazzy RMWs pass the three focused cases
+and the finite example. Creation-time content-filter coverage includes both new factories: Fast DDS
+delivers only retained matching data, while CycloneDDS preserves the explicit unsupported boundary.
+Humble/Fast DDS and Kilted/both RMWs pass the same focused cases and example. Isolated rclcpp
+performance remains required before broader performance promotion.
+
+A deterministic four-message reset stage compares the previous replacement boundary with in-place
+generated reset. Per 10,000 batches, allocations/frees fall from 90,000 to 40,000 and requested
+bytes fall by 3.2 MB. This removes five allocation/free calls per batch; diagnostic elapsed values
+are not promoted as timing evidence.
+
+Successful sequence takes now remember their actual length and refresh only that prefix; non-idle
+errors still refresh the full capacity because RMW leaves it in an unknown valid state. A second
+10,000-iteration stage models capacity 16 after one taken message: native reset transactions fall
+from 160,000 to 10,000 while both paths refill the same 4096-element payload. The removed 150,000
+init/fini calls are deterministic work accounting; elapsed values remain diagnostic.
+Typed batch decode also removes a duplicate per-message `MessageInfo` construction: payload update
+now uses a message-only iterator and converts each aligned metadata entry once. A thread-local test
+counter fixes this invariant without adding production instrumentation.
+
+The independent pipeline harness now selects `batch_typed` without changing its per-message RTT,
+window, fanout or payload oracles. Jazzy/both RMWs each pass three cases in all four Rust/C++
+directions, producing 12 records and 1200 samples against the complete current-source manifest.
+The strict 1.0 rclcpp command stopped at the isolation preflight before measurement; these reports
+are correctness/provenance evidence, not a performance claim. [Recorded pipeline evidence](validation/batch-typed-pipeline-2026-10-31/README.md)
+retains both reports and the structured zero-measurement failure.
+
+## Default typed publisher native preparation reuse (2026-10-31)
+
+The ordinary Rust-style `Publisher<T>::publish(&T)` API now shares one native preparation cache
+across cloned publisher handles. Checkout and return hold only the cache lock; overlapping calls
+allocate independent containers, preserving concurrent conversion before the existing serialized
+RCL call. A failed `try_copy_to_native` retires the checked-out native value, and the next publish
+creates clean storage.
+
+A real 4096→64→16-element RCL workflow verifies exact owned subscriber payloads, one container
+across successful calls and clones, failure retirement, recovery, endpoint destruction and final
+clone cleanup under Humble/Fast DDS, Jazzy/both RMWs and Kilted/both RMWs. Five deterministic
+10,000-message repetitions reduce fresh native preparation from 20,000 allocations/frees and
+328.24 MB requested bytes to zero after warmup: two allocation/free calls and 32,824 bytes removed
+per message. The stage excludes RCL/DDS and does not promote its elapsed diagnostics.
+
+## Typed client request native preparation reuse (2026-10-31)
+
+`Client<T>::request` and `request_with_info` now share one native request cache across cloned Rust
+handles. Conversion stays before the client mutex, overlapping requests use independent leases,
+and a fallible copy error retires its container before `rcl_send_request` or response registration.
+
+A real `AddTwoInts` workflow verifies exact responses, clone reuse, injected conversion failure,
+recovery and deterministic endpoint/final-clone cleanup under the required Humble/Jazzy/Kilted RMW
+matrix. Five deterministic 10,000-request repetitions use a `DescribeParameters` request with one
+4096-byte name: fresh preparation records 40,000 allocations, 30,000 frees and 41.46 MB requested
+bytes, while the warmed reusable path records zero for all three. This removes four allocations,
+three frees and 4,146 requested bytes per request at a boundary that excludes discovery/RCL/DDS.
+
+## Typed client response native reuse (2026-10-31)
+
+Every typed client endpoint now retains one native response-take container shared by plain and
+metadata-bearing futures. The native lease is held through the detached conversion closure, so
+owned decode remains outside the client mutex, then returns before future delivery. The cache is
+endpoint-owned and is released by explicit client destruction even if a stale Rust clone remains.
+
+A real `AddTwoInts` workflow verifies exact plain and `ServiceResponseInfo` results, one native
+container across both paths, positive sequence metadata, endpoint destruction and stale-clone
+rejection across the required three-release RMW matrix. Five 10,000-response repetitions use a
+4096-byte `SetBool` string: fresh fill/decode records 40,000 allocations, 30,000 frees and 82.26 MB
+requested bytes versus reusable 10,000, 10,000 and 40.96 MB. Native reuse removes three
+allocations, two frees and 4,130 bytes per response; the remaining allocation preserves owned Rust
+output. The boundary excludes RCL/DDS.
+
+## Typed service request/response native reuse (2026-10-31)
+
+Each typed `Service<T>` now owns separate native request-take and response-preparation caches.
+Request decoding stays in the detached delivery closure outside the service mutex and returns the
+native lease before channel delivery. All requests and their clones share the response cache and
+once-only response state; copy failure retires storage without preventing a clone retry.
+
+A real `AddTwoInts` workflow verifies three exact roundtrips, request/response reuse, injected
+response-copy failure, retry and deterministic service teardown under Humble/Fast DDS, Jazzy/both
+RMWs and Kilted/both RMWs. Five 10,000-call repetitions model `SetBool` request decode plus a
+4096-byte response: fresh storage records 40,000 allocations, 30,000 frees and 41.31 MB requested
+bytes; warmed reuse records zero. This removes four allocations, three frees and 4,131 bytes per
+call at a boundary excluding RCL/DDS/channel delivery.
+
+## Typed action goal-request native reuse (2026-10-31)
+
+Typed `ActionClient<T>` handles and clones now share one native SendGoal request slot. Goal-message
+construction and copy remain before the action-client mutex; concurrent goal sends use independent
+leases. Copy failure retires storage before `rcl_action_send_goal_request` and before any goal,
+feedback or result state is registered.
+
+A Fibonacci-compatible custom action client interoperates with the standard server and verifies
+reuse across rejected goals and clones, injected copy failure, later recovery, endpoint destruction
+and final clone cleanup under Humble/Fast DDS, Jazzy/both RMWs and Kilted/both RMWs. Five
+10,000-goal repetitions reduce native preparation from 10,000 allocation/frees and 200 KB requested
+bytes to zero. This fixed per-goal stage excludes RCL/DDS and does not promote elapsed diagnostics.
+
+## Typed action status native reuse (2026-11-01)
+
+Typed action clients now retain one endpoint-owned native `GoalStatusArray` container. The lease is
+held through the existing detached direct-native decode, then returned before applying updates and
+running goal cleanup. Public goal handles and status behavior remain unchanged.
+
+A real Fibonacci workflow completes two accepted goals and verifies distinct successful status
+takes, stable cached native address, succeeded results and stale-clone rejection across the required
+three-release RMW matrix. Five 10,000-message repetitions fill/decode 128 statuses: fresh storage
+records 30,000 allocations/frees and 57.84 MB requested bytes versus reusable 10,000 and 21.76 MB.
+Reuse removes two allocations/frees and 3,608 bytes per status message; the remaining allocation is
+the decoded update Vec. The stage excludes RCL/DDS.
+
+## Typed action result-response native reuse (2026-11-01)
+
+Typed action clients now retain one endpoint-owned native GetResult response container. The lease
+crosses detached result decode and goal cleanup, then returns after constructing the independent
+owned Rust result. Public result futures and goal status semantics remain unchanged.
+
+A real Fibonacci workflow completes 4096- and 64-element results, requires one stable native
+address, retains the first owned Vec while decoding the second, and rejects a stale clone after
+endpoint destruction across the required three-release RMW matrix. Five 10,000-result repetitions
+record fresh 30,000 allocations/frees and 328 MB requested bytes versus reused 10,000 and 163.84 MB.
+Reuse removes two allocations/frees and 16,416 bytes per result; the remaining allocation is the
+owned Rust result Vec. The boundary excludes RCL/DDS.
+
+## Typed action result-request and goal-response native reuse (2026-11-01)
+
+Typed `ActionClient<T>` clones now share one GetResult request-preparation slot, and the native
+endpoint retains one SendGoal response container. Result-request copy failure retires the slot
+before RCL send. Each response completion runs after releasing the client lock and before the next
+bounded response take, returning its native lease before an idle probe or another response.
+
+A real Fibonacci workflow verifies accepted goals across clones, stable request/response addresses,
+injected result-request copy failure, successful retry and endpoint/last-handle cleanup. The
+Humble/Fast DDS, Jazzy/both-RMW and Kilted/both-RMW matrix passes; complete Jazzy release suites each
+report 825 passed with 22 manual stages ignored. Five 10,000-goal repetitions reduce the combined
+native lifecycle boundary from 20,000 allocations/frees and 280 KB requested bytes to zero. The
+stage excludes RCL/DDS and does not qualify elapsed diagnostics.
+
+## [Reusable typed subscription samples](REUSABLE_TYPED_SUBSCRIPTIONS.md) (2026-10-31)
+
+`WrappedTypesupport::update_from_native` gives handwritten messages a source-compatible replacement
+default while generated messages recursively reuse primitive Vec, RosString/RosWString, fixed-array
+and nested-message storage. `subscribe_reusable` couples one native take container and one decoded
+Rust value pool to safe `ReusableSubscriptionSample<T>` delivery; retained samples stay independent
+and valid after endpoint teardown. The default Rust-style `subscribe<T>` API remains unchanged and
+now transparently returns its native decode container before delivering each independently owned
+Rust message.
+
+Standard-message oracles preserve primitive, nested-message and nested-string addresses across
+shrinking updates; test_msgs-enabled environments additionally cover string/nested and wstring
+sequence branches. Real 4096/128/64/32-element typed streams pass under the required three-release
+RMW matrix. Five deterministic 10,000-delivery repetitions record fresh 30,000 allocations/frees
+and 329.20 MB requested bytes versus reusable 20,000 and 1.60 MB: one allocation/free and about
+99.51% requested bytes removed per sample at the native-to-Rust decode/channel boundary. The
+default typed-path stage separately records fresh-native 50,000 allocations/frees and 656.72 MB
+versus reused-native 30,000 and 328.48 MB per 10,000 owned messages, removing two native-container
+allocation/free calls and about 49.98% of total requested bytes. Its real-RCL oracle retains both a
+4096-element and a later 64-element result while observing one native-container construction. The
+complete Jazzy release suite passes 822 cases with 20 manual stages ignored under each RMW. The
+84-page/341-method no-ROS and workspace all-target Clippy gates pass; both stages exclude DDS/RCL
+timing, so rclcpp latency remains an isolated follow-up requirement.
+
+## [Reusable native subscription samples](REUSABLE_NATIVE_SUBSCRIPTIONS.md) (2026-10-31)
+
+`subscribe_native_reusable` delivers async RAII `NativeSubscriptionSample<T>` items backed by a
+one-slot native container pool. A retained sample owns its storage exclusively; concurrent samples
+allocate distinct containers, the most recently returned value becomes the cache, and samples stay
+valid after endpoint teardown. Existing `subscribe_native` behavior is unchanged. The shared lease
+implementation also retains the previously validated native action-feedback semantics.
+
+Real 4096/128/64/32-element `UInt64MultiArray` cases pass under Jazzy/both RMWs,
+Humble/Fast DDS and Kilted/both RMWs, proving outer address reuse, retained-sample independence and
+endpoint-outliving access. Five deterministic 10,000-delivery allocation repetitions record fresh
+40,000 allocations/frees and 329.44 MB requested bytes versus reusable 20,000 and 1.36 MB: two
+allocation/free calls and about 99.59% requested bytes removed per sample at the no-RCL/DDS fill/
+channel boundary. Focused/workspace Clippy and the 84-page/341-method no-ROS gate pass. End-to-end
+rclcpp latency remains a separate isolated requirement.
+
+## [Content-filtered subscriptions](CONTENT_FILTERED_SUBSCRIPTIONS.md) (2026-10-31)
+
+`Subscription<T>`, `NativeCallbackSubscription` and `GroupedSubscription` now expose one
+middleware-side apply/query/replace/clear contract across typed/native/untyped/raw streams, scoped
+native callbacks and exclusive/reentrant groups. Foreign Node ownership, interior NUL strings and
+the native 100-parameter bound fail before mutation; unsupported RMWs return
+`RCL_RET_UNSUPPORTED` without a local decode-and-filter fallback.
+
+Six focused cases, including typed/native batch creation filtering, and a finite
+creation/apply/replace/clear example pass in debug and release under both Jazzy RMWs,
+Humble/Fast DDS and Kilted/both RMWs. Fast DDS filters transient-local history
+published before subscription creation and performs exact native `Int32` runtime replacement in all
+three distributions. Cyclone DDS silently ignores the creation option natively; r2r detects the
+disabled CFT state, finalizes the endpoint and reports unsupported under Jazzy and Kilted. Focused
+and workspace all-target Clippy pass with warnings denied; the no-ROS gate verifies 84 public pages
+and 341 methods. [Recorded evidence](validation/content-filtered-subscriptions-2026-10-31/README.md)
+binds final sources, compressed logs and the per-RMW support matrix.
+
+## [Transactional live parameters](PARAMETER_CALLBACKS.md) (2026-10-30)
+
+Local and standard ROS parameter-service updates share ordered pre/on/post
+callbacks and one atomic transaction core. Pre callbacks transform the final
+batch, validation callbacks reject before any derived/runtime value changes, and
+post callbacks observe only committed values after internal locks are released.
+RAII handles unregister one callback; same-node recursive mutation returns an
+explicit error. Declaration, undeclaration, duplicate normalization, descriptors,
+events and simulated-time changes retain documented phase boundaries. The
+`parameter_callbacks` example exposes the same path to `ros2 param set`.
+[Recorded gates](validation/parameter-callbacks-2026-10-30/README.md) retain the
+65 focused native cases, example/Clippy result and the current 67-page/276-method
+no-ROS public API contract.
+
+## [Graceful process shutdown](GRACEFUL_SHUTDOWN.md) (2026-10-30)
+
+`Context::install_signal_handler` provides explicit rclcpp-style SIGINT/SIGTERM
+shutdown without performing RCL calls, locking or allocation inside the POSIX
+handler. A dedicated process thread retargets the current shared context and
+uses the existing idempotent shutdown/guard path. Native tests raise real
+signals, interrupt an empty background executor, recover its Node and verify a
+fresh context receives a later signal. `Context::wait_for_shutdown` adds a fused,
+weakly registered Future for manual, signal and final-owner shutdown without
+polling or retaining Context. The runnable example and no-ROS public API gate
+cover the user-facing path. Humble/Fast DDS and Kilted/both RMWs pass
+the same nine cases plus example Clippy. Complete optimized Jazzy suites pass
+773/8 under both RMWs. The first broad CycloneDDS run also exposed and repaired
+an action-QoS test's immediate asynchronous graph-cache query; it now uses the
+existing bounded graph-change protocol and both complete reruns pass.
+
+## [Native entity scaling](ENTITY_SCALING.md) (2026-10-30)
+
+The former fixed 128-action-endpoint benchmark now defines 35 zero-to-128
+entity cases. It covers idle action clients/servers, a mixed
+subscription/service/client/action/timer wait set and service/action/publisher/
+subscription waiter registration-cancellation cleanup. The optimized benchmark
+constructs every topology and passes warning-denied Clippy under the single-core,
+10 GiB gate. Host load exceeded 20, so no timing is promoted and the production
+Vec+identity-index+swap-remove registries remain unchanged pending isolated
+dual-RMW curves and process-wide allocation/RSS evidence.
+
+## Lazy native type-support loading (2026-10-30)
+
+Generated interface functions now resolve their package's generator, C type-
+support or introspection library on first use and retain successful handles for
+the process lifetime. Safe endpoint and owned-message factories propagate a
+new interface-specific loader error before native registration; owned allocation
+resolves its matching finalizer first. Custom type-support implementations remain
+source-compatible through default fallible adapters, and runtime-typed message,
+service and action maps preserve their complete generated surface.
+
+The final-source Jazzy callback-group binary drops from 86 to 12 direct ELF
+dependencies and from 74 to zero directly needed interface libraries. A restricted-
+library run completes the typed service protocol where the eager baseline fails
+in the loader on an unused interface package. Four interleaved same-input resource
+runs record median application VmHWM reductions from 19,454 to 14,652 KiB and from
+19,500 to 14,724 KiB in the two selected exclusive/reentrant cases (24.5–24.7%).
+These bounded diagnostics are not timing-qualified or a universal RSS claim.
+
+Real shared-library fixture tests cover retry, concurrent first lookup, native
+allocation/finalization and retained metadata. Missing-support endpoint tests
+verify errors before publisher or callback-group registration. Jazzy checks cover
+typed/untyped messages, services, actions, type descriptions and the complete
+optimized suite under both RMWs; the workspace, warning-denied Clippy and true
+no-ROS all-target gate remain required. The no-ROS gate found and fixed an initial
+unconditional type-description finalizer lookup and now verifies 73 public API
+artifacts plus 317 required methods. Humble/Fast DDS and Kilted/both-RMW
+compatibility gates retain generated, typed/untyped and callback coverage.
+
+[Complete lazy-loading evidence](validation/lazy-typesupport-2026-10-30/README.md)
+records the exact boundaries, artifacts and reproduction commands. Startup timing
+and wider application/resource comparisons remain open.
+
+## Native delivered action feedback (2026-10-30)
+
+Generated typed clients can opt into `ActionNativeFeedbackStream`, whose items own the native
+message lease taken by RCL and recycle it on drop without constructing `T::Feedback`. The ordinary
+owned stream is unchanged. Independent native queues preserve Backpressure/Coalesce semantics;
+goal rejection, cancellation, terminal status and result completion close both registration kinds
+through post-lock cleanup. Custom action wrappers without a native identity accessor return
+`RCL_RET_UNSUPPORTED` before sending a goal.
+
+Jazzy/both RMWs pass 86 focused action-client cases with seven manual stages ignored, plus a real
+4096-element RCL workflow and a 16K-element example. Humble/Fast DDS and Kilted/both RMWs pass 11
+focused cases, the real workflow, example and warnings-denied focused Clippy. Workspace all-target
+Clippy passes, and the current no-ROS gate verifies 84 pages/341 methods. Final-source dual-RMW four-
+direction and same-binary owned/native protocol smokes pass source-aware verification. The formal
+five-repetition owned/native and rclcpp gate stopped before measurement at load1 80.47 with five
+Zig processes, so no latency or throughput claim is promoted.
+
+[Recorded native-feedback evidence](validation/native-action-feedback-2026-10-30/README.md)
+retains exact source, binary, report, sample and compressed-log identities.
+
+The final 4096-element typed delivery boundary has five deterministic 10,000-message allocation
+repetitions. Owned delivery records 50,000 allocations/frees and 165.60 MB requested; native
+delivery records 30,000 and 1.68 MB. This qualifies the allocation/copy boundary only. Its elapsed
+samples remain diagnostic and cannot replace the isolation-gated application comparison.
+
+## Derived parameter descriptors (2026-10-30)
+
+`#[derive(RosParams)]` leaf fields accept declarative read-only, additional-constraint and
+integer/floating range metadata. The macro rejects unknown, duplicate, incomplete and conflicting
+options. Built-in leaf implementations fill the ROS name/type while explicit Node descriptors
+retain precedence; the new trait hook has a default so hand-written implementations remain source
+compatible.
+
+Handler setup registers descriptors and validates matching CLI/YAML overrides before mutating the
+provider. The real-RCL test checks valid override application, invalid override rollback, local
+updates, read-only/range/step rejection, exact `describe_parameters` contents and per-entry
+`set_parameters` results. Jazzy debug and release run 75 parameter-related cases under both RMWs;
+Humble/Fast DDS and Kilted/both RMWs run the focused service case, macro parser suite, nested
+example and warnings-denied Clippy. The current no-ROS all-target gate verifies 84 pages and 341 methods.
+
+[Recorded derive-descriptor evidence](validation/derived-parameter-descriptors-2026-10-30/README.md)
+binds final sources and compressed logs.
+
+## Runtime-agnostic callback-group tasks (2026-10-30)
+
+`CallbackGroup::spawn_task` retains arbitrary `Send` futures under the exclusive group scheduler
+token. `ReentrantCallbackGroup::spawn_task` deterministically chooses the least-populated stable
+lane, so typed action server/client and external futures share the configured group-wide bound
+without requiring `Sync`, migration or an action-specific thread. The native executor retains RCL
+wait/take ownership. The RAII task handle supports explicit cancellation or detach; worker-side
+retirement drops captured endpoints. Executor cancellation pauses rather than drops tasks, and
+`reset_cancel` explicitly reawakens their FuturesUnordered child wakers before restart.
+
+Eight task ownership/balancing/error/bookkeeping cases, two bounded overlap/panic cases and four real
+exclusive/reentrant action/stop-reset cases pass in debug and release under both Jazzy RMWs.
+Humble/Fast DDS and Kilted/both RMWs pass the same focused cases, both complete examples and
+warnings-denied Clippy. The no-ROS gate compiles all targets, executes both non-Send ownership
+counterexamples and verifies 84 pages/341 methods. Isolated rclcpp action-group performance remains
+separate work.
+
+[Recorded callback-group task evidence](validation/callback-group-tasks-2026-10-30/README.md)
+binds sources and compressed logs.
+
+A final-source cold-process protocol now flushes a readiness marker after native
+self-discovery and separately records exec-to-ready, main-to-ready, one exact
+exchange and exec-to-exit. Its four-process smoke passes provenance, response and
+trace verification; the host had active competing compilers, so these timings are
+protocol evidence only. Formal startup comparison still requires thirty
+interleaved runs and the unchanged continuous-isolation gate under each Jazzy RMW.
+
 ## Callback group application comparison (2026-10-30)
 
 [Native callback-group applications](../tools/bench_ros/CALLBACK_GROUPS.md) now
@@ -20,8 +398,7 @@ so smoke records establish no C++ performance advantage.
 
 [Complete comparison evidence](validation/callback-group-comparison-2026-10-30/README.md)
 records corrected memory semantics, raw traces, final source/binary hashes and
-an ELF dependency audit. Rust's default linking of unused interface packages is
-a concrete next memory/startup target while retaining typed/untyped capability.
+the ELF dependency audit that motivated the completed lazy-loading slice above.
 
 ## Bounded reentrant callback groups (2026-10-30)
 
@@ -959,6 +1336,9 @@ status-interest candidate, a sixteen-snapshot drain and a two-snapshot drain all
 preselected 1.05 p50/p95/p99/inverse-throughput gate; production is unchanged. The rejected
 reports and profile are retained under
 [action feedback scaling evidence](benchmarks/action-feedback-scaling-2026-10-29/README.md).
+This paragraph records the earlier per-goal path. The batched action slice immediately below
+subsequently attributed the stall, introduced the explicit status transaction and passed both
+RMW gates; the rejected candidates above were never promoted.
 
 ## Batched action goal state snapshots (2026-10-29)
 

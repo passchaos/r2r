@@ -3,8 +3,7 @@
 use super::*;
 
 #[cfg(test)]
-#[path = "../../benches/support/allocation_probe.rs"]
-pub(super) mod allocation_probe;
+use crate::allocation_probe;
 
 // Keep the ownership boundary in the typed caller; forwarding adds no independent work.
 #[inline(always)]

@@ -1,89 +1,39 @@
 //! Route known native identity before decoding its payload.
 
 use super::*;
-use std::ops::{Deref, DerefMut};
-
 #[cfg(test)]
-use super::feedback_routing::allocation_probe;
+use crate::allocation_probe;
 
-pub(crate) struct NativeFeedbackBuffer<N> {
-    slot: Arc<Mutex<Option<N>>>,
-}
+pub(crate) type NativeFeedbackBuffer<N> = crate::native_buffer::NativeBuffer<N>;
+pub(crate) type NativeFeedbackLease<N> = crate::native_buffer::NativeLease<N>;
 
-impl<N> Clone for NativeFeedbackBuffer<N> {
-    fn clone(&self) -> Self {
-        Self {
-            slot: Arc::clone(&self.slot),
-        }
-    }
-}
-
-impl<N> Default for NativeFeedbackBuffer<N> {
-    fn default() -> Self {
-        Self {
-            slot: Arc::new(Mutex::new(None)),
-        }
-    }
-}
-
-impl<N> NativeFeedbackBuffer<N> {
-    pub(crate) fn checkout(
-        &self, create: impl FnOnce() -> Result<N>,
-    ) -> Result<NativeFeedbackLease<N>> {
-        let cached = { self.slot.lock().take() };
-        let native = match cached {
-            Some(native) => native,
-            None => create()?,
+pub(crate) fn native_delivery<T>(
+    native: NativeFeedbackLease<WrappedNativeMsg<T::FeedbackMessage>>,
+    channel: Option<FeedbackSender<ActionNativeFeedback<T>>>,
+    pending: Arc<Mutex<PendingFeedbackQueue>>, uuid: uuid::Uuid,
+) -> ActionClientCompletion
+where
+    T: WrappedActionTypeSupport + 'static,
+{
+    let Some(channel) = channel else {
+        return ActionClientCompletion {
+            notify: Box::new(move || {
+                drop(native);
+                drop(pending);
+                Ok(true)
+            }),
+            cleanup_goal_on_failure: None,
         };
-        Ok(NativeFeedbackLease {
-            native: Some(native),
-            buffer: self.clone(),
-        })
-    }
-
-    fn recycle(&self, native: N) {
-        // A concurrent return keeps the most recently used storage. Retire the displaced
-        // value only after releasing the pool lock so native finalizers can reenter safely.
-        let retired = { self.slot.lock().replace(native) };
-        drop(retired);
-    }
-
-    #[cfg(test)]
-    fn is_available(&self) -> bool {
-        self.slot.lock().is_some()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn inspect_available<R>(&self, inspect: impl FnOnce(&N) -> R) -> Option<R> {
-        self.slot.lock().as_ref().map(inspect)
-    }
-}
-
-pub(crate) struct NativeFeedbackLease<N> {
-    native: Option<N>,
-    buffer: NativeFeedbackBuffer<N>,
-}
-
-impl<N> Deref for NativeFeedbackLease<N> {
-    type Target = N;
-
-    fn deref(&self) -> &Self::Target {
-        self.native.as_ref().unwrap()
-    }
-}
-
-impl<N> DerefMut for NativeFeedbackLease<N> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.native.as_mut().unwrap()
-    }
-}
-
-impl<N> Drop for NativeFeedbackLease<N> {
-    fn drop(&mut self) {
-        if let Some(native) = self.native.take() {
-            self.buffer.recycle(native);
-        }
-    }
+    };
+    feedback_completion_with_queue(
+        channel,
+        ActionNativeFeedback {
+            uuid,
+            message: native,
+        },
+        Some((uuid, pending)),
+    )
+    .expect("native feedback completion is always scheduled")
 }
 
 pub(crate) fn completion<N: Send + 'static, T: Send + 'static>(
@@ -358,6 +308,156 @@ mod tests {
 
     #[cfg(all(target_os = "linux", r2r__example_interfaces__action__Fibonacci))]
     #[test]
+    #[ignore = "manual 4096-element owned-copy versus native-delivery allocation stage; LD_PRELOAD probe required"]
+    fn benchmark_large_owned_copy_vs_native_lease_delivery() {
+        use crate::example_interfaces::action::Fibonacci;
+        const ITERATIONS: usize = 10_000;
+        const ELEMENTS: usize = 4096;
+
+        fn measure(
+            probe: &allocation_probe::Probe, mut operation: impl FnMut(),
+        ) -> (allocation_probe::NativeStats, u128) {
+            let mut stats = allocation_probe::NativeStats::default();
+            assert_eq!(unsafe { (probe.begin)() }, 0);
+            let begin = std::time::Instant::now();
+            for _ in 0..ITERATIONS {
+                operation();
+            }
+            let elapsed_ns = begin.elapsed().as_nanos();
+            assert_eq!(unsafe { (probe.end)(&mut stats) }, 0);
+            assert_eq!(
+                stats.failed_allocations + stats.counter_overflows + stats.size_overflows,
+                0
+            );
+            (stats, elapsed_ns)
+        }
+
+        let probe = allocation_probe::Probe::load()
+            .unwrap()
+            .expect("LD_PRELOAD allocation probe required");
+        let id = uuid::Uuid::from_u128(0xfeed);
+        let message = <Fibonacci::Action as WrappedActionTypeSupport>::make_feedback_msg(
+            unique_identifier_msgs::msg::UUID {
+                uuid: *id.as_bytes(),
+            },
+            Fibonacci::Feedback {
+                sequence: (0..ELEMENTS as i32).collect(),
+            },
+        );
+
+        let owned_buffer = NativeFeedbackBuffer::default();
+        drop(
+            owned_buffer
+                .checkout(|| WrappedNativeMsg::try_from(&message))
+                .unwrap(),
+        );
+        let (owned_sender, mut owned_receiver) = mpsc::channel(0);
+        let owned_channel = Arc::new(Mutex::new(FeedbackChannel::new(owned_sender)));
+        let owned_pending = Arc::new(Mutex::new(PendingFeedbackQueue::default()));
+        let mut owned_step = || {
+            let native = owned_buffer
+                .checkout(|| panic!("owned native slot was not recycled"))
+                .unwrap();
+            let completion = completion(
+                native,
+                Some(owned_channel.clone()),
+                owned_pending.clone(),
+                id,
+                |native| {
+                    let message = Fibonacci::FeedbackMessage::from_native(native);
+                    let (goal_id, feedback) =
+                        <Fibonacci::Action as WrappedActionTypeSupport>::destructure_feedback_msg(
+                            message,
+                        );
+                    Ok((uuid_msg_to_uuid(&goal_id)?, feedback))
+                },
+            );
+            (completion.notify)().unwrap();
+            let feedback = owned_receiver.next().now_or_never().unwrap().unwrap();
+            assert_eq!(feedback.sequence.len(), ELEMENTS);
+            assert_eq!(feedback.sequence[0], 0);
+            assert_eq!(feedback.sequence[ELEMENTS - 1], ELEMENTS as i32 - 1);
+            std::hint::black_box(feedback.sequence.as_ptr());
+        };
+        for _ in 0..1000 {
+            owned_step();
+        }
+        let (owned, owned_elapsed_ns) = measure(&probe, &mut owned_step);
+
+        let native_buffer = NativeFeedbackBuffer::default();
+        drop(
+            native_buffer
+                .checkout(|| WrappedNativeMsg::try_from(&message))
+                .unwrap(),
+        );
+        let (native_sender, mut native_receiver) = mpsc::channel(0);
+        let native_channel = Arc::new(Mutex::new(FeedbackChannel::new(native_sender)));
+        let native_pending = Arc::new(Mutex::new(PendingFeedbackQueue::default()));
+        let mut native_step = || {
+            let native = native_buffer
+                .checkout(|| panic!("native delivery slot was not recycled"))
+                .unwrap();
+            let completion = native_delivery::<Fibonacci::Action>(
+                native,
+                Some(native_channel.clone()),
+                native_pending.clone(),
+                id,
+            );
+            (completion.notify)().unwrap();
+            let feedback = native_receiver.next().now_or_never().unwrap().unwrap();
+            assert_eq!(feedback.goal_id(), id);
+            let sequence = &feedback.feedback.sequence;
+            assert!(sequence.size <= sequence.capacity);
+            assert_eq!(sequence.size, ELEMENTS);
+            assert!(!sequence.data.is_null());
+            let values = unsafe { std::slice::from_raw_parts(sequence.data, sequence.size) };
+            assert_eq!(values[0], 0);
+            assert_eq!(values[ELEMENTS - 1], ELEMENTS as i32 - 1);
+            std::hint::black_box(values.as_ptr());
+        };
+        for _ in 0..1000 {
+            native_step();
+        }
+        let (native, native_elapsed_ns) = measure(&probe, &mut native_step);
+
+        let owned_allocations =
+            owned.malloc_calls + owned.calloc_calls + owned.realloc_calls + owned.aligned_calls;
+        let native_allocations =
+            native.malloc_calls + native.calloc_calls + native.realloc_calls + native.aligned_calls;
+        assert!(owned_allocations - native_allocations >= ITERATIONS as u64);
+        assert!(owned.free_calls - native.free_calls >= ITERATIONS as u64);
+        let requested_byte_reduction = owned
+            .requested_bytes
+            .checked_sub(native.requested_bytes)
+            .expect("native delivery requested more allocation bytes than owned delivery");
+        assert!(
+            requested_byte_reduction >= ITERATIONS as u64 * (ELEMENTS as u64 * 4 - 256),
+            "large payload allocation bytes were not removed"
+        );
+        for (delivery, stats, elapsed_ns) in [
+            ("owned", &owned, owned_elapsed_ns),
+            ("native", &native, native_elapsed_ns),
+        ] {
+            let allocations =
+                stats.malloc_calls + stats.calloc_calls + stats.realloc_calls + stats.aligned_calls;
+            println!(
+                "{}",
+                serde_json::json!({
+                    "boundary":"final typed feedback completion, channel send/receive and payload validation; reusable preinitialized native message; no RCL/DDS",
+                    "delivery":delivery,
+                    "iterations":ITERATIONS,
+                    "elements":ELEMENTS,
+                    "elapsed_ns":elapsed_ns,
+                    "allocations":allocations,
+                    "frees":stats.free_calls,
+                    "requested_bytes":stats.requested_bytes
+                })
+            );
+        }
+    }
+
+    #[cfg(all(target_os = "linux", r2r__example_interfaces__action__Fibonacci))]
+    #[test]
     #[ignore = "manual native feedback outer-storage reuse allocation stage; LD_PRELOAD probe required"]
     fn benchmark_native_feedback_buffer_reuses_outer_allocation() {
         use crate::example_interfaces::action::Fibonacci;
@@ -556,6 +656,96 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[cfg(r2r__example_interfaces__action__Fibonacci)]
+    #[test]
+    fn native_delivery_keeps_taken_storage_alive_until_the_item_drops() {
+        use crate::example_interfaces::action::Fibonacci;
+        let uuid = uuid::Uuid::from_u128(7);
+        let message = <Fibonacci::Action as WrappedActionTypeSupport>::make_feedback_msg(
+            unique_identifier_msgs::msg::UUID {
+                uuid: *uuid.as_bytes(),
+            },
+            Fibonacci::Feedback {
+                sequence: vec![1, 2, 3, 5, 8],
+            },
+        );
+        let buffer = NativeFeedbackBuffer::default();
+        let lease = buffer
+            .checkout(|| WrappedNativeMsg::try_from(&message))
+            .unwrap();
+        let address = lease.void_ptr();
+        let (sender, mut receiver) = mpsc::channel(1);
+        let channel = Arc::new(Mutex::new(FeedbackChannel::new(sender)));
+        let completion = native_delivery::<Fibonacci::Action>(
+            lease,
+            Some(channel),
+            Arc::new(Mutex::new(PendingFeedbackQueue::default())),
+            uuid,
+        );
+
+        assert!(!buffer.is_available());
+        (completion.notify)().unwrap();
+        let item = receiver.next().now_or_never().unwrap().unwrap();
+        assert_eq!(item.goal_id(), uuid);
+        assert_eq!(item.native_message().void_ptr(), address);
+        assert_eq!(item.goal_id.uuid, *uuid.as_bytes());
+        assert!(!buffer.is_available());
+
+        drop(item);
+        assert_eq!(buffer.inspect_available(WrappedNativeMsg::void_ptr), Some(address));
+    }
+
+    #[cfg(r2r__example_interfaces__action__Fibonacci)]
+    #[test]
+    fn coalesced_native_delivery_retires_superseded_leases_and_delivers_latest() {
+        use crate::example_interfaces::action::Fibonacci;
+        let uuid = uuid::Uuid::from_u128(8);
+        let buffer = NativeFeedbackBuffer::default();
+        let (sender, mut receiver) = mpsc::channel(0);
+        let channel = Arc::new(Mutex::new(FeedbackChannel::with_overflow_policy(
+            sender,
+            FeedbackOverflowPolicy::Coalesce,
+        )));
+        let queue = Arc::new(Mutex::new(PendingFeedbackQueue::default()));
+
+        for value in [1, 2, 3] {
+            let message = <Fibonacci::Action as WrappedActionTypeSupport>::make_feedback_msg(
+                unique_identifier_msgs::msg::UUID {
+                    uuid: *uuid.as_bytes(),
+                },
+                Fibonacci::Feedback {
+                    sequence: vec![value; 4096],
+                },
+            );
+            let mut lease = buffer
+                .checkout(WrappedNativeMsg::<Fibonacci::FeedbackMessage>::try_new)
+                .unwrap();
+            message.try_copy_to_native(&mut lease).unwrap();
+            let completion = native_delivery::<Fibonacci::Action>(
+                lease,
+                Some(channel.clone()),
+                queue.clone(),
+                uuid,
+            );
+            (completion.notify)().unwrap();
+        }
+
+        let first = receiver.next().now_or_never().unwrap().unwrap();
+        let first = Fibonacci::FeedbackMessage::from_native(&first.message);
+        assert_eq!(first.feedback.sequence[0], 1);
+
+        let channels = HashMap::from([(uuid, channel)]);
+        let (action, _) = take_ready_pending_feedback_with_progress(&queue, &channels);
+        let PendingFeedbackAction::Deliver(completion) = action else {
+            panic!("latest native feedback did not become writable");
+        };
+        (completion.notify)().unwrap();
+        let latest = receiver.next().now_or_never().unwrap().unwrap();
+        let latest = Fibonacci::FeedbackMessage::from_native(&latest.message);
+        assert_eq!(latest.feedback.sequence, vec![3; 4096]);
+        assert!(receiver.next().now_or_never().is_none());
     }
 
     #[test]

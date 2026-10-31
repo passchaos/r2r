@@ -1,0 +1,152 @@
+{
+  "metadata": {
+    "boundary": "generated native message fill, channel send/receive and payload validation; no RCL/DDS",
+    "timing_qualified": false,
+    "iterations": 10000,
+    "elements": 4096,
+    "repetitions": 5,
+    "cpu": 0,
+    "single_cpu_affinity": true,
+    "virtual_memory_limit_bytes": 10737418240,
+    "probe_sha256": "85283f1184b00c227e02c8c56eec9283051265a779511c39c6c8cf4272baa59e",
+    "source_sha256": {
+      "r2r/src/native_buffer.rs": "e651c556e0fccf8a47a7e646e80e5532353eb97938833eb1ce4a9c79c24b2885",
+      "r2r/src/subscribers.rs": "8b8b9393498c613496ff4542bd7abfe9a2df2e26853f4754638775e12238d81f",
+      "r2r/src/subscribers/reusable_native_tests.rs": "eb09de9b29238b291cd21a80006dcef669d915cbcb3b6471343a65f6d6168cc6",
+      "r2r/benches/support/allocation_probe.rs": "5b9bb562e8c6ab7bee6427be15af5134d13cefd557b6bc13e1e2f102c864f56d",
+      "tools/bench_ros/native_subscription_reuse_stage.py": "0e307ad10dc2746ed42e17e87563a738a68e62fa125ca80e5a04ad9880466a14",
+      "tools/bench_ros/probe/probe.c": "fb969b91fc6e8f4755e4932f89044c1d35dc1dc5b5a9ff2175735e877bcb6394",
+      "tools/bench_ros/probe/probe.h": "1e158b3e377055c8b746728a4920a74523bbf0958054d04c926d79becbb8fe8a"
+    },
+    "raw_log": {
+      "file": "allocation-stage.log.gz",
+      "sha256": "2f1d50ed413773b1eb7f8bf245e56a895a87c1c074bf7444f82511cad35e9b54"
+    }
+  },
+  "records": [
+    {
+      "allocations": 40000,
+      "boundary": "generated native message fill, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "fresh",
+      "elapsed_ns": 12773658,
+      "elements": 4096,
+      "frees": 40000,
+      "iterations": 10000,
+      "requested_bytes": 329440000,
+      "repetition": 0
+    },
+    {
+      "allocations": 20000,
+      "boundary": "generated native message fill, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "reusable",
+      "elapsed_ns": 11156740,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "requested_bytes": 1360000,
+      "repetition": 0
+    },
+    {
+      "allocations": 40000,
+      "boundary": "generated native message fill, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "fresh",
+      "elapsed_ns": 10431692,
+      "elements": 4096,
+      "frees": 40000,
+      "iterations": 10000,
+      "requested_bytes": 329440000,
+      "repetition": 1
+    },
+    {
+      "allocations": 20000,
+      "boundary": "generated native message fill, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "reusable",
+      "elapsed_ns": 9407139,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "requested_bytes": 1360000,
+      "repetition": 1
+    },
+    {
+      "allocations": 40000,
+      "boundary": "generated native message fill, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "fresh",
+      "elapsed_ns": 10492921,
+      "elements": 4096,
+      "frees": 40000,
+      "iterations": 10000,
+      "requested_bytes": 329440000,
+      "repetition": 2
+    },
+    {
+      "allocations": 20000,
+      "boundary": "generated native message fill, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "reusable",
+      "elapsed_ns": 9379745,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "requested_bytes": 1360000,
+      "repetition": 2
+    },
+    {
+      "allocations": 40000,
+      "boundary": "generated native message fill, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "fresh",
+      "elapsed_ns": 10747728,
+      "elements": 4096,
+      "frees": 40000,
+      "iterations": 10000,
+      "requested_bytes": 329440000,
+      "repetition": 3
+    },
+    {
+      "allocations": 20000,
+      "boundary": "generated native message fill, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "reusable",
+      "elapsed_ns": 9350554,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "requested_bytes": 1360000,
+      "repetition": 3
+    },
+    {
+      "allocations": 40000,
+      "boundary": "generated native message fill, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "fresh",
+      "elapsed_ns": 10317650,
+      "elements": 4096,
+      "frees": 40000,
+      "iterations": 10000,
+      "requested_bytes": 329440000,
+      "repetition": 4
+    },
+    {
+      "allocations": 20000,
+      "boundary": "generated native message fill, channel send/receive and payload validation; no RCL/DDS",
+      "delivery": "reusable",
+      "elapsed_ns": 9534095,
+      "elements": 4096,
+      "frees": 20000,
+      "iterations": 10000,
+      "requested_bytes": 1360000,
+      "repetition": 4
+    }
+  ],
+  "summary": {
+    "fresh": {
+      "allocations": 40000,
+      "frees": 40000,
+      "requested_bytes": 329440000,
+      "elapsed_ns": 10492921
+    },
+    "reusable": {
+      "allocations": 20000,
+      "frees": 20000,
+      "requested_bytes": 1360000,
+      "elapsed_ns": 9407139
+    }
+  }
+}

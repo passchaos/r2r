@@ -7,10 +7,52 @@ import json
 from pathlib import Path
 import statistics
 
-from action_feedback import SERVER_STAGES, matrix_pairs, regression_failures, validate_endpoint
+from action_feedback import (
+    SERVER_STAGES,
+    matrix_pairs,
+    rclcpp_failures,
+    regression_failures,
+    validate_endpoint,
+)
+from callback_group_support.validation import qualified_isolation
+from pubsub_pipeline import DEFAULT_FORBIDDEN_PROCESS_NAMES
 
 
-def verify(path, require_performance_pass=False):
+def current_source_mismatches(metadata, root):
+    declared = {}
+    build_manifest = metadata.get("build_manifest", {})
+    manifests = [metadata.get("source_sha256", {}),
+                 build_manifest.get("candidate", {}),
+                 build_manifest.get("cpp_source_sha256", {})]
+    if not all(isinstance(manifest, dict) for manifest in manifests):
+        raise RuntimeError("invalid action feedback source manifest")
+    for manifest in manifests:
+        for name, digest in manifest.items():
+            if not isinstance(name, str) or not isinstance(digest, str) or len(digest) != 64:
+                raise RuntimeError("invalid action feedback source identity")
+            previous = declared.setdefault(name, digest)
+            if previous != digest:
+                raise RuntimeError(f"conflicting action feedback source identity: {name}")
+    required = {
+        "r2r/benches/action_feedback_roundtrip.rs",
+        "tools/bench_ros/action_feedback.cpp",
+        "tools/bench_ros/action_feedback.py",
+        "tools/bench_ros/verify_action_feedback.py",
+        "tools/bench_ros/pubsub_pipeline.py",
+        "tools/bench_ros/callback_group_support/validation.py",
+    }
+    if not required <= set(declared):
+        raise RuntimeError(f"action feedback source manifest omits: {sorted(required-set(declared))}")
+    mismatches = []
+    for name, expected in sorted(declared.items()):
+        source = root / name
+        observed = hashlib.sha256(source.read_bytes()).hexdigest() if source.is_file() else None
+        if observed != expected:
+            mismatches.append({"file": name, "expected": expected, "observed": observed})
+    return mismatches
+
+
+def verify(path, require_performance_pass=False, require_current_sources=False):
     report = json.loads(path.read_text())
     metadata = report["metadata"]
     if metadata.get("workload") != "action_feedback":
@@ -71,6 +113,18 @@ def verify(path, require_performance_pass=False):
     status_sync = metadata.get("status_sync")
     if status_sync is not None and status_sync not in {"required", "none"}:
         raise RuntimeError("invalid action feedback status sync metadata")
+    feedback_delivery_paths = metadata.get("feedback_delivery_paths")
+    if feedback_delivery_paths is not None:
+        expected_languages = {language for pair in pairs for language in pair}
+        binary_languages = set(metadata.get("binary_sha256", {}))
+        if (set(feedback_delivery_paths) != binary_languages
+                or not expected_languages <= binary_languages
+                or feedback_delivery_paths.get("cpp") != "rclcpp_callback"
+                or any(path not in {"owned", "native", "rclcpp_callback"}
+                       for path in feedback_delivery_paths.values())
+                or any(path == "rclcpp_callback" and language != "cpp"
+                       for language, path in feedback_delivery_paths.items())):
+            raise RuntimeError("invalid action feedback delivery path metadata")
     artifact = metadata["samples_artifact"]
     compressed = (path.parent / artifact["file"]).read_bytes()
     if hashlib.sha256(compressed).hexdigest() != artifact["sha256"]:
@@ -105,7 +159,9 @@ def verify(path, require_performance_pass=False):
                 feedback_per_goal, metadata["iterations"], metadata["warmup"],
                 "rclcpp" if language == "cpp" else "r2r", instrumentation["enabled"],
                 server_stages, status_qos, result_timeout_ms, status_batch_size,
-                None if status_paths is None else status_paths[language], status_sync)
+                None if status_paths is None else status_paths[language], status_sync,
+                (None if role != "ping" or feedback_delivery_paths is None
+                 else feedback_delivery_paths[language]))
     expected = {(elements, window, ping, echo, repetition)
                 for elements in sizes for window in windows for ping, echo in pairs
                 for repetition in range(metadata["repetitions"])}
@@ -149,8 +205,30 @@ def verify(path, require_performance_pass=False):
         failures = regression_failures(report["summary"], sizes, windows, gate["maximum_ratio"])
         if gate.get("passed") != (not failures) or gate.get("failures") != failures:
             raise RuntimeError("recorded action feedback gate does not match measurements")
-    if require_performance_pass and ("regression_gate" not in metadata or not metadata["regression_gate"]["passed"]):
-        raise RuntimeError("a recorded passing action feedback regression gate is required")
+    if "rclcpp_gate" in metadata:
+        if instrumentation["enabled"]:
+            raise RuntimeError("instrumented action feedback timing cannot pass an rclcpp gate")
+        gate = metadata["rclcpp_gate"]
+        failures = rclcpp_failures(report["summary"], sizes, windows, gate["maximum_ratio"])
+        if gate.get("passed") != (not failures) or gate.get("failures") != failures:
+            raise RuntimeError("recorded action feedback rclcpp gate does not match measurements")
+    performance_gates = [metadata[name] for name in ("regression_gate", "rclcpp_gate")
+                         if name in metadata]
+    if feedback_delivery_paths is not None and performance_gates:
+        isolation = metadata.get("isolation_gate")
+        if (not isinstance(isolation, dict)
+                or isolation.get("passed") is not True
+                or not qualified_isolation(isolation, DEFAULT_FORBIDDEN_PROCESS_NAMES)):
+            raise RuntimeError("native action feedback performance gates require passing isolation")
+    if require_performance_pass and (
+            not performance_gates or any(gate.get("passed") is not True for gate in performance_gates)
+    ):
+        raise RuntimeError("recorded passing action feedback performance gates are required")
+    if require_current_sources:
+        root = Path(__file__).resolve().parents[2]
+        mismatches = current_source_mismatches(metadata, root)
+        if mismatches:
+            raise RuntimeError(f"action feedback source manifest mismatches current tree: {mismatches}")
     print(f"{path}: {len(records)} records and {sum(len(trace['samples_ns']) for trace in traces)} batch samples verified")
 
 
@@ -158,9 +236,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("report", type=Path, nargs="+")
     parser.add_argument("--require-performance-pass", action="store_true")
+    parser.add_argument("--require-current-sources", action="store_true")
     args = parser.parse_args()
     for path in args.report:
-        verify(path, args.require_performance_pass)
+        verify(path, args.require_performance_pass, args.require_current_sources)
 
 
 if __name__ == "__main__":

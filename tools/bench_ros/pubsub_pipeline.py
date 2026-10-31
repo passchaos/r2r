@@ -318,9 +318,9 @@ def main():
     parser.add_argument("--warmup", type=int, default=50)
     parser.add_argument("--repetitions", type=int, default=5)
     parser.add_argument("--matrix-scope", choices=["full", "regression"], default="full")
-    parser.add_argument("--rust-receive-path", choices=["stream", "native_callback"],
+    parser.add_argument("--rust-receive-path", choices=["stream", "native_callback", "reusable_typed", "batch_typed"],
                         default="native_callback")
-    parser.add_argument("--baseline-receive-path", choices=["stream", "native_callback"],
+    parser.add_argument("--baseline-receive-path", choices=["stream", "native_callback", "reusable_typed", "batch_typed"],
                         default="stream")
     parser.add_argument("--max-regression", type=float)
     parser.add_argument("--max-rclcpp-ratio", type=float,
@@ -426,9 +426,20 @@ def main():
                                 for name in ["rclcpp", "rcl", "rmw", "std_msgs", args.rmw]}
     monitor = None
     if args.isolation_samples:
-        preflight = wait_for_isolation(
-            args.isolation_samples, args.isolation_interval, args.isolation_timeout,
-            args.isolation_max_load1, forbidden_names)
+        try:
+            preflight = wait_for_isolation(
+                args.isolation_samples, args.isolation_interval, args.isolation_timeout,
+                args.isolation_max_load1, forbidden_names)
+        except RuntimeError as error:
+            metadata["isolation_gate"] = {
+                "passed": False,
+                "preflight_error": str(error),
+                "measurement_started": False,
+            }
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(json.dumps({"metadata": metadata, "records": [],
+                                               "summary": []}, indent=2) + "\n")
+            raise
         monitor = IsolationMonitor(
             forbidden_names, args.isolation_monitor_interval, args.isolation_max_load1)
         monitor.start()

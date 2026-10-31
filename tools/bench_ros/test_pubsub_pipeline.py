@@ -80,6 +80,12 @@ class PipelineValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "receive path mismatch"):
             validate_endpoint(path, "ping", "rmw_test", 4, 2, 2, 2, 0,
                               receive_path="stream")
+        path["receive_path"] = "reusable_typed"
+        validate_endpoint(path, "ping", "rmw_test", 4, 2, 2, 2, 0,
+                          receive_path="reusable_typed")
+        path["receive_path"] = "batch_typed"
+        validate_endpoint(path, "ping", "rmw_test", 4, 2, 2, 2, 0,
+                          receive_path="batch_typed")
         broken = self.endpoint("ping")
         broken["publish_samples_ns"][1] = 21
         with self.assertRaisesRegex(RuntimeError, "exceeds RTT"):
@@ -216,6 +222,21 @@ class PipelineValidationTests(unittest.TestCase):
             path = root / "report.json"
             path.write_text(json.dumps(report))
             verify(path, require_performance_pass=True)
+            report["metadata"]["receive_paths"] = {
+                "baseline": "stream", "rust": "batch_typed", "cpp": "callback",
+            }
+            report["metadata"]["binary_sha256"]["cpp"] = "c"
+            for record in report["records"]:
+                receive_path = report["metadata"]["receive_paths"][record["ping_language"]]
+                record["ping"]["receive_path"] = receive_path
+                record["echo"]["receive_path"] = receive_path
+            path.write_text(json.dumps(report))
+            verify(path, require_performance_pass=True)
+            report["metadata"]["receive_paths"]["rust"] = "unknown"
+            path.write_text(json.dumps(report))
+            with self.assertRaisesRegex(RuntimeError, "invalid pipeline receive path metadata"):
+                verify(path)
+            report["metadata"]["receive_paths"]["rust"] = "batch_typed"
             for limit in [float("nan"), float("inf"), 0.99]:
                 report["metadata"]["regression_gate"]["maximum_ratio"] = limit
                 path.write_text(json.dumps(report))

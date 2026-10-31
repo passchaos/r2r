@@ -65,6 +65,12 @@ impl GroupedSubscriptionOptions {
         self.endpoint = endpoint;
         self
     }
+    /// Adds a middleware content filter to native grouped-subscription initialization.
+    pub fn content_filter(
+        self, content_filter: ContentFilterOptions,
+    ) -> SubscriptionConfiguration<Self> {
+        SubscriptionConfiguration::new(self).content_filter(content_filter)
+    }
 }
 impl From<CallbackQueueOptions> for GroupedSubscriptionOptions {
     fn from(queue: CallbackQueueOptions) -> Self {
@@ -72,6 +78,11 @@ impl From<CallbackQueueOptions> for GroupedSubscriptionOptions {
             queue,
             ..Default::default()
         }
+    }
+}
+impl From<CallbackQueueOptions> for SubscriptionConfiguration<GroupedSubscriptionOptions> {
+    fn from(queue: CallbackQueueOptions) -> Self {
+        SubscriptionConfiguration::new(queue.into())
     }
 }
 
@@ -96,6 +107,27 @@ impl GroupedSubscription {
     /// Native QoS resolved by the selected middleware.
     pub fn actual_qos(&self, node: &Node) -> Result<QosProfile> {
         node.get_subscription_actual_qos(self.id)
+    }
+    /// Returns whether middleware-side content filtering is enabled.
+    pub fn is_content_filter_enabled(&self, node: &Node) -> Result<bool> {
+        node.get_subscription_content_filter_enabled(self.id)
+    }
+    /// Replaces the middleware-side content filter for this grouped subscription.
+    ///
+    /// An empty expression clears the filter. The selected RMW may return
+    /// [`Error::RCL_RET_UNSUPPORTED`].
+    pub fn set_content_filter(
+        &self, node: &mut Node, options: &ContentFilterOptions,
+    ) -> Result<()> {
+        node.set_subscription_content_filter(self.id, options)
+    }
+    /// Clears the middleware-side content filter.
+    pub fn clear_content_filter(&self, node: &mut Node) -> Result<()> {
+        self.set_content_filter(node, &ContentFilterOptions::default())
+    }
+    /// Returns the current middleware-side content filter.
+    pub fn get_content_filter(&self, node: &Node) -> Result<ContentFilterOptions> {
+        node.get_subscription_content_filter(self.id)
     }
     /// Current matched publisher count.
     pub fn get_publisher_count(&self, node: &Node) -> Result<usize> {

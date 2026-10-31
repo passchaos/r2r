@@ -1,4 +1,28 @@
 use super::*;
+use futures::{FutureExt, StreamExt};
+
+#[test]
+fn lifecycle_callback_timer_reset_events_include_activation_and_manual_restarts() {
+    let mut node = node("lc_callback_reset_events");
+    let timer = node
+        .create_timer_callback(Duration::from_millis(10), || Ok(()))
+        .unwrap();
+    let mut events = timer.observe_resets(&mut node).unwrap();
+    assert!(events.next().now_or_never().is_none());
+
+    active(&mut node);
+    assert_eq!(
+        events.next().now_or_never(),
+        Some(Some(crate::TimerReset { count: 1, total: 1 }))
+    );
+    timer.reset(&mut node).unwrap();
+    assert_eq!(
+        events.next().now_or_never(),
+        Some(Some(crate::TimerReset { count: 1, total: 2 }))
+    );
+    timer.destroy(&mut node);
+    assert_eq!(events.next().now_or_never(), Some(None));
+}
 
 #[test]
 fn lifecycle_callback_timer_generations_restart_deadlines_and_preserve_manual_pause() {

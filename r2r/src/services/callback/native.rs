@@ -34,7 +34,7 @@ where
         // Prepare owned response storage before creating the native endpoint, so allocation
         // failure leaves no unregistered service handle to finalize.
         let response = WrappedNativeMsg::try_new()?;
-        let type_support = T::get_ts();
+        let type_support = T::try_get_ts()?;
         let handle = create_service_helper(node, name, type_support, qos)?;
         Ok(Box::new(Self {
             endpoint: Endpoint {

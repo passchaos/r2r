@@ -1,6 +1,6 @@
 use super::*;
 
-fn wait_for_graph_condition(node: &mut Node, mut present: impl FnMut(&Node) -> bool) {
+pub(super) fn wait_for_graph_condition(node: &mut Node, mut present: impl FnMut(&Node) -> bool) {
     let started = Instant::now();
     loop {
         // Register before querying: native graph caches update asynchronously, including

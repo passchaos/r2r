@@ -160,7 +160,7 @@ def verify(path, require_performance_pass=False, require_isolation_pass=False,
         if (set(receive_paths) != set(metadata.get("binary_sha256", {}))
                 or not expected_languages <= set(receive_paths)
                 or receive_paths.get("cpp") != "callback"
-                or any(path not in {"stream", "native_callback", "callback"}
+                or any(path not in {"stream", "native_callback", "reusable_typed", "batch_typed", "callback"}
                        for path in receive_paths.values())):
             raise RuntimeError("invalid pipeline receive path metadata")
     artifact = metadata["samples_artifact"]

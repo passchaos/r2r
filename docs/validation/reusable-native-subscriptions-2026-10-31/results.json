@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "feature": {
+    "api": "Node::subscribe_native_reusable",
+    "options_api": "Node::subscribe_native_reusable_with_options",
+    "sample": "NativeSubscriptionSample<T>",
+    "existing_subscribe_native_unchanged": true,
+    "one_slot_outer_container_pool": true,
+    "retained_samples_independently_owned": true,
+    "sample_outlives_endpoint": true,
+    "nested_dynamic_capacity_reuse_claimed": false
+  },
+  "resource_constraints": {
+    "single_cpu_compilation": true,
+    "cargo_build_jobs": 1,
+    "rayon_threads": 1,
+    "virtual_memory_limit_kib": 10485760,
+    "container_memory_bytes": 10000000000,
+    "container_memory_swap_bytes": 10000000000
+  },
+  "native_gates": {
+    "jazzy": {
+      "rmws": [
+        "rmw_cyclonedds_cpp",
+        "rmw_fastrtps_cpp"
+      ],
+      "reusable_cases_passed_per_rmw_debug": 1,
+      "shared_action_lease_cases_passed_per_rmw": 1,
+      "reusable_cases_passed_per_rmw_release": 1,
+      "example_passed_per_rmw": true,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-jazzy.log.gz",
+      "artifact_sha256": "e19a73532e62c0bd31c1d9863c8962141a3d8031f0651add85300dcad4d4477e",
+      "uncompressed_sha256": "227796e41fe23a38c18a130ee374f5641fec921b376cdc8199811406b332d30d"
+    },
+    "humble": {
+      "rmws": [
+        "rmw_fastrtps_cpp"
+      ],
+      "reusable_cases_passed_per_rmw": 1,
+      "shared_action_lease_cases_passed_per_rmw": 1,
+      "example_passed_per_rmw": true,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-humble.log.gz",
+      "artifact_sha256": "8683b97a1c7e3e7708f733e61bac5da26bf6fd9895d14cfa3211ca8ad2043b85",
+      "uncompressed_sha256": "1972ae94f5abab2792c32d1ebfc56bfb664d9431c8abeed55c2e7ebadb80ec3b"
+    },
+    "kilted": {
+      "rmws": [
+        "rmw_cyclonedds_cpp",
+        "rmw_fastrtps_cpp"
+      ],
+      "reusable_cases_passed_per_rmw": 1,
+      "shared_action_lease_cases_passed_per_rmw": 1,
+      "example_passed_per_rmw": true,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-kilted.log.gz",
+      "artifact_sha256": "3b5bc285636793c8403e609248eff2741d41a93aef335b70840926dd3a23ae09",
+      "uncompressed_sha256": "455374ee6f457489830d97280afc5a8b223400af436fa6819d1e9afc8b5b3756"
+    }
+  },
+  "workspace_clippy": {
+    "all_targets": true,
+    "warnings_denied": true,
+    "exit_code": 0,
+    "artifact": "logs/final-clippy.log.gz",
+    "artifact_sha256": "1e76eb6c6a788c6e59e8d75cf8432ff95cbd56d48d927b09a5ee55e21b34928c",
+    "uncompressed_sha256": "2ea8526852e754ce96969489ffb7a755dc260fb5dad21fd676fa9c7f2ae9922b"
+  },
+  "no_ros_gate": {
+    "public_documentation_artifacts": 84,
+    "required_documented_methods": 341,
+    "all_targets_compiled": true,
+    "exit_code": 0,
+    "artifact": "logs/final-no-ros.log.gz",
+    "artifact_sha256": "fd71da9dce501fd47168b75c9b4a03c715ddf12f05e1a526c8adcdc6c8d8b7ae",
+    "uncompressed_sha256": "1cfc55c60703f7e36563a7252cd4b95900dfddb3ea939935cc23cfface5eee23"
+  },
+  "allocation_stage": {
+    "timing_qualified": false,
+    "repetitions": 5,
+    "iterations_per_repetition": 10000,
+    "elements": 4096,
+    "fresh_allocations": 40000,
+    "reusable_allocations": 20000,
+    "allocation_reduction_per_sample": 2,
+    "fresh_requested_bytes": 329440000,
+    "reusable_requested_bytes": 1360000,
+    "requested_byte_reduction": 328080000,
+    "requested_byte_reduction_percent": 99.58717824186498,
+    "artifact": "allocation-stage.json",
+    "artifact_sha256": "169d107cfc1bc9a85b5943b86a034d2244e56e3b57250100ce315f0fbe63d034",
+    "raw_log_artifact": "allocation-stage.log.gz",
+    "raw_log_sha256": "2f1d50ed413773b1eb7f8bf245e56a895a87c1c074bf7444f82511cad35e9b54",
+    "probe_report_artifact": "probe-report.json",
+    "probe_report_sha256": "48aa1cac6cbedc5b69f87a9e03d5df3f6c7f0900b45ebb764b7c48c8a4800ef4"
+  },
+  "source_sha256": {
+    "r2r/src/native_buffer.rs": "e651c556e0fccf8a47a7e646e80e5532353eb97938833eb1ce4a9c79c24b2885",
+    "r2r/src/subscribers.rs": "8b8b9393498c613496ff4542bd7abfe9a2df2e26853f4754638775e12238d81f",
+    "r2r/src/subscribers/reusable_native_tests.rs": "eb09de9b29238b291cd21a80006dcef669d915cbcb3b6471343a65f6d6168cc6",
+    "r2r/src/nodes/subscription_api.rs": "6800c58b252e9a8948123df3a06498720b5557dd00b7ad81bceb76fb238d2b81",
+    "r2r/src/lib.rs": "c1d0b15e9eef13e98f7142408fe74862ddee144cc9550237b7d6676355c22101",
+    "r2r/src/action_clients/native_feedback.rs": "355ea5974ff93d1bc92feb2678bccaf38f7cd28a90c2d5acb92806df9db2a160",
+    "r2r/src/action_clients/feedback_routing.rs": "6726185940f0899c87b1d36e9dcde653230f34c831d44ccb41b3fda5484cd669",
+    "r2r/examples/reusable_native_subscription.rs": "7a60d1a7d40f1141c41c87f739f8a7f799962e9c3cc64cf3eeef631f44d1ede6",
+    "docs/REUSABLE_NATIVE_SUBSCRIPTIONS.md": "da6ec520c5f0c35f92b3fca008c0e644e97711a5a6df61be98cb8bdc6283ba04",
+    "README.md": "804327d9ac4535471dda12675408630438f366979cd91bada21556b851a65ec8",
+    "tests/check_documentation.py": "b87c8eef33a8251b39d4a0940679d05903b5a749ec9c32633aa20579f311ab96",
+    "tools/bench_ros/native_subscription_reuse_stage.py": "0e307ad10dc2746ed42e17e87563a738a68e62fa125ca80e5a04ad9880466a14",
+    "docs/validation/reusable-native-subscriptions-2026-10-31/README.md": "dcfb9b54fdf304c163c7727ee926a0a3abe27fa286cb314d8f4101c7848c897f",
+    "docs/validation/reusable-native-subscriptions-2026-10-31/run-jazzy.bash": "7041a3dc19092c02230e085c0a75389468ea36fc0e3008d0fc1a0a17682fcab8",
+    "docs/validation/reusable-native-subscriptions-2026-10-31/run-compat.bash": "b0371c8bc3568331df5eff62b816b44b5113a616d1a809623ae354e89131bdb8",
+    "docs/validation/reusable-native-subscriptions-2026-10-31/run-no-ros.bash": "ac794a523adf52048ed0b3c8c60e859793810dba2f3cac6e2542980cfa5720b1",
+    "docs/validation/reusable-native-subscriptions-2026-10-31/verify.py": "168b74296b663e26c07898ab96ededd5c187e93efc83704e38445de57d293826"
+  }
+}

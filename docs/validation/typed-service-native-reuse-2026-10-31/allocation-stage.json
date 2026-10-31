@@ -1,0 +1,154 @@
+{
+  "metadata": {
+    "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
+    "timing_qualified": false,
+    "iterations": 10000,
+    "string_bytes": 4096,
+    "repetitions": 5,
+    "cpu": 0,
+    "single_cpu_affinity": true,
+    "virtual_memory_limit_bytes": 10737418240,
+    "probe_sha256": "85283f1184b00c227e02c8c56eec9283051265a779511c39c6c8cf4272baa59e",
+    "source_sha256": {
+      "r2r/src/services.rs": "cb6a68b039225fbddb75bda5cc4de98829262c499f8522927057736ae50ec80a",
+      "r2r/src/services/native_buffer_tests.rs": "47ea97f64f2c0be76c145a21f3636acd10b35126c4890f4535eb8b07dd675b13",
+      "r2r/src/msg_types.rs": "47fd4f92e2d16912e36dfd7074893ba07365915b5ba7ed62761394555d2003af",
+      "r2r/src/native_buffer.rs": "e651c556e0fccf8a47a7e646e80e5532353eb97938833eb1ce4a9c79c24b2885",
+      "r2r/src/nodes/service_api.rs": "ad3384e2480257cc394eadd600e705b619265d73d062df4c9b5e3d018f437e03",
+      "r2r/benches/support/allocation_probe.rs": "5b9bb562e8c6ab7bee6427be15af5134d13cefd557b6bc13e1e2f102c864f56d",
+      "tools/bench_ros/typed_service_native_reuse_stage.py": "362fd828a58b29d3c10447d847777916ea1d07f636af24590df96f48140fb655",
+      "tools/bench_ros/probe/probe.c": "fb969b91fc6e8f4755e4932f89044c1d35dc1dc5b5a9ff2175735e877bcb6394",
+      "tools/bench_ros/probe/probe.h": "1e158b3e377055c8b746728a4920a74523bbf0958054d04c926d79becbb8fe8a"
+    },
+    "raw_log": {
+      "file": "allocation-stage.log.gz",
+      "sha256": "646290b3e9d78bcc050c60743bfd3414265fb91baf06298f0ad7e87b54288fa9"
+    }
+  },
+  "records": [
+    {
+      "allocations": 40000,
+      "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
+      "elapsed_ns": 2475446,
+      "frees": 30000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 41310000,
+      "string_bytes": 4096,
+      "repetition": 0
+    },
+    {
+      "allocations": 0,
+      "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
+      "elapsed_ns": 1359852,
+      "frees": 0,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 0,
+      "string_bytes": 4096,
+      "repetition": 0
+    },
+    {
+      "allocations": 40000,
+      "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
+      "elapsed_ns": 2491548,
+      "frees": 30000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 41310000,
+      "string_bytes": 4096,
+      "repetition": 1
+    },
+    {
+      "allocations": 0,
+      "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
+      "elapsed_ns": 1347643,
+      "frees": 0,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 0,
+      "string_bytes": 4096,
+      "repetition": 1
+    },
+    {
+      "allocations": 40000,
+      "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
+      "elapsed_ns": 3451754,
+      "frees": 30000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 41310000,
+      "string_bytes": 4096,
+      "repetition": 2
+    },
+    {
+      "allocations": 0,
+      "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
+      "elapsed_ns": 1687707,
+      "frees": 0,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 0,
+      "string_bytes": 4096,
+      "repetition": 2
+    },
+    {
+      "allocations": 40000,
+      "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
+      "elapsed_ns": 2497191,
+      "frees": 30000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 41310000,
+      "string_bytes": 4096,
+      "repetition": 3
+    },
+    {
+      "allocations": 0,
+      "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
+      "elapsed_ns": 1346728,
+      "frees": 0,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 0,
+      "string_bytes": 4096,
+      "repetition": 3
+    },
+    {
+      "allocations": 40000,
+      "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
+      "elapsed_ns": 2483643,
+      "frees": 30000,
+      "iterations": 10000,
+      "native_storage": "fresh_native",
+      "requested_bytes": 41310000,
+      "string_bytes": 4096,
+      "repetition": 4
+    },
+    {
+      "allocations": 0,
+      "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
+      "elapsed_ns": 1343998,
+      "frees": 0,
+      "iterations": 10000,
+      "native_storage": "reused_native",
+      "requested_bytes": 0,
+      "string_bytes": 4096,
+      "repetition": 4
+    }
+  ],
+  "summary": {
+    "fresh_native": {
+      "allocations": 40000,
+      "frees": 30000,
+      "requested_bytes": 41310000,
+      "elapsed_ns": 2491548
+    },
+    "reused_native": {
+      "allocations": 0,
+      "frees": 0,
+      "requested_bytes": 0,
+      "elapsed_ns": 1347643
+    }
+  }
+}

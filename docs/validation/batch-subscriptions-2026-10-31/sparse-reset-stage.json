@@ -1,0 +1,188 @@
+{
+  "metadata": {
+    "boundary": "generated native reset for a capacity-16 batch after one successful take, then refill one 4096-element message; no RCL/DDS/decode/channel",
+    "timing_qualified": false,
+    "iterations": 10000,
+    "capacity": 16,
+    "taken": 1,
+    "elements": 4096,
+    "repetitions": 5,
+    "cpu": 0,
+    "single_cpu_affinity": true,
+    "virtual_memory_limit_bytes": 10737418240,
+    "probe_sha256": "85283f1184b00c227e02c8c56eec9283051265a779511c39c6c8cf4272baa59e",
+    "source_sha256": {
+      "r2r/src/msg_types.rs": "47fd4f92e2d16912e36dfd7074893ba07365915b5ba7ed62761394555d2003af",
+      "r2r/src/subscribers/batch.rs": "68918b0f377a12fe3ba7131c37ddbcee4f521a41c53f6d3fdd91f10cc2aeb711",
+      "r2r/src/subscribers/batch_tests.rs": "4dafbdc5f5de8ba590b182d364fc537006575d4d1e6e78e7f73d789a962715af",
+      "r2r_msg_gen/src/lib.rs": "114ff409c67be24a6c733e4a6f497ccfd40fbf6066aa3ab2bdbf242d3538b39e",
+      "r2r_msg_gen/src/native_support.rs": "b571c665067960c73f997a736befdcc1b79ec8d53904055e4b4c0a8d49ba5012",
+      "r2r/benches/support/allocation_probe.rs": "5b9bb562e8c6ab7bee6427be15af5134d13cefd557b6bc13e1e2f102c864f56d",
+      "tools/bench_ros/native_batch_sparse_reset_stage.py": "e6e2c202d8feae9d5cb9050b1514a7d8b8710c1583dc01591156084f66bb2917",
+      "tools/bench_ros/probe/probe.c": "fb969b91fc6e8f4755e4932f89044c1d35dc1dc5b5a9ff2175735e877bcb6394",
+      "tools/bench_ros/probe/probe.h": "1e158b3e377055c8b746728a4920a74523bbf0958054d04c926d79becbb8fe8a"
+    },
+    "raw_log": {
+      "file": "sparse-reset-stage.log.gz",
+      "sha256": "e6bf7c56478221280b0f0e8228d2e231bbe929b38508ba2548382dfef26e59e4"
+    }
+  },
+  "records": [
+    {
+      "allocations": 10012,
+      "boundary": "generated native reset for a capacity-16 batch after one successful take, then refill one 4096-element message; no RCL/DDS/decode/channel",
+      "capacity": 16,
+      "elapsed_ns": 9989061,
+      "elements": 4096,
+      "frees": 10004,
+      "iterations": 10000,
+      "refresh_calls": 160000,
+      "refresh_scope": "full_capacity",
+      "requested_bytes": 327680322,
+      "taken": 1,
+      "repetition": 0
+    },
+    {
+      "allocations": 10000,
+      "boundary": "generated native reset for a capacity-16 batch after one successful take, then refill one 4096-element message; no RCL/DDS/decode/channel",
+      "capacity": 16,
+      "elapsed_ns": 7858424,
+      "elements": 4096,
+      "frees": 10000,
+      "iterations": 10000,
+      "refresh_calls": 10000,
+      "refresh_scope": "taken_prefix",
+      "requested_bytes": 327680000,
+      "taken": 1,
+      "repetition": 0
+    },
+    {
+      "allocations": 10012,
+      "boundary": "generated native reset for a capacity-16 batch after one successful take, then refill one 4096-element message; no RCL/DDS/decode/channel",
+      "capacity": 16,
+      "elapsed_ns": 10022066,
+      "elements": 4096,
+      "frees": 10004,
+      "iterations": 10000,
+      "refresh_calls": 160000,
+      "refresh_scope": "full_capacity",
+      "requested_bytes": 327680322,
+      "taken": 1,
+      "repetition": 1
+    },
+    {
+      "allocations": 10000,
+      "boundary": "generated native reset for a capacity-16 batch after one successful take, then refill one 4096-element message; no RCL/DDS/decode/channel",
+      "capacity": 16,
+      "elapsed_ns": 7860763,
+      "elements": 4096,
+      "frees": 10000,
+      "iterations": 10000,
+      "refresh_calls": 10000,
+      "refresh_scope": "taken_prefix",
+      "requested_bytes": 327680000,
+      "taken": 1,
+      "repetition": 1
+    },
+    {
+      "allocations": 10012,
+      "boundary": "generated native reset for a capacity-16 batch after one successful take, then refill one 4096-element message; no RCL/DDS/decode/channel",
+      "capacity": 16,
+      "elapsed_ns": 10236172,
+      "elements": 4096,
+      "frees": 10004,
+      "iterations": 10000,
+      "refresh_calls": 160000,
+      "refresh_scope": "full_capacity",
+      "requested_bytes": 327680322,
+      "taken": 1,
+      "repetition": 2
+    },
+    {
+      "allocations": 10000,
+      "boundary": "generated native reset for a capacity-16 batch after one successful take, then refill one 4096-element message; no RCL/DDS/decode/channel",
+      "capacity": 16,
+      "elapsed_ns": 7791770,
+      "elements": 4096,
+      "frees": 10000,
+      "iterations": 10000,
+      "refresh_calls": 10000,
+      "refresh_scope": "taken_prefix",
+      "requested_bytes": 327680000,
+      "taken": 1,
+      "repetition": 2
+    },
+    {
+      "allocations": 10012,
+      "boundary": "generated native reset for a capacity-16 batch after one successful take, then refill one 4096-element message; no RCL/DDS/decode/channel",
+      "capacity": 16,
+      "elapsed_ns": 9986759,
+      "elements": 4096,
+      "frees": 10004,
+      "iterations": 10000,
+      "refresh_calls": 160000,
+      "refresh_scope": "full_capacity",
+      "requested_bytes": 327680322,
+      "taken": 1,
+      "repetition": 3
+    },
+    {
+      "allocations": 10000,
+      "boundary": "generated native reset for a capacity-16 batch after one successful take, then refill one 4096-element message; no RCL/DDS/decode/channel",
+      "capacity": 16,
+      "elapsed_ns": 7802048,
+      "elements": 4096,
+      "frees": 10000,
+      "iterations": 10000,
+      "refresh_calls": 10000,
+      "refresh_scope": "taken_prefix",
+      "requested_bytes": 327680000,
+      "taken": 1,
+      "repetition": 3
+    },
+    {
+      "allocations": 10012,
+      "boundary": "generated native reset for a capacity-16 batch after one successful take, then refill one 4096-element message; no RCL/DDS/decode/channel",
+      "capacity": 16,
+      "elapsed_ns": 10107011,
+      "elements": 4096,
+      "frees": 10004,
+      "iterations": 10000,
+      "refresh_calls": 160000,
+      "refresh_scope": "full_capacity",
+      "requested_bytes": 327680322,
+      "taken": 1,
+      "repetition": 4
+    },
+    {
+      "allocations": 10000,
+      "boundary": "generated native reset for a capacity-16 batch after one successful take, then refill one 4096-element message; no RCL/DDS/decode/channel",
+      "capacity": 16,
+      "elapsed_ns": 7807383,
+      "elements": 4096,
+      "frees": 10000,
+      "iterations": 10000,
+      "refresh_calls": 10000,
+      "refresh_scope": "taken_prefix",
+      "requested_bytes": 327680000,
+      "taken": 1,
+      "repetition": 4
+    }
+  ],
+  "summary": {
+    "full_capacity": {
+      "refresh_calls": 160000,
+      "allocations": 10012,
+      "frees": 10004,
+      "requested_bytes": 327680322,
+      "elapsed_ns": 10022066
+    },
+    "taken_prefix": {
+      "refresh_calls": 10000,
+      "allocations": 10000,
+      "frees": 10000,
+      "requested_bytes": 327680000,
+      "elapsed_ns": 7807383
+    }
+  }
+}

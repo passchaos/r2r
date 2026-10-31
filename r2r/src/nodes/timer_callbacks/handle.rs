@@ -58,7 +58,17 @@ impl CallbackTimer {
         check_rcl_ret(unsafe { rcl_timer_cancel(node.callback_timer_mut(self.id)?.handle_mut()) })
     }
     pub fn reset(&self, node: &mut Node) -> Result<()> {
-        check_rcl_ret(unsafe { rcl_timer_reset(node.callback_timer_mut(self.id)?.handle_mut()) })
+        node.callback_timer_mut(self.id)?.reset()
+    }
+    /// Observes manual and lifecycle-driven resets without running user code in an RCL callback.
+    /// Only one observer may be alive at a time.
+    pub fn observe_resets(&self, node: &mut Node) -> Result<TimerResetEvents> {
+        let timer = node.callback_timer_mut(self.id)?;
+        timer
+            .as_ref()
+            .get_ref()
+            .reset_state()
+            .observe(timer.as_ref().get_ref().handle())
     }
     pub fn is_canceled(&self, node: &Node) -> Result<bool> {
         let mut value = false;

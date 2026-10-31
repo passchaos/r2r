@@ -137,19 +137,19 @@ impl LifecycleServiceKind {
         }
     }
 
-    pub(crate) fn type_support(self) -> *const rosidl_service_type_support_t {
+    pub(crate) fn type_support(self) -> Result<*const rosidl_service_type_support_t> {
         use lifecycle_msgs::srv::*;
-        match self {
-            LifecycleServiceKind::ChangeState => ChangeState::Service::get_ts(),
-            LifecycleServiceKind::GetState => GetState::Service::get_ts(),
-            LifecycleServiceKind::GetAvailableStates => GetAvailableStates::Service::get_ts(),
+        Ok(match self {
+            LifecycleServiceKind::ChangeState => ChangeState::Service::try_get_ts()?,
+            LifecycleServiceKind::GetState => GetState::Service::try_get_ts()?,
+            LifecycleServiceKind::GetAvailableStates => GetAvailableStates::Service::try_get_ts()?,
             // rclcpp registers the GetAvailableTransitions type support for
             // get_transition_graph as well (identical srv type).
             LifecycleServiceKind::GetAvailableTransitions
             | LifecycleServiceKind::GetTransitionGraph => {
-                GetAvailableTransitions::Service::get_ts()
+                GetAvailableTransitions::Service::try_get_ts()?
             }
-        }
+        })
     }
 }
 

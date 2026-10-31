@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "ros_distro": "jazzy",
+  "rmw": "rmw_cyclonedds_cpp",
+  "resource_constraints": {
+    "single_cpu_affinity": true,
+    "cargo_build_jobs": 1,
+    "rayon_threads": 1,
+    "virtual_memory_limit_kib": 10485760
+  },
+  "focused_native_gate": {
+    "parameter_tests_passed": 65,
+    "parameter_tests_failed": 0,
+    "example_check_passed": true,
+    "example_clippy_passed": true,
+    "exit_code": 0,
+    "artifact": "logs/final-jazzy.log.gz",
+    "artifact_sha256": "c6ac4981446667f7b613960544d52512bb5da627d04d51a42d9a0a8a31a01876",
+    "uncompressed_sha256": "a35fc098bd4d73a969719cae3c9b0421567b363890e279dabdefea3ed8bcb7e7"
+  },
+  "no_ros_gate": {
+    "public_documentation_artifacts": 67,
+    "required_documented_methods": 276,
+    "exit_code": 0,
+    "artifact": "logs/no-ros.log.gz",
+    "artifact_sha256": "1bea8dc2dab8394412c91d35549d1fd6ea2f770b190b2728ea0e69e6972e2141",
+    "uncompressed_sha256": "5cb6e7066bc9628453e5b21a4dcc2e6c2bafb96db22111c84e1ab6a999726d20"
+  },
+  "source_sha256": {
+    "r2r/src/parameters.rs": "a454653ee13ac4c74b17bf3ae0aac4c27626665b9a8c3ab559b7f7791f766840",
+    "r2r/src/parameter_clients.rs": "23054d869137599a59183f42db180518f7a3556851b54186383d504e12f89f5b",
+    "r2r/src/nodes/parameter_api.rs": "2aa557da8ee162bc43ed084e33a14837a6b23ba43c0df35bbf144c3f67eae69b",
+    "r2r/src/nodes/parameter_support.rs": "ba7b223171bbd791fbb23ad0b1b0209c4f2a2e316498111c29d009817dd180a3",
+    "r2r/src/nodes/parameter_handler.rs": "cad71e05168c5d414785ca6d4a4f0c191d2ceafee18f65b27a23cb2d4a9b663b",
+    "r2r/src/nodes.rs": "ca4f18f5e8cec7133f8a346c683a8eeae62964a64096bd7b540e96a1eb4b209e",
+    "r2r/examples/parameter_callbacks.rs": "0d9f358f5cbd2fe566ebfc4bc55eeaa785d1d63dd1fdf7143dc42a7408af860b",
+    "docs/PARAMETER_CALLBACKS.md": "269592833732d815f548448a6d573cb4af8c0f422c4cd29aaebde737e7dddd04",
+    "tests/check_documentation.py": "b87c8eef33a8251b39d4a0940679d05903b5a749ec9c32633aa20579f311ab96",
+    "docs/validation/parameter-callbacks-2026-10-30/run-jazzy.bash": "c16a6901a48377138c057132da4ce7ebd4b49988b399fa09aa9a8f40c4bf77a2"
+  }
+}

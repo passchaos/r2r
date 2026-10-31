@@ -1,6 +1,12 @@
 import unittest
 
-from action_feedback import SERVER_STAGES, matrix_pairs, regression_failures, validate_endpoint
+from action_feedback import (
+    SERVER_STAGES,
+    matrix_pairs,
+    rclcpp_failures,
+    regression_failures,
+    validate_endpoint,
+)
 
 
 class ActionFeedbackValidationTests(unittest.TestCase):
@@ -66,6 +72,23 @@ class ActionFeedbackValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "status sync mismatch"):
             validate_endpoint(
                 result, "ping", "rmw_test", 4, 2, 3, 2, 1, status_sync="none"
+            )
+
+    def test_declared_feedback_delivery_must_match_only_the_client_endpoint(self):
+        result = self.endpoint()
+        result["feedback_delivery"] = "native"
+        validate_endpoint(
+            result, "ping", "rmw_test", 4, 2, 3, 2, 1, feedback_delivery="native"
+        )
+        with self.assertRaisesRegex(RuntimeError, "delivery path mismatch"):
+            validate_endpoint(
+                result, "ping", "rmw_test", 4, 2, 3, 2, 1,
+                feedback_delivery="owned",
+            )
+        with self.assertRaisesRegex(RuntimeError, "only valid for the client"):
+            validate_endpoint(
+                dict(self.endpoint("echo"), feedback_delivery="native"),
+                "echo", "rmw_test", 4, 2, 3, 2, 1,
             )
 
     def test_report_qos_description_matches_structured_configuration(self):
@@ -135,6 +158,23 @@ class ActionFeedbackValidationTests(unittest.TestCase):
         self.assertEqual(regression_failures(summary, [0, 4], [1, 2], 1.05), [])
         summary[-1]["feedback_ns_p99"] = 106
         self.assertEqual(regression_failures(summary, [0, 4], [1, 2], 1.05)[0]["goal_window"], 2)
+
+    def test_rclcpp_gate_covers_every_dimension_and_stage(self):
+        summary = []
+        for elements in [0, 4]:
+            for window in [1, 2]:
+                for language, multiplier in [("cpp", 1.0), ("rust", 0.99)]:
+                    summary.append({
+                        "elements": elements, "goal_window": window,
+                        "ping_language": language, "echo_language": language,
+                        **{field: 100 * multiplier for field in [
+                            "rtt_ns_p50", "rtt_ns_p95", "rtt_ns_p99",
+                            "feedback_ns_p50", "feedback_ns_p95", "feedback_ns_p99"]},
+                        "feedback_messages_per_second": 100 / multiplier,
+                    })
+        self.assertEqual(rclcpp_failures(summary, [0, 4], [1, 2], 1.0), [])
+        summary[-1]["feedback_ns_p99"] = 101
+        self.assertEqual(rclcpp_failures(summary, [0, 4], [1, 2], 1.0)[0]["goal_window"], 2)
 
 
 if __name__ == "__main__":

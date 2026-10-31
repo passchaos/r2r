@@ -1034,7 +1034,11 @@ impl ActionClient_ for WrappedActionClientUntyped {
         let mut status_array = WrappedNativeMsg::<action_msgs::msg::GoalStatusArray>::try_new()?;
         let ret = unsafe { rcl_action_take_status(&self.rcl_handle, status_array.void_ptr_mut()) };
         if action_client_take_succeeded(ret)? {
-            Ok(vec![action_status_completion(client, status_array)])
+            Ok(vec![action_status_completion(
+                client,
+                status_array,
+                |status_array| crate::action_clients::status::decode_native(status_array),
+            )])
         } else {
             Ok(Vec::new())
         }

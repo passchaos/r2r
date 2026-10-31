@@ -30,6 +30,11 @@ impl LifecycleTimer {
         self.state.control(node, true)
     }
 
+    /// Observes both explicit resets and activation-driven native restarts.
+    pub fn observe_resets(&self, node: &mut Node) -> Result<crate::TimerResetEvents> {
+        self.state.with_timer(|timer| timer.observe_resets(node))
+    }
+
     /// Whether lifecycle or manual controls currently pause the timer.
     pub fn is_canceled(&self, node: &Node) -> Result<bool> {
         self.state

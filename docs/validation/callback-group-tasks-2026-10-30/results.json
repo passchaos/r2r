@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "feature": {
+    "apis": [
+      "CallbackGroup::spawn_task",
+      "ReentrantCallbackGroup::spawn_task"
+    ],
+    "exclusive_mutual_exclusion": "future polls share the exclusive group scheduler token",
+    "reentrant_lane_selection": "least retained registrations with stable deterministic ties",
+    "reentrant_concurrency_bounded": true,
+    "send_without_sync": true,
+    "individual_raii_cancellation": true,
+    "detach_supported": true,
+    "executor_stop_preserves_future": true,
+    "reset_restart_reawakens_future": true,
+    "typed_action_server_client_workflow": true
+  },
+  "resource_constraints": {
+    "single_cpu_compilation": true,
+    "cargo_build_jobs": 1,
+    "rayon_threads": 1,
+    "virtual_memory_limit_kib": 10485760,
+    "container_memory_bytes": 10000000000,
+    "container_memory_swap_bytes": 10000000000
+  },
+  "native_gates": {
+    "jazzy": {
+      "rmws": [
+        "rmw_cyclonedds_cpp",
+        "rmw_fastrtps_cpp"
+      ],
+      "task_cases_passed_per_rmw_debug": 8,
+      "reentrant_scheduler_cases_passed_per_rmw_debug": 2,
+      "action_cases_passed_per_rmw_debug": 4,
+      "task_cases_passed_per_rmw_release": 8,
+      "reentrant_scheduler_cases_passed_per_rmw_release": 2,
+      "action_cases_passed_per_rmw_release": 4,
+      "examples_passed_per_rmw": 2,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-jazzy.log.gz",
+      "artifact_sha256": "8d85fdaaadc0cacb5e1005d720e5b19cb5ad0fdf4f730ec77ecb81a84656edcc",
+      "uncompressed_sha256": "be6b1d0302019f9ff3a68a8ba09438f431fa0913784c7ac9dfe1d391e1e82760"
+    },
+    "humble": {
+      "rmws": [
+        "rmw_fastrtps_cpp"
+      ],
+      "task_cases_passed_per_rmw": 8,
+      "reentrant_scheduler_cases_passed_per_rmw": 2,
+      "action_cases_passed_per_rmw": 4,
+      "examples_passed_per_rmw": 2,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-humble.log.gz",
+      "artifact_sha256": "3dfa0bc9f52ad30ef723b43652f1055f8abf48207bd74bdf5571f83f6a0ef165",
+      "uncompressed_sha256": "6d00492f230c7429d33ecaac43468d0ed46bdd38a853584375ae20016d0bb40f"
+    },
+    "kilted": {
+      "rmws": [
+        "rmw_cyclonedds_cpp",
+        "rmw_fastrtps_cpp"
+      ],
+      "task_cases_passed_per_rmw": 8,
+      "reentrant_scheduler_cases_passed_per_rmw": 2,
+      "action_cases_passed_per_rmw": 4,
+      "examples_passed_per_rmw": 2,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-kilted.log.gz",
+      "artifact_sha256": "fdc0d56686a2f371b3760db3e0b1ea084cc433eab53674993e88cfa7a5340587",
+      "uncompressed_sha256": "f890b0dbb6ec1744fdb93db6695ba96b6a1adf526a31a6a59dd4d85e3956bf49"
+    }
+  },
+  "workspace_clippy": {
+    "all_targets": true,
+    "warnings_denied": true,
+    "exit_code": 0,
+    "artifact": "logs/final-clippy.log.gz",
+    "artifact_sha256": "a92b439b4ef126f4cdf1142ff2b7069420b9e42fa3b104e5ba129276a4e4c741",
+    "uncompressed_sha256": "be62cdeddb771c789905bbd2b844cfc39d13fd8efe24191b0d731a7e8f97e7d4"
+  },
+  "no_ros_gate": {
+    "public_documentation_artifacts": 84,
+    "required_documented_methods": 341,
+    "all_targets_compiled": true,
+    "non_send_doctest_passed": true,
+    "non_send_doctests_passed": 2,
+    "exit_code": 0,
+    "artifact": "logs/final-no-ros.log.gz",
+    "artifact_sha256": "c2c75b677e0f4cac07712afaf53cda115ee63a33cdc81b93924e4201d1644010",
+    "uncompressed_sha256": "733094c24d1c22528ca9435f7ad9cf3dd8dd659674322f36cb1d488f418b9fab"
+  },
+  "source_sha256": {
+    "r2r/src/nodes/callback_executor.rs": "bdabe8dcd25c54906cc5688fd9e8ac57670375c53cb6865a1bad48d22468238d",
+    "r2r/src/nodes/callback_executor/reentrant.rs": "762509354cffeb19a50a52a62f7e9ee1d132c35adcb126faab13db2ff831a537",
+    "r2r/src/nodes/callback_executor/task_registration.rs": "f102899a803806a2d17fbe4f174b199153de402bd3689bd006ce9c468b4a1961",
+    "r2r/src/nodes/callback_executor/tests.rs": "735201c16ecba5be2c757fcfc01117b0a00ca1f225290f52eb509382e0219aeb",
+    "r2r/src/nodes/callback_executor/tests/reentrant_task.rs": "ecf17a9c23d18b95afbeb9300af67d716aac50e2b1d05934c84aafbe0115ba72",
+    "r2r/src/nodes/callback_executor/tests/task_action.rs": "7a15f20cde6165eb551f26c62bbfeff4722949d4fd169fc03d3d05c94268395c",
+    "r2r/src/nodes.rs": "ca4f18f5e8cec7133f8a346c683a8eeae62964a64096bd7b540e96a1eb4b209e",
+    "r2r/src/lib.rs": "c1d0b15e9eef13e98f7142408fe74862ddee144cc9550237b7d6676355c22101",
+    "r2r/examples/callback_group_action.rs": "07caaa02eacdc7a275601c640008316a7e9cc71c30896bb349ff13ee240bf6e1",
+    "r2r/examples/reentrant_group_action.rs": "8a99fd1c4893020cb52b4b7782f58a96cbab974842d9d9b8ef2ce83bb45264d3",
+    "tests/check_documentation.py": "b87c8eef33a8251b39d4a0940679d05903b5a749ec9c32633aa20579f311ab96",
+    "docs/CALLBACK_GROUP_TASKS.md": "64e4f4c2b1ceaa2930f8b3e97463dea265fa2fcd0257b395e2aa3d03ee2c5873",
+    "docs/validation/callback-group-tasks-2026-10-30/run-jazzy.bash": "877cdbd206afb383a2538228466c57540df53eb8a8c9031cbd3679cbb233f90e",
+    "docs/validation/callback-group-tasks-2026-10-30/run-compat.bash": "2f44aff096e70f8392ee31fc9ac050b06b6bbb6b89b8330dd9a3863b03588f14",
+    "docs/validation/callback-group-tasks-2026-10-30/run-no-ros.bash": "ac794a523adf52048ed0b3c8c60e859793810dba2f3cac6e2542980cfa5720b1",
+    "docs/validation/callback-group-tasks-2026-10-30/verify.py": "f48e6a24056ae5dea1e3280fbebf6daf7196be10d7e8043fbfe68424290ce8ee"
+  }
+}

@@ -16,7 +16,8 @@ use std::{
 };
 
 use crate::{
-    availability::Waiters, error::*, msg_types::*, nodes::Node, qos::QosProfile, QosPolicyKind,
+    availability::Waiters, error::*, msg_types::*, native_buffer::NativeBuffer, nodes::Node,
+    qos::QosProfile, QosPolicyKind,
 };
 use r2r_rcl::*;
 
@@ -1022,6 +1023,7 @@ where
 {
     pub(crate) handle: Weak<Publisher_>,
     lifecycle: Arc<PublisherHandleLifecycle>,
+    native_buffer: NativeBuffer<WrappedNativeMsg<T>>,
     type_: PhantomData<T>,
 }
 
@@ -1054,6 +1056,7 @@ where
         Self {
             handle: self.handle.clone(),
             lifecycle: Arc::clone(&self.lifecycle),
+            native_buffer: self.native_buffer.clone(),
             type_: PhantomData,
         }
     }
@@ -1193,6 +1196,7 @@ where
             dropped_publishers,
             explicitly_destroyed: AtomicBool::new(false),
         }),
+        native_buffer: NativeBuffer::default(),
         type_: PhantomData,
     }
 }
@@ -1670,8 +1674,17 @@ where
             .handle
             .upgrade()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
+        let mut native_msg = self
+            .native_buffer
+            .checkout(WrappedNativeMsg::<T>::try_new)?;
+        if let Err(error) = msg.try_copy_to_native(&mut native_msg) {
+            // A custom fallible conversion only promises destructible storage after failure.
+            // Retire it rather than exposing partially updated fields to a later publication.
+            native_msg.retire();
+            return Err(error);
+        }
         publisher.with_prepared_handle(
-            || WrappedNativeMsg::<T>::try_from(msg),
+            || Ok(native_msg),
             |handle, native_msg| {
                 let result =
                     unsafe { rcl_publish(handle, native_msg.void_ptr(), std::ptr::null_mut()) };
@@ -1704,7 +1717,7 @@ where
             .as_ref()
             .ok_or(Error::RCL_RET_PUBLISHER_INVALID)?;
         let mut msg = std::ptr::null_mut();
-        let ret = unsafe { rcl_borrow_loaned_message(handle, T::get_ts(), &mut msg) };
+        let ret = unsafe { rcl_borrow_loaned_message(handle, T::try_get_ts()?, &mut msg) };
         if ret != RCL_RET_OK as i32 {
             return Err(Error::from_rcl_error(ret));
         }
@@ -1935,6 +1948,9 @@ fn publisher_network_flow_endpoints(handle: &rcl_publisher_t) -> Result<Vec<Netw
         endpoints.to_vec()
     }
 }
+
+#[cfg(test)]
+mod typed_native_buffer_tests;
 
 pub(crate) fn subscription_network_flow_endpoints(
     handle: &rcl_subscription_t,

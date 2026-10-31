@@ -13,6 +13,7 @@ mod reentrant;
 mod scheduler;
 pub(in crate::nodes) mod sources;
 mod task;
+mod task_registration;
 pub(crate) use input::Producer;
 use reentrant::OwnedGroup;
 pub use reentrant::ReentrantCallbackGroup;
@@ -22,6 +23,7 @@ pub use sources::{
     GroupedTimer,
 };
 pub use task::{CallbackExecutorTask, CallbackExecutorTaskError};
+pub use task_registration::CallbackGroupTask;
 
 /// Drives owned Nodes and exclusive or bounded reentrant groups on a fixed worker budget.
 ///
@@ -229,10 +231,11 @@ impl CallbackExecutor {
     /// cancellation; an already-issued native wake can be spurious.
     pub fn reset_cancel(&mut self) {
         self.native.reset_cancel();
-        for group in &self.groups {
+        for group in &mut self.groups {
             group
                 .cancelled()
                 .store(false, std::sync::atomic::Ordering::Release);
+            group.wake_tasks();
         }
     }
     /// Starts at most the configured budget and validates every live source's
@@ -263,6 +266,7 @@ pub struct CallbackGroup {
     id: CallbackGroupId,
     cancelled: Arc<std::sync::atomic::AtomicBool>,
     sources: Vec<(uuid::Uuid, std::sync::Weak<dyn input::Control>)>,
+    tasks: Vec<std::sync::Weak<task_registration::TaskControl>>,
     callbacks: FuturesUnordered<Pin<Box<dyn Future<Output = Result<()>> + Send>>>,
 }
 
@@ -279,6 +283,7 @@ impl CallbackGroup {
             id: CallbackGroupId(uuid::Uuid::new_v4()),
             cancelled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             sources: Vec::new(),
+            tasks: Vec::new(),
             callbacks: FuturesUnordered::new(),
         }
     }

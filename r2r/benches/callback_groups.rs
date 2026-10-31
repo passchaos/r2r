@@ -8,6 +8,7 @@ use r2r::{
     NodeOptions, QosProfile, ReentrantCallbackGroup,
 };
 use std::{
+    io::Write as _,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc, Condvar, Mutex,
@@ -97,6 +98,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = (|| -> Result<serde_json::Value, Box<dyn std::error::Error>> {
         // Node-driven deadlines wake the same native owner; no polling wait thread.
         futures::executor::block_on(available)?;
+        if std::env::var_os("R2R_BENCH_STARTUP_MARKER").is_some() {
+            println!(
+                "{}",
+                serde_json::json!({
+                    "event": "ready",
+                    "implementation": "r2r",
+                    "ready_from_main_ns": state.now(),
+                })
+            );
+            std::io::stdout().flush()?;
+        }
         let challenge = kind == "reentrant" && workers >= 2 && window >= 2;
         if challenge {
             let first = client.request_with_info(&AddTwoInts::Request { a: -3, b: 0 })?;

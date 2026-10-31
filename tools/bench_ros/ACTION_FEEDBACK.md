@@ -38,14 +38,25 @@ python3 tools/bench_ros/action_feedback.py \
   --cpu-ping 24 --cpu-echo 25 --domain-id 160 \
   --rmw rmw_cyclonedds_cpp --sizes 4096 --goal-windows 8 \
   --feedback-per-goal 4 --iterations 1000 --warmup 50 --repetitions 5 \
+  --rust-feedback-delivery native \
   --status-batch-size 2 --result-timeout-ms 1000 --status-sync none \
   --build-manifest target/action-feedback/build-manifest.json \
   --output target/action-feedback/cyclonedds.json
 python3 tools/bench_ros/verify_action_feedback.py \
+  --require-current-sources \
   target/action-feedback/cyclonedds.json
 ```
 
 `--baseline-rust` adds independent baseline/baseline and mixed baseline/C++ pairs.
+`--rust-feedback-delivery native|owned` selects the candidate Rust client's receive path;
+`--baseline-feedback-delivery` independently selects the baseline label. Passing the same
+final-source Rust binary as both labels with `native` and `owned` creates a delivery-only A/B
+without changing server, status batching or build inputs. C++ ping endpoints report
+`rclcpp_callback`. Every ping record and report metadata retain the declared path, and the offline
+verifier rejects missing, mismatched or server-side delivery labels. Historical baselines built
+without the native API remain usable only with `owned`; the benchmark build detects that API and
+rejects a requested native run instead of silently falling back.
+
 `--max-regression 1.05` records the preselected same-language p50/p95/p99, feedback-stage
 and inverse-throughput gate. `--matrix-scope regression` runs only baseline/baseline and
 candidate/candidate for a focused A/B; the default remains the full interoperability

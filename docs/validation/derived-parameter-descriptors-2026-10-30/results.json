@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "feature": {
+    "derive_attribute": "ros_param",
+    "options": [
+      "read_only",
+      "additional_constraints",
+      "integer_range(from,to,step)",
+      "floating_point_range(from,to,step)"
+    ],
+    "override_validated_before_provider_mutation": true,
+    "explicit_node_descriptor_precedence": true,
+    "hand_written_ros_params_source_compatible": true
+  },
+  "resource_constraints": {
+    "single_cpu_compilation": true,
+    "cargo_build_jobs": 1,
+    "rayon_threads": 1,
+    "virtual_memory_limit_kib": 10485760,
+    "container_memory_bytes": 10000000000,
+    "container_memory_swap_bytes": 10000000000
+  },
+  "native_gates": {
+    "jazzy": {
+      "rmws": [
+        "rmw_cyclonedds_cpp",
+        "rmw_fastrtps_cpp"
+      ],
+      "macro_parser_tests_passed": 4,
+      "parameter_tests_passed_per_rmw_debug": 75,
+      "parameter_tests_passed_per_rmw_release": 75,
+      "example_compiled": true,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-jazzy.log.gz",
+      "artifact_sha256": "ddebbb59b3744160f80287e1e2c8bb347439273b356f8e9946ae3ac05ac9e35e",
+      "uncompressed_sha256": "590f66a79318772cbd6a40daffe0a9f515696c80d275dcb35a0574a1095c871a"
+    },
+    "humble": {
+      "rmws": [
+        "rmw_fastrtps_cpp"
+      ],
+      "macro_parser_tests_passed": 4,
+      "real_rcl_cases_passed_per_rmw": 1,
+      "example_compiled": true,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-humble.log.gz",
+      "artifact_sha256": "16a64c8c11c8180cf5d8193daed11b1141bf21f127e37431d1278758600f4bcc",
+      "uncompressed_sha256": "7c667598211fc7704bb48afbc560f1576183895f2fdc920331bb307caa523560"
+    },
+    "kilted": {
+      "rmws": [
+        "rmw_cyclonedds_cpp",
+        "rmw_fastrtps_cpp"
+      ],
+      "macro_parser_tests_passed": 4,
+      "real_rcl_cases_passed_per_rmw": 1,
+      "example_compiled": true,
+      "focused_clippy_passed": true,
+      "exit_code": 0,
+      "artifact": "logs/final-kilted.log.gz",
+      "artifact_sha256": "64980ebbc2b1062017faa49d09f580afcfd60a637f7e8abd28ac4f8d1b1f75a8",
+      "uncompressed_sha256": "65aa9c01e92703992326d4aed0d51bb703598385509067e432e864b2b504d644"
+    }
+  },
+  "workspace_clippy": {
+    "all_targets": true,
+    "warnings_denied": true,
+    "exit_code": 0,
+    "artifact": "logs/final-clippy.log.gz",
+    "artifact_sha256": "a92b439b4ef126f4cdf1142ff2b7069420b9e42fa3b104e5ba129276a4e4c741",
+    "uncompressed_sha256": "be62cdeddb771c789905bbd2b844cfc39d13fd8efe24191b0d731a7e8f97e7d4"
+  },
+  "no_ros_gate": {
+    "public_documentation_artifacts": 84,
+    "required_documented_methods": 341,
+    "all_targets_compiled": true,
+    "exit_code": 0,
+    "artifact": "logs/final-no-ros.log.gz",
+    "artifact_sha256": "c2c75b677e0f4cac07712afaf53cda115ee63a33cdc81b93924e4201d1644010",
+    "uncompressed_sha256": "733094c24d1c22528ca9435f7ad9cf3dd8dd659674322f36cb1d488f418b9fab"
+  },
+  "source_sha256": {
+    "r2r_macros/src/lib.rs": "17ec0e62c64094e4edc961f544476053c34b12ebd8533ec6fd678a2819f5b94c",
+    "r2r/src/parameters.rs": "a454653ee13ac4c74b17bf3ae0aac4c27626665b9a8c3ab559b7f7791f766840",
+    "r2r/src/nodes/parameter_handler.rs": "cad71e05168c5d414785ca6d4a4f0c191d2ceafee18f65b27a23cb2d4a9b663b",
+    "r2r/src/nodes.rs": "ca4f18f5e8cec7133f8a346c683a8eeae62964a64096bd7b540e96a1eb4b209e",
+    "r2r/src/lib.rs": "c1d0b15e9eef13e98f7142408fe74862ddee144cc9550237b7d6676355c22101",
+    "r2r/examples/parameters_derive.rs": "b43a996c846473eac2997d8e62610c60c0292ca416d64cb2e61bcf03db292fa8",
+    "tests/check_documentation.py": "b87c8eef33a8251b39d4a0940679d05903b5a749ec9c32633aa20579f311ab96",
+    "docs/DERIVED_PARAMETER_DESCRIPTORS.md": "892d9ae5e83125cd70f67e7eed48679ad559937501cafdb72cd23d57581558af",
+    "docs/validation/derived-parameter-descriptors-2026-10-30/run-jazzy.bash": "314bf40182ae2561623afd559898db65cb252a2b0d79773859b16ac0f484dba0",
+    "docs/validation/derived-parameter-descriptors-2026-10-30/run-compat.bash": "bca67576ff32b93ce4629e2633388e8a3f18869677bb6d8a6004a3b62e857890",
+    "docs/validation/derived-parameter-descriptors-2026-10-30/run-no-ros.bash": "ac794a523adf52048ed0b3c8c60e859793810dba2f3cac6e2542980cfa5720b1",
+    "docs/validation/derived-parameter-descriptors-2026-10-30/verify.py": "c5cef981f2876e67f1dd11b469f3adc466a27419258f4215d5d1d1cdbd9c0a32"
+  }
+}

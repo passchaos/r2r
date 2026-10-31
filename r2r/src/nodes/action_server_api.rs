@@ -1,6 +1,7 @@
 //! Action server factories, registry bookkeeping and removal.
 
 use super::*;
+use crate::native_buffer::NativeBuffer;
 
 impl Node {
     fn add_action_server(
@@ -101,7 +102,7 @@ impl Node {
                 self.node_handle.as_mut(),
                 action_name,
                 clock_handle.clock_handle.as_mut(),
-                T::get_ts(),
+                T::try_get_ts()?,
                 &options,
             )?
         };
@@ -126,6 +127,8 @@ impl Node {
             goals: HashMap::new(),
             result_msgs: HashMap::new(),
             result_requests: HashMap::new(),
+            goal_request_buffer: NativeBuffer::default(),
+            result_request_buffer: NativeBuffer::default(),
             cancel_request_channel_capacity,
             maintenance_wake_owner: Arc::downgrade(&self.dropped_action_servers),
         };

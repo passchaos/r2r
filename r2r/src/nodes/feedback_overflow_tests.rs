@@ -178,6 +178,84 @@ ingress_test!(
     |message: Fibonacci::Feedback| message.sequence,
     |message: Fibonacci::Result| message.sequence
 );
+
+#[test]
+fn typed_native_feedback_stream_delivers_the_taken_message_and_closes_at_result() {
+    let context = Context::create().unwrap();
+    let mut node = Node::create(context, "typed_native_feedback", "").unwrap();
+    let name = format!("/typed_native_feedback_{}", uuid::Uuid::new_v4().simple());
+    let mut requests = node
+        .create_action_server::<Fibonacci::Action>(&name)
+        .unwrap();
+    let client = node
+        .create_action_client_with_options::<Fibonacci::Action>(
+            &name,
+            ActionClientOptions::default().feedback_channel_capacity(1),
+        )
+        .unwrap();
+    let response = client
+        .send_goal_request_native_feedback(Fibonacci::Goal { order: 4096 })
+        .unwrap();
+    let (mut server, (goal, result, mut feedback)) = node
+        .spin_until_future_complete_with_options(
+            async {
+                let accept = async {
+                    requests
+                        .next()
+                        .await
+                        .ok_or(Error::RCL_RET_ACTION_SERVER_INVALID)?
+                        .accept_deferred()
+                };
+                futures::try_join!(accept, response)
+            },
+            Duration::from_secs(5),
+            FutureExecutionOptions::wake_driven(),
+        )
+        .unwrap();
+    server.0.execute().unwrap();
+    let expected = (0..4096).collect::<Vec<_>>();
+    server
+        .0
+        .publish_feedback(Fibonacci::Feedback {
+            sequence: expected.clone(),
+        })
+        .unwrap();
+
+    let native = node
+        .spin_until_future_complete_with_options(
+            async {
+                feedback
+                    .next()
+                    .await
+                    .ok_or(Error::RCL_RET_ACTION_CLIENT_INVALID)
+            },
+            Duration::from_secs(5),
+            FutureExecutionOptions::wake_driven(),
+        )
+        .unwrap();
+    assert_eq!(native.goal_id(), goal.uuid);
+    assert_eq!(native.goal_id.uuid, *goal.uuid.as_bytes());
+    let decoded = Fibonacci::FeedbackMessage::from_native(&native);
+    assert_eq!(decoded.feedback.sequence, expected);
+    drop(native);
+
+    server
+        .0
+        .succeed(Fibonacci::Result {
+            sequence: vec![4096],
+        })
+        .unwrap();
+    let (status, result) = node
+        .spin_until_future_complete_with_options(
+            result,
+            Duration::from_secs(5),
+            FutureExecutionOptions::wake_driven(),
+        )
+        .unwrap();
+    assert_eq!(status, GoalStatus::Succeeded);
+    assert_eq!(result.sequence, [4096]);
+    assert!(matches!(feedback.next().now_or_never(), Some(None)));
+}
 ingress_test!(
     untyped_feedback_overflow_preserves_default_and_coalesces_by_goal,
     |node: &mut Node, name: &str, options| node.create_action_client_untyped_with_options(

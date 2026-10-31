@@ -2,6 +2,7 @@
 //! accessor methods for [`Node`].
 
 use super::*;
+use crate::native_buffer::NativeBuffer;
 
 impl Node {
     pub(crate) fn add_subscriber(&mut self, mut subscriber: Box<dyn Subscriber_>) {
@@ -111,12 +112,13 @@ impl Node {
 
     /// Subscribe to a ROS topic with explicit Rust-side stream buffering options.
     pub fn subscribe_with_options<T>(
-        &mut self, topic: &str, qos_profile: QosProfile, options: SubscriptionOptions,
+        &mut self, topic: &str, qos_profile: QosProfile,
+        options: impl Into<SubscriptionConfiguration<SubscriptionOptions>>,
     ) -> Result<Subscription<T>>
     where
         T: 'static + WrappedTypesupport,
     {
-        self.subscribe_with_transform(topic, qos_profile, options, discard_message_info::<T>)
+        self.subscribe_with_transform(topic, qos_profile, options.into(), discard_message_info::<T>)
     }
 
     /// Subscribe to a ROS topic and retain the RMW metadata for each message.
@@ -131,30 +133,33 @@ impl Node {
 
     /// Subscribe with RMW metadata and explicit Rust-side stream buffering options.
     pub fn subscribe_with_info_and_options<T>(
-        &mut self, topic: &str, qos_profile: QosProfile, options: SubscriptionOptions,
+        &mut self, topic: &str, qos_profile: QosProfile,
+        options: impl Into<SubscriptionConfiguration<SubscriptionOptions>>,
     ) -> Result<Subscription<ReceivedMessage<T>>>
     where
         T: 'static + WrappedTypesupport,
     {
-        self.subscribe_with_transform(topic, qos_profile, options, attach_message_info::<T>)
+        self.subscribe_with_transform(topic, qos_profile, options.into(), attach_message_info::<T>)
     }
 
     fn subscribe_with_transform<T, O>(
-        &mut self, topic: &str, qos_profile: QosProfile, options: SubscriptionOptions,
+        &mut self, topic: &str, qos_profile: QosProfile,
+        configuration: SubscriptionConfiguration<SubscriptionOptions>,
         transform: fn(T, MessageInfo) -> O,
     ) -> Result<Subscription<O>>
     where
         T: 'static + WrappedTypesupport,
         O: 'static,
     {
-        let options = options.validate()?;
+        let options = configuration.endpoint.validate()?;
         let subscription_handle = create_subscription_helper(
             self.node_handle.as_mut(),
             topic,
-            T::get_ts(),
+            T::try_get_ts()?,
             qos_profile,
             options.ignore_local_publications,
             options.unique_network_flow,
+            configuration.content_filter.as_ref(),
         )?;
         let (sender, receiver) = mpsc::channel::<O>(options.channel_capacity);
         let id = uuid::Uuid::new_v4();
@@ -165,8 +170,163 @@ impl Node {
             transform,
             max_messages_per_spin: subscription_batch_size(options.channel_capacity),
             match_state: SubscriptionMatchState::new(id),
+            native_buffer: NativeBuffer::default(),
         };
         self.add_subscriber(Box::new(ws));
+        Ok(Subscription::new(receiver, id, Arc::clone(&self.canceled_subscriptions)))
+    }
+
+    /// Subscribes to recyclable, decoded Rust messages with RMW metadata.
+    ///
+    /// Generated messages retain Vec, string and nested-message capacity across deliveries.
+    /// Dropping a [`ReusableSubscriptionSample`] returns its Rust value to a one-slot pool.
+    pub fn subscribe_reusable<T>(
+        &mut self, topic: &str, qos_profile: QosProfile,
+    ) -> Result<Subscription<ReusableSubscriptionSample<T>>>
+    where
+        T: WrappedTypesupport,
+    {
+        self.subscribe_reusable_with_options(topic, qos_profile, SubscriptionOptions::default())
+    }
+
+    /// Subscribes to recyclable Rust messages with stream, endpoint and filter options.
+    pub fn subscribe_reusable_with_options<T>(
+        &mut self, topic: &str, qos_profile: QosProfile,
+        configuration: impl Into<SubscriptionConfiguration<SubscriptionOptions>>,
+    ) -> Result<Subscription<ReusableSubscriptionSample<T>>>
+    where
+        T: WrappedTypesupport,
+    {
+        let configuration = configuration.into();
+        let options = configuration.endpoint.validate()?;
+        let subscription_handle = create_subscription_helper(
+            self.node_handle.as_mut(),
+            topic,
+            T::try_get_ts()?,
+            qos_profile,
+            options.ignore_local_publications,
+            options.unique_network_flow,
+            configuration.content_filter.as_ref(),
+        )?;
+        let (sender, receiver) = mpsc::channel(options.channel_capacity);
+        let id = uuid::Uuid::new_v4();
+        let subscriber = ReusableTypedSubscriber::<T> {
+            rcl_handle: subscription_handle,
+            sender,
+            max_messages_per_spin: subscription_batch_size(options.channel_capacity),
+            match_state: SubscriptionMatchState::new(id),
+            native_buffer: NativeBuffer::default(),
+            rust_buffer: NativeBuffer::default(),
+        };
+        self.add_subscriber(Box::new(subscriber));
+        Ok(Subscription::new(receiver, id, Arc::clone(&self.canceled_subscriptions)))
+    }
+
+    /// Subscribes to decoded Rust messages taken in native batches.
+    ///
+    /// One stream item contains up to `max_batch_size` messages acquired by a single native
+    /// `rcl_take_sequence` call. Generated Vec, string and nested-message storage is reused when a
+    /// previous [`SubscriptionBatch`] has been dropped. `max_batch_size` must be greater than zero.
+    pub fn subscribe_batches<T>(
+        &mut self, topic: &str, qos_profile: QosProfile, max_batch_size: usize,
+    ) -> Result<Subscription<SubscriptionBatch<T>>>
+    where
+        T: WrappedTypesupport,
+    {
+        self.subscribe_batches_with_options(
+            topic,
+            qos_profile,
+            max_batch_size,
+            SubscriptionOptions::default(),
+        )
+    }
+
+    /// Subscribes to decoded native batches with stream, endpoint and filter options.
+    pub fn subscribe_batches_with_options<T>(
+        &mut self, topic: &str, qos_profile: QosProfile, max_batch_size: usize,
+        configuration: impl Into<SubscriptionConfiguration<SubscriptionOptions>>,
+    ) -> Result<Subscription<SubscriptionBatch<T>>>
+    where
+        T: WrappedTypesupport,
+    {
+        if max_batch_size == 0 {
+            return Err(Error::RCL_RET_INVALID_ARGUMENT);
+        }
+        let configuration = configuration.into();
+        let options = configuration.endpoint.validate()?;
+        let subscription_handle = create_subscription_helper(
+            self.node_handle.as_mut(),
+            topic,
+            T::try_get_ts()?,
+            qos_profile,
+            options.ignore_local_publications,
+            options.unique_network_flow,
+            configuration.content_filter.as_ref(),
+        )?;
+        let (sender, receiver) = mpsc::channel(options.channel_capacity);
+        let id = uuid::Uuid::new_v4();
+        let subscriber = TypedBatchSubscriber::<T> {
+            rcl_handle: subscription_handle,
+            sender,
+            match_state: SubscriptionMatchState::new(id),
+            batch_size: max_batch_size,
+            native_buffer: NativeBuffer::default(),
+            rust_buffer: NativeBuffer::default(),
+        };
+        self.add_subscriber(Box::new(subscriber));
+        Ok(Subscription::new(receiver, id, Arc::clone(&self.canceled_subscriptions)))
+    }
+
+    /// Subscribes to generated native messages taken in native batches.
+    ///
+    /// Batch message containers remain independently owned if a batch is retained and may outlive
+    /// the subscription endpoint or Node. `max_batch_size` must be greater than zero.
+    pub fn subscribe_native_batches<T>(
+        &mut self, topic: &str, qos_profile: QosProfile, max_batch_size: usize,
+    ) -> Result<Subscription<NativeSubscriptionBatch<T>>>
+    where
+        T: WrappedTypesupport,
+    {
+        self.subscribe_native_batches_with_options(
+            topic,
+            qos_profile,
+            max_batch_size,
+            SubscriptionOptions::default(),
+        )
+    }
+
+    /// Subscribes to native batches with stream, endpoint and creation-filter options.
+    pub fn subscribe_native_batches_with_options<T>(
+        &mut self, topic: &str, qos_profile: QosProfile, max_batch_size: usize,
+        configuration: impl Into<SubscriptionConfiguration<SubscriptionOptions>>,
+    ) -> Result<Subscription<NativeSubscriptionBatch<T>>>
+    where
+        T: WrappedTypesupport,
+    {
+        if max_batch_size == 0 {
+            return Err(Error::RCL_RET_INVALID_ARGUMENT);
+        }
+        let configuration = configuration.into();
+        let options = configuration.endpoint.validate()?;
+        let subscription_handle = create_subscription_helper(
+            self.node_handle.as_mut(),
+            topic,
+            T::try_get_ts()?,
+            qos_profile,
+            options.ignore_local_publications,
+            options.unique_network_flow,
+            configuration.content_filter.as_ref(),
+        )?;
+        let (sender, receiver) = mpsc::channel(options.channel_capacity);
+        let id = uuid::Uuid::new_v4();
+        let subscriber = NativeBatchSubscriber::<T> {
+            rcl_handle: subscription_handle,
+            sender,
+            match_state: SubscriptionMatchState::new(id),
+            batch_size: max_batch_size,
+            buffer: NativeBuffer::default(),
+        };
+        self.add_subscriber(Box::new(subscriber));
         Ok(Subscription::new(receiver, id, Arc::clone(&self.canceled_subscriptions)))
     }
 
@@ -214,7 +374,8 @@ impl Node {
 
     /// Subscribe to native ROS messages with explicit Rust-side stream buffering options.
     pub fn subscribe_native_with_options<T>(
-        &mut self, topic: &str, qos_profile: QosProfile, options: SubscriptionOptions,
+        &mut self, topic: &str, qos_profile: QosProfile,
+        options: impl Into<SubscriptionConfiguration<SubscriptionOptions>>,
     ) -> Result<Subscription<WrappedNativeMsg<T>>>
     where
         T: 'static + WrappedTypesupport,
@@ -222,7 +383,7 @@ impl Node {
         self.subscribe_native_with_transform(
             topic,
             qos_profile,
-            options,
+            options.into(),
             discard_message_info::<WrappedNativeMsg<T>>,
         )
     }
@@ -243,7 +404,8 @@ impl Node {
 
     /// Subscribe to native messages with metadata and explicit stream buffering options.
     pub fn subscribe_native_with_info_and_options<T>(
-        &mut self, topic: &str, qos_profile: QosProfile, options: SubscriptionOptions,
+        &mut self, topic: &str, qos_profile: QosProfile,
+        options: impl Into<SubscriptionConfiguration<SubscriptionOptions>>,
     ) -> Result<Subscription<ReceivedMessage<WrappedNativeMsg<T>>>>
     where
         T: 'static + WrappedTypesupport,
@@ -251,27 +413,29 @@ impl Node {
         self.subscribe_native_with_transform(
             topic,
             qos_profile,
-            options,
+            options.into(),
             attach_message_info::<WrappedNativeMsg<T>>,
         )
     }
 
     fn subscribe_native_with_transform<T, O>(
-        &mut self, topic: &str, qos_profile: QosProfile, options: SubscriptionOptions,
+        &mut self, topic: &str, qos_profile: QosProfile,
+        configuration: SubscriptionConfiguration<SubscriptionOptions>,
         transform: fn(WrappedNativeMsg<T>, MessageInfo) -> O,
     ) -> Result<Subscription<O>>
     where
         T: 'static + WrappedTypesupport,
         O: 'static,
     {
-        let options = options.validate()?;
+        let options = configuration.endpoint.validate()?;
         let subscription_handle = create_subscription_helper(
             self.node_handle.as_mut(),
             topic,
-            T::get_ts(),
+            T::try_get_ts()?,
             qos_profile,
             options.ignore_local_publications,
             options.unique_network_flow,
+            configuration.content_filter.as_ref(),
         )?;
         let (sender, receiver) = mpsc::channel::<O>(options.channel_capacity);
         let id = uuid::Uuid::new_v4();
@@ -284,6 +448,55 @@ impl Node {
             match_state: SubscriptionMatchState::new(id),
         };
         self.add_subscriber(Box::new(ws));
+        Ok(Subscription::new(receiver, id, Arc::clone(&self.canceled_subscriptions)))
+    }
+
+    /// Subscribes to recyclable native ROS samples with RMW metadata.
+    ///
+    /// Dropping each [`NativeSubscriptionSample`] returns its native container to a one-slot
+    /// per-subscription pool. Retained samples remain independently owned and are never overwritten.
+    pub fn subscribe_native_reusable<T>(
+        &mut self, topic: &str, qos_profile: QosProfile,
+    ) -> Result<Subscription<NativeSubscriptionSample<T>>>
+    where
+        T: WrappedTypesupport + 'static,
+    {
+        self.subscribe_native_reusable_with_options(
+            topic,
+            qos_profile,
+            SubscriptionOptions::default(),
+        )
+    }
+
+    /// Subscribes to recyclable native samples with stream, endpoint and creation-filter options.
+    pub fn subscribe_native_reusable_with_options<T>(
+        &mut self, topic: &str, qos_profile: QosProfile,
+        configuration: impl Into<SubscriptionConfiguration<SubscriptionOptions>>,
+    ) -> Result<Subscription<NativeSubscriptionSample<T>>>
+    where
+        T: WrappedTypesupport + 'static,
+    {
+        let configuration = configuration.into();
+        let options = configuration.endpoint.validate()?;
+        let subscription_handle = create_subscription_helper(
+            self.node_handle.as_mut(),
+            topic,
+            T::try_get_ts()?,
+            qos_profile,
+            options.ignore_local_publications,
+            options.unique_network_flow,
+            configuration.content_filter.as_ref(),
+        )?;
+        let (sender, receiver) = mpsc::channel(options.channel_capacity);
+        let id = uuid::Uuid::new_v4();
+        let subscriber = ReusableNativeSubscriber::<T> {
+            rcl_handle: subscription_handle,
+            sender,
+            max_messages_per_spin: subscription_batch_size(options.channel_capacity),
+            match_state: SubscriptionMatchState::new(id),
+            buffer: NativeBuffer::default(),
+        };
+        self.add_subscriber(Box::new(subscriber));
         Ok(Subscription::new(receiver, id, Arc::clone(&self.canceled_subscriptions)))
     }
 
@@ -312,7 +525,8 @@ impl Node {
     /// Registers a scoped native callback with explicit dispatch and endpoint options.
     pub fn subscribe_native_callback_with_options<T, F>(
         &mut self, topic: &str, qos_profile: QosProfile,
-        options: NativeCallbackSubscriptionOptions, callback: F,
+        configuration: impl Into<SubscriptionConfiguration<NativeCallbackSubscriptionOptions>>,
+        callback: F,
     ) -> Result<NativeCallbackSubscription>
     where
         T: WrappedTypesupport,
@@ -320,14 +534,16 @@ impl Node {
             + Send
             + 'static,
     {
-        let options = options.validate()?;
+        let configuration = configuration.into();
+        let options = configuration.endpoint.validate()?;
         let subscription_handle = create_subscription_helper(
             self.node_handle.as_mut(),
             topic,
-            T::get_ts(),
+            T::try_get_ts()?,
             qos_profile,
             options.ignore_local_publications,
             options.unique_network_flow,
+            configuration.content_filter.as_ref(),
         )?;
         let id = uuid::Uuid::new_v4();
         let subscriber = NativeCallbackSubscriber::<T, F>::new(
@@ -358,13 +574,13 @@ impl Node {
     /// Subscribe to untyped messages with explicit Rust-side stream buffering options.
     pub fn subscribe_untyped_with_options(
         &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
-        options: SubscriptionOptions,
+        options: impl Into<SubscriptionConfiguration<SubscriptionOptions>>,
     ) -> Result<Subscription<Result<serde_json::Value>>> {
         self.subscribe_untyped_with_transform(
             topic,
             topic_type,
             qos_profile,
-            options,
+            options.into(),
             discard_message_info::<Result<serde_json::Value>>,
         )
     }
@@ -384,25 +600,26 @@ impl Node {
     /// Subscribe to untyped messages with metadata and explicit stream buffering options.
     pub fn subscribe_untyped_with_info_and_options(
         &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
-        options: SubscriptionOptions,
+        options: impl Into<SubscriptionConfiguration<SubscriptionOptions>>,
     ) -> Result<Subscription<ReceivedMessage<Result<serde_json::Value>>>> {
         self.subscribe_untyped_with_transform(
             topic,
             topic_type,
             qos_profile,
-            options,
+            options.into(),
             attach_message_info::<Result<serde_json::Value>>,
         )
     }
 
     fn subscribe_untyped_with_transform<O>(
         &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
-        options: SubscriptionOptions, transform: fn(Result<serde_json::Value>, MessageInfo) -> O,
+        configuration: SubscriptionConfiguration<SubscriptionOptions>,
+        transform: fn(Result<serde_json::Value>, MessageInfo) -> O,
     ) -> Result<Subscription<O>>
     where
         O: 'static,
     {
-        let options = options.validate()?;
+        let options = configuration.endpoint.validate()?;
         let msg = WrappedNativeMsgUntyped::new_from(topic_type)?;
         let subscription_handle = create_subscription_helper(
             self.node_handle.as_mut(),
@@ -411,6 +628,7 @@ impl Node {
             qos_profile,
             options.ignore_local_publications,
             options.unique_network_flow,
+            configuration.content_filter.as_ref(),
         )?;
         let (sender, receiver) = mpsc::channel::<O>(options.channel_capacity);
         let id = uuid::Uuid::new_v4();
@@ -445,13 +663,13 @@ impl Node {
     /// Subscribe to serialized messages with explicit Rust-side stream buffering options.
     pub fn subscribe_raw_with_options(
         &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
-        options: SubscriptionOptions,
+        options: impl Into<SubscriptionConfiguration<SubscriptionOptions>>,
     ) -> Result<Subscription<Vec<u8>>> {
         self.subscribe_raw_with_transform(
             topic,
             topic_type,
             qos_profile,
-            options,
+            options.into(),
             discard_message_info::<Vec<u8>>,
         )
     }
@@ -471,25 +689,26 @@ impl Node {
     /// Subscribe to serialized messages with metadata and explicit stream buffering options.
     pub fn subscribe_raw_with_info_and_options(
         &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
-        options: SubscriptionOptions,
+        options: impl Into<SubscriptionConfiguration<SubscriptionOptions>>,
     ) -> Result<Subscription<ReceivedMessage<Vec<u8>>>> {
         self.subscribe_raw_with_transform(
             topic,
             topic_type,
             qos_profile,
-            options,
+            options.into(),
             attach_message_info::<Vec<u8>>,
         )
     }
 
     fn subscribe_raw_with_transform<O>(
         &mut self, topic: &str, topic_type: &str, qos_profile: QosProfile,
-        options: SubscriptionOptions, transform: fn(Vec<u8>, MessageInfo) -> O,
+        configuration: SubscriptionConfiguration<SubscriptionOptions>,
+        transform: fn(Vec<u8>, MessageInfo) -> O,
     ) -> Result<Subscription<O>>
     where
         O: 'static,
     {
-        let options = options.validate()?;
+        let options = configuration.endpoint.validate()?;
         // TODO is it possible to handle the raw message without type support?
         //
         // Passing null ts to rcl_subscription_init throws an error ..
@@ -522,6 +741,7 @@ impl Node {
             qos_profile,
             options.ignore_local_publications,
             options.unique_network_flow,
+            configuration.content_filter.as_ref(),
         ) {
             Ok(handle) => handle,
             Err(err) => {

@@ -42,6 +42,7 @@ pub struct ReentrantCallbackGroup {
     pub(super) id: CallbackGroupId,
     pub(super) cancelled: Arc<AtomicBool>,
     pub(super) sources: Vec<(uuid::Uuid, std::sync::Weak<dyn input::Control>)>,
+    pub(super) tasks: Vec<std::sync::Weak<task_registration::TaskControl>>,
     pub(super) lanes: Vec<Callbacks>,
 }
 impl ReentrantCallbackGroup {
@@ -54,6 +55,7 @@ impl ReentrantCallbackGroup {
             id: CallbackGroupId(uuid::Uuid::new_v4()),
             cancelled: Arc::new(AtomicBool::new(false)),
             sources: Vec::new(),
+            tasks: Vec::new(),
             lanes: (0..concurrency).map(|_| Callbacks::new()).collect(),
         })
     }
@@ -114,6 +116,12 @@ impl OwnedGroup {
         match self {
             Self::Exclusive(group) => &group.cancelled,
             Self::Reentrant(group) => &group.cancelled,
+        }
+    }
+    pub(super) fn wake_tasks(&mut self) {
+        match self {
+            Self::Exclusive(group) => group.wake_tasks(),
+            Self::Reentrant(group) => group.wake_tasks(),
         }
     }
     pub(super) fn sources(&self) -> &[(uuid::Uuid, std::sync::Weak<dyn input::Control>)] {

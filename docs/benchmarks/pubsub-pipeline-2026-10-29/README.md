@@ -105,8 +105,38 @@ python3 tools/bench_ros/verify_pubsub_pipeline.py --compatibility-manifest \
   docs/benchmarks/pubsub-pipeline-2026-10-29/compatibility.json
 ```
 
+## Reusable typed receive extension (2026-10-31)
+
+The harness now declares a third Rust receive path, `reusable_typed`, without changing the existing
+stream or scoped native-callback binaries. It uses safe `ReusableSubscriptionSample<T>` delivery and
+reports that identity at both endpoints. Builder, runner and verifier reject unavailable APIs,
+fallback/mislabeled binaries and unknown receive paths.
+
+The current-source full-direction smoke covers the same `0×1×1`, `4096×16×1` and `4096×8×4`
+cases under both Jazzy RMWs. Each report verifies 12 records, 1200 sample tuples and the complete
+270-input manifest. A refreshed formal strict 1.0 rclcpp command stopped before measurement at
+load1 80.47 with five Zig processes, leaving zero records.
+[The archive](../../validation/reusable-typed-pipeline-2026-10-31/README.md) is protocol and
+provenance evidence only; it does not promote its contended timing values.
+
 The commands above apply after `performance/` is repopulated by the isolated final-source run.
 Exact report, sample, source, binary and validation identities will be recorded with that run.
+
+## Typed sequence-take batch extension (2026-10-31)
+
+The harness now also accepts `batch_typed`, backed by `Node::subscribe_batches` and one
+`rcl_take_sequence` per delivered batch. The benchmark preserves per-message RTT and window
+accounting: ping settles every batch item separately and echo aligns one independent cursor per
+fanout subscription before publishing the corresponding response. Batch size equals the request
+window and the Rust channel holds one complete batch.
+
+The current-source full-direction smoke covers the same three cases under both Jazzy RMWs. Each
+report verifies 12 records, 1200 sample tuples, endpoint path identity and the complete 268-input
+manifest. A formal strict 1.0 rclcpp command stopped before measurement at load1 80.47 with five
+Zig processes. [The batch archive](../../validation/batch-typed-pipeline-2026-10-31/README.md) is
+therefore protocol/provenance evidence only; its contended short-run timings are not promoted. The
+formal quiet-host run should include a same-source `reusable_typed` binary so any improvement can be
+attributed specifically to sequence take and batch-channel delivery.
 
 ## Final ownership and qualification boundaries (2026-10-30)
 

@@ -1,6 +1,7 @@
 //! Service client factories, registry bookkeeping and removal.
 
 use super::*;
+use crate::native_buffer::NativeBuffer;
 
 impl Node {
     pub(crate) fn client_identity<T: ?Sized>(client: &Arc<Mutex<T>>) -> usize {
@@ -80,12 +81,13 @@ impl Node {
         let client_handle = create_client_helper(
             self.node_handle.as_mut(),
             service_name,
-            T::get_ts(),
+            T::try_get_ts()?,
             qos_profile,
         )?;
         let ws = TypedClient::<T> {
             rcl_handle: client_handle,
             response_channels: HashMap::new(),
+            response_buffer: NativeBuffer::default(),
             poll_available_channels: AvailabilityWaiters::default(),
             #[cfg(test)]
             availability_poll_count: std::sync::atomic::AtomicUsize::new(0),

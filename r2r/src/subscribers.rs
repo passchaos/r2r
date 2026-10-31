@@ -19,6 +19,7 @@ use crate::{
     availability::AvailabilityWaiters,
     error::*,
     msg_types::*,
+    native_buffer::{NativeBuffer, NativeLease},
     nodes::Node,
     publishers::{
         subscription_network_flow_endpoints, NetworkFlowEndpoint, UniqueNetworkFlowRequirement,
@@ -28,7 +29,16 @@ use crate::{
 };
 use r2r_rcl::*;
 
+mod batch;
+#[cfg(all(test, not(feature = "doc-only")))]
+mod batch_tests;
+#[cfg(all(test, not(feature = "doc-only")))]
+mod content_filter_tests;
 mod native_callback;
+#[cfg(all(test, not(feature = "doc-only")))]
+mod reusable_native_tests;
+pub(crate) use batch::{NativeBatchSubscriber, TypedBatchSubscriber};
+pub use batch::{NativeSubscriptionBatch, SubscriptionBatch};
 pub(crate) use native_callback::NativeCallbackSubscriber;
 pub use native_callback::{NativeCallbackSubscription, NativeCallbackSubscriptionOptions};
 
@@ -52,6 +62,38 @@ pub struct SubscriptionOptions {
 pub struct ContentFilterOptions {
     pub filter_expression: String,
     pub expression_parameters: Vec<String>,
+}
+
+/// Endpoint options plus an optional content filter applied during subscription creation.
+///
+/// Existing option structs remain small and `Copy`. Calling their `content_filter` builder returns
+/// this owned configuration only when filter strings are needed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubscriptionConfiguration<T> {
+    pub(crate) endpoint: T,
+    pub(crate) content_filter: Option<ContentFilterOptions>,
+}
+
+impl<T> SubscriptionConfiguration<T> {
+    /// Wraps existing endpoint options without enabling a content filter.
+    pub fn new(endpoint: T) -> Self {
+        Self {
+            endpoint,
+            content_filter: None,
+        }
+    }
+
+    /// Applies this filter as part of native subscription initialization.
+    pub fn content_filter(mut self, content_filter: ContentFilterOptions) -> Self {
+        self.content_filter = Some(content_filter);
+        self
+    }
+}
+
+impl<T> From<T> for SubscriptionConfiguration<T> {
+    fn from(endpoint: T) -> Self {
+        Self::new(endpoint)
+    }
 }
 
 /// Cumulative status from a requested-incompatible-QoS subscription event.
@@ -86,6 +128,7 @@ pub struct MessageLostStatus {
 }
 
 impl ContentFilterOptions {
+    /// Creates a filter expression without placeholder parameters.
     pub fn new(filter_expression: impl Into<String>) -> Self {
         Self {
             filter_expression: filter_expression.into(),
@@ -93,6 +136,9 @@ impl ContentFilterOptions {
         }
     }
 
+    /// Replaces the values referenced by `%0` through `%99` in the expression.
+    ///
+    /// Interior NUL bytes and more than 100 parameters are rejected when the filter is applied.
     pub fn expression_parameters<I, S>(mut self, parameters: I) -> Self
     where
         I: IntoIterator<Item = S>,
@@ -132,6 +178,13 @@ impl SubscriptionOptions {
         self
     }
 
+    /// Adds a middleware content filter to native subscription initialization.
+    pub fn content_filter(
+        self, content_filter: ContentFilterOptions,
+    ) -> SubscriptionConfiguration<Self> {
+        SubscriptionConfiguration::new(self).content_filter(content_filter)
+    }
+
     pub(crate) fn validate(self) -> Result<Self> {
         // Mirrors futures-channel's private MAX_BUFFER boundary so invalid public input returns
         // an error instead of reaching the assertion in mpsc::channel.
@@ -169,6 +222,8 @@ pub struct MessageInfo {
 
 impl From<rmw_message_info_t> for MessageInfo {
     fn from(info: rmw_message_info_t) -> Self {
+        #[cfg(test)]
+        MESSAGE_INFO_CONVERSIONS.with(|count| count.set(count.get() + 1));
         fn sequence_number(value: u64) -> Option<u64> {
             (value != u64::MAX).then_some(value)
         }
@@ -182,6 +237,21 @@ impl From<rmw_message_info_t> for MessageInfo {
             from_intra_process: info.from_intra_process,
         }
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    static MESSAGE_INFO_CONVERSIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn reset_message_info_conversion_count() {
+    MESSAGE_INFO_CONVERSIONS.with(|count| count.set(0));
+}
+
+#[cfg(test)]
+pub(crate) fn message_info_conversion_count() -> usize {
+    MESSAGE_INFO_CONVERSIONS.with(std::cell::Cell::get)
 }
 
 /// A received ROS message together with its RMW metadata.
@@ -206,6 +276,73 @@ where
         unsafe extern "C" fn(*const rcl_subscription_t, *mut std::os::raw::c_void) -> rcl_ret_t,
     _node: PhantomData<&'node mut Node>,
     _not_send_or_sync: PhantomData<Rc<()>>,
+}
+
+/// One asynchronously delivered native subscription sample with recyclable storage.
+///
+/// The sample owns its native message independently from the subscription endpoint. Dropping it
+/// returns the container to a one-slot per-subscription pool; retaining several samples allocates
+/// distinct containers, so a live sample is never overwritten by a later take.
+pub struct NativeSubscriptionSample<T>
+where
+    T: WrappedTypesupport,
+{
+    message: NativeLease<WrappedNativeMsg<T>>,
+    pub info: MessageInfo,
+}
+
+/// One asynchronously delivered Rust subscription message with recyclable owned storage.
+///
+/// Generated messages update their existing Vec, string and nested-message fields from native
+/// storage. Retaining several samples keeps each Rust value independently owned.
+pub struct ReusableSubscriptionSample<T>
+where
+    T: WrappedTypesupport,
+{
+    message: NativeLease<T>,
+    pub info: MessageInfo,
+}
+
+impl<T> ReusableSubscriptionSample<T>
+where
+    T: WrappedTypesupport,
+{
+    /// Borrows the decoded Rust message.
+    pub fn message(&self) -> &T {
+        &self.message
+    }
+}
+
+impl<T> std::ops::Deref for ReusableSubscriptionSample<T>
+where
+    T: WrappedTypesupport,
+{
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.message()
+    }
+}
+
+impl<T> NativeSubscriptionSample<T>
+where
+    T: WrappedTypesupport,
+{
+    /// Borrows the generated native ROS message.
+    pub fn native_message(&self) -> &T::CStruct {
+        &self.message
+    }
+}
+
+impl<T> std::ops::Deref for NativeSubscriptionSample<T>
+where
+    T: WrappedTypesupport,
+{
+    type Target = T::CStruct;
+
+    fn deref(&self) -> &Self::Target {
+        self.native_message()
+    }
 }
 
 impl<T> std::ops::Deref for LoanedSubscriptionMessage<'_, T>
@@ -891,16 +1028,14 @@ pub(crate) trait Subscriber_ {
     fn destroy(&mut self, node: &mut rcl_node_t);
 }
 
-struct NativeContentFilterOptions<'subscription> {
-    subscription: &'subscription rcl_subscription_t,
-    value: rcl_subscription_content_filter_options_t,
-    initialized: bool,
+struct ContentFilterInput {
+    expression: CString,
+    _parameters: Vec<CString>,
+    parameter_ptrs: Vec<*const std::os::raw::c_char>,
 }
 
-impl<'subscription> NativeContentFilterOptions<'subscription> {
-    fn from_options(
-        subscription: &'subscription rcl_subscription_t, options: &ContentFilterOptions,
-    ) -> Result<Self> {
+impl ContentFilterInput {
+    fn new(options: &ContentFilterOptions) -> Result<Self> {
         if options.expression_parameters.len() > 100 {
             return Err(Error::RCL_RET_INVALID_ARGUMENT);
         }
@@ -911,15 +1046,36 @@ impl<'subscription> NativeContentFilterOptions<'subscription> {
             .iter()
             .map(|value| CString::new(value.as_str()).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT))
             .collect::<Result<Vec<_>>>()?;
-        let mut parameter_ptrs = parameters
-            .iter()
-            .map(|value| value.as_ptr())
-            .collect::<Vec<_>>();
-        let parameter_ptrs = if parameter_ptrs.is_empty() {
+        let parameter_ptrs = parameters.iter().map(|value| value.as_ptr()).collect();
+        Ok(Self {
+            expression,
+            _parameters: parameters,
+            parameter_ptrs,
+        })
+    }
+
+    fn parameter_data(&mut self) -> *mut *const std::os::raw::c_char {
+        if self.parameter_ptrs.is_empty() {
             std::ptr::null_mut()
         } else {
-            parameter_ptrs.as_mut_ptr()
-        };
+            self.parameter_ptrs.as_mut_ptr()
+        }
+    }
+}
+
+struct NativeContentFilterOptions<'subscription> {
+    subscription: &'subscription rcl_subscription_t,
+    value: rcl_subscription_content_filter_options_t,
+    initialized: bool,
+}
+
+impl<'subscription> NativeContentFilterOptions<'subscription> {
+    fn from_options(
+        subscription: &'subscription rcl_subscription_t, options: &ContentFilterOptions,
+    ) -> Result<Self> {
+        let mut input = ContentFilterInput::new(options)?;
+        let parameter_count = input.parameter_ptrs.len();
+        let parameter_ptrs = input.parameter_data();
         let mut native = Self {
             subscription,
             value: unsafe { rcl_get_zero_initialized_subscription_content_filter_options() },
@@ -928,8 +1084,8 @@ impl<'subscription> NativeContentFilterOptions<'subscription> {
         let ret = unsafe {
             rcl_subscription_content_filter_options_init(
                 subscription,
-                expression.as_ptr(),
-                parameters.len(),
+                input.expression.as_ptr(),
+                parameter_count,
                 parameter_ptrs,
                 &mut native.value,
             )
@@ -1037,6 +1193,7 @@ where
     pub transform: fn(T, MessageInfo) -> O,
     pub max_messages_per_spin: usize,
     pub(crate) match_state: SubscriptionMatchState,
+    pub(crate) native_buffer: NativeBuffer<WrappedNativeMsg<T>>,
 }
 
 pub struct NativeSubscriber<T, O>
@@ -1048,6 +1205,29 @@ where
     pub transform: fn(WrappedNativeMsg<T>, MessageInfo) -> O,
     pub max_messages_per_spin: usize,
     pub(crate) match_state: SubscriptionMatchState,
+}
+
+pub struct ReusableNativeSubscriber<T>
+where
+    T: WrappedTypesupport,
+{
+    pub rcl_handle: rcl_subscription_t,
+    pub sender: mpsc::Sender<NativeSubscriptionSample<T>>,
+    pub max_messages_per_spin: usize,
+    pub(crate) match_state: SubscriptionMatchState,
+    pub(crate) buffer: NativeBuffer<WrappedNativeMsg<T>>,
+}
+
+pub struct ReusableTypedSubscriber<T>
+where
+    T: WrappedTypesupport,
+{
+    pub rcl_handle: rcl_subscription_t,
+    pub sender: mpsc::Sender<ReusableSubscriptionSample<T>>,
+    pub max_messages_per_spin: usize,
+    pub(crate) match_state: SubscriptionMatchState,
+    pub(crate) native_buffer: NativeBuffer<WrappedNativeMsg<T>>,
+    pub(crate) rust_buffer: NativeBuffer<T>,
 }
 
 pub struct UntypedSubscriber<O> {
@@ -1111,12 +1291,19 @@ where
             Err(_) => return Ok(SubscriptionHandleResult::Remove),
         }
         let mut msg_info = rmw_message_info_t::default(); // we dont care for now
-        let mut msg = WrappedNativeMsg::<T>::try_new()?;
+        let mut msg = self
+            .native_buffer
+            .checkout(WrappedNativeMsg::<T>::try_new)?;
         let ret = unsafe {
             rcl_take(&self.rcl_handle, msg.void_ptr_mut(), &mut msg_info, std::ptr::null_mut())
         };
         if ret == RCL_RET_OK as i32 {
-            let msg = (self.transform)(T::from_native(&msg), msg_info.into());
+            let decoded = T::from_native(&msg);
+            // The public output owns its Rust fields. Return the short-lived native container
+            // before transform/channel work so the next dispatch can reuse it independently of
+            // how long the application retains the decoded sample.
+            drop(msg);
+            let msg = (self.transform)(decoded, msg_info.into());
             if let Err(e) = self.sender.try_send(msg) {
                 if e.is_disconnected() {
                     // user dropped the handle to the stream, signal removal.
@@ -1204,6 +1391,147 @@ where
         self.match_state.clear_events();
         unsafe {
             rcl_subscription_fini(&mut self.rcl_handle, node);
+        }
+    }
+}
+
+impl<T> Subscriber_ for ReusableNativeSubscriber<T>
+where
+    T: WrappedTypesupport + 'static,
+{
+    fn handle(&self) -> &rcl_subscription_t {
+        &self.rcl_handle
+    }
+
+    fn message_type_id(&self) -> Option<TypeId> {
+        Some(TypeId::of::<T>())
+    }
+
+    fn match_state(&self) -> Option<&SubscriptionMatchState> {
+        Some(&self.match_state)
+    }
+
+    fn match_state_mut(&mut self) -> Option<&mut SubscriptionMatchState> {
+        Some(&mut self.match_state)
+    }
+
+    fn should_remove(&mut self) -> bool {
+        self.sender.is_closed()
+    }
+
+    fn max_messages_per_spin(&self) -> usize {
+        self.max_messages_per_spin
+    }
+
+    fn handle_incoming(&mut self) -> Result<SubscriptionHandleResult> {
+        match sender_ready(&mut self.sender) {
+            Ok(true) => {}
+            Ok(false) => return Ok(SubscriptionHandleResult::Backpressured),
+            Err(_) => return Ok(SubscriptionHandleResult::Remove),
+        }
+        let mut message = self.buffer.checkout(WrappedNativeMsg::<T>::try_new)?;
+        let mut info = rmw_message_info_t::default();
+        let ret = unsafe {
+            rcl_take(&self.rcl_handle, message.void_ptr_mut(), &mut info, std::ptr::null_mut())
+        };
+        if ret == RCL_RET_SUBSCRIPTION_TAKE_FAILED as i32 {
+            return Ok(SubscriptionHandleResult::Idle);
+        }
+        if ret != RCL_RET_OK as i32 {
+            return Err(Error::from_rcl_error(ret));
+        }
+        let sample = NativeSubscriptionSample {
+            message,
+            info: info.into(),
+        };
+        if let Err(error) = self.sender.try_send(sample) {
+            if error.is_disconnected() {
+                return Ok(SubscriptionHandleResult::Remove);
+            }
+            log::error!("error {error:?}");
+            return Ok(SubscriptionHandleResult::Backpressured);
+        }
+        Ok(SubscriptionHandleResult::Taken)
+    }
+
+    fn destroy(&mut self, node: &mut rcl_node_t) {
+        self.match_state.clear_events();
+        let ret = unsafe { rcl_subscription_fini(&mut self.rcl_handle, node) };
+        if ret != RCL_RET_OK as i32 {
+            log::error!("could not finalize reusable native subscription: {ret}");
+        }
+    }
+}
+
+impl<T> Subscriber_ for ReusableTypedSubscriber<T>
+where
+    T: WrappedTypesupport,
+{
+    fn handle(&self) -> &rcl_subscription_t {
+        &self.rcl_handle
+    }
+
+    fn message_type_id(&self) -> Option<TypeId> {
+        Some(TypeId::of::<T>())
+    }
+
+    fn match_state(&self) -> Option<&SubscriptionMatchState> {
+        Some(&self.match_state)
+    }
+
+    fn match_state_mut(&mut self) -> Option<&mut SubscriptionMatchState> {
+        Some(&mut self.match_state)
+    }
+
+    fn should_remove(&mut self) -> bool {
+        self.sender.is_closed()
+    }
+
+    fn max_messages_per_spin(&self) -> usize {
+        self.max_messages_per_spin
+    }
+
+    fn handle_incoming(&mut self) -> Result<SubscriptionHandleResult> {
+        match sender_ready(&mut self.sender) {
+            Ok(true) => {}
+            Ok(false) => return Ok(SubscriptionHandleResult::Backpressured),
+            Err(_) => return Ok(SubscriptionHandleResult::Remove),
+        }
+        let mut native = self
+            .native_buffer
+            .checkout(WrappedNativeMsg::<T>::try_new)?;
+        let mut info = rmw_message_info_t::default();
+        let ret = unsafe {
+            rcl_take(&self.rcl_handle, native.void_ptr_mut(), &mut info, std::ptr::null_mut())
+        };
+        if ret == RCL_RET_SUBSCRIPTION_TAKE_FAILED as i32 {
+            return Ok(SubscriptionHandleResult::Idle);
+        }
+        if ret != RCL_RET_OK as i32 {
+            return Err(Error::from_rcl_error(ret));
+        }
+        let mut message = self.rust_buffer.checkout(|| Ok(T::default()))?;
+        message.update_from_native(&native);
+        drop(native);
+        let sample = ReusableSubscriptionSample {
+            message,
+            info: info.into(),
+        };
+        if let Err(error) = self.sender.try_send(sample) {
+            if error.is_disconnected() {
+                return Ok(SubscriptionHandleResult::Remove);
+            }
+            log::error!("error {error:?}");
+            return Ok(SubscriptionHandleResult::Backpressured);
+        }
+        Ok(SubscriptionHandleResult::Taken)
+    }
+
+    fn destroy(&mut self, node: &mut rcl_node_t) {
+        self.match_state.clear_events();
+        let ret = unsafe { rcl_subscription_fini(&mut self.rcl_handle, node) };
+        if ret != RCL_RET_OK as i32 {
+            log::error!("could not finalize reusable typed subscription: {ret}");
         }
     }
 }
@@ -1337,19 +1665,45 @@ pub(crate) fn create_subscription_helper(
     node: &mut rcl_node_t, topic: &str, ts: *const rosidl_message_type_support_t,
     qos_profile: QosProfile, ignore_local_publications: bool,
     unique_network_flow: UniqueNetworkFlowRequirement,
+    content_filter: Option<&ContentFilterOptions>,
 ) -> Result<rcl_subscription_t> {
     let mut subscription_handle = unsafe { rcl_get_zero_initialized_subscription() };
     let topic_c_string = CString::new(topic).map_err(|_| Error::RCL_RET_INVALID_ARGUMENT)?;
+    let filter_requested =
+        content_filter.is_some_and(|filter| !filter.filter_expression.is_empty());
+    let mut subscription_options = unsafe { rcl_subscription_get_default_options() };
+    subscription_options.qos = qos_profile.into();
+    subscription_options
+        .rmw_subscription_options
+        .ignore_local_publications = ignore_local_publications;
+    subscription_options
+        .rmw_subscription_options
+        .require_unique_network_flow_endpoints = unique_network_flow.into();
 
+    let filter_configured = if let Some(content_filter) = content_filter {
+        let mut input = ContentFilterInput::new(content_filter)?;
+        let parameter_count = input.parameter_ptrs.len();
+        let parameter_data = input.parameter_data();
+        let result = unsafe {
+            rcl_subscription_options_set_content_filter_options(
+                input.expression.as_ptr(),
+                parameter_count,
+                parameter_data,
+                &mut subscription_options,
+            )
+        };
+        if result != RCL_RET_OK as i32 {
+            let fini = unsafe { rcl_subscription_options_fini(&mut subscription_options) };
+            if fini != RCL_RET_OK as i32 {
+                log::error!("could not finalize rejected subscription options: {fini}");
+            }
+            return Err(Error::from_rcl_error(result));
+        }
+        true
+    } else {
+        false
+    };
     let result = unsafe {
-        let mut subscription_options = rcl_subscription_get_default_options();
-        subscription_options.qos = qos_profile.into();
-        subscription_options
-            .rmw_subscription_options
-            .ignore_local_publications = ignore_local_publications;
-        subscription_options
-            .rmw_subscription_options
-            .require_unique_network_flow_endpoints = unique_network_flow.into();
         rcl_subscription_init(
             &mut subscription_handle,
             node,
@@ -1358,11 +1712,26 @@ pub(crate) fn create_subscription_helper(
             &subscription_options,
         )
     };
-    if result == RCL_RET_OK as i32 {
-        Ok(subscription_handle)
-    } else {
-        Err(Error::from_rcl_error(result))
+    if result != RCL_RET_OK as i32 {
+        if filter_configured {
+            let fini = unsafe { rcl_subscription_options_fini(&mut subscription_options) };
+            if fini != RCL_RET_OK as i32 {
+                log::error!("could not finalize failed subscription options: {fini}");
+            }
+        }
+        return Err(Error::from_rcl_error(result));
     }
+    // Successful rcl_subscription_init transfers the nested content-filter allocation to the
+    // native subscription. rcl_subscription_fini releases it; finalizing the local options here
+    // would leave the RMW's shallow options copy dangling.
+    if filter_requested && !unsafe { rcl_subscription_is_cft_enabled(&subscription_handle) } {
+        let fini = unsafe { rcl_subscription_fini(&mut subscription_handle, node) };
+        if fini != RCL_RET_OK as i32 {
+            log::error!("could not finalize subscription with ignored content filter: {fini}");
+        }
+        return Err(Error::RCL_RET_UNSUPPORTED);
+    }
+    Ok(subscription_handle)
 }
 
 #[cfg(test)]

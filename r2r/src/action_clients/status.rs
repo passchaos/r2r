@@ -3,7 +3,7 @@ use crate::{action_msgs, Error, GoalStatus, Result, WrappedTypesupport};
 type NativeStatusArray = <action_msgs::msg::GoalStatusArray as WrappedTypesupport>::CStruct;
 
 /// Extract only the client state updates, without allocating a Rust UUID vector per goal.
-pub(super) fn decode_native(array: &NativeStatusArray) -> Result<Vec<(uuid::Uuid, GoalStatus)>> {
+pub(crate) fn decode_native(array: &NativeStatusArray) -> Result<Vec<(uuid::Uuid, GoalStatus)>> {
     let sequence = &array.status_list;
     if sequence.size == 0 {
         return Ok(Vec::new());

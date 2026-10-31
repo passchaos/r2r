@@ -42,8 +42,13 @@ use std::sync::Arc;
 #[derive(RosParams, Default, Debug)]
 struct Params {
     /// Parameter description
+    #[ros_param(
+        floating_point_range(from = 0.0, to = 10.0, step = 0.1),
+        additional_constraints = "finite calibrated gain"
+    )]
     par1: f64,
     /// Dummy parameter [m/s]
+    #[ros_param(read_only)]
     par2: i32,
     nested: NestedParams,
 }
@@ -58,6 +63,7 @@ struct NestedParams {
 #[derive(RosParams, Default, Debug)]
 struct NestedParams2 {
     /// Small parameter
+    #[ros_param(integer_range(from = 0, to = 100, step = 5))]
     par5: i8,
 }
 
