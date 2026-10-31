@@ -1728,3 +1728,12 @@ See [complete lifecycle callback evidence](validation/lifecycle-callbacks-2026-1
 
 Concurrent callback scheduling and isolated representative performance/resource comparisons
 remain separate requirements for the full Rust/C++ leadership goal.
+
+## Cross-release full library suite (2026-11-01)
+
+At commit `d0a8325`, the complete release library suite passed with zero failures in every required
+native environment: Jazzy 828 passed/24 ignored under both RMWs, Kilted 834/24 under both RMWs, and
+Humble 804/24 under Fast DDS. The ignored cases are manual allocation-probe stages. Humble excludes
+Iron-and-newer service-event tests; Kilted's larger count reflects its newer binding surface.
+[Recorded logs](validation/full-release-matrix-2026-11-01/README.md) are archived per environment
+with digests and no current-source pinning, so this record stays a per-commit snapshot.

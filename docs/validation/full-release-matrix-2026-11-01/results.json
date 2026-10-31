@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "commit": "d0a8325",
+  "rust": "1.85.0",
+  "resource_constraints": {
+    "single_cpu_compilation": true,
+    "cargo_build_jobs": 1,
+    "test_threads": 1,
+    "container_memory_bytes": 10000000000
+  },
+  "environments": {
+    "jazzy_cyclonedds": {
+      "artifact": "logs/jazzy-cyclonedds.log.gz",
+      "artifact_sha256": "b839d7d61ad463c31c33495d98ad39ba144f77aa12a176ee0e2b8debf7a40540",
+      "uncompressed_sha256": "ba57beafcc65324ccf78fb80ff42b362e0040b446a846598d615ca6e250b2773",
+      "passed": 828,
+      "ignored": 24,
+      "exit_code": 0
+    },
+    "jazzy_fastdds": {
+      "artifact": "logs/jazzy-fastdds.log.gz",
+      "artifact_sha256": "ddfb48afb1583072f99f50fc5d99f30c5a17eb55a8aa658fda92149d34de3179",
+      "uncompressed_sha256": "a83415f9792ec64f2d6787071ec6a5c2010d7ad438a169119ac305b99a029161",
+      "passed": 828,
+      "ignored": 24,
+      "exit_code": 0
+    },
+    "kilted_cyclonedds": {
+      "artifact": "logs/kilted-cyclonedds.log.gz",
+      "artifact_sha256": "e13e0a4d51783d2fd48f97cf88b9c35185d4ad63e13b73725ead57f6f23710bd",
+      "uncompressed_sha256": "b9eaa86caf92fe2a5f318f03bc7fbd0903b8fffec814e5c40b008a81d479435e",
+      "passed": 834,
+      "ignored": 24,
+      "exit_code": 0
+    },
+    "kilted_fastdds": {
+      "artifact": "logs/kilted-fastdds.log.gz",
+      "artifact_sha256": "29583e1a7f5e8c53c69113f88b6389358339ca85b58b6f4e76c388c77097fc0a",
+      "uncompressed_sha256": "10ffe628dcce5ad0aa93c4370c532dd11a19761c96ecb5c2c6c366b15e557f6d",
+      "passed": 834,
+      "ignored": 24,
+      "exit_code": 0
+    },
+    "humble_fastdds": {
+      "artifact": "logs/humble-fastdds.log.gz",
+      "artifact_sha256": "c7e4872e07a75897fc843262601225a88522569326b5bb169de2fff2d5870812",
+      "uncompressed_sha256": "607cb58a4b7dab3dafe8f64c9a47946c475cddd573bdedec994517c7d6583c01",
+      "passed": 804,
+      "ignored": 24,
+      "exit_code": 0
+    }
+  }
+}
