@@ -221,4 +221,23 @@ mod tests {
         drop(pool.checkout(|| Ok(5usize)).unwrap());
         assert_eq!(pool.available_len(), 2);
     }
+
+    #[test]
+    fn pool_checkout_and_recycle_are_thread_safe() {
+        let pool = Arc::new(NativePool::new(4));
+        let mut handles = Vec::new();
+        for _ in 0..8 {
+            let pool = Arc::clone(&pool);
+            handles.push(std::thread::spawn(move || {
+                for _ in 0..1000 {
+                    let lease = pool.checkout(|| Ok(1usize)).unwrap();
+                    assert_eq!(*lease, 1);
+                }
+            }));
+        }
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        assert!(pool.available_len() <= 4);
+    }
 }

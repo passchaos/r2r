@@ -85,7 +85,7 @@
     "r2r_macros/src/lib.rs": "17ec0e62c64094e4edc961f544476053c34b12ebd8533ec6fd678a2819f5b94c",
     "r2r/src/parameters.rs": "a454653ee13ac4c74b17bf3ae0aac4c27626665b9a8c3ab559b7f7791f766840",
     "r2r/src/nodes/parameter_handler.rs": "cad71e05168c5d414785ca6d4a4f0c191d2ceafee18f65b27a23cb2d4a9b663b",
-    "r2r/src/nodes.rs": "ca4f18f5e8cec7133f8a346c683a8eeae62964a64096bd7b540e96a1eb4b209e",
+    "r2r/src/nodes.rs": "6017e1d1af546511588544692b1f8e0046f89c4af85a9d317ac52b366275ce09",
     "r2r/src/lib.rs": "c1d0b15e9eef13e98f7142408fe74862ddee144cc9550237b7d6676355c22101",
     "r2r/examples/parameters_derive.rs": "b43a996c846473eac2997d8e62610c60c0292ca416d64cb2e61bcf03db292fa8",
     "tests/check_documentation.py": "ece60be4eed5334bbdbb6b620e20d892b8db10995dbcb1a1633740971bece225",

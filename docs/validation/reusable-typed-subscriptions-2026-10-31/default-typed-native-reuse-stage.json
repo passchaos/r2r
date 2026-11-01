@@ -10,7 +10,7 @@
     "virtual_memory_limit_bytes": 10737418240,
     "probe_sha256": "85283f1184b00c227e02c8c56eec9283051265a779511c39c6c8cf4272baa59e",
     "source_sha256": {
-      "r2r/src/native_buffer.rs": "1c516f8a51afbb37f5acb4bf15c3a4770aa8606af53097c7a8e3c7da02a4f4cd",
+      "r2r/src/native_buffer.rs": "03d7ea54f23fb1edcafd54d8a4b12f3238ff5f6f3dbb8d155720cfb8e3af6d61",
       "r2r/src/subscribers.rs": "8b8b9393498c613496ff4542bd7abfe9a2df2e26853f4754638775e12238d81f",
       "r2r/src/subscribers/reusable_native_tests.rs": "eb09de9b29238b291cd21a80006dcef669d915cbcb3b6471343a65f6d6168cc6",
       "r2r/src/nodes/subscription_api.rs": "6800c58b252e9a8948123df3a06498720b5557dd00b7ad81bceb76fb238d2b81",
@@ -21,14 +21,14 @@
     },
     "raw_log": {
       "file": "default-typed-native-reuse-stage.log.gz",
-      "sha256": "49f21b5d32c95439956e3d472bbe1a19e068e3806f77340eb102ce9adfbcb33d"
+      "sha256": "f5848f7b5c7a60d9a9eb9e89b2a4a1cf2eeae357b31a6287ea3dd540c6632c26"
     }
   },
   "records": [
     {
       "allocations": 50000,
       "boundary": "default typed native fill, owned Rust decode, channel send/receive and payload validation; no RCL/DDS",
-      "elapsed_ns": 19583796,
+      "elapsed_ns": 18148883,
       "elements": 4096,
       "frees": 50000,
       "iterations": 10000,
@@ -39,7 +39,7 @@
     {
       "allocations": 30000,
       "boundary": "default typed native fill, owned Rust decode, channel send/receive and payload validation; no RCL/DDS",
-      "elapsed_ns": 17561068,
+      "elapsed_ns": 16775236,
       "elements": 4096,
       "frees": 30000,
       "iterations": 10000,
@@ -50,7 +50,7 @@
     {
       "allocations": 50000,
       "boundary": "default typed native fill, owned Rust decode, channel send/receive and payload validation; no RCL/DDS",
-      "elapsed_ns": 18553776,
+      "elapsed_ns": 18565187,
       "elements": 4096,
       "frees": 50000,
       "iterations": 10000,
@@ -61,7 +61,7 @@
     {
       "allocations": 30000,
       "boundary": "default typed native fill, owned Rust decode, channel send/receive and payload validation; no RCL/DDS",
-      "elapsed_ns": 16535921,
+      "elapsed_ns": 16794113,
       "elements": 4096,
       "frees": 30000,
       "iterations": 10000,
@@ -72,7 +72,7 @@
     {
       "allocations": 50000,
       "boundary": "default typed native fill, owned Rust decode, channel send/receive and payload validation; no RCL/DDS",
-      "elapsed_ns": 21098908,
+      "elapsed_ns": 18694540,
       "elements": 4096,
       "frees": 50000,
       "iterations": 10000,
@@ -83,7 +83,7 @@
     {
       "allocations": 30000,
       "boundary": "default typed native fill, owned Rust decode, channel send/receive and payload validation; no RCL/DDS",
-      "elapsed_ns": 16514034,
+      "elapsed_ns": 16838144,
       "elements": 4096,
       "frees": 30000,
       "iterations": 10000,
@@ -94,7 +94,7 @@
     {
       "allocations": 50000,
       "boundary": "default typed native fill, owned Rust decode, channel send/receive and payload validation; no RCL/DDS",
-      "elapsed_ns": 17943637,
+      "elapsed_ns": 20410399,
       "elements": 4096,
       "frees": 50000,
       "iterations": 10000,
@@ -105,7 +105,7 @@
     {
       "allocations": 30000,
       "boundary": "default typed native fill, owned Rust decode, channel send/receive and payload validation; no RCL/DDS",
-      "elapsed_ns": 16524802,
+      "elapsed_ns": 18472389,
       "elements": 4096,
       "frees": 30000,
       "iterations": 10000,
@@ -116,7 +116,7 @@
     {
       "allocations": 50000,
       "boundary": "default typed native fill, owned Rust decode, channel send/receive and payload validation; no RCL/DDS",
-      "elapsed_ns": 19946327,
+      "elapsed_ns": 20549133,
       "elements": 4096,
       "frees": 50000,
       "iterations": 10000,
@@ -127,7 +127,7 @@
     {
       "allocations": 30000,
       "boundary": "default typed native fill, owned Rust decode, channel send/receive and payload validation; no RCL/DDS",
-      "elapsed_ns": 16548958,
+      "elapsed_ns": 18176059,
       "elements": 4096,
       "frees": 30000,
       "iterations": 10000,
@@ -141,13 +141,13 @@
       "allocations": 50000,
       "frees": 50000,
       "requested_bytes": 656720000,
-      "elapsed_ns": 19583796
+      "elapsed_ns": 18694540
     },
     "reused_native": {
       "allocations": 30000,
       "frees": 30000,
       "requested_bytes": 328480000,
-      "elapsed_ns": 16535921
+      "elapsed_ns": 16838144
     }
   }
 }

@@ -13,7 +13,7 @@
       "r2r/src/action_clients/goal_request_buffer_tests.rs": "c85ebdee500ce1cb3c5329bff358d0fc48f4c09dd2cdb71ebeb32a235a49ab9d",
       "r2r/src/nodes/spin/dispatch/actions.rs": "d7530dd9a764114c59f2782ebe1d3592d96ed6608e01796c20462c2cf62f7ff0",
       "r2r/src/msg_types.rs": "47fd4f92e2d16912e36dfd7074893ba07365915b5ba7ed62761394555d2003af",
-      "r2r/src/native_buffer.rs": "1c516f8a51afbb37f5acb4bf15c3a4770aa8606af53097c7a8e3c7da02a4f4cd",
+      "r2r/src/native_buffer.rs": "03d7ea54f23fb1edcafd54d8a4b12f3238ff5f6f3dbb8d155720cfb8e3af6d61",
       "r2r/src/nodes/action_client_api.rs": "12d56784614cdde9171dc62d0ff66a3aef611a1ec9316652a9e4076aecdc1855",
       "r2r/benches/support/allocation_probe.rs": "5b9bb562e8c6ab7bee6427be15af5134d13cefd557b6bc13e1e2f102c864f56d",
       "tools/bench_ros/typed_action_lifecycle_native_reuse_stage.py": "09a17a5d442b6803e6416e1f605b2e81f71042cbfea095a1f97e07d3e1c8a40b",
@@ -22,14 +22,14 @@
     },
     "raw_log": {
       "file": "allocation-stage.log.gz",
-      "sha256": "d244801b586c746e93d709d06961ae2648cfc437940d0a408ffffa8daddd501b"
+      "sha256": "0a23867f764e8a45808e33aa856767b66e0e1988d50dccb87efb39ed9e8e01cd"
     }
   },
   "records": [
     {
       "allocations": 20000,
       "boundary": "typed action result-request preparation plus goal-response fill/decode; no RCL/DDS",
-      "elapsed_ns": 1148698,
+      "elapsed_ns": 1540080,
       "frees": 20000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -39,7 +39,7 @@
     {
       "allocations": 0,
       "boundary": "typed action result-request preparation plus goal-response fill/decode; no RCL/DDS",
-      "elapsed_ns": 993019,
+      "elapsed_ns": 1173473,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -49,7 +49,7 @@
     {
       "allocations": 20000,
       "boundary": "typed action result-request preparation plus goal-response fill/decode; no RCL/DDS",
-      "elapsed_ns": 1179129,
+      "elapsed_ns": 1128811,
       "frees": 20000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -59,7 +59,7 @@
     {
       "allocations": 0,
       "boundary": "typed action result-request preparation plus goal-response fill/decode; no RCL/DDS",
-      "elapsed_ns": 991182,
+      "elapsed_ns": 994146,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -69,7 +69,7 @@
     {
       "allocations": 20000,
       "boundary": "typed action result-request preparation plus goal-response fill/decode; no RCL/DDS",
-      "elapsed_ns": 1161305,
+      "elapsed_ns": 1139301,
       "frees": 20000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -79,7 +79,7 @@
     {
       "allocations": 0,
       "boundary": "typed action result-request preparation plus goal-response fill/decode; no RCL/DDS",
-      "elapsed_ns": 992959,
+      "elapsed_ns": 987560,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -89,7 +89,7 @@
     {
       "allocations": 20000,
       "boundary": "typed action result-request preparation plus goal-response fill/decode; no RCL/DDS",
-      "elapsed_ns": 1132718,
+      "elapsed_ns": 4141127,
       "frees": 20000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -99,7 +99,7 @@
     {
       "allocations": 0,
       "boundary": "typed action result-request preparation plus goal-response fill/decode; no RCL/DDS",
-      "elapsed_ns": 971392,
+      "elapsed_ns": 969323,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -109,7 +109,7 @@
     {
       "allocations": 20000,
       "boundary": "typed action result-request preparation plus goal-response fill/decode; no RCL/DDS",
-      "elapsed_ns": 1134593,
+      "elapsed_ns": 1168235,
       "frees": 20000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -119,7 +119,7 @@
     {
       "allocations": 0,
       "boundary": "typed action result-request preparation plus goal-response fill/decode; no RCL/DDS",
-      "elapsed_ns": 1007927,
+      "elapsed_ns": 988963,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -132,13 +132,13 @@
       "allocations": 20000,
       "frees": 20000,
       "requested_bytes": 280000,
-      "elapsed_ns": 1148698
+      "elapsed_ns": 1168235
     },
     "reused_native": {
       "allocations": 0,
       "frees": 0,
       "requested_bytes": 0,
-      "elapsed_ns": 992959
+      "elapsed_ns": 988963
     }
   }
 }

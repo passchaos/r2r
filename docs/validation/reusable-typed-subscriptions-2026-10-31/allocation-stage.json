@@ -11,7 +11,7 @@
     "probe_sha256": "85283f1184b00c227e02c8c56eec9283051265a779511c39c6c8cf4272baa59e",
     "source_sha256": {
       "r2r/src/msg_types.rs": "47fd4f92e2d16912e36dfd7074893ba07365915b5ba7ed62761394555d2003af",
-      "r2r/src/native_buffer.rs": "1c516f8a51afbb37f5acb4bf15c3a4770aa8606af53097c7a8e3c7da02a4f4cd",
+      "r2r/src/native_buffer.rs": "03d7ea54f23fb1edcafd54d8a4b12f3238ff5f6f3dbb8d155720cfb8e3af6d61",
       "r2r/src/subscribers.rs": "8b8b9393498c613496ff4542bd7abfe9a2df2e26853f4754638775e12238d81f",
       "r2r/src/subscribers/reusable_native_tests.rs": "eb09de9b29238b291cd21a80006dcef669d915cbcb3b6471343a65f6d6168cc6",
       "r2r_msg_gen/src/lib.rs": "114ff409c67be24a6c733e4a6f497ccfd40fbf6066aa3ab2bdbf242d3538b39e",
@@ -23,7 +23,7 @@
     },
     "raw_log": {
       "file": "allocation-stage.log.gz",
-      "sha256": "2211ce56c45c02dbf901dba41e7666c627fbf4e0a4d9adeaa99812937ace29b1"
+      "sha256": "ccbafa512da929e7f89f718854986f35d4fc322325684113b3b5f7da969130dc"
     }
   },
   "records": [
@@ -31,7 +31,7 @@
       "allocations": 30000,
       "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
       "delivery": "fresh",
-      "elapsed_ns": 9562919,
+      "elapsed_ns": 10458968,
       "elements": 4096,
       "frees": 30000,
       "iterations": 10000,
@@ -42,7 +42,7 @@
       "allocations": 20000,
       "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
       "delivery": "reusable",
-      "elapsed_ns": 9590487,
+      "elapsed_ns": 10948805,
       "elements": 4096,
       "frees": 20000,
       "iterations": 10000,
@@ -53,7 +53,7 @@
       "allocations": 30000,
       "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
       "delivery": "fresh",
-      "elapsed_ns": 9515089,
+      "elapsed_ns": 10322714,
       "elements": 4096,
       "frees": 30000,
       "iterations": 10000,
@@ -64,7 +64,7 @@
       "allocations": 20000,
       "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
       "delivery": "reusable",
-      "elapsed_ns": 9701389,
+      "elapsed_ns": 10234427,
       "elements": 4096,
       "frees": 20000,
       "iterations": 10000,
@@ -75,7 +75,7 @@
       "allocations": 30000,
       "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
       "delivery": "fresh",
-      "elapsed_ns": 10376586,
+      "elapsed_ns": 10534827,
       "elements": 4096,
       "frees": 30000,
       "iterations": 10000,
@@ -86,7 +86,7 @@
       "allocations": 20000,
       "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
       "delivery": "reusable",
-      "elapsed_ns": 9532408,
+      "elapsed_ns": 10096711,
       "elements": 4096,
       "frees": 20000,
       "iterations": 10000,
@@ -97,7 +97,7 @@
       "allocations": 30000,
       "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
       "delivery": "fresh",
-      "elapsed_ns": 9627007,
+      "elapsed_ns": 10505033,
       "elements": 4096,
       "frees": 30000,
       "iterations": 10000,
@@ -108,7 +108,7 @@
       "allocations": 20000,
       "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
       "delivery": "reusable",
-      "elapsed_ns": 9840093,
+      "elapsed_ns": 10224991,
       "elements": 4096,
       "frees": 20000,
       "iterations": 10000,
@@ -119,7 +119,7 @@
       "allocations": 30000,
       "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
       "delivery": "fresh",
-      "elapsed_ns": 10367591,
+      "elapsed_ns": 10440909,
       "elements": 4096,
       "frees": 30000,
       "iterations": 10000,
@@ -130,7 +130,7 @@
       "allocations": 20000,
       "boundary": "generated native-to-Rust decode, channel send/receive and payload validation; no RCL/DDS",
       "delivery": "reusable",
-      "elapsed_ns": 10757773,
+      "elapsed_ns": 10261881,
       "elements": 4096,
       "frees": 20000,
       "iterations": 10000,
@@ -143,13 +143,13 @@
       "allocations": 30000,
       "frees": 30000,
       "requested_bytes": 329200000,
-      "elapsed_ns": 9627007
+      "elapsed_ns": 10458968
     },
     "reusable": {
       "allocations": 20000,
       "frees": 20000,
       "requested_bytes": 1680000,
-      "elapsed_ns": 9701389
+      "elapsed_ns": 10234427
     }
   }
 }

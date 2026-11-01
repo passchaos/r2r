@@ -228,7 +228,7 @@
     "r2r/src/msg_types/serialized_buffer/tests.rs": "e285b3ccafa54923d1c12ff1721706c96560f77150fa2c32e2240d339129bef6",
     "r2r/src/msg_types/serialized_buffer.rs": "2e01e81ac5d1eaca1998ba549f5ad930eb806d39e1e0c3e9f7db35ce68efad26",
     "r2r/src/msg_types/service_events.rs": "60c3eb7f50e57f8030f67ff23eb249413d0dd139dbd5072c1ab13bcac2754d20",
-    "r2r/src/native_buffer.rs": "1c516f8a51afbb37f5acb4bf15c3a4770aa8606af53097c7a8e3c7da02a4f4cd",
+    "r2r/src/native_buffer.rs": "03d7ea54f23fb1edcafd54d8a4b12f3238ff5f6f3dbb8d155720cfb8e3af6d61",
     "r2r/src/parameter_clients.rs": "23054d869137599a59183f42db180518f7a3556851b54186383d504e12f89f5b",
     "r2r/src/parameters.rs": "a454653ee13ac4c74b17bf3ae0aac4c27626665b9a8c3ab559b7f7791f766840",
     "r2r/src/publishers/typed_native_buffer_tests.rs": "1fdb737289539b6f0f9a917de0025a75507a01c8047d2cc23a01d6a7b62a3b89",

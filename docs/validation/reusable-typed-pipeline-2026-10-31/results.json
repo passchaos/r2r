@@ -15,17 +15,17 @@
       "records": 12,
       "samples": 1200,
       "artifact": "protocol/cyclonedds.json",
-      "artifact_sha256": "56bd6c66290ee6de5ba6dcc7d8d9b8a6f8aa2bfedf6ec58da4e289e61e7f2aff",
+      "artifact_sha256": "aa7b108256775897fd68895c352df954b8c5c06700dbe4cb2f47171a7afb33b9",
       "samples_artifact": "protocol/protocol-cyclonedds_cpp.samples.json.gz",
-      "samples_sha256": "a353a6b80c1d28512abaa0aa24806e964c20b7680d3e91b06e7c4f25332ce134"
+      "samples_sha256": "b9a3d1948f3c185f0830d22c41864e17cf00e9627427b6a8d6698c9dd68ac138"
     },
     "fastdds": {
       "records": 12,
       "samples": 1200,
       "artifact": "protocol/fastdds.json",
-      "artifact_sha256": "60d4bfcaf14dbf5395139cc167f8b02294054647923180fd27a9bfa312d63330",
+      "artifact_sha256": "1c600bcfa304223c8f2e270dca549f1da2ce536d2659ad3ba7c4442ffb99fa98",
       "samples_artifact": "protocol/protocol-fastrtps_cpp.samples.json.gz",
-      "samples_sha256": "2aa0b0576b074188889c5dde3a32ba2c89204e82b8c6c9535e74e677e458a1cb"
+      "samples_sha256": "a463e4e789e60b4ceb37f76d8299b56ac06afc3dc3398d756389755a81d1b974"
     }
   },
   "cases": [
@@ -45,8 +45,8 @@
       "fanout": 4
     }
   ],
-  "build_manifest_sha256": "3bfb06d9f386c30728dacbfcd0a7b013d90f1a86bef56d85eea8fd45e1c89bdf",
-  "rust_binary_sha256": "fba76dcec92e398c2757f4a35297615dbda93d5cfd1d3868fcac17e418d703eb",
+  "build_manifest_sha256": "fc74041c47a65b3b267e8414440484e9df685ffd3fc0836ede4d06afbbb73a28",
+  "rust_binary_sha256": "2a7068619eb59d70221d8d39d302d507e9189bda81de2629ac3bc5550dfd4f9e",
   "rclcpp_binary_sha256": "b56a3127888b28e7e0e4f3f32f1c1ce135bc41f688f3b33f549742f10f50a67f",
   "formal_performance": {
     "measurement_started": false,

@@ -98,7 +98,7 @@
     "r2r/src/nodes/callback_executor/tests.rs": "735201c16ecba5be2c757fcfc01117b0a00ca1f225290f52eb509382e0219aeb",
     "r2r/src/nodes/callback_executor/tests/reentrant_task.rs": "ecf17a9c23d18b95afbeb9300af67d716aac50e2b1d05934c84aafbe0115ba72",
     "r2r/src/nodes/callback_executor/tests/task_action.rs": "7a15f20cde6165eb551f26c62bbfeff4722949d4fd169fc03d3d05c94268395c",
-    "r2r/src/nodes.rs": "ca4f18f5e8cec7133f8a346c683a8eeae62964a64096bd7b540e96a1eb4b209e",
+    "r2r/src/nodes.rs": "6017e1d1af546511588544692b1f8e0046f89c4af85a9d317ac52b366275ce09",
     "r2r/src/lib.rs": "c1d0b15e9eef13e98f7142408fe74862ddee144cc9550237b7d6676355c22101",
     "r2r/examples/callback_group_action.rs": "07caaa02eacdc7a275601c640008316a7e9cc71c30896bb349ff13ee240bf6e1",
     "r2r/examples/reentrant_group_action.rs": "8a99fd1c4893020cb52b4b7782f58a96cbab974842d9d9b8ef2ce83bb45264d3",

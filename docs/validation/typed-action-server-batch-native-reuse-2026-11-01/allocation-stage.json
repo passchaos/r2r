@@ -15,7 +15,7 @@
       "r2r/src/action_servers/batch_buffer_tests.rs": "6e21dfd93444045336b466fa36ac7a4bbdd76dd6d9c5999ae7fe159c5dc6ca8f",
       "r2r/src/nodes/action_server_api.rs": "2afaaf2cd8cecffa15be1a49f56e7434a24f64729113a8de6343291860080117",
       "r2r/src/msg_types.rs": "47fd4f92e2d16912e36dfd7074893ba07365915b5ba7ed62761394555d2003af",
-      "r2r/src/native_buffer.rs": "1c516f8a51afbb37f5acb4bf15c3a4770aa8606af53097c7a8e3c7da02a4f4cd",
+      "r2r/src/native_buffer.rs": "03d7ea54f23fb1edcafd54d8a4b12f3238ff5f6f3dbb8d155720cfb8e3af6d61",
       "r2r/benches/support/allocation_probe.rs": "5b9bb562e8c6ab7bee6427be15af5134d13cefd557b6bc13e1e2f102c864f56d",
       "tools/bench_ros/typed_action_server_batch_native_reuse_stage.py": "1778dafb52ae11f5d8b8e9140452ef214f9c5c056c0bd0c0e25c3a4cf02fcd78",
       "tools/bench_ros/probe/probe.c": "fb969b91fc6e8f4755e4932f89044c1d35dc1dc5b5a9ff2175735e877bcb6394",
@@ -23,7 +23,7 @@
     },
     "raw_log": {
       "file": "allocation-stage.log.gz",
-      "sha256": "3025067fc6ff238252c3e239d7b6044f84dcbf0f85a453cbd96e7abff9164701"
+      "sha256": "32d8c08e528314407d2f2b6c4820170e7e85cb2097e87f8a05954309557b1a3e"
     }
   },
   "records": [
@@ -31,7 +31,7 @@
       "allocations": 320000,
       "batch": 16,
       "boundary": "typed action server batch goal-info/response native fill; no RCL/DDS",
-      "elapsed_ns": 31948428,
+      "elapsed_ns": 25902273,
       "frees": 320000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -42,7 +42,7 @@
       "allocations": 0,
       "batch": 16,
       "boundary": "typed action server batch goal-info/response native fill; no RCL/DDS",
-      "elapsed_ns": 16961094,
+      "elapsed_ns": 16385515,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "pooled_native",
@@ -53,7 +53,7 @@
       "allocations": 320000,
       "batch": 16,
       "boundary": "typed action server batch goal-info/response native fill; no RCL/DDS",
-      "elapsed_ns": 26356594,
+      "elapsed_ns": 27773227,
       "frees": 320000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -64,7 +64,7 @@
       "allocations": 0,
       "batch": 16,
       "boundary": "typed action server batch goal-info/response native fill; no RCL/DDS",
-      "elapsed_ns": 17995436,
+      "elapsed_ns": 16391538,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "pooled_native",
@@ -75,7 +75,7 @@
       "allocations": 320000,
       "batch": 16,
       "boundary": "typed action server batch goal-info/response native fill; no RCL/DDS",
-      "elapsed_ns": 27863122,
+      "elapsed_ns": 26264833,
       "frees": 320000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -86,7 +86,7 @@
       "allocations": 0,
       "batch": 16,
       "boundary": "typed action server batch goal-info/response native fill; no RCL/DDS",
-      "elapsed_ns": 16985274,
+      "elapsed_ns": 15816711,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "pooled_native",
@@ -97,7 +97,7 @@
       "allocations": 320000,
       "batch": 16,
       "boundary": "typed action server batch goal-info/response native fill; no RCL/DDS",
-      "elapsed_ns": 31695328,
+      "elapsed_ns": 25392670,
       "frees": 320000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -108,7 +108,7 @@
       "allocations": 0,
       "batch": 16,
       "boundary": "typed action server batch goal-info/response native fill; no RCL/DDS",
-      "elapsed_ns": 18838400,
+      "elapsed_ns": 16910333,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "pooled_native",
@@ -119,7 +119,7 @@
       "allocations": 320000,
       "batch": 16,
       "boundary": "typed action server batch goal-info/response native fill; no RCL/DDS",
-      "elapsed_ns": 31153068,
+      "elapsed_ns": 26095550,
       "frees": 320000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -130,7 +130,7 @@
       "allocations": 0,
       "batch": 16,
       "boundary": "typed action server batch goal-info/response native fill; no RCL/DDS",
-      "elapsed_ns": 17426737,
+      "elapsed_ns": 16024472,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "pooled_native",
@@ -143,13 +143,13 @@
       "allocations": 320000,
       "frees": 320000,
       "requested_bytes": 5760000,
-      "elapsed_ns": 31153068
+      "elapsed_ns": 26095550
     },
     "pooled_native": {
       "allocations": 0,
       "frees": 0,
       "requested_bytes": 0,
-      "elapsed_ns": 17426737
+      "elapsed_ns": 16385515
     }
   }
 }

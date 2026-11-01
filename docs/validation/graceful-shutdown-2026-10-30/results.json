@@ -61,7 +61,7 @@
     "Cargo.lock": "c8b374e6a2ee1fe0e2917630e751ee27aa9c45a16f9c4f266ff9ab5a4bfcd7ae",
     "r2r/src/context.rs": "3b8507c8d66bcaed56a2920a4e9a86d5652d1d99416570a5907ba17061cd7b9f",
     "r2r/src/lib.rs": "c1d0b15e9eef13e98f7142408fe74862ddee144cc9550237b7d6676355c22101",
-    "r2r/src/error.rs": "afb76b8ef6867866a510a15391434e935a7fe26e05d7aed085e49fdcc05c3406",
+    "r2r/src/error.rs": "67afd70f9904cf8acb63a02954d47ce7b9b9b91e1d08a9be388b66f4505cebf5",
     "r2r/tests/context_shutdown.rs": "74ccac017e555fc4c4fe7b8684996c532b35abed4e2b3773a7d97c09c750eaa6",
     "r2r/examples/graceful_shutdown.rs": "7e59dd99057fe6b27becab83f426fb79e7bd58419ffd1b67aee484f9db169d20",
     "docs/GRACEFUL_SHUTDOWN.md": "1f54eaf6b5c58e81e58570bd382081d56d8e3f8c06957867db65a28d9ba9ce4b",
