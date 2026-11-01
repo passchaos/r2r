@@ -570,6 +570,8 @@ pub trait IsAvailablePollable {
 }
 
 #[cfg(test)]
+mod idle_spin_resource_tests;
+#[cfg(test)]
 mod tests {
     mod graph;
     mod service_metadata;

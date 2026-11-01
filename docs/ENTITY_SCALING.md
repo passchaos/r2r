@@ -33,8 +33,17 @@ cargo bench -p r2r --bench spin_idle_action_servers -- --list
 ```
 
 A formal run must use an otherwise idle host, fixed CPU affinity, both Jazzy
-RMWs, raw Criterion estimates and a same-binary repetition/control. Allocation,
-RSS and endpoint construction/destruction need separate process-wide probes.
-Until those curves exist, this benchmark is a guard against speculative registry
-rewrites rather than evidence that the current layout is optimal or faster than
-rclcpp.
+RMWs, raw Criterion estimates and a same-binary repetition/control.
+
+[Idle-spin resource scaling](validation/idle-spin-resource-2026-11-01/README.md)
+now supplies the deterministic part of that evidence with a process-wide
+allocation probe: 10,000 zero-timeout spins over 0/1/8/32/128 subscriptions and
+mixed subscription/service/client/timer sets. CycloneDDS performs zero
+allocations, frees and requested bytes at every entity count; Fast DDS allocates
+inside `rmw_wait` (up to eight allocations per spin at 128 subscriptions).
+Peak RSS stays constant at about 51.5 MiB in both runs, so r2r's wait-set and
+registry reuse do not grow memory with entity count. CPU values remain
+diagnostic on a contended host. Isolated wall-clock Criterion tails and endpoint
+construction/destruction probes remain open; the allocation/RSS curves are now
+a guard against speculative registry rewrites rather than evidence that the
+current layout is optimal or faster than rclcpp.

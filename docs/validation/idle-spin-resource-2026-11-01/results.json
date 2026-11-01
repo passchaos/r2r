@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "feature": {
+    "zero_timeout_idle_spin_probe": true,
+    "allocation_counts": true,
+    "cpu_and_rss": true,
+    "rmw_dependent_boundary": true
+  },
+  "resource_constraints": {
+    "single_cpu_compilation": true,
+    "cargo_build_jobs": 1,
+    "rayon_threads": 1,
+    "virtual_memory_limit_kib": 10485760
+  },
+  "reports": {
+    "cyclonedds": {
+      "artifact": "allocation-stage-cyclonedds_cpp.json",
+      "artifact_sha256": "c69d4526a084dd230b374e09ad153b488e6f65579a4e85de973626facd474670"
+    },
+    "fastdds": {
+      "artifact": "allocation-stage-fastrtps_cpp.json",
+      "artifact_sha256": "edfa73d7d8efb04d6ca11b6037e45a18cdc54eab55c0760e3a3580ef4aeab474"
+    }
+  },
+  "allocation_stage": {
+    "probe_report_artifact": "probe-report.json",
+    "probe_report_sha256": "48aa1cac6cbedc5b69f87a9e03d5df3f6c7f0900b45ebb764b7c48c8a4800ef4"
+  },
+  "full_release": {
+    "passed_per_rmw": 840,
+    "ignored_per_rmw": 26,
+    "rmws": {
+      "rmw_cyclonedds_cpp": {
+        "artifact": "logs/full-release-cyclonedds.log.gz",
+        "artifact_sha256": "2c8292b5a5b40650e458ed28d56da35018a939dc69276fb1bbdbd53cfbef4b50",
+        "uncompressed_sha256": "d60da9f1f49ac40497759a12377fbc6d86a8610e82d8a590df80a7866c3ebcbc",
+        "exit_code": 0
+      },
+      "rmw_fastrtps_cpp": {
+        "artifact": "logs/full-release-fastdds.log.gz",
+        "artifact_sha256": "76f841ca3862947d566c8895c2443c63ee60d19fdcd69ba20ba5df64828ce720",
+        "uncompressed_sha256": "08d4d354d5f18a9881700811057f2d10d4fdbcb032442361b80e65772d81ef57",
+        "exit_code": 0
+      }
+    }
+  },
+  "workspace_clippy": {
+    "artifact": "logs/final-clippy.log.gz",
+    "artifact_sha256": "be63ccf1380f1e4c185ecc42af2bb9228c635c615bff5391d648a865741e6422",
+    "uncompressed_sha256": "beed191cf5cd39a57477a6d66e9acb53f3b4efe7566a30e0ada805357a0fe6ff",
+    "exit_code": 0
+  },
+  "no_ros_gate": {
+    "artifact": "logs/final-no-ros.log.gz",
+    "artifact_sha256": "93eed79e358b449845ffe8e95e6730478aedaa4630232f6cf6fb66f8e46bbf11",
+    "uncompressed_sha256": "a9742cb331d0c7df04cb1bcfafd146890fb231d23bc149f120f196cd4bff133f",
+    "exit_code": 0
+  },
+  "source_sha256": {
+    "r2r/src/nodes.rs": "b04fada2172d0d69c8c9b99378284adb008e43a11e5c5ca61a5bf22f195a1df2",
+    "r2r/src/nodes/idle_spin_resource_tests.rs": "8d474542c2d66b39f631aff74a8e7f51bd17d02498ad2db2c4780ce78a725027",
+    "r2r/src/nodes/spin.rs": "37e0d0704f660c0c99590954eb07114742672fad8a999e3df5836d27ff06009b",
+    "r2r/src/nodes/spin/prepare.rs": "e11d406734029b0f038ac44f8b44e673fd2bac7bfb6e200cefa4b30a0bd1028c",
+    "r2r/src/nodes/spin/dispatch.rs": "90870ef80499e43ec2bdac9f5e88b6ca6d1dda897221e21f31d854475ac697c4",
+    "r2r/src/subscribers.rs": "8b8b9393498c613496ff4542bd7abfe9a2df2e26853f4754638775e12238d81f",
+    "r2r/src/native_buffer.rs": "03d7ea54f23fb1edcafd54d8a4b12f3238ff5f6f3dbb8d155720cfb8e3af6d61",
+    "r2r/benches/support/allocation_probe.rs": "5b9bb562e8c6ab7bee6427be15af5134d13cefd557b6bc13e1e2f102c864f56d",
+    "tools/bench_ros/idle_spin_resource_stage.py": "f2bdc1d2176be408aa78b4ad344054d38999f73fa592030e4c6b6ddbf2f7c987",
+    "tools/bench_ros/probe/probe.c": "fb969b91fc6e8f4755e4932f89044c1d35dc1dc5b5a9ff2175735e877bcb6394",
+    "tools/bench_ros/probe/probe.h": "1e158b3e377055c8b746728a4920a74523bbf0958054d04c926d79becbb8fe8a",
+    "README.md": "9f82ab0ddb047697e333508e605c3fa9de417707a880ad986a7b9853fd160917",
+    "docs/ROADMAP.md": "431adda1a241d8a32b37fc530a2222cc22c6053e2453c8570962a1ba840510d6",
+    "tests/check_documentation.py": "5831a615fde5f9ef7bd6db78570eb5ac3d910d01baf918f979278e7526447ccf",
+    "docs/validation/idle-spin-resource-2026-11-01/README.md": "2e3c70ba8eca06e6467fe4aa7e6c091b425db2e457827d716ecd2d9d1f9be604",
+    "docs/validation/idle-spin-resource-2026-11-01/run-jazzy.bash": "d315ee802638d507c37c01823242f29f14016eeba0a776891bee856792bc6031",
+    "docs/validation/idle-spin-resource-2026-11-01/run-no-ros.bash": "76b0cbb12b3d013d028c98af4405699b1a93c304e54d8f963bcd0f5633a49ade",
+    "docs/validation/idle-spin-resource-2026-11-01/verify.py": "e84af57474862159eb5801d103cd15626784997da3ffa3ac24419f755f969611"
+  }
+}
