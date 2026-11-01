@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "timing_qualified": false,
+  "protocol_sha256": {
+    "docs/validation/reusable-typed-pipeline-2026-10-31/protocol/cyclonedds.json": "a46f5f5aa8c8c20ad05fbb97cafadbbfec81f3ce60744f3047c1deb4ae8d6d84",
+    "docs/validation/reusable-typed-pipeline-2026-10-31/protocol/fastdds.json": "4a6d484a3bed8b4337839fbc045117f99f2072c77034ec98f9761872ddbdd5a8"
+  },
+  "comparison_sha256": "9b25e25b6cc0c29f347ecf2a93b1edec97e8c4c2e9c436543cd8f074ad41e996"
+}

@@ -15,17 +15,17 @@
       "records": 12,
       "samples": 1200,
       "artifact": "protocol/cyclonedds.json",
-      "artifact_sha256": "477bda06d44cfe4a782484db571015e3b325f1f35b8254f58ae1dff0d2938127",
+      "artifact_sha256": "a46f5f5aa8c8c20ad05fbb97cafadbbfec81f3ce60744f3047c1deb4ae8d6d84",
       "samples_artifact": "protocol/protocol-cyclonedds_cpp.samples.json.gz",
-      "samples_sha256": "cb547bfea5c25e60ef7337eb66a47d93fb12e4bf9e34c1db45c6316919c4ad9a"
+      "samples_sha256": "567b2073410635e47b0f52ed8bb584db5bff32f814504e80cbc4a2c0a4a6496c"
     },
     "fastdds": {
       "records": 12,
       "samples": 1200,
       "artifact": "protocol/fastdds.json",
-      "artifact_sha256": "4c7b27510ba969425182ca362be9befce560df0e2a77d081e70ba3baebaa209b",
+      "artifact_sha256": "4a6d484a3bed8b4337839fbc045117f99f2072c77034ec98f9761872ddbdd5a8",
       "samples_artifact": "protocol/protocol-fastrtps_cpp.samples.json.gz",
-      "samples_sha256": "24ca1bbc07c0a372d70e22b714cc1b8100e51d9022042748ddf09f619086a527"
+      "samples_sha256": "520a281d917972434cca93d9da8094653775ba52176f27e186db87d7e06a46f8"
     }
   },
   "cases": [
@@ -72,7 +72,7 @@
     "r2r/src/lib.rs": "c1d0b15e9eef13e98f7142408fe74862ddee144cc9550237b7d6676355c22101",
     "r2r_msg_gen/src/lib.rs": "114ff409c67be24a6c733e4a6f497ccfd40fbf6066aa3ab2bdbf242d3538b39e",
     "tools/bench_ros/build.py": "a53f4d30db04705a9432a81d4a3a8ea9c5077d605aaebf1b4e2a868e59d61676",
-    "tools/bench_ros/pubsub_pipeline.py": "ab0ecf5b7dd8e481d10b9d4420aafa85d3727fb57b766e8486a71a50adea82ed",
+    "tools/bench_ros/pubsub_pipeline.py": "65f1ec5964c72aa32631c228f4a8ea50157a6cab18f7d88780477066357b0024",
     "tools/bench_ros/verify_pubsub_pipeline.py": "77e9f2c441fd4e0c715b4d1ea0d3f9750b91b609846ecbca83471c918100acf2",
     "tools/bench_ros/test_pubsub_pipeline.py": "7c1db7d4e801e3c60cd68358aaf577d56715d908058c740fc808446975bde555",
     "tools/bench_ros/test_build.py": "084a4fd206d69d9c09b4418654e0af3c5c352b30d300199eb8ec809773b9eeb6",

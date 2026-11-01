@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "timing_qualified": false,
+  "reports": {
+    "cyclonedds": {
+      "rmw": "rmw_cyclonedds_cpp",
+      "receive_paths": {
+        "rust": "reusable_typed",
+        "cpp": "callback"
+      },
+      "summary": {
+        "0_1_1_ping": {
+          "rust_median_rss_kib": 13672.0,
+          "cpp_median_rss_kib": 16244.0,
+          "rust_to_cpp_ratio": 0.8416646146269392
+        },
+        "0_1_1_echo": {
+          "rust_median_rss_kib": 13584.0,
+          "cpp_median_rss_kib": 16096.0,
+          "rust_to_cpp_ratio": 0.8439363817097415
+        },
+        "4096_16_1_ping": {
+          "rust_median_rss_kib": 19544.0,
+          "cpp_median_rss_kib": 18400.0,
+          "rust_to_cpp_ratio": 1.0621739130434782
+        },
+        "4096_16_1_echo": {
+          "rust_median_rss_kib": 19528.0,
+          "cpp_median_rss_kib": 18226.0,
+          "rust_to_cpp_ratio": 1.0714364095248545
+        },
+        "4096_8_4_ping": {
+          "rust_median_rss_kib": 19274.0,
+          "cpp_median_rss_kib": 18124.0,
+          "rust_to_cpp_ratio": 1.0634517766497462
+        },
+        "4096_8_4_echo": {
+          "rust_median_rss_kib": 30642.0,
+          "cpp_median_rss_kib": 19002.0,
+          "rust_to_cpp_ratio": 1.6125670982001894
+        }
+      }
+    },
+    "fastdds": {
+      "rmw": "rmw_fastrtps_cpp",
+      "receive_paths": {
+        "rust": "reusable_typed",
+        "cpp": "callback"
+      },
+      "summary": {
+        "0_1_1_ping": {
+          "rust_median_rss_kib": 23496.0,
+          "cpp_median_rss_kib": 26456.0,
+          "rust_to_cpp_ratio": 0.8881161173268823
+        },
+        "0_1_1_echo": {
+          "rust_median_rss_kib": 23716.0,
+          "cpp_median_rss_kib": 26618.0,
+          "rust_to_cpp_ratio": 0.890976031257044
+        },
+        "4096_16_1_ping": {
+          "rust_median_rss_kib": 25216.0,
+          "cpp_median_rss_kib": 27710.0,
+          "rust_to_cpp_ratio": 0.9099963911945146
+        },
+        "4096_16_1_echo": {
+          "rust_median_rss_kib": 25112.0,
+          "cpp_median_rss_kib": 27912.0,
+          "rust_to_cpp_ratio": 0.8996847234164517
+        },
+        "4096_8_4_ping": {
+          "rust_median_rss_kib": 24678.0,
+          "cpp_median_rss_kib": 27212.0,
+          "rust_to_cpp_ratio": 0.9068793179479642
+        },
+        "4096_8_4_echo": {
+          "rust_median_rss_kib": 26118.0,
+          "cpp_median_rss_kib": 28796.0,
+          "rust_to_cpp_ratio": 0.9070009723572718
+        }
+      }
+    }
+  }
+}

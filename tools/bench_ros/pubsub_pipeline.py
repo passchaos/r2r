@@ -187,6 +187,9 @@ def validate_endpoint(result, role, rmw, elements, window, fanout, iterations, w
         raise RuntimeError("pipeline endpoint identity mismatch")
     if receive_path is not None and result.get("receive_path") != receive_path:
         raise RuntimeError("pipeline receive path mismatch")
+    rss = result.get("process_max_rss_kib")
+    if rss is not None and (type(rss) is not int or rss <= 0):
+        raise RuntimeError("invalid pipeline process RSS")
     total = iterations + warmup
     checksum = total * (total - 1) // 2
     expected_inflight = min(window, max(iterations, warmup))
@@ -266,6 +269,20 @@ def rclcpp_failures(summary, cases, maximum, fields=GATE_FIELDS):
     return failures
 
 
+def sample_peak_rss(pid, stop, peak):
+    path = Path(f"/proc/{pid}/status")
+    while not stop.is_set():
+        try:
+            text = path.read_text()
+        except (FileNotFoundError, ProcessLookupError):
+            break
+        for line in text.splitlines():
+            if line.startswith("VmHWM:"):
+                peak[0] = max(peak[0], int(line.split()[1]))
+                break
+        stop.wait(0.005)
+
+
 def pair(ping, echo, cpu_ping, cpu_echo, env, case, iterations, warmup, prefix,
          ping_receive_path, echo_receive_path):
     parameters = [*(str(value) for value in case), str(iterations), str(warmup), prefix]
@@ -276,19 +293,31 @@ def pair(ping, echo, cpu_ping, cpu_echo, env, case, iterations, warmup, prefix,
             responder = subprocess.Popen(
                 ["taskset", "-c", str(cpu_echo), str(echo), "echo", *parameters],
                 env=env, stdout=out, stderr=err)
+            initiator = subprocess.Popen(
+                ["taskset", "-c", str(cpu_ping), str(ping), "ping", *parameters],
+                env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stop = threading.Event()
+            ping_peak, echo_peak = [0], [0]
+            ping_thread = threading.Thread(
+                target=sample_peak_rss, args=(initiator.pid, stop, ping_peak), daemon=True)
+            echo_thread = threading.Thread(
+                target=sample_peak_rss, args=(responder.pid, stop, echo_peak), daemon=True)
+            ping_thread.start()
+            echo_thread.start()
             try:
-                initiator = subprocess.run(
-                    ["taskset", "-c", str(cpu_ping), str(ping), "ping", *parameters],
-                    env=env, text=True, capture_output=True, timeout=180)
+                initiator_stdout, initiator_stderr = initiator.communicate(timeout=180)
                 if initiator.returncode:
                     raise RuntimeError(
-                        f"pipeline ping failed ({initiator.returncode}): {initiator.stderr}\n"
+                        f"pipeline ping failed ({initiator.returncode}): {initiator_stderr}\n"
                         f"echo: {errors.read_text()}")
                 if responder.wait(timeout=30):
                     raise RuntimeError(f"pipeline echo failed: {errors.read_text()}")
-                ping_result = json.loads(initiator.stdout)
+                ping_result = json.loads(initiator_stdout)
                 echo_result = json.loads(output.read_text())
             finally:
+                stop.set()
+                ping_thread.join(timeout=1)
+                echo_thread.join(timeout=1)
                 if responder.poll() is None:
                     responder.terminate()
                     try:
@@ -296,6 +325,8 @@ def pair(ping, echo, cpu_ping, cpu_echo, env, case, iterations, warmup, prefix,
                     except subprocess.TimeoutExpired:
                         responder.kill()
                         responder.wait()
+            ping_result["process_max_rss_kib"] = ping_peak[0]
+            echo_result["process_max_rss_kib"] = echo_peak[0]
     for result, role, receive_path in [
             (ping_result, "ping", ping_receive_path),
             (echo_result, "echo", echo_receive_path)]:
