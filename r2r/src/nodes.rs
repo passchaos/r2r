@@ -610,6 +610,27 @@ mod tests {
     }
 
     #[test]
+    fn concurrent_nodes_spin_until_shared_context_shutdown() {
+        let context = crate::Context::create().unwrap();
+        let shutdown_context = context.clone();
+        let mut handles = Vec::new();
+        for index in 0..2 {
+            let node_context = context.clone();
+            handles.push(std::thread::spawn(move || {
+                let mut node =
+                    Node::create(node_context, &format!("spin_shared_{index}"), "").unwrap();
+                node.spin_with_timeout(Duration::from_millis(10)).unwrap();
+                assert!(!node.is_valid());
+            }));
+        }
+        std::thread::sleep(Duration::from_millis(50));
+        shutdown_context.shutdown().unwrap();
+        for handle in handles {
+            handle.join().unwrap();
+        }
+    }
+
+    #[test]
     fn node_context_accessor_and_shutdown_forward_to_shared_context() {
         let context = crate::Context::create().unwrap();
         let node = Node::create(context.clone(), "node_context_access", "").unwrap();
