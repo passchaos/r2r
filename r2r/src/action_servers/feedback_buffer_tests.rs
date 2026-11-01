@@ -340,6 +340,25 @@ fn feedback_native_buffer_retains_sequence_capacity() {
     assert_eq!(native.feedback.sequence.capacity, 32);
     message.try_copy_to_native(&mut native).unwrap();
     assert_eq!(native.feedback.sequence.size, 32);
+
+    let larger = TrackedFeedbackMessage {
+        goal_id: unique_identifier_msgs::msg::UUID { uuid: [8; 16] },
+        feedback: Fibonacci::Feedback {
+            sequence: vec![7; 64],
+        },
+    };
+    larger.try_copy_to_native(&mut native).unwrap();
+    assert_eq!(native.feedback.sequence.capacity, 64);
+    assert_eq!(native.feedback.sequence.size, 64);
+    drop(native);
+
+    let mut native = buffer
+        .checkout(|| panic!("typed action server feedback slot was not recycled"))
+        .unwrap();
+    assert_eq!(native.feedback.sequence.capacity, 64);
+    message.try_copy_to_native(&mut native).unwrap();
+    assert_eq!(native.feedback.sequence.size, 32);
+    assert_eq!(native.feedback.sequence.capacity, 64);
 }
 
 fn accept_goal_without_tracking(
@@ -475,4 +494,71 @@ fn concurrent_feedback_publications_share_storage_safely() {
     drop(goal);
     node.destroy_action_server(server).unwrap();
     assert_eq!(FEEDBACK_DESTROYED.load(Ordering::Relaxed), created);
+}
+
+#[test]
+fn feedback_storage_outlives_destroyed_server_until_goal_drop() {
+    let _lock = FEEDBACK_TEST_LOCK.lock();
+    FEEDBACK_CREATED.store(0, Ordering::Relaxed);
+    FEEDBACK_DESTROYED.store(0, Ordering::Relaxed);
+    FAIL_FEEDBACK_COPY.store(false, Ordering::Relaxed);
+
+    let context = crate::Context::create().unwrap();
+    let mut node = Node::create(context, "typed_action_server_feedback_outlive", "").unwrap();
+    let action_name =
+        format!("/typed_action_server_feedback_outlive_{}", uuid::Uuid::new_v4().simple());
+    let mut server = node
+        .create_action_server::<TrackedFeedbackAction>(&action_name)
+        .unwrap();
+    let client = node
+        .create_action_client::<Fibonacci::Action>(&action_name)
+        .unwrap();
+    wait_for_server(&mut node, &client);
+
+    let goal = accept_goal_without_tracking(&mut node, &mut server, &client, 13);
+    goal.publish_feedback(Fibonacci::Feedback {
+        sequence: vec![1; 8],
+    })
+    .unwrap();
+    assert_eq!(FEEDBACK_CREATED.load(Ordering::Relaxed), 1);
+
+    node.destroy_action_server(server).unwrap();
+    assert_eq!(FEEDBACK_DESTROYED.load(Ordering::Relaxed), 0);
+    drop(goal);
+    assert_eq!(FEEDBACK_DESTROYED.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn feedback_after_server_destruction_returns_error() {
+    let _lock = FEEDBACK_TEST_LOCK.lock();
+    FEEDBACK_CREATED.store(0, Ordering::Relaxed);
+    FEEDBACK_DESTROYED.store(0, Ordering::Relaxed);
+    FAIL_FEEDBACK_COPY.store(false, Ordering::Relaxed);
+
+    let context = crate::Context::create().unwrap();
+    let mut node = Node::create(context, "typed_action_server_feedback_destroyed", "").unwrap();
+    let action_name =
+        format!("/typed_action_server_feedback_destroyed_{}", uuid::Uuid::new_v4().simple());
+    let mut server = node
+        .create_action_server::<TrackedFeedbackAction>(&action_name)
+        .unwrap();
+    let client = node
+        .create_action_client::<Fibonacci::Action>(&action_name)
+        .unwrap();
+    wait_for_server(&mut node, &client);
+
+    let goal = accept_goal_without_tracking(&mut node, &mut server, &client, 17);
+    goal.publish_feedback(Fibonacci::Feedback {
+        sequence: vec![1; 8],
+    })
+    .unwrap();
+    node.destroy_action_server(server).unwrap();
+    assert!(matches!(
+        goal.publish_feedback(Fibonacci::Feedback {
+            sequence: vec![2; 8],
+        }),
+        Err(crate::Error::RCL_RET_ACTION_SERVER_INVALID)
+    ));
+    drop(goal);
+    assert_eq!(FEEDBACK_DESTROYED.load(Ordering::Relaxed), 1);
 }
