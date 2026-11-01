@@ -1,4 +1,4 @@
-# Rust ROS 2 client library comparison (2026-10-31)
+# Rust ROS 2 client library comparison (2026-11-01)
 
 Surveyed the four practical Rust options: `r2r` (this repo),
 `rclrs`/`ros2_rust` (the official ROS 2 working-group client),
@@ -26,13 +26,17 @@ base but permanently chases protocol parity.
 | `rclrs` | **Callbacks** registered on entities, driven by an `Executor`; a `Worker` pattern for shared state; async variants exist | Callbacks are the idiom, mirroring rclcpp |
 | `safe_drive` | Both **callbacks and async/await**; a starvation-free, TLA+-verified single-threaded scheduler | Formal no-starvation/no-deadlock guarantees |
 | `ros2-client` | **async/await only** ("there are no callbacks"), plus mio polling | Tokio-style; `.spin()` only services background work |
-| `r2r` | **Futures/streams plus opt-in scoped callbacks and callback groups**; `Node::spin_once`, shared multi-node execution and fixed-budget group execution; external Rust futures wake native waits | Streams/futures remain the default; subscription/service/timer handlers and runtime-agnostic action/application futures can execute under mutually exclusive or bounded group ownership |
+| `r2r` | **Futures/streams plus opt-in scoped callbacks and callback groups**; `Node::spin_once`, blocking `Node::spin`/`spin_with_timeout`, `spin_until_future_complete`, shared multi-node execution and fixed-budget group execution; external Rust futures wake native waits | Streams/futures remain the default; subscription/service/timer handlers and runtime-agnostic action/application futures can execute under mutually exclusive or bounded group ownership |
 
 r2r's stream/future model is the most idiomatic-Rust of the four and is also
 the architectural basis of the multi-node executor: one native wait covers
 many nodes with no per-node polling, measured ahead of rclcpp in the
 [multi-node benchmark](benchmarks/multi-node-executor-2026-10-28/README.md).
-rclrs deliberately optimizes for familiarity over idiomatic Rust.
+Blocking applications can use `Node::spin()` until the shared context shuts
+down, while `Node::context`, `Node::is_valid` and `Node::shutdown` expose the
+shared context. Error values render a readable explanation plus the original
+RCL constant name. rclrs deliberately optimizes for familiarity over idiomatic
+Rust.
 
 ## Feature coverage (documented support)
 
@@ -40,7 +44,7 @@ rclrs deliberately optimizes for familiarity over idiomatic Rust.
 | --- | --- | --- | --- | --- |
 | Pub/sub, QoS, loaned messages | yes, incl. safe native/typed sequence-take batches | yes (incl. loaned) | yes, zero-copy + custom allocator | yes |
 | Services/clients | typed + untyped + raw | yes (async variants) | yes | yes |
-| Actions | yes | yes | yes | yes (async required) |
+| Actions | yes, incl. native feedback leases, batched acceptance and bounded native goal-info/response pools | yes | yes | yes (async required) |
 | Parameters | full services + typed `RosParams` derive + parameter clients | mandatory/optional/read-only | basic | local + remote parameter services |
 | Timers/clocks/sim time | yes, incl. lossless async reset events on Humble+ | repeating/one-shot/inert | yes | ROS/steady/sim |
 | Graph queries/endpoints/QoS events | broad, incl. type hashes and network-flow endpoints | topic/node discovery | limited | discovery events (async) |
@@ -112,7 +116,12 @@ points at where to keep extending the lead:
 - **Close real gaps relative to the ROS world, not relative to other Rust
   clients:** lifecycle-managed timers, the Humble/Kilted runtime matrix,
   continued allocation accounting on hot paths (default typed publish/subscribe and typed
-  client/service plus typed action goal request/response, result request/response and status paths now recycle internal native containers), and an entity-scaling benchmark before any registry/slotmap change. No competing Rust library does these today,
+  client/service plus typed action goal request/response, result request/response, status,
+  server request/feedback and bounded batch goal-info/response paths now recycle internal
+  native containers), and an entity-scaling benchmark before any registry/slotmap change.
+  The complete release library suite passes with zero failures on Humble, Jazzy and Kilted
+  under their required RMWs ([per-commit matrix](validation/full-release-matrix-2026-11-01/README.md)).
+  No competing Rust library does these today,
   so completing them is direct differentiation rather than catch-up.
 
 ## Should r2r rewrite rcl/rmw away? (2026-10-28 decision: no)
