@@ -75,12 +75,21 @@ where
                 },
                 stamp: time.clone(),
             };
-            let native_goal_info =
-                WrappedNativeMsg::<action_msgs::msg::GoalInfo>::try_from(&goal_info)?;
-            let response = T::make_goal_response_msg(true, time);
-            let response = WrappedNativeMsg::<
+            let mut native_goal_info = request
+                .goal_info_pool
+                .checkout(WrappedNativeMsg::<action_msgs::msg::GoalInfo>::try_new)?;
+            if let Err(error) = goal_info.try_copy_to_native(&mut native_goal_info) {
+                native_goal_info.retire();
+                return Err(error);
+            }
+            let response_msg = T::make_goal_response_msg(true, time);
+            let mut response = request.goal_response_pool.checkout(WrappedNativeMsg::<
                 <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
-            >::try_from(&response)?;
+            >::try_new)?;
+            if let Err(error) = response_msg.try_copy_to_native(&mut response) {
+                response.retire();
+                return Err(error);
+            }
             prepared.push_back((request, native_goal_info, response));
         }
 
@@ -90,7 +99,7 @@ where
         let mut server_guard = server.lock();
         while let Some((mut request, native_goal_info, mut response)) = prepared.pop_front() {
             let goal_handle = unsafe {
-                rcl_action_accept_new_goal(server_guard.handle_mut(), &*native_goal_info)
+                rcl_action_accept_new_goal(server_guard.handle_mut(), &**native_goal_info)
             };
             if goal_handle.is_null() {
                 failure = Some((Error::RCL_RET_ACTION_GOAL_HANDLE_INVALID, Vec::new()));

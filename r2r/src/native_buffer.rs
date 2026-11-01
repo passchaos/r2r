@@ -1,4 +1,4 @@
-//! One-slot native storage recycling shared by action and subscription delivery.
+//! Native storage recycling shared by action, subscription and batch delivery.
 
 use crate::{msg_types::VoidPtr, Result};
 use parking_lot::Mutex;
@@ -45,15 +45,8 @@ impl<N> NativeBuffer<N> {
         };
         Ok(NativeLease {
             native: Some(native),
-            buffer: self.clone(),
+            target: LeaseTarget::Single(Arc::clone(&self.slot)),
         })
-    }
-
-    fn recycle(&self, native: N) {
-        // A concurrent return keeps the most recently returned storage. Retire the displaced
-        // value after releasing the lock so arbitrary native finalizers can safely reenter.
-        let retired = { self.slot.lock().replace(native) };
-        drop(retired);
     }
 
     #[cfg(test)]
@@ -67,9 +60,72 @@ impl<N> NativeBuffer<N> {
     }
 }
 
+/// Bounded multi-slot recycling for operations that hold several native messages at once,
+/// such as a batch of accepted action goals prepared before the server lock is taken.
+pub(crate) struct NativePool<N> {
+    slots: Arc<Mutex<Vec<N>>>,
+    max_slots: usize,
+}
+
+impl<N> fmt::Debug for NativePool<N> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("NativePool")
+            .field("max_slots", &self.max_slots)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<N> Clone for NativePool<N> {
+    fn clone(&self) -> Self {
+        Self {
+            slots: Arc::clone(&self.slots),
+            max_slots: self.max_slots,
+        }
+    }
+}
+
+impl<N> NativePool<N> {
+    pub(crate) fn new(max_slots: usize) -> Self {
+        assert!(max_slots > 0, "native pool needs at least one slot");
+        Self {
+            slots: Arc::new(Mutex::new(Vec::new())),
+            max_slots,
+        }
+    }
+
+    pub(crate) fn checkout(&self, create: impl FnOnce() -> Result<N>) -> Result<NativeLease<N>> {
+        let cached = { self.slots.lock().pop() };
+        let native = match cached {
+            Some(native) => native,
+            None => create()?,
+        };
+        Ok(NativeLease {
+            native: Some(native),
+            target: LeaseTarget::Pool {
+                slots: Arc::clone(&self.slots),
+                max_slots: self.max_slots,
+            },
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn available_len(&self) -> usize {
+        self.slots.lock().len()
+    }
+}
+
+enum LeaseTarget<N> {
+    Single(Arc<Mutex<Option<N>>>),
+    Pool {
+        slots: Arc<Mutex<Vec<N>>>,
+        max_slots: usize,
+    },
+}
+
 pub(crate) struct NativeLease<N> {
     native: Option<N>,
-    buffer: NativeBuffer<N>,
+    target: LeaseTarget<N>,
 }
 
 impl<N> NativeLease<N> {
@@ -108,8 +164,61 @@ where
 
 impl<N> Drop for NativeLease<N> {
     fn drop(&mut self) {
-        if let Some(native) = self.native.take() {
-            self.buffer.recycle(native);
+        let Some(native) = self.native.take() else {
+            return;
+        };
+        match &self.target {
+            LeaseTarget::Single(slot) => {
+                // A concurrent return keeps the most recently returned storage. Retire the
+                // displaced value after releasing the lock so arbitrary native finalizers can
+                // safely reenter.
+                let retired = { slot.lock().replace(native) };
+                drop(retired);
+            }
+            LeaseTarget::Pool { slots, max_slots } => {
+                let retired = {
+                    let mut slots = slots.lock();
+                    if slots.len() < *max_slots {
+                        slots.push(native);
+                        None
+                    } else {
+                        Some(native)
+                    }
+                };
+                drop(retired);
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn single_buffer_reuses_and_retires_displaced_storage() {
+        let buffer = NativeBuffer::default();
+        drop(buffer.checkout(|| Ok(1usize)).unwrap());
+        assert!(buffer.is_available());
+        let lease = buffer.checkout(|| Ok(2usize)).unwrap();
+        assert!(!buffer.is_available());
+        drop(lease);
+        assert!(buffer.is_available());
+    }
+
+    #[test]
+    fn pool_recycles_up_to_its_bound_and_retires_excess() {
+        let pool = NativePool::new(2);
+        let first = pool.checkout(|| Ok(1usize)).unwrap();
+        let second = pool.checkout(|| Ok(2usize)).unwrap();
+        let third = pool.checkout(|| Ok(3usize)).unwrap();
+        drop(first);
+        drop(second);
+        assert_eq!(pool.available_len(), 2);
+        drop(third);
+        assert_eq!(pool.available_len(), 2);
+        drop(pool.checkout(|| Ok(4usize)).unwrap());
+        drop(pool.checkout(|| Ok(5usize)).unwrap());
+        assert_eq!(pool.available_len(), 2);
     }
 }

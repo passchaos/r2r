@@ -82,6 +82,11 @@ updated container before publication. The fixed-size stage removes two allocatio
 168 requested bytes per feedback after warmup while preserving per-goal payloads and the existing
 publication error behavior.
 
+Batched goal acceptance now reuses bounded native pools for the per-request goal-info and SendGoal
+response messages prepared before the server lock is taken. A batch of sixteen goals removes two
+allocation/free calls and 36 requested bytes per accepted goal after warmup, while user batches
+larger than the sixteen-slot bound keep only the bounded excess and retire the rest.
+
 Generated batch native containers now reset through a replacement-first in-place transaction:
 symbol resolution and temporary initialization finish before old contents are finalized, so failure
 leaves the old message valid while success preserves the outer address. The four-message allocation

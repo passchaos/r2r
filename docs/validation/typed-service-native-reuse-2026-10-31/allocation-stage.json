@@ -13,7 +13,7 @@
       "r2r/src/services.rs": "cb6a68b039225fbddb75bda5cc4de98829262c499f8522927057736ae50ec80a",
       "r2r/src/services/native_buffer_tests.rs": "47ea97f64f2c0be76c145a21f3636acd10b35126c4890f4535eb8b07dd675b13",
       "r2r/src/msg_types.rs": "47fd4f92e2d16912e36dfd7074893ba07365915b5ba7ed62761394555d2003af",
-      "r2r/src/native_buffer.rs": "e651c556e0fccf8a47a7e646e80e5532353eb97938833eb1ce4a9c79c24b2885",
+      "r2r/src/native_buffer.rs": "1c516f8a51afbb37f5acb4bf15c3a4770aa8606af53097c7a8e3c7da02a4f4cd",
       "r2r/src/nodes/service_api.rs": "ad3384e2480257cc394eadd600e705b619265d73d062df4c9b5e3d018f437e03",
       "r2r/benches/support/allocation_probe.rs": "5b9bb562e8c6ab7bee6427be15af5134d13cefd557b6bc13e1e2f102c864f56d",
       "tools/bench_ros/typed_service_native_reuse_stage.py": "362fd828a58b29d3c10447d847777916ea1d07f636af24590df96f48140fb655",
@@ -22,14 +22,14 @@
     },
     "raw_log": {
       "file": "allocation-stage.log.gz",
-      "sha256": "646290b3e9d78bcc050c60743bfd3414265fb91baf06298f0ad7e87b54288fa9"
+      "sha256": "10862bced7cf2dfeef01fd62277bc463022044c0b3454d4502598f2a0aee3c24"
     }
   },
   "records": [
     {
       "allocations": 40000,
       "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
-      "elapsed_ns": 2475446,
+      "elapsed_ns": 2500645,
       "frees": 30000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -40,7 +40,7 @@
     {
       "allocations": 0,
       "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
-      "elapsed_ns": 1359852,
+      "elapsed_ns": 1465101,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -51,7 +51,7 @@
     {
       "allocations": 40000,
       "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
-      "elapsed_ns": 2491548,
+      "elapsed_ns": 2604200,
       "frees": 30000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -62,7 +62,7 @@
     {
       "allocations": 0,
       "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
-      "elapsed_ns": 1347643,
+      "elapsed_ns": 1482926,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -73,7 +73,7 @@
     {
       "allocations": 40000,
       "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
-      "elapsed_ns": 3451754,
+      "elapsed_ns": 2534712,
       "frees": 30000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -84,7 +84,7 @@
     {
       "allocations": 0,
       "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
-      "elapsed_ns": 1687707,
+      "elapsed_ns": 1477424,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -95,7 +95,7 @@
     {
       "allocations": 40000,
       "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
-      "elapsed_ns": 2497191,
+      "elapsed_ns": 2536817,
       "frees": 30000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -106,7 +106,7 @@
     {
       "allocations": 0,
       "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
-      "elapsed_ns": 1346728,
+      "elapsed_ns": 1466934,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -117,7 +117,7 @@
     {
       "allocations": 40000,
       "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
-      "elapsed_ns": 2483643,
+      "elapsed_ns": 2543797,
       "frees": 30000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -128,7 +128,7 @@
     {
       "allocations": 0,
       "boundary": "typed service request decode and response preparation; no RCL/DDS/channel",
-      "elapsed_ns": 1343998,
+      "elapsed_ns": 1470248,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -142,13 +142,13 @@
       "allocations": 40000,
       "frees": 30000,
       "requested_bytes": 41310000,
-      "elapsed_ns": 2491548
+      "elapsed_ns": 2536817
     },
     "reused_native": {
       "allocations": 0,
       "frees": 0,
       "requested_bytes": 0,
-      "elapsed_ns": 1347643
+      "elapsed_ns": 1470248
     }
   }
 }

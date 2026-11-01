@@ -1,7 +1,8 @@
 //! Action server factories, registry bookkeeping and removal.
 
 use super::*;
-use crate::native_buffer::NativeBuffer;
+use crate::action_servers::MAX_ACTION_SERVER_REQUESTS_PER_SPIN;
+use crate::native_buffer::{NativeBuffer, NativePool};
 
 impl Node {
     fn add_action_server(
@@ -130,6 +131,8 @@ impl Node {
             goal_request_buffer: NativeBuffer::default(),
             result_request_buffer: NativeBuffer::default(),
             feedback_buffer: NativeBuffer::default(),
+            goal_info_pool: NativePool::new(MAX_ACTION_SERVER_REQUESTS_PER_SPIN),
+            goal_response_pool: NativePool::new(MAX_ACTION_SERVER_REQUESTS_PER_SPIN),
             cancel_request_channel_capacity,
             maintenance_wake_owner: Arc::downgrade(&self.dropped_action_servers),
         };

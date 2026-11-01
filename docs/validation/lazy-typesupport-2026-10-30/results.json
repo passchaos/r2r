@@ -16,7 +16,8 @@
     "baseline_exit_code": 127,
     "candidate_exit_code": 0,
     "candidate_measured_responses": 4,
-    "artifact": "restricted-library.json"
+    "artifact": "restricted-library.json",
+    "artifact_sha256": "b36fe159da9a39646a5e33c458b7aa3be60cb91369189de1d5f9be7d1549bd8e"
   },
   "protocol": {
     "applications": 16,

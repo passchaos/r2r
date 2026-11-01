@@ -13,7 +13,7 @@
       "r2r/src/clients.rs": "4347d059a54c62e339fc07f0044b9c2feb15ab0cd6600ba55c033fbfcc30bab0",
       "r2r/src/clients/native_request_buffer_tests.rs": "a9be9111562f60bbcb34486b303c0cd372cd10e570b651c09e3184351a99ab7b",
       "r2r/src/msg_types.rs": "47fd4f92e2d16912e36dfd7074893ba07365915b5ba7ed62761394555d2003af",
-      "r2r/src/native_buffer.rs": "e651c556e0fccf8a47a7e646e80e5532353eb97938833eb1ce4a9c79c24b2885",
+      "r2r/src/native_buffer.rs": "1c516f8a51afbb37f5acb4bf15c3a4770aa8606af53097c7a8e3c7da02a4f4cd",
       "r2r/src/nodes/client_api.rs": "42c11f3200c54fb92df37e14db359bede3fca712bac34e3024608978803f754d",
       "r2r/benches/support/allocation_probe.rs": "5b9bb562e8c6ab7bee6427be15af5134d13cefd557b6bc13e1e2f102c864f56d",
       "tools/bench_ros/typed_client_request_native_reuse_stage.py": "c823120a69fc5fcd22be66e1f89e7c1f1fe723ab9ef8246199e31e0a068d5fd6",
@@ -22,14 +22,14 @@
     },
     "raw_log": {
       "file": "allocation-stage.log.gz",
-      "sha256": "e8de88277cc1bda825522c6479e44e65ffbdb080c5140ff138cf6fe9ba8ff750"
+      "sha256": "48d85db052b56c974fd323ab6f97aa64d026fd5c48d1bc5a1a26a8b2acce1782"
     }
   },
   "records": [
     {
       "allocations": 40000,
       "boundary": "typed client request Rust-to-native preparation and payload validation; no RCL/DDS",
-      "elapsed_ns": 3802703,
+      "elapsed_ns": 2586605,
       "frees": 30000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -40,7 +40,7 @@
     {
       "allocations": 0,
       "boundary": "typed client request Rust-to-native preparation and payload validation; no RCL/DDS",
-      "elapsed_ns": 1136390,
+      "elapsed_ns": 1013206,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -51,7 +51,7 @@
     {
       "allocations": 40000,
       "boundary": "typed client request Rust-to-native preparation and payload validation; no RCL/DDS",
-      "elapsed_ns": 2544749,
+      "elapsed_ns": 2534550,
       "frees": 30000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -62,7 +62,7 @@
     {
       "allocations": 0,
       "boundary": "typed client request Rust-to-native preparation and payload validation; no RCL/DDS",
-      "elapsed_ns": 1105197,
+      "elapsed_ns": 1018666,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -73,7 +73,7 @@
     {
       "allocations": 40000,
       "boundary": "typed client request Rust-to-native preparation and payload validation; no RCL/DDS",
-      "elapsed_ns": 3082409,
+      "elapsed_ns": 3686131,
       "frees": 30000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -84,7 +84,7 @@
     {
       "allocations": 0,
       "boundary": "typed client request Rust-to-native preparation and payload validation; no RCL/DDS",
-      "elapsed_ns": 960189,
+      "elapsed_ns": 1170389,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -95,7 +95,7 @@
     {
       "allocations": 40000,
       "boundary": "typed client request Rust-to-native preparation and payload validation; no RCL/DDS",
-      "elapsed_ns": 2522278,
+      "elapsed_ns": 2771367,
       "frees": 30000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -106,7 +106,7 @@
     {
       "allocations": 0,
       "boundary": "typed client request Rust-to-native preparation and payload validation; no RCL/DDS",
-      "elapsed_ns": 1033695,
+      "elapsed_ns": 998497,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -117,7 +117,7 @@
     {
       "allocations": 40000,
       "boundary": "typed client request Rust-to-native preparation and payload validation; no RCL/DDS",
-      "elapsed_ns": 2556916,
+      "elapsed_ns": 3708805,
       "frees": 30000,
       "iterations": 10000,
       "native_storage": "fresh_native",
@@ -128,7 +128,7 @@
     {
       "allocations": 0,
       "boundary": "typed client request Rust-to-native preparation and payload validation; no RCL/DDS",
-      "elapsed_ns": 981800,
+      "elapsed_ns": 1158027,
       "frees": 0,
       "iterations": 10000,
       "native_storage": "reused_native",
@@ -142,13 +142,13 @@
       "allocations": 40000,
       "frees": 30000,
       "requested_bytes": 41460000,
-      "elapsed_ns": 2556916
+      "elapsed_ns": 2771367
     },
     "reused_native": {
       "allocations": 0,
       "frees": 0,
       "requested_bytes": 0,
-      "elapsed_ns": 1033695
+      "elapsed_ns": 1018666
     }
   }
 }

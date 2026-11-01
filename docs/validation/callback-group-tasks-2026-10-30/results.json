@@ -102,7 +102,7 @@
     "r2r/src/lib.rs": "c1d0b15e9eef13e98f7142408fe74862ddee144cc9550237b7d6676355c22101",
     "r2r/examples/callback_group_action.rs": "07caaa02eacdc7a275601c640008316a7e9cc71c30896bb349ff13ee240bf6e1",
     "r2r/examples/reentrant_group_action.rs": "8a99fd1c4893020cb52b4b7782f58a96cbab974842d9d9b8ef2ce83bb45264d3",
-    "tests/check_documentation.py": "b87c8eef33a8251b39d4a0940679d05903b5a749ec9c32633aa20579f311ab96",
+    "tests/check_documentation.py": "ece60be4eed5334bbdbb6b620e20d892b8db10995dbcb1a1633740971bece225",
     "docs/CALLBACK_GROUP_TASKS.md": "64e4f4c2b1ceaa2930f8b3e97463dea265fa2fcd0257b395e2aa3d03ee2c5873",
     "docs/validation/callback-group-tasks-2026-10-30/run-jazzy.bash": "877cdbd206afb383a2538228466c57540df53eb8a8c9031cbd3679cbb233f90e",
     "docs/validation/callback-group-tasks-2026-10-30/run-compat.bash": "2f44aff096e70f8392ee31fc9ac050b06b6bbb6b89b8330dd9a3863b03588f14",

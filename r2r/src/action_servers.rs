@@ -24,7 +24,7 @@ use crate::{
         generated_msgs::{action_msgs, builtin_interfaces, unique_identifier_msgs},
         *,
     },
-    native_buffer::NativeBuffer,
+    native_buffer::{NativeBuffer, NativePool},
     Node,
 };
 use r2r_actions::*;
@@ -32,7 +32,7 @@ use r2r_rcl::*;
 
 pub(crate) type ActionServerCompletion = Box<dyn FnOnce() -> Result<()>>;
 
-const MAX_ACTION_SERVER_REQUESTS_PER_SPIN: usize = 16;
+pub(crate) const MAX_ACTION_SERVER_REQUESTS_PER_SPIN: usize = 16;
 mod batch;
 #[cfg(test)]
 use batch::{complete_goal_batch, execute_goal_batch};
@@ -640,6 +640,12 @@ where
     clock: Arc<Mutex<Clock>>,
     cancel_requests: mpsc::Receiver<ActionServerCancelRequest>,
     response: GoalRequestResponseGuard,
+    goal_info_pool: NativePool<WrappedNativeMsg<action_msgs::msg::GoalInfo>>,
+    goal_response_pool: NativePool<
+        WrappedNativeMsg<
+            <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
+        >,
+    >,
     feedback_buffer: NativeBuffer<WrappedNativeMsg<T::FeedbackMessage>>,
 }
 
@@ -707,12 +713,23 @@ where
             goal_id: uuid_msg,
             stamp: time.clone(),
         };
-        let native_goal_info =
-            WrappedNativeMsg::<action_msgs::msg::GoalInfo>::try_from(&goal_info)?;
-        let response_msg = T::make_goal_response_msg(true, time);
-        let mut response_msg = WrappedNativeMsg::<
-            <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
-        >::try_from(&response_msg)?;
+        let mut native_goal_info = self
+            .goal_info_pool
+            .checkout(WrappedNativeMsg::<action_msgs::msg::GoalInfo>::try_new)?;
+        if let Err(error) = goal_info.try_copy_to_native(&mut native_goal_info) {
+            native_goal_info.retire();
+            return Err(error);
+        }
+        let response = T::make_goal_response_msg(true, time);
+        let mut response_msg = self.goal_response_pool.checkout(
+            WrappedNativeMsg::<
+                <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
+            >::try_new,
+        )?;
+        if let Err(error) = response.try_copy_to_native(&mut response_msg) {
+            response_msg.retire();
+            return Err(error);
+        }
 
         let server = self
             .response
@@ -722,7 +739,7 @@ where
         let mut server = server.lock();
 
         let goal_handle: *mut rcl_action_goal_handle_t =
-            unsafe { rcl_action_accept_new_goal(server.handle_mut(), &*native_goal_info) };
+            unsafe { rcl_action_accept_new_goal(server.handle_mut(), &**native_goal_info) };
         if goal_handle.is_null() {
             return Err(Error::RCL_RET_ACTION_GOAL_HANDLE_INVALID);
         }
@@ -1031,6 +1048,12 @@ where
         >,
     >,
     pub(crate) feedback_buffer: NativeBuffer<WrappedNativeMsg<T::FeedbackMessage>>,
+    pub(crate) goal_info_pool: NativePool<WrappedNativeMsg<action_msgs::msg::GoalInfo>>,
+    pub(crate) goal_response_pool: NativePool<
+        WrappedNativeMsg<
+            <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
+        >,
+    >,
     pub cancel_request_channel_capacity: usize,
     pub(crate) maintenance_wake_owner: cancel::WakeOwner,
 }
@@ -1300,10 +1323,17 @@ where
         completions: &mut Vec<ActionServerCompletion>,
     ) -> Result<()> {
         self.forget_cancel_sender(uuid, completions);
-        let response = T::make_goal_response_msg(false, builtin_interfaces::msg::Time::default());
-        let mut response = WrappedNativeMsg::<
-            <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
-        >::try_from(&response)?;
+        let response_msg =
+            T::make_goal_response_msg(false, builtin_interfaces::msg::Time::default());
+        let mut response = self.goal_response_pool.checkout(
+            WrappedNativeMsg::<
+                <<T as WrappedActionTypeSupport>::SendGoal as WrappedServiceTypeSupport>::Response,
+            >::try_new,
+        )?;
+        if let Err(error) = response_msg.try_copy_to_native(&mut response) {
+            response.retire();
+            return Err(error);
+        }
         let ret = unsafe {
             rcl_action_send_goal_response(&self.rcl_handle, request_id, response.void_ptr_mut())
         };
@@ -1502,6 +1532,8 @@ where
         let sender_slot = Arc::clone(&self.goal_request_sender);
         let conversion_server = Arc::clone(&server);
         let feedback_buffer = self.feedback_buffer.clone();
+        let goal_info_pool = self.goal_info_pool.clone();
+        let goal_response_pool = self.goal_response_pool.clone();
         Ok(Some(request_conversion_delivery(
             sender_slot,
             sender,
@@ -1545,6 +1577,8 @@ where
                         request_id,
                         response_sent: false,
                     },
+                    goal_info_pool,
+                    goal_response_pool,
                     feedback_buffer,
                 })
             },
@@ -3693,6 +3727,8 @@ mod tests {
     }
 }
 
+#[cfg(test)]
+mod batch_buffer_tests;
 #[cfg(test)]
 mod feedback_buffer_tests;
 #[cfg(test)]

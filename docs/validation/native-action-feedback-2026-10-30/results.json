@@ -155,7 +155,7 @@
     "tools/bench_ros/verify_action_feedback.py": "4a7b998bd5dd212cc065cff4b37898e0b773167cc031960fb0aaeb2b2b9c9e0e",
     "tools/bench_ros/test_action_feedback.py": "b8e0191aba8a354344835719eb09d5984f2e14efd7e8c6b3369483a276fe4e0f",
     "tools/bench_ros/build.py": "a53f4d30db04705a9432a81d4a3a8ea9c5077d605aaebf1b4e2a868e59d61676",
-    "tests/check_documentation.py": "6c4632ffeabaac28028a47e9d64b649745a30103faf3cceefc1be921822fd7ab",
+    "tests/check_documentation.py": "ece60be4eed5334bbdbb6b620e20d892b8db10995dbcb1a1633740971bece225",
     "docs/validation/native-action-feedback-2026-10-30/verify.py": "c8bba6651ad6450d554f58deae52a03e63335d4e01cc856297ab7c69ae8684cb",
     "tools/bench_ros/native_action_feedback_stage.py": "38b877d3b14b85fd89c2509478c23f6659860f067f6c607a2291dcf65a1c721b",
     "docs/validation/native-action-feedback-2026-10-30/README.md": "5ebab33a9da3cfae15c896a99c1801a1344f8b7718770efb06b20f67fd18b6d5"

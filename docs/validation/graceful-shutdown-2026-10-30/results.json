@@ -65,7 +65,7 @@
     "r2r/tests/context_shutdown.rs": "74ccac017e555fc4c4fe7b8684996c532b35abed4e2b3773a7d97c09c750eaa6",
     "r2r/examples/graceful_shutdown.rs": "7e59dd99057fe6b27becab83f426fb79e7bd58419ffd1b67aee484f9db169d20",
     "docs/GRACEFUL_SHUTDOWN.md": "1f54eaf6b5c58e81e58570bd382081d56d8e3f8c06957867db65a28d9ba9ce4b",
-    "tests/check_documentation.py": "b87c8eef33a8251b39d4a0940679d05903b5a749ec9c32633aa20579f311ab96",
+    "tests/check_documentation.py": "ece60be4eed5334bbdbb6b620e20d892b8db10995dbcb1a1633740971bece225",
     "docs/validation/graceful-shutdown-2026-10-30/run-jazzy.bash": "67f1e882e8ca7d13f5263c2f111f1a97f5b00d458bb7105a662bc7990c28e9d0",
     "docs/validation/graceful-shutdown-2026-10-30/run-compat.bash": "e6f0b545adb517b5f8c2c8366ebf49750775f519b58e09939ac8d4f9ef78d9a6"
   }
