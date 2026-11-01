@@ -43,7 +43,14 @@ allocations, frees and requested bytes at every entity count; Fast DDS allocates
 inside `rmw_wait` (up to eight allocations per spin at 128 subscriptions).
 Peak RSS stays constant at about 51.5 MiB in both runs, so r2r's wait-set and
 registry reuse do not grow memory with entity count. CPU values remain
-diagnostic on a contended host. Isolated wall-clock Criterion tails and endpoint
-construction/destruction probes remain open; the allocation/RSS curves are now
-a guard against speculative registry rewrites rather than evidence that the
-current layout is optimal or faster than rclcpp.
+diagnostic on a contended host.
+
+[Endpoint construction/destruction scaling](validation/endpoint-construction-resource-2026-11-01/README.md)
+adds the matching probe for creating 1–128 subscriptions, services, clients,
+timers and mixed sets and for dropping them across bounded cleanup spins. Peak
+RSS again stays at about 51.5 MiB; Fast DDS performs roughly three to four times
+more construction allocations than CycloneDDS, and single-entity cases include
+participant/discovery startup noise. Isolated wall-clock Criterion tails remain
+open; the allocation/RSS curves are now a guard against speculative registry
+rewrites rather than evidence that the current layout is optimal or faster than
+rclcpp.

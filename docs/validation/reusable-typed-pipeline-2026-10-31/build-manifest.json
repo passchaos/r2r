@@ -81,7 +81,7 @@
     "r2r/src/nodes/future_executor/tests.rs": "e97bbae3af90f0fb0b7f7b1d40aa01cf6f8635276d9ad323bc8b5c950b79dc5c",
     "r2r/src/nodes/future_executor.rs": "f045db04c63e066d7397b3be4f0a10ac5864ca8ae34f8840e4590e960a2cd40f",
     "r2r/src/nodes/graph.rs": "0ec700e4a9555092969e8fdef32ad734d7123d62ec6230f95027fb10793395f8",
-    "r2r/src/nodes/idle_spin_resource_tests.rs": "8d474542c2d66b39f631aff74a8e7f51bd17d02498ad2db2c4780ce78a725027",
+    "r2r/src/nodes/idle_spin_resource_tests.rs": "9248120590a5b0d6b25902bb065da3aa9444712adfe5995aa837375efebd08e9",
     "r2r/src/nodes/managed_timers/tests.rs": "11e3f0682e127e7925d8f2afcc4063c1593daa705fcfaac1583759c3cceef6ed",
     "r2r/src/nodes/managed_timers.rs": "41fae8e8a4c29f9b3f8e7f28efe8661b0abd4c4cee304ed9e2f9ad639c0b2514",
     "r2r/src/nodes/observer_notifications/tests.rs": "89ebb22ada4a6edb047464b72c64d6ab743d6c4d73426ee88f750b6b6a877cf8",
