@@ -18,7 +18,7 @@
     "r2r_msg_gen/src/lib.rs": "114ff409c67be24a6c733e4a6f497ccfd40fbf6066aa3ab2bdbf242d3538b39e",
     "Cargo.lock": "c8b374e6a2ee1fe0e2917630e751ee27aa9c45a16f9c4f266ff9ab5a4bfcd7ae",
     "r2r/src/lib.rs": "c1d0b15e9eef13e98f7142408fe74862ddee144cc9550237b7d6676355c22101",
-    "r2r/src/error.rs": "afb76b8ef6867866a510a15391434e935a7fe26e05d7aed085e49fdcc05c3406",
+    "r2r/src/error.rs": "67afd70f9904cf8acb63a02954d47ce7b9b9b91e1d08a9be388b66f4505cebf5",
     "r2r/src/availability.rs": "07359b92bd4d1e51034b392252925c590797510ab7e3a755835150145e94532e",
     "r2r/src/native_metadata.rs": "1067fea3d06121ebb1e04272f55e409bf52fb1cdb2ccbc8123a01b7b40157153",
     "r2r/src/notifications.rs": "db43f8687f88d18a6d042b73199420161a4228da67e6cdbd01d98453278f58f3",

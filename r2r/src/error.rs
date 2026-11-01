@@ -32,89 +32,89 @@ pub enum Error {
     QosEventAlreadyObserved,
     #[error("this timer already has a reset observer; drop it before creating another")]
     TimerResetAlreadyObserved,
-    #[error("RCL_RET_OK")]
+    #[error("RCL reported success where an error was expected (RCL_RET_OK)")]
     RCL_RET_OK,
-    #[error("RCL_RET_ERROR")]
+    #[error("unspecified RCL error (RCL_RET_ERROR)")]
     RCL_RET_ERROR,
-    #[error("RCL_RET_TIMEOUT")]
+    #[error("operation timed out (RCL_RET_TIMEOUT)")]
     RCL_RET_TIMEOUT,
-    #[error("RCL_RET_BAD_ALLOC")]
+    #[error("native allocation failed (RCL_RET_BAD_ALLOC)")]
     RCL_RET_BAD_ALLOC,
-    #[error("RCL_RET_INVALID_ARGUMENT")]
+    #[error("invalid argument (RCL_RET_INVALID_ARGUMENT)")]
     RCL_RET_INVALID_ARGUMENT,
-    #[error("RCL_RET_UNSUPPORTED")]
+    #[error("operation unsupported by this ROS distribution or RMW (RCL_RET_UNSUPPORTED)")]
     RCL_RET_UNSUPPORTED,
-    #[error("RCL_RET_ALREADY_INIT")]
+    #[error("context is already initialized (RCL_RET_ALREADY_INIT)")]
     RCL_RET_ALREADY_INIT,
-    #[error("RCL_RET_NOT_INIT")]
+    #[error("context is not initialized (RCL_RET_NOT_INIT)")]
     RCL_RET_NOT_INIT,
-    #[error("RCL_RET_MISMATCHED_RMW_ID")]
+    #[error("RMW implementations do not match (RCL_RET_MISMATCHED_RMW_ID)")]
     RCL_RET_MISMATCHED_RMW_ID,
-    #[error("RMW_RET_INCORRECT_RMW_IMPLEMENTATION")]
+    #[error("incorrect RMW implementation (RMW_RET_INCORRECT_RMW_IMPLEMENTATION)")]
     RMW_RET_INCORRECT_RMW_IMPLEMENTATION,
-    #[error("RCL_RET_TOPIC_NAME_INVALID")]
+    #[error("invalid topic name (RCL_RET_TOPIC_NAME_INVALID)")]
     RCL_RET_TOPIC_NAME_INVALID,
-    #[error("RCL_RET_SERVICE_NAME_INVALID")]
+    #[error("invalid service name (RCL_RET_SERVICE_NAME_INVALID)")]
     RCL_RET_SERVICE_NAME_INVALID,
-    #[error("RCL_RET_UNKNOWN_SUBSTITUTION")]
+    #[error("unknown name substitution (RCL_RET_UNKNOWN_SUBSTITUTION)")]
     RCL_RET_UNKNOWN_SUBSTITUTION,
-    #[error("RCL_RET_ALREADY_SHUTDOWN")]
+    #[error("context is already shut down (RCL_RET_ALREADY_SHUTDOWN)")]
     RCL_RET_ALREADY_SHUTDOWN,
     #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
-    #[error("RCL_RET_NOT_FOUND")]
+    #[error("entity not found (RCL_RET_NOT_FOUND)")]
     RCL_RET_NOT_FOUND,
-    #[error("RCL_RET_NODE_INVALID")]
+    #[error("node handle is invalid (RCL_RET_NODE_INVALID)")]
     RCL_RET_NODE_INVALID,
-    #[error("RCL_RET_NODE_INVALID_NAME")]
+    #[error("node name is invalid (RCL_RET_NODE_INVALID_NAME)")]
     RCL_RET_NODE_INVALID_NAME,
-    #[error("RCL_RET_NODE_INVALID_NAMESPACE")]
+    #[error("node namespace is invalid (RCL_RET_NODE_INVALID_NAMESPACE)")]
     RCL_RET_NODE_INVALID_NAMESPACE,
-    #[error("RCL_RET_NODE_NAME_NON_EXISTENT")]
+    #[error("node name does not exist (RCL_RET_NODE_NAME_NON_EXISTENT)")]
     RCL_RET_NODE_NAME_NON_EXISTENT,
-    #[error("RCL_RET_PUBLISHER_INVALID")]
+    #[error("publisher handle is invalid (RCL_RET_PUBLISHER_INVALID)")]
     RCL_RET_PUBLISHER_INVALID,
-    #[error("RCL_RET_SUBSCRIPTION_INVALID")]
+    #[error("subscription handle is invalid (RCL_RET_SUBSCRIPTION_INVALID)")]
     RCL_RET_SUBSCRIPTION_INVALID,
-    #[error("RCL_RET_SUBSCRIPTION_TAKE_FAILED")]
+    #[error("subscription take failed (RCL_RET_SUBSCRIPTION_TAKE_FAILED)")]
     RCL_RET_SUBSCRIPTION_TAKE_FAILED,
-    #[error("RCL_RET_CLIENT_INVALID")]
+    #[error("client handle is invalid (RCL_RET_CLIENT_INVALID)")]
     RCL_RET_CLIENT_INVALID,
-    #[error("RCL_RET_CLIENT_TAKE_FAILED")]
+    #[error("client take failed (RCL_RET_CLIENT_TAKE_FAILED)")]
     RCL_RET_CLIENT_TAKE_FAILED,
-    #[error("RCL_RET_SERVICE_INVALID")]
+    #[error("service handle is invalid (RCL_RET_SERVICE_INVALID)")]
     RCL_RET_SERVICE_INVALID,
-    #[error("RCL_RET_SERVICE_TAKE_FAILED")]
+    #[error("service take failed (RCL_RET_SERVICE_TAKE_FAILED)")]
     RCL_RET_SERVICE_TAKE_FAILED,
-    #[error("RCL_RET_TIMER_INVALID")]
+    #[error("timer handle is invalid (RCL_RET_TIMER_INVALID)")]
     RCL_RET_TIMER_INVALID,
-    #[error("RCL_RET_TIMER_CANCELED")]
+    #[error("timer is canceled (RCL_RET_TIMER_CANCELED)")]
     RCL_RET_TIMER_CANCELED,
-    #[error("RCL_RET_WAIT_SET_INVALID")]
+    #[error("wait set is invalid (RCL_RET_WAIT_SET_INVALID)")]
     RCL_RET_WAIT_SET_INVALID,
-    #[error("RCL_RET_WAIT_SET_EMPTY")]
+    #[error("wait set is empty (RCL_RET_WAIT_SET_EMPTY)")]
     RCL_RET_WAIT_SET_EMPTY,
-    #[error("RCL_RET_WAIT_SET_FULL")]
+    #[error("wait set is full (RCL_RET_WAIT_SET_FULL)")]
     RCL_RET_WAIT_SET_FULL,
-    #[error("RCL_RET_INVALID_REMAP_RULE")]
+    #[error("invalid ROS remap rule (RCL_RET_INVALID_REMAP_RULE)")]
     RCL_RET_INVALID_REMAP_RULE,
-    #[error("RCL_RET_WRONG_LEXEME")]
+    #[error("invalid remap lexeme (RCL_RET_WRONG_LEXEME)")]
     RCL_RET_WRONG_LEXEME,
-    #[error("RCL_RET_INVALID_PARAM_RULE")]
+    #[error("invalid parameter rule (RCL_RET_INVALID_PARAM_RULE)")]
     RCL_RET_INVALID_PARAM_RULE,
-    #[error("RCL_RET_INVALID_LOG_LEVEL_RULE")]
+    #[error("invalid log-level rule (RCL_RET_INVALID_LOG_LEVEL_RULE)")]
     RCL_RET_INVALID_LOG_LEVEL_RULE,
-    #[error("RCL_RET_INVALID_ROS_ARGS")]
+    #[error("invalid ROS arguments (RCL_RET_INVALID_ROS_ARGS)")]
     RCL_RET_INVALID_ROS_ARGS,
-    #[error("RCL_RET_EVENT_INVALID")]
+    #[error("event handle is invalid (RCL_RET_EVENT_INVALID)")]
     RCL_RET_EVENT_INVALID,
-    #[error("RCL_RET_EVENT_TAKE_FAILED")]
+    #[error("event take failed (RCL_RET_EVENT_TAKE_FAILED)")]
     RCL_RET_EVENT_TAKE_FAILED,
-    #[error("RCL_RET_LIFECYCLE_STATE_REGISTERED")]
+    #[error("lifecycle state is already registered (RCL_RET_LIFECYCLE_STATE_REGISTERED)")]
     RCL_RET_LIFECYCLE_STATE_REGISTERED,
-    #[error("RCL_RET_LIFECYCLE_STATE_NOT_REGISTERED")]
+    #[error("lifecycle state is not registered (RCL_RET_LIFECYCLE_STATE_NOT_REGISTERED)")]
     RCL_RET_LIFECYCLE_STATE_NOT_REGISTERED,
     #[cfg(not(any(r2r__ros__distro__humble, r2r__ros__distro__iron)))]
-    #[error("RCL_ACTION_RET_NOT_TERMINATED_YET")]
+    #[error("action goal is not terminated yet (RCL_ACTION_RET_NOT_TERMINATED_YET)")]
     RCL_ACTION_RET_NOT_TERMINATED_YET,
 
     // Our own errors
@@ -136,23 +136,23 @@ pub enum Error {
     RcutilsLoggingError(i32),
 
     // action errors.
-    #[error("RCL_RET_ACTION_NAME_INVALID")]
+    #[error("action name is invalid (RCL_RET_ACTION_NAME_INVALID)")]
     RCL_RET_ACTION_NAME_INVALID,
-    #[error("RCL_RET_ACTION_GOAL_ACCEPTED")]
+    #[error("goal was already accepted (RCL_RET_ACTION_GOAL_ACCEPTED)")]
     RCL_RET_ACTION_GOAL_ACCEPTED,
-    #[error("RCL_RET_ACTION_GOAL_REJECTED")]
+    #[error("goal was rejected (RCL_RET_ACTION_GOAL_REJECTED)")]
     RCL_RET_ACTION_GOAL_REJECTED,
-    #[error("RCL_RET_ACTION_CLIENT_INVALID")]
+    #[error("action client handle is invalid (RCL_RET_ACTION_CLIENT_INVALID)")]
     RCL_RET_ACTION_CLIENT_INVALID,
-    #[error("RCL_RET_ACTION_CLIENT_TAKE_FAILED")]
+    #[error("action client take failed (RCL_RET_ACTION_CLIENT_TAKE_FAILED)")]
     RCL_RET_ACTION_CLIENT_TAKE_FAILED,
-    #[error("RCL_RET_ACTION_SERVER_INVALID")]
+    #[error("action server handle is invalid (RCL_RET_ACTION_SERVER_INVALID)")]
     RCL_RET_ACTION_SERVER_INVALID,
-    #[error("RCL_RET_ACTION_SERVER_TAKE_FAILED")]
+    #[error("action server take failed (RCL_RET_ACTION_SERVER_TAKE_FAILED)")]
     RCL_RET_ACTION_SERVER_TAKE_FAILED,
-    #[error("RCL_RET_ACTION_GOAL_HANDLE_INVALID")]
+    #[error("action goal handle is invalid (RCL_RET_ACTION_GOAL_HANDLE_INVALID)")]
     RCL_RET_ACTION_GOAL_HANDLE_INVALID,
-    #[error("RCL_RET_ACTION_GOAL_EVENT_INVALID")]
+    #[error("action goal event is invalid (RCL_RET_ACTION_GOAL_EVENT_INVALID)")]
     RCL_RET_ACTION_GOAL_EVENT_INVALID,
 
     #[error("Goal cancel request rejected by server.")]
@@ -347,6 +347,17 @@ mod tests {
     #[test]
     fn preserves_unknown_rcl_error_codes() {
         assert!(matches!(Error::from_rcl_error(-12345), Error::UnknownRclError(-12345)));
+    }
+
+    #[test]
+    fn error_display_explains_common_rcl_failures() {
+        let message = Error::RCL_RET_TOPIC_NAME_INVALID.to_string();
+        assert!(message.contains("invalid topic name"));
+        assert!(message.contains("RCL_RET_TOPIC_NAME_INVALID"));
+        let message = Error::RCL_RET_BAD_ALLOC.to_string();
+        assert!(message.contains("native allocation failed"));
+        let message = Error::RCL_RET_TIMEOUT.to_string();
+        assert!(message.contains("timed out"));
     }
 
     #[test]
