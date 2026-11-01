@@ -17,11 +17,11 @@ def digest(path):
 def main():
     results = json.loads((HERE / "results.json").read_text())
     expected = {
-        "jazzy_cyclonedds": (837, 25),
-        "jazzy_fastdds": (837, 25),
-        "kilted_cyclonedds": (843, 25),
-        "kilted_fastdds": (843, 25),
-        "humble_fastdds": (813, 25),
+        "jazzy_cyclonedds": (840, 27),
+        "jazzy_fastdds": (840, 27),
+        "kilted_cyclonedds": (846, 27),
+        "kilted_fastdds": (846, 27),
+        "humble_fastdds": (816, 27),
     }
     for name, gate in results["environments"].items():
         if (gate["passed"], gate["ignored"]) != expected[name]:

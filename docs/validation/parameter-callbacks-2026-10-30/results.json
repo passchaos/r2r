@@ -32,10 +32,10 @@
     "r2r/src/nodes/parameter_api.rs": "2aa557da8ee162bc43ed084e33a14837a6b23ba43c0df35bbf144c3f67eae69b",
     "r2r/src/nodes/parameter_support.rs": "ba7b223171bbd791fbb23ad0b1b0209c4f2a2e316498111c29d009817dd180a3",
     "r2r/src/nodes/parameter_handler.rs": "cad71e05168c5d414785ca6d4a4f0c191d2ceafee18f65b27a23cb2d4a9b663b",
-    "r2r/src/nodes.rs": "6017e1d1af546511588544692b1f8e0046f89c4af85a9d317ac52b366275ce09",
+    "r2r/src/nodes.rs": "b04fada2172d0d69c8c9b99378284adb008e43a11e5c5ca61a5bf22f195a1df2",
     "r2r/examples/parameter_callbacks.rs": "0d9f358f5cbd2fe566ebfc4bc55eeaa785d1d63dd1fdf7143dc42a7408af860b",
     "docs/PARAMETER_CALLBACKS.md": "269592833732d815f548448a6d573cb4af8c0f422c4cd29aaebde737e7dddd04",
-    "tests/check_documentation.py": "ece60be4eed5334bbdbb6b620e20d892b8db10995dbcb1a1633740971bece225",
+    "tests/check_documentation.py": "a47e29645dd82e803617ecbbbd49bab2bf2610bf7331ee077cce492e02114129",
     "docs/validation/parameter-callbacks-2026-10-30/run-jazzy.bash": "c16a6901a48377138c057132da4ce7ebd4b49988b399fa09aa9a8f40c4bf77a2"
   }
 }

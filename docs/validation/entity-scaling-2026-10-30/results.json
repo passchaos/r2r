@@ -80,7 +80,7 @@
   },
   "source_sha256": {
     "r2r/benches/spin_idle_action_servers.rs": "1363ab63cec14d9562182c14557c02c702315b6bc980551d69ab4799356f036d",
-    "docs/ENTITY_SCALING.md": "29459bfebb98877d399a4736554fdb8552cdd004c9d5ff39567b3aba64959ccb",
+    "docs/ENTITY_SCALING.md": "0f41f9fadc1d09b6f3889ca56090abf3078499aa4b219f29961264a4679dd184",
     "docs/validation/entity-scaling-2026-10-30/run-jazzy.bash": "2a9ced38ec25e5bc8582946e5290f98ab9bf4b8f3a4d0e892f55667dd15e44e4"
   }
 }

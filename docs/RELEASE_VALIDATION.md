@@ -1731,9 +1731,9 @@ remain separate requirements for the full Rust/C++ leadership goal.
 
 ## Cross-release full library suite (2026-11-01)
 
-At commit `b3b3b58`, the complete release library suite passed with zero failures in every required
-native environment: Jazzy 837 passed/25 ignored under both RMWs, Kilted 843/25 under both RMWs, and
-Humble 813/25 under Fast DDS. The ignored cases are manual allocation-probe stages. Humble excludes
+At commit `1c3fa4a`, the complete release library suite passed with zero failures in every required
+native environment: Jazzy 840 passed/27 ignored under both RMWs, Kilted 846/27 under both RMWs, and
+Humble 816/27 under Fast DDS. The ignored cases are manual allocation-probe stages. Humble excludes
 Iron-and-newer service-event tests; Kilted's larger count reflects its newer binding surface.
 [Recorded logs](validation/full-release-matrix-2026-11-01/README.md) are archived per environment
 with digests and no current-source pinning, so this record stays a per-commit snapshot.

@@ -69,7 +69,7 @@
     "tools/bench_ros/probe/probe.c": "fb969b91fc6e8f4755e4932f89044c1d35dc1dc5b5a9ff2175735e877bcb6394",
     "tools/bench_ros/probe/probe.h": "1e158b3e377055c8b746728a4920a74523bbf0958054d04c926d79becbb8fe8a",
     "README.md": "9f82ab0ddb047697e333508e605c3fa9de417707a880ad986a7b9853fd160917",
-    "docs/ROADMAP.md": "917cb170c718f122964417afc776ed3dbd772e7141dd44c8dd7d0bbab107dce6",
+    "docs/ROADMAP.md": "0ebcdfa5cf3a5939b93ee4444fb0c9e1c45c650bddfa531055090a98c5086942",
     "tests/check_documentation.py": "a47e29645dd82e803617ecbbbd49bab2bf2610bf7331ee077cce492e02114129",
     "docs/validation/idle-spin-resource-2026-11-01/README.md": "2e3c70ba8eca06e6467fe4aa7e6c091b425db2e457827d716ecd2d9d1f9be604",
     "docs/validation/idle-spin-resource-2026-11-01/run-jazzy.bash": "d315ee802638d507c37c01823242f29f14016eeba0a776891bee856792bc6031",
