@@ -7,6 +7,8 @@ When integration with the colcon build system is desired, a CMakeLists.txt file 
 
 This library differ a bit in style from rclpy and rclcpp as it eliminates all synchronous callbacks in favor of rust futures and streams. Coupled with the rust await syntax, this makes it very pleasant to work with ROS services and actions, even in a single threaded setup (see service.rs example). The library purposefully does not chose an async runtime -- this means that the user needs to take care of any task spawning. This also limits the API to what futures-rs provides.
 
+Blocking applications can call `Node::spin()` to drive every endpoint until the shared context is shut down; `spin_with_timeout` selects the idle wait bound and wait-set errors are propagated. `Node::context`, `Node::is_valid` and `Node::shutdown` expose the shared context for signal-driven or multi-node applications. Async applications keep driving streams/futures with `spin_once`, `spin_until_future_complete` or a shared executor.
+
 Documentation can be found on docs.rs: <https://docs.rs/r2r/latest/r2r>.
 
 For documentation and type checking without ROS, `cargo check --workspace --all-targets --features doc-only` uses the checked-in Jazzy bindings, including lifecycle, service events and example packages. Run `python3 tests/check_documentation.py` for the complete compiler and public-documentation gate. [Documentation builds](docs/DOCUMENTATION_BUILDS.md) describes the snapshot and refresh workflow.

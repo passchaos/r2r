@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "feature": {
+    "node_spin": true,
+    "spin_with_timeout": true,
+    "context_accessor": true,
+    "is_valid": true,
+    "node_shutdown": true
+  },
+  "resource_constraints": {
+    "single_cpu_compilation": true,
+    "cargo_build_jobs": 1,
+    "virtual_memory_limit_kib": 10485760
+  },
+  "gates": {
+    "jazzy": {
+      "artifact": "logs/final-jazzy.log.gz",
+      "artifact_sha256": "80b968c33e38813ee0ef1fe864b7824abbb89fa6304f1e20daf57e1a0884d826",
+      "uncompressed_sha256": "0857c00575c36d8a5901d65bfb21dafc43a3c8f1eaf6e437beea6f1f3e7e1f67",
+      "exit_code": 0
+    },
+    "humble": {
+      "artifact": "logs/final-humble.log.gz",
+      "artifact_sha256": "e3f93924135b861c4e8e66ffb63341f7475b960bcf5a58551e568fbc8ca4ffb3",
+      "uncompressed_sha256": "39d99be5cd0930f12ff2091f99ee0aff4c2fa7753938963899ca9b002fe78df2",
+      "exit_code": 0
+    },
+    "kilted": {
+      "artifact": "logs/final-kilted.log.gz",
+      "artifact_sha256": "5dde6e4b27477df3143abc617e199dfa9e715f0be2536c0e1c28f01be15192cd",
+      "uncompressed_sha256": "3862a3195a65212de35a88053c63231c5cbcc664b1abfe706e4597fa580b5c24",
+      "exit_code": 0
+    },
+    "clippy": {
+      "artifact": "logs/final-clippy.log.gz",
+      "artifact_sha256": "4633d1b0794b85db30eea10000fed46f854c5b91faac36f010082bab71b87531",
+      "uncompressed_sha256": "e41add7e8b4134a87173bf3ca4856a5b93669128c7284c023532013e651b7c45",
+      "exit_code": 0
+    },
+    "no_ros": {
+      "artifact": "logs/final-no-ros.log.gz",
+      "artifact_sha256": "595bbf09610b590ffd1eede4520ae9fa68cb1d54d9dbc43d40c28470dd837a59",
+      "uncompressed_sha256": "9b13779a29ffa28c8c9a1eba12e10750d524d483010652b0c4c858e92829faf4",
+      "exit_code": 0
+    }
+  },
+  "full_release": {
+    "passed_per_rmw": 837,
+    "ignored_per_rmw": 25,
+    "rmws": {
+      "rmw_cyclonedds_cpp": {
+        "artifact": "logs/full-release-cyclonedds.log.gz",
+        "artifact_sha256": "39dc8e0248309ae5df6b5a82e74be710fa2265390920c6acf7e72e09ccedb6ab",
+        "uncompressed_sha256": "bbde3cd1e359bae702f1950909810202b58d8490b95cdb8dd4a753abea9ea0ca",
+        "exit_code": 0
+      },
+      "rmw_fastrtps_cpp": {
+        "artifact": "logs/full-release-fastdds.log.gz",
+        "artifact_sha256": "d234e3346ab4136395831add29ebf0a14fe6e0358c19c6839ce3cac6c4db932d",
+        "uncompressed_sha256": "04db86a06fe706feb841f8a22a92d103ea5062a7d33efca41933e36f0df5823e",
+        "exit_code": 0
+      }
+    }
+  },
+  "no_ros_gate": {
+    "public_documentation_artifacts": 84,
+    "required_documented_methods": 341,
+    "all_targets_compiled": true,
+    "exit_code": 0
+  }
+}

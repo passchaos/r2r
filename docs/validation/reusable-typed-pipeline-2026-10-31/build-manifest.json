@@ -9,7 +9,7 @@
     "r2r/benches/pubsub_pipeline.rs": "130a91f1eafe134303c3a8caeb9e053344ff55c9945fe60b0870997a3e383c2a",
     "r2r/Cargo.toml": "48800c0843dc98d95924c9b323f1fe3ddd0755f23baa9ca67b394e55933ad091",
     "r2r/src/msg_types.rs": "47fd4f92e2d16912e36dfd7074893ba07365915b5ba7ed62761394555d2003af",
-    "r2r/src/nodes.rs": "ca4f18f5e8cec7133f8a346c683a8eeae62964a64096bd7b540e96a1eb4b209e",
+    "r2r/src/nodes.rs": "6230902aeea249f8d3a43f26c9b224f08b6ae34349a669547b82b094048ab654",
     "r2r/src/subscribers.rs": "8b8b9393498c613496ff4542bd7abfe9a2df2e26853f4754638775e12238d81f",
     "r2r/src/publishers.rs": "0515847a8810dee73d3bf42ceca6cc43fc6d0b0869f1c73c7d2d1d6bf5533f74",
     "r2r/src/clients.rs": "4347d059a54c62e339fc07f0044b9c2feb15ab0cd6600ba55c033fbfcc30bab0",

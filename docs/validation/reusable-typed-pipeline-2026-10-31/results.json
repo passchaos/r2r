@@ -15,17 +15,17 @@
       "records": 12,
       "samples": 1200,
       "artifact": "protocol/cyclonedds.json",
-      "artifact_sha256": "380b6b327a1ff6723209df64490c90eb72e8a3adbf3cca880554aa63391667eb",
+      "artifact_sha256": "f89703b2dd40e3dc75180643c95bdd18502d13ae26e4c184c97fa254645272e3",
       "samples_artifact": "protocol/protocol-cyclonedds_cpp.samples.json.gz",
-      "samples_sha256": "9f4a10a6c1d5907020aac7d7770e23a2994101af865caee5affc0c7d9759d22e"
+      "samples_sha256": "ee083d0f895c133124c5209738510360615f408b45be6d2d203e271b2d427680"
     },
     "fastdds": {
       "records": 12,
       "samples": 1200,
       "artifact": "protocol/fastdds.json",
-      "artifact_sha256": "2e5e6e465011fcdf7e7bf6d3e07398a57094a4654134f0167060637e3c56e45c",
+      "artifact_sha256": "76a0dcbd2f629430bc90967670e66f5ca777eeb2bf6e485f3c3be44e65c75e10",
       "samples_artifact": "protocol/protocol-fastrtps_cpp.samples.json.gz",
-      "samples_sha256": "8d9012d7bbdc4cc49cdce15caa0b2527bce8adcf99dbcdb675853627a33c8c6d"
+      "samples_sha256": "a283800933cffd0837eadab5b812d0566b02b5776c65e5371b1d972d6b003509"
     }
   },
   "cases": [
@@ -45,8 +45,8 @@
       "fanout": 4
     }
   ],
-  "build_manifest_sha256": "fbe1c3306b8c7daabea9ed2a09e3a31372b6891731a1d51b54b95942ef23d759",
-  "rust_binary_sha256": "c31da6dcdda27102598a8867b09eaee138b843e58354f951c96b6a3b94dd86d8",
+  "build_manifest_sha256": "f3a51564d29750ba27d03acd9d833ff47729e108ab3c270eff7bd7f874235ca2",
+  "rust_binary_sha256": "d85643f9b33a79b494ea7671196f5f120368dab0d2e72bec8c9a5cde32b91b51",
   "rclcpp_binary_sha256": "b56a3127888b28e7e0e4f3f32f1c1ce135bc41f688f3b33f549742f10f50a67f",
   "formal_performance": {
     "measurement_started": false,

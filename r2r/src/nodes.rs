@@ -349,6 +349,46 @@ impl Node {
         spin::spin_once(self, timeout)
     }
 
+    /// Block and spin until the shared context is shut down.
+    ///
+    /// Each iteration waits up to 100 ms when no ROS work is ready, so shutdown requests and
+    /// signal handlers are observed promptly. Use [`Self::spin_with_timeout`] to choose the
+    /// idle wait bound. A context shutdown that races with the native wait is treated as a
+    /// normal termination; other wait-set errors are returned.
+    pub fn spin(&mut self) -> Result<()> {
+        self.spin_with_timeout(Duration::from_millis(100))
+    }
+
+    /// Block and spin with an explicit idle wait bound until the shared context is shut down.
+    pub fn spin_with_timeout(&mut self, timeout: Duration) -> Result<()> {
+        while self.context.is_valid() {
+            match self.try_spin_once(timeout) {
+                Ok(()) => {}
+                Err(Error::RCL_RET_NOT_INIT) if !self.context.is_valid() => break,
+                Err(err) => return Err(err),
+            }
+        }
+        Ok(())
+    }
+
+    /// Returns the shared context used by this node.
+    pub fn context(&self) -> Context {
+        self.context.clone()
+    }
+
+    /// Reports whether this node's shared context is still valid.
+    pub fn is_valid(&self) -> bool {
+        self.context.is_valid()
+    }
+
+    /// Shuts down the shared context, ending every node created from it.
+    ///
+    /// This is equivalent to calling [`Context::shutdown`] on [`Self::context`]. It is safe to
+    /// call more than once and wakes blocking spins and futures.
+    pub fn shutdown(&self) -> Result<()> {
+        self.context.shutdown()
+    }
+
     /// Get the ros logger name for this node.
     pub fn logger(&self) -> &str {
         self.try_logger().unwrap_or("")
@@ -553,6 +593,31 @@ mod tests {
             assert_eq!(receiver.next().now_or_never().flatten(), Some(expected));
         }
         assert!(receiver.next().now_or_never().is_none());
+    }
+
+    #[test]
+    fn spin_returns_after_shared_context_shutdown() {
+        let context = crate::Context::create().unwrap();
+        let shutdown_context = context.clone();
+        let handle = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(50));
+            shutdown_context.shutdown().unwrap();
+        });
+        let mut node = Node::create(context, "spin_shutdown", "").unwrap();
+        node.spin_with_timeout(Duration::from_millis(10)).unwrap();
+        handle.join().unwrap();
+        assert!(!node.is_valid());
+    }
+
+    #[test]
+    fn node_context_accessor_and_shutdown_forward_to_shared_context() {
+        let context = crate::Context::create().unwrap();
+        let node = Node::create(context.clone(), "node_context_access", "").unwrap();
+        assert!(node.is_valid());
+        assert!(node.context().is_valid());
+        node.shutdown().unwrap();
+        assert!(!node.is_valid());
+        assert!(!context.is_valid());
     }
 
     #[derive(Debug)]
