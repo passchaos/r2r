@@ -39,6 +39,25 @@ def summarize(path):
                 "cpp_median_rss_kib": cpp_rss,
                 "rust_to_cpp_ratio": ratio,
             }
+        same_language = [
+            record for record in records
+            if (record["elements"], record["window"], record["fanout"]) == case
+            and record["ping_language"] == record["echo_language"]
+        ]
+        rust_cpu = next(record["ping"]["pair_user_cpu_ns"] for record in same_language
+                        if record["ping_language"] == "rust")
+        cpp_cpu = next(record["ping"]["pair_user_cpu_ns"] for record in same_language
+                       if record["ping_language"] == "cpp")
+        if rust_cpu <= 0 or cpp_cpu <= 0:
+            raise RuntimeError(f"{path}: missing pair CPU")
+        cpu_ratio = rust_cpu / cpp_cpu
+        if cpu_ratio < 0.25 or cpu_ratio > 4.0:
+            raise RuntimeError(f"{path}: implausible pair CPU ratio {cpu_ratio}")
+        summary[f"{case[0]}_{case[1]}_{case[2]}_pair_cpu"] = {
+            "rust_user_cpu_ns": rust_cpu,
+            "cpp_user_cpu_ns": cpp_cpu,
+            "rust_to_cpp_ratio": cpu_ratio,
+        }
     return {
         "rmw": report["metadata"]["rmw"],
         "receive_paths": report["metadata"]["receive_paths"],

@@ -9,6 +9,7 @@ import math
 import os
 from pathlib import Path
 import platform
+import resource
 import statistics
 import subprocess
 import tempfile
@@ -190,6 +191,10 @@ def validate_endpoint(result, role, rmw, elements, window, fanout, iterations, w
     rss = result.get("process_max_rss_kib")
     if rss is not None and (type(rss) is not int or rss <= 0):
         raise RuntimeError("invalid pipeline process RSS")
+    for field in ("pair_user_cpu_ns", "pair_system_cpu_ns"):
+        value = result.get(field)
+        if value is not None and (type(value) is not int or value < 0):
+            raise RuntimeError("invalid pipeline pair CPU")
     total = iterations + warmup
     checksum = total * (total - 1) // 2
     expected_inflight = min(window, max(iterations, warmup))
@@ -289,6 +294,7 @@ def pair(ping, echo, cpu_ping, cpu_echo, env, case, iterations, warmup, prefix,
     with tempfile.TemporaryDirectory(prefix="r2r-pubsub-pipeline-") as directory:
         output = Path(directory) / "echo.json"
         errors = Path(directory) / "echo.log"
+        cpu_before = resource.getrusage(resource.RUSAGE_CHILDREN)
         with output.open("w") as out, errors.open("w") as err:
             responder = subprocess.Popen(
                 ["taskset", "-c", str(cpu_echo), str(echo), "echo", *parameters],
@@ -327,6 +333,13 @@ def pair(ping, echo, cpu_ping, cpu_echo, env, case, iterations, warmup, prefix,
                         responder.wait()
             ping_result["process_max_rss_kib"] = ping_peak[0]
             echo_result["process_max_rss_kib"] = echo_peak[0]
+            cpu_after = resource.getrusage(resource.RUSAGE_CHILDREN)
+            pair_user_cpu_ns = int((cpu_after.ru_utime - cpu_before.ru_utime) * 1e9)
+            pair_system_cpu_ns = int((cpu_after.ru_stime - cpu_before.ru_stime) * 1e9)
+            ping_result["pair_user_cpu_ns"] = pair_user_cpu_ns
+            ping_result["pair_system_cpu_ns"] = pair_system_cpu_ns
+            echo_result["pair_user_cpu_ns"] = pair_user_cpu_ns
+            echo_result["pair_system_cpu_ns"] = pair_system_cpu_ns
     for result, role, receive_path in [
             (ping_result, "ping", ping_receive_path),
             (echo_result, "echo", echo_receive_path)]:

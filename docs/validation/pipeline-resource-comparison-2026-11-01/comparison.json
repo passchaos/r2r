@@ -10,34 +10,49 @@
       },
       "summary": {
         "0_1_1_ping": {
-          "rust_median_rss_kib": 13672.0,
-          "cpp_median_rss_kib": 16244.0,
-          "rust_to_cpp_ratio": 0.8416646146269392
+          "rust_median_rss_kib": 13648.0,
+          "cpp_median_rss_kib": 16180.0,
+          "rust_to_cpp_ratio": 0.8435105067985167
         },
         "0_1_1_echo": {
-          "rust_median_rss_kib": 13584.0,
-          "cpp_median_rss_kib": 16096.0,
-          "rust_to_cpp_ratio": 0.8439363817097415
+          "rust_median_rss_kib": 13668.0,
+          "cpp_median_rss_kib": 16146.0,
+          "rust_to_cpp_ratio": 0.8465254552211074
+        },
+        "0_1_1_pair_cpu": {
+          "rust_user_cpu_ns": 11161000,
+          "cpp_user_cpu_ns": 18390999,
+          "rust_to_cpp_ratio": 0.6068729599735175
         },
         "4096_16_1_ping": {
-          "rust_median_rss_kib": 19544.0,
-          "cpp_median_rss_kib": 18400.0,
-          "rust_to_cpp_ratio": 1.0621739130434782
+          "rust_median_rss_kib": 19620.0,
+          "cpp_median_rss_kib": 18342.0,
+          "rust_to_cpp_ratio": 1.069676153091266
         },
         "4096_16_1_echo": {
-          "rust_median_rss_kib": 19528.0,
-          "cpp_median_rss_kib": 18226.0,
-          "rust_to_cpp_ratio": 1.0714364095248545
+          "rust_median_rss_kib": 19710.0,
+          "cpp_median_rss_kib": 18098.0,
+          "rust_to_cpp_ratio": 1.0890706155376284
+        },
+        "4096_16_1_pair_cpu": {
+          "rust_user_cpu_ns": 17513000,
+          "cpp_user_cpu_ns": 25714000,
+          "rust_to_cpp_ratio": 0.6810686785408727
         },
         "4096_8_4_ping": {
-          "rust_median_rss_kib": 19274.0,
-          "cpp_median_rss_kib": 18124.0,
-          "rust_to_cpp_ratio": 1.0634517766497462
+          "rust_median_rss_kib": 19112.0,
+          "cpp_median_rss_kib": 18154.0,
+          "rust_to_cpp_ratio": 1.0527707392310235
         },
         "4096_8_4_echo": {
-          "rust_median_rss_kib": 30642.0,
-          "cpp_median_rss_kib": 19002.0,
-          "rust_to_cpp_ratio": 1.6125670982001894
+          "rust_median_rss_kib": 30376.0,
+          "cpp_median_rss_kib": 19026.0,
+          "rust_to_cpp_ratio": 1.5965520866183118
+        },
+        "4096_8_4_pair_cpu": {
+          "rust_user_cpu_ns": 18468000,
+          "cpp_user_cpu_ns": 16158000,
+          "rust_to_cpp_ratio": 1.142963238024508
         }
       }
     },
@@ -49,34 +64,49 @@
       },
       "summary": {
         "0_1_1_ping": {
-          "rust_median_rss_kib": 23496.0,
-          "cpp_median_rss_kib": 26456.0,
-          "rust_to_cpp_ratio": 0.8881161173268823
+          "rust_median_rss_kib": 23582.0,
+          "cpp_median_rss_kib": 26604.0,
+          "rust_to_cpp_ratio": 0.8864080589385055
         },
         "0_1_1_echo": {
-          "rust_median_rss_kib": 23716.0,
-          "cpp_median_rss_kib": 26618.0,
-          "rust_to_cpp_ratio": 0.890976031257044
+          "rust_median_rss_kib": 23530.0,
+          "cpp_median_rss_kib": 26428.0,
+          "rust_to_cpp_ratio": 0.8903435749962161
+        },
+        "0_1_1_pair_cpu": {
+          "rust_user_cpu_ns": 30472999,
+          "cpp_user_cpu_ns": 40147000,
+          "rust_to_cpp_ratio": 0.7590355194659626
         },
         "4096_16_1_ping": {
-          "rust_median_rss_kib": 25216.0,
-          "cpp_median_rss_kib": 27710.0,
-          "rust_to_cpp_ratio": 0.9099963911945146
+          "rust_median_rss_kib": 25078.0,
+          "cpp_median_rss_kib": 27774.0,
+          "rust_to_cpp_ratio": 0.902930798588608
         },
         "4096_16_1_echo": {
-          "rust_median_rss_kib": 25112.0,
-          "cpp_median_rss_kib": 27912.0,
-          "rust_to_cpp_ratio": 0.8996847234164517
+          "rust_median_rss_kib": 25052.0,
+          "cpp_median_rss_kib": 27612.0,
+          "rust_to_cpp_ratio": 0.9072866869477039
+        },
+        "4096_16_1_pair_cpu": {
+          "rust_user_cpu_ns": 33287000,
+          "cpp_user_cpu_ns": 38040999,
+          "rust_to_cpp_ratio": 0.8750295963573407
         },
         "4096_8_4_ping": {
-          "rust_median_rss_kib": 24678.0,
-          "cpp_median_rss_kib": 27212.0,
-          "rust_to_cpp_ratio": 0.9068793179479642
+          "rust_median_rss_kib": 24610.0,
+          "cpp_median_rss_kib": 27390.0,
+          "rust_to_cpp_ratio": 0.8985031033223805
         },
         "4096_8_4_echo": {
-          "rust_median_rss_kib": 26118.0,
-          "cpp_median_rss_kib": 28796.0,
-          "rust_to_cpp_ratio": 0.9070009723572718
+          "rust_median_rss_kib": 25938.0,
+          "cpp_median_rss_kib": 28826.0,
+          "rust_to_cpp_ratio": 0.8998126691181573
+        },
+        "4096_8_4_pair_cpu": {
+          "rust_user_cpu_ns": 38816999,
+          "cpp_user_cpu_ns": 43060000,
+          "rust_to_cpp_ratio": 0.9014630515559684
         }
       }
     }
